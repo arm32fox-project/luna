@@ -6,7 +6,6 @@
 
 #include "angle/Platform.h"
 #include "gfxConfig.h"
-#include "gfxCrashReporterUtils.h"
 #include "gfxUtils.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Assertions.h"
@@ -33,9 +32,6 @@ namespace gl {
 
 StaticMutex GLLibraryEGL::sMutex;
 GLLibraryEGL sEGLLibrary;
-#ifdef MOZ_B2G
-MOZ_THREAD_LOCAL(EGLContext) GLLibraryEGL::sCurrentContext;
-#endif
 
 // should match the order of EGLExtensions, and be null-terminated.
 static const char* sEGLExtensionNames[] = {
@@ -302,13 +298,6 @@ GLLibraryEGL::EnsureInitialized(bool forceAccel, nsACString* const out_failureId
     if (mInitialized) {
         return true;
     }
-
-    mozilla::ScopedGfxFeatureReporter reporter("EGL");
-
-#ifdef MOZ_B2G
-    if (!sCurrentContext.init())
-      MOZ_CRASH("GFX: Tls init failed");
-#endif
 
 #ifdef XP_WIN
     if (!mEGLLibrary) {
@@ -632,7 +621,6 @@ GLLibraryEGL::EnsureInitialized(bool forceAccel, nsACString* const out_failureId
     }
 
     mInitialized = true;
-    reporter.SetSuccessful();
     return true;
 }
 

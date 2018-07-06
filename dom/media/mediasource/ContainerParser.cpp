@@ -390,7 +390,7 @@ private:
         "ftyp", "moov", // init segment
         "pdin", "free", "sidx", // optional prior moov box
         "styp", "moof", "mdat", // media segment
-        "mfra", "skip", "meta", "meco", "ssix", "prft" // others.
+        "mfra", "skip", "meta", "meco", "ssix", "prft", // others.
         "pssh", // optional with encrypted EME, though ignored.
         "emsg", // ISO23009-1:2014 Section 5.10.3.3
         "bloc", "uuid" // boxes accepted by chrome.
@@ -588,8 +588,8 @@ public:
       return false;
     }
     size_t header_length = have_crc ? 9 : 7;
-    size_t data_length = (((*aData)[3] & 0x03) << 11) ||
-                         (((*aData)[4] & 0xff) << 3) ||
+    size_t data_length = (((*aData)[3] & 0x03) << 11) |
+                         (((*aData)[4] & 0xff) << 3) |
                          (((*aData)[5] & 0xe0) >> 5);
     uint8_t frames = ((*aData)[6] & 0x03) + 1;
     MOZ_ASSERT(frames > 0);

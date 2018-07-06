@@ -42,8 +42,7 @@ pref("browser.cache.auto_delete_cache_version", 0);
 // Preference for switching the cache backend, can be changed freely at runtime
 // 0 - use the old (Darin's) cache
 // 1 - use the new cache back-end (cache v2)
-pref("browser.cache.use_new_backend",       0);
-pref("browser.cache.use_new_backend_temp",  true);
+pref("browser.cache.backend", 1);
 
 pref("browser.cache.disk.enable",           true);
 // Is this the first-time smartsizing has been introduced?
@@ -118,6 +117,14 @@ pref("browser.cache.compression_level", 0);
 // Don't show "Open with" option on download dialog if true.
 pref("browser.download.forbid_open_with", false);
 
+#ifdef XP_WIN
+// Save internet zone information on downloaded files:
+// 0 => Never
+// 1 => Always
+// 2 => Use system setting
+pref("browser.download.saveZoneInformation", 2);
+#endif
+
 // Whether or not testing features are enabled.
 pref("dom.quotaManager.testing", false);
 
@@ -175,6 +182,9 @@ pref("dom.enable_resource_timing", true);
 // Enable high-resolution timing markers for users
 pref("dom.enable_user_timing", true);
 
+// Whether performance.GetEntries* will contain an entry for the active document
+pref("dom.enable_performance_navigation_timing", true);
+
 // Enable printing performance marks/measures to log
 pref("dom.performance.enable_user_timing_logging", false);
 
@@ -184,6 +194,9 @@ pref("dom.performance.enable_notify_performance_timing", false);
 // Enable Permission API's .revoke() method
 pref("dom.permissions.revoke.enable", false);
 
+// Enable exposing timeToNonBlankPaint
+pref("dom.performance.time_to_non_blank_paint.enabled", false);
+
 // Enable Performance Observer API
 #ifdef NIGHTLY_BUILD
 pref("dom.enable_performance_observer", true);
@@ -192,11 +205,11 @@ pref("dom.enable_performance_observer", false);
 #endif
 
 // Enable requestIdleCallback API
-#ifdef NIGHTLY_BUILD
 pref("dom.requestIdleCallback.enabled", true);
-#else
-pref("dom.requestIdleCallback.enabled", false);
-#endif
+
+// Enable Intersection Observers
+// See WD https://w3c.github.io/IntersectionObserver/
+pref("dom.IntersectionObserver.enabled", false);
 
 // Whether the Gamepad API is enabled
 pref("dom.gamepad.enabled", true);
@@ -441,20 +454,6 @@ pref("media.webrtc.debug.aec_log_dir", "");
 pref("media.webrtc.debug.log_file", "");
 pref("media.webrtc.debug.aec_dump_max_size", 4194304); // 4MB
 
-#ifdef MOZ_WIDGET_GONK
-pref("media.navigator.video.default_width", 320);
-pref("media.navigator.video.default_height", 240);
-pref("media.peerconnection.enabled", true);
-pref("media.peerconnection.video.enabled", true);
-pref("media.navigator.video.max_fs", 1200); // 640x480 == 1200mb
-pref("media.navigator.video.max_fr", 30);
-pref("media.navigator.video.h264.level", 12); // 0x42E00C - level 1.2
-pref("media.navigator.video.h264.max_br", 700); // 8x10
-pref("media.navigator.video.h264.max_mbps", 11880); // CIF@30fps
-pref("media.peerconnection.video.h264_enabled", false);
-pref("media.peerconnection.video.vp9_enabled", false);
-pref("media.getusermedia.aec", 4);
-#else
 pref("media.navigator.video.default_width",0);  // adaptive default
 pref("media.navigator.video.default_height",0); // adaptive default
 pref("media.peerconnection.enabled", true);
@@ -468,9 +467,7 @@ pref("media.peerconnection.video.h264_enabled", false);
 pref("media.peerconnection.video.vp9_enabled", true);
 pref("media.getusermedia.aec", 1);
 pref("media.getusermedia.browser.enabled", true);
-#endif
-// Gonk typically captures at QVGA, and so min resolution is QQVGA or
-// 160x120; 100Kbps is plenty for that.
+
 // Desktop is typically VGA capture or more; and qm_select will not drop resolution
 // below 1/2 in each dimension (or so), so QVGA (320x200) is the lowest here usually.
 pref("media.peerconnection.video.min_bitrate", 0);
@@ -570,7 +567,7 @@ pref("media.mediasource.enabled", true);
 
 pref("media.mediasource.mp4.enabled", true);
 
-#if defined(XP_WIN) || defined(XP_MACOSX) || defined(MOZ_WIDGET_GONK) || defined(MOZ_WIDGET_ANDROID)
+#if defined(XP_WIN) || defined(XP_MACOSX) || defined(MOZ_WIDGET_ANDROID)
 pref("media.mediasource.webm.enabled", false);
 #else
 pref("media.mediasource.webm.enabled", true);
@@ -690,7 +687,7 @@ pref("apz.y_stationary_size_multiplier", "3.5");
 pref("apz.zoom_animation_duration_ms", 250);
 pref("apz.scale_repaint_delay_ms", 500);
 
-#if defined(MOZ_WIDGET_GONK) || defined(MOZ_WIDGET_ANDROID)
+#if defined(MOZ_WIDGET_ANDROID)
 // Mobile prefs
 pref("apz.allow_zooming", true);
 pref("apz.enlarge_displayport_when_clipped", true);
@@ -706,7 +703,7 @@ pref("apz.y_stationary_size_multiplier", "1.5");
 pref("gfx.hidpi.enabled", 2);
 #endif
 
-#if !defined(MOZ_WIDGET_GONK) && !defined(MOZ_WIDGET_ANDROID)
+#if !defined(MOZ_WIDGET_ANDROID)
 // Use containerless scrolling for now on desktop.
 pref("layout.scroll.root-frame-containers", false);
 #endif
@@ -777,16 +774,17 @@ pref("gfx.font_rendering.opentype_svg.enabled", true);
 // comma separated list of backends to use in order of preference
 // e.g., pref("gfx.canvas.azure.backends", "direct2d,skia,cairo");
 pref("gfx.canvas.azure.backends", "direct2d1.1,skia,cairo");
-pref("gfx.content.azure.backends", "direct2d1.1,skia,cairo");
+pref("gfx.content.azure.backends", "direct2d1.1,cairo");
 #else
 #ifdef XP_MACOSX
-pref("gfx.content.azure.backends", "skia");
-pref("gfx.canvas.azure.backends", "skia");
+pref("gfx.content.azure.backends", "cg");
+pref("gfx.canvas.azure.backends", "skia,cg");
 // Accelerated cg canvas where available (10.7+)
 pref("gfx.canvas.azure.accelerated", true);
 #else
-pref("gfx.canvas.azure.backends", "skia");
-pref("gfx.content.azure.backends", "skia");
+// Linux etc.
+pref("gfx.canvas.azure.backends", "skia,cairo");
+pref("gfx.content.azure.backends", "cairo");
 #endif
 #endif
 
@@ -1156,7 +1154,7 @@ pref("dom.require_user_interaction_for_beforeunload", true);
 
 pref("dom.disable_open_during_load",                false);
 pref("dom.popup_maximum",                           20);
-pref("dom.popup_allowed_events", "change click dblclick mouseup notificationclick reset submit touchend");
+pref("dom.popup_allowed_events", "change click dblclick mouseup pointerup notificationclick reset submit touchend");
 pref("dom.disable_open_click_delay", 1000);
 
 pref("dom.storage.enabled", true);
@@ -1179,9 +1177,12 @@ pref("dom.forms.number", true);
 // platforms which don't have a color picker implemented yet.
 pref("dom.forms.color", true);
 
-// Support for input type=date, time, month, week and datetime-local. By
-// default, disabled.
+// Support for input type=date and type=time. By default, disabled.
 pref("dom.forms.datetime", false);
+
+// Support for input type=month, type=week and type=datetime-local. By default,
+// disabled.
+pref("dom.forms.datetime.others", false);
 
 // Enable time picker UI. By default, disabled.
 pref("dom.forms.datetime.timepicker", false);
@@ -1219,7 +1220,11 @@ pref("privacy.donottrackheader.enabled",    false);
 // Enforce tracking protection in all modes
 pref("privacy.trackingprotection.enabled",  false);
 // Enforce tracking protection in Private Browsing mode
+#ifdef MOZ_SAFE_BROWSING
 pref("privacy.trackingprotection.pbmode.enabled",  true);
+#else
+pref("privacy.trackingprotection.pbmode.enabled",  false);
+#endif
 
 pref("dom.event.contextmenu.enabled",       true);
 pref("dom.event.clipboardevents.enabled",   true);
@@ -1246,7 +1251,7 @@ pref("javascript.options.wasm",             false);
 pref("javascript.options.wasm_baselinejit", false);
 pref("javascript.options.native_regexp",    true);
 pref("javascript.options.parallel_parsing", true);
-#if !defined(RELEASE_OR_BETA) && !defined(ANDROID) && !defined(MOZ_B2G) && !defined(XP_IOS)
+#if !defined(RELEASE_OR_BETA) && !defined(ANDROID) && !defined(XP_IOS)
 pref("javascript.options.asyncstack",       true);
 #else
 pref("javascript.options.asyncstack",       false);
@@ -2032,7 +2037,7 @@ pref("intl.accept_languages",               "chrome://global/locale/intl.propert
 pref("intl.menuitems.alwaysappendaccesskeys","chrome://global/locale/intl.properties");
 pref("intl.menuitems.insertseparatorbeforeaccesskeys","chrome://global/locale/intl.properties");
 pref("intl.charset.detector",               "chrome://global/locale/intl.properties");
-pref("intl.charset.fallback.override",      "");
+pref("intl.charset.fallback.override",      "*"); // '*' to make sure the UI selects the proper entry for 'auto'
 pref("intl.charset.fallback.tld",           true);
 pref("intl.ellipsis",                       "chrome://global-platform/locale/intl.properties");
 pref("intl.locale.matchOS",                 false);
@@ -2130,14 +2135,6 @@ pref("font.name.monospace.x-math", "monospace");
 // These fonts are ignored the underline offset, instead of it, the underline is lowered to bottom of its em descent.
 pref("font.blacklist.underline_offset", "FangSong,Gulim,GulimChe,MingLiU,MingLiU-ExtB,MingLiU_HKSCS,MingLiU-HKSCS-ExtB,MS Gothic,MS Mincho,MS PGothic,MS PMincho,MS UI Gothic,PMingLiU,PMingLiU-ExtB,SimHei,SimSun,SimSun-ExtB,Hei,Kai,Apple LiGothic,Apple LiSung,Osaka");
 
-#ifdef MOZ_B2G
-// Whitelist of fonts that ship with B2G that do not include space lookups in
-// default features. This allows us to skip analyzing the GSUB/GPOS tables
-// unless features are explicitly enabled.
-// Use NSPR_LOG_MODULES=fontinit:5 to dump out details of space lookups
-pref("font.whitelist.skip_default_features_space_check", "Fira Sans,Fira Mono");
-#endif
-
 pref("images.dither", "auto");
 pref("security.directory",              "");
 
@@ -2168,18 +2165,8 @@ pref("security.block_script_with_wrong_mime", true);
 // Block images of wrong MIME for XCTO: nosniff.
 pref("security.xcto_nosniff_block_images", false);
 
-// OCSP must-staple
-pref("security.ssl.enable_ocsp_must_staple", true);
-
 // Insecure Form Field Warning
 pref("security.insecure_field_warning.contextual.enabled", false);
-
-// Disable pinning checks by default.
-pref("security.cert_pinning.enforcement_level", 0);
-// Do not process hpkp headers rooted by not built in roots by default.
-// This is to prevent accidental pinning from MITM devices and is used
-// for tests.
-pref("security.cert_pinning.process_headers_from_non_builtin_roots", false);
 
 // If set to true, allow view-source URIs to be opened from URIs that share
 // their protocol with the inner URI of the view-source URI
@@ -2502,9 +2489,12 @@ pref("layout.css.convertFromNode.enabled", true);
 // Is support for CSS "text-align: unsafe X" enabled?
 pref("layout.css.text-align-unsafe-value.enabled", false);
 
+// Is support for CSS text-justify property enabled?
+pref("layout.css.text-justify.enabled", true);
+
 // Is support for CSS "float: inline-{start,end}" and
 // "clear: inline-{start,end}" enabled?
-#if defined(MOZ_B2G) || !defined(RELEASE_OR_BETA)
+#if !defined(RELEASE_OR_BETA)
 pref("layout.css.float-logical-values.enabled", true);
 #else
 pref("layout.css.float-logical-values.enabled", false);
@@ -3154,6 +3144,10 @@ pref("ui.mouse.radius.inputSource.touchOnly", true);
 
 #ifdef XP_WIN
 
+// Be as uniform as possible, use Twemoji everywhere. 
+// Optional: prefix with `Segoe UI Emoji` to use Win8+ Segoe UI font emoji where available.
+pref("font.name-list.emoji", "Twemoji Mozilla");
+
 pref("font.name.serif.ar", "Times New Roman");
 pref("font.name.sans-serif.ar", "Segoe UI");
 pref("font.name-list.sans-serif.ar", "Segoe UI, Tahoma, Arial");
@@ -3398,7 +3392,7 @@ pref("gfx.font_rendering.cleartype_params.force_gdi_classic_for_families",
      "Arial,Consolas,Courier New,Microsoft Sans Serif,Segoe UI,Tahoma,Trebuchet MS,Verdana");
 // The maximum size at which we will force GDI classic mode using
 // force_gdi_classic_for_families.
-pref("gfx.font_rendering.cleartype_params.force_gdi_classic_max_size", 15);
+pref("gfx.font_rendering.cleartype_params.force_gdi_classic_max_size", 17);
 
 pref("ui.key.menuAccessKeyFocuses", true);
 
@@ -3578,6 +3572,8 @@ pref("ui.osk.debug.keyboardDisplayReason", "");
 // Mac specific preference defaults
 pref("browser.drag_out_of_frame_style", 1);
 pref("ui.key.saveLink.shift", false); // true = shift, false = meta
+
+pref("font.name-list.emoji", "Apple Color Emoji");
 
 // default fonts (in UTF8 and using canonical names)
 // to determine canonical font names, use a debug build and
@@ -4001,6 +3997,10 @@ pref("print.print_extra_margin", 0); // twips
 
 // font names
 
+// fontconfig doesn't support emoji yet
+// https://lists.freedesktop.org/archives/fontconfig/2016-October/005842.html
+pref("font.name-list.emoji", "Twemoji Mozilla");
+
 pref("font.name.serif.ar", "serif");
 pref("font.name.sans-serif.ar", "sans-serif");
 pref("font.name.monospace.ar", "monospace");
@@ -4158,7 +4158,7 @@ pref("gfx.font_rendering.fontconfig.max_generic_substitutions", 3);
 #endif
 #endif
 
-#if defined(ANDROID) || defined(MOZ_B2G)
+#if defined(ANDROID)
 
 pref("font.size.fixed.ar", 12);
 
@@ -4176,74 +4176,13 @@ pref("font.size.fixed.x-unicode", 12);
 pref("font.default.x-western", "sans-serif");
 pref("font.size.fixed.x-western", 12);
 
-# ANDROID || MOZ_B2G
+# ANDROID
 #endif
 
-#if defined(MOZ_B2G)
-// Gonk, FxOS Simulator, B2G Desktop and Mulet.
-
-// TODO: some entries could probably be cleaned up.
-
-// ar
-
-pref("font.name.serif.el", "Droid Serif"); // not Charis SIL Compact, only has a few Greek chars
-pref("font.name.sans-serif.el", "Fira Sans");
-pref("font.name.monospace.el", "Fira Mono");
-
-pref("font.name.serif.he", "Charis SIL Compact");
-pref("font.name.sans-serif.he", "Fira Sans");
-pref("font.name.monospace.he", "Fira Mono");
-pref("font.name-list.sans-serif.he", "Droid Sans Hebrew, Fira Sans");
-
-pref("font.name.serif.ja", "Charis SIL Compact");
-pref("font.name.sans-serif.ja", "Fira Sans");
-pref("font.name.monospace.ja", "MotoyaLMaru");
-pref("font.name-list.sans-serif.ja", "Fira Sans, MotoyaLMaru, MotoyaLCedar, Droid Sans Japanese");
-pref("font.name-list.monospace.ja", "MotoyaLMaru, MotoyaLCedar, Fira Mono");
-
-pref("font.name.serif.ko", "Charis SIL Compact");
-pref("font.name.sans-serif.ko", "Fira Sans");
-pref("font.name.monospace.ko", "Fira Mono");
-
-pref("font.name.serif.th", "Charis SIL Compact");
-pref("font.name.sans-serif.th", "Fira Sans");
-pref("font.name.monospace.th", "Fira Mono");
-pref("font.name-list.sans-serif.th", "Fira Sans, Noto Sans Thai, Droid Sans Thai");
-
-pref("font.name.serif.x-cyrillic", "Charis SIL Compact");
-pref("font.name.sans-serif.x-cyrillic", "Fira Sans");
-pref("font.name.monospace.x-cyrillic", "Fira Mono");
-
-pref("font.name.serif.x-unicode", "Charis SIL Compact");
-pref("font.name.sans-serif.x-unicode", "Fira Sans");
-pref("font.name.monospace.x-unicode", "Fira Mono");
-
-pref("font.name.serif.x-western", "Charis SIL Compact");
-pref("font.name.sans-serif.x-western", "Fira Sans");
-pref("font.name.monospace.x-western", "Fira Mono");
-
-pref("font.name.serif.zh-CN", "Charis SIL Compact");
-pref("font.name.sans-serif.zh-CN", "Fira Sans");
-pref("font.name.monospace.zh-CN", "Fira Mono");
-pref("font.name-list.sans-serif.zh-CN", "Fira Sans,Droid Sans Fallback");
-
-pref("font.name.serif.zh-HK", "Charis SIL Compact");
-pref("font.name.sans-serif.zh-HK", "Fira Sans");
-pref("font.name.monospace.zh-HK", "Fira Mono");
-pref("font.name-list.sans-serif.zh-HK", "Fira Sans,Droid Sans Fallback");
-
-pref("font.name.serif.zh-TW", "Charis SIL Compact");
-pref("font.name.sans-serif.zh-TW", "Fira Sans");
-pref("font.name.monospace.zh-TW", "Fira Mono");
-pref("font.name-list.sans-serif.zh-TW", "Fira Sans,Droid Sans Fallback");
-
-pref("font.name.serif.x-math", "Latin Modern Math");
-pref("font.name-list.serif.x-math", "Latin Modern Math, XITS Math, Cambria Math, Libertinus Math, DejaVu Math TeX Gyre, TeX Gyre Bonum Math, TeX Gyre Pagella Math, TeX Gyre Schola, TeX Gyre Termes Math, STIX Math, Asana Math, STIXGeneral, DejaVu Serif, DejaVu Sans, Charis SIL Compact");
-pref("font.name.sans-serif.x-math", "Fira Sans");
-pref("font.name.monospace.x-math", "Fira Mono");
-
-#elif defined(ANDROID)
+#if defined(ANDROID)
 // We use the bundled fonts for Firefox for Android
+
+pref("font.name-list.emoji", "Noto Color Emoji");
 
 // ar
 
@@ -4511,10 +4450,6 @@ pref("webgl.dxgl.needs-finish", false);
 
 pref("gfx.offscreencanvas.enabled", false);
 
-#ifdef MOZ_WIDGET_GONK
-pref("gfx.gralloc.fence-with-readpixels", false);
-#endif
-
 // Stagefright prefs
 pref("stagefright.force-enabled", false);
 pref("stagefright.disabled", false);
@@ -4566,7 +4501,7 @@ pref("layers.acceleration.force-enabled", false);
 pref("layers.acceleration.draw-fps", false);
 
 // Enable DEAA antialiasing for transformed layers in the compositor
-#if !defined(MOZ_WIDGET_GONK) && !defined(MOZ_WIDGET_ANDROID)
+#if !defined(MOZ_WIDGET_ANDROID)
 // Desktop prefs
 pref("layers.deaa.enabled", true);
 #else
@@ -4642,7 +4577,7 @@ pref("gfx.apitrace.enabled",false);
 #ifdef MOZ_X11
 pref("gfx.content.use-native-pushlayer", true);
 #ifdef MOZ_WIDGET_GTK
-pref("gfx.xrender.enabled",false);
+pref("gfx.xrender.enabled", true);
 #endif
 #endif
 
@@ -4745,23 +4680,16 @@ pref("alerts.showFavicons", false);
 
 // DOM full-screen API.
 pref("full-screen-api.enabled", false);
-#ifdef RELEASE_OR_BETA
-pref("full-screen-api.unprefix.enabled", false);
-#else
 pref("full-screen-api.unprefix.enabled", true);
-#endif
 pref("full-screen-api.allow-trusted-requests-only", true);
 pref("full-screen-api.pointer-lock.enabled", true);
+
 // transition duration of fade-to-black and fade-from-black, unit: ms
-#ifndef MOZ_WIDGET_GTK
-pref("full-screen-api.transition-duration.enter", "200 200");
-pref("full-screen-api.transition-duration.leave", "200 200");
-#else
 pref("full-screen-api.transition-duration.enter", "0 0");
 pref("full-screen-api.transition-duration.leave", "0 0");
-#endif
+
 // timeout for black screen in fullscreen transition, unit: ms
-pref("full-screen-api.transition.timeout", 1000);
+pref("full-screen-api.transition.timeout", 500);
 // time for the warning box stays on the screen before sliding out, unit: ms
 pref("full-screen-api.warning.timeout", 3000);
 // delay for the warning box to show when pointer stays on the top, unit: ms
@@ -4877,7 +4805,7 @@ pref("layout.css.expensive-style-struct-assertions.enabled", false);
 // enable JS dump() function.
 pref("browser.dom.window.dump.enabled", false);
 
-#if defined(MOZ_WIDGET_GONK) || defined(MOZ_WIDGET_ANDROID)
+#if defined(MOZ_WIDGET_ANDROID)
 // Network Information API
 pref("dom.netinfo.enabled", true);
 #else
@@ -4921,18 +4849,6 @@ pref("memory.dump_reports_on_oom", false);
 
 // Number of stack frames to capture in createObjectURL for about:memory.
 pref("memory.blob_report.stack_frames", 0);
-
-// comma separated list of domain origins (e.g. https://domain.com) that still
-// need localStorage in the frameworker
-pref("social.whitelist", "https://mozsocial.cliqz.com");
-// comma separated list of domain origins (e.g. https://domain.com) for
-// directory websites (e.g. AMO) that can install providers for other sites
-pref("social.directories", "https://activations.cdn.mozilla.net");
-// remote-install allows any website to activate a provider, with extended UI
-// notifying user of installation. we can later pref off remote install if
-// necessary. This does not affect whitelisted and directory installs.
-pref("social.remote-install.enabled", true);
-pref("social.toast-notifications.enabled", true);
 
 // Disable idle observer fuzz, because only privileged content can access idle
 // observers (bug 780507).
@@ -5059,6 +4975,7 @@ pref("dom.flyweb.enabled", false);
 // Enable mapped array buffer by default.
 pref("dom.mapped_arraybuffer.enabled", true);
 
+#ifdef MOZ_SAFE_BROWSING
 // The tables used for Safebrowsing phishing and malware checks.
 pref("urlclassifier.malwareTable", "goog-malware-shavar,goog-unwanted-shavar,test-malware-simple,test-unwanted-simple");
 
@@ -5166,6 +5083,7 @@ pref("browser.safebrowsing.id", "navclient-auto-ffox");
 #else
 pref("browser.safebrowsing.id", "Firefox");
 #endif
+#endif
 
 // Turn off Spatial navigation by default.
 pref("snav.enabled", false);
@@ -5240,15 +5158,6 @@ pref("camera.control.face_detection.enabled", true);
 
 // SW Cache API
 pref("dom.caches.enabled", true);
-
-#ifdef MOZ_WIDGET_GONK
-// Empirically, this is the value returned by hal::GetTotalSystemMemory()
-// when Flame's memory is limited to 512MiB. If the camera stack determines
-// it is running on a low memory platform, features that can be reliably
-// supported will be disabled. This threshold can be adjusted to suit other
-// platforms; and set to 0 to disable the low-memory check altogether.
-pref("camera.control.low_memory_thresholdMB", 404);
-#endif
 
 // SystemUpdate API
 pref("dom.system_update.enabled", false);
@@ -5329,7 +5238,6 @@ pref("browser.search.geoip.timeout", 3000);
 pref("browser.search.official", true);
 #endif
 
-#ifndef MOZ_WIDGET_GONK
 // GMPInstallManager prefs
 
 // User-settable override to media.gmp-manager.url for testing purposes.
@@ -5365,7 +5273,6 @@ pref("media.gmp-manager.certs.1.issuerName", "CN=DigiCert SHA2 Secure Server CA,
 pref("media.gmp-manager.certs.1.commonName", "aus5.mozilla.org");
 pref("media.gmp-manager.certs.2.issuerName", "CN=thawte SSL CA - G2,O=\"thawte, Inc.\",C=US");
 pref("media.gmp-manager.certs.2.commonName", "aus5.mozilla.org");
-#endif
 
 // Whether or not to perform reader mode article parsing on page load.
 // If this pref is disabled, we will never show a reader mode icon in the toolbar.
@@ -5422,13 +5329,6 @@ pref("narrate.voice", " { \"default\": \"automatic\" }");
 // Only make voices that match content language available.
 pref("narrate.filter-voices", true);
 
-#if defined(XP_LINUX) && defined(MOZ_GMP_SANDBOX)
-// Whether to allow, on a Linux system that doesn't support the necessary sandboxing
-// features, loading Gecko Media Plugins unsandboxed.  However, EME CDMs will not be
-// loaded without sandboxing even if this pref is changed.
-pref("media.gmp.insecure.allow", false);
-#endif
-
 pref("dom.audiochannel.mutedByDefault", false);
 
 // Enable <details> and <summary> tags.
@@ -5446,15 +5346,8 @@ pref("dom.secureelement.enabled", false);
 // and compositionend events.
 pref("dom.compositionevent.allow_control_characters", false);
 
-#ifdef MOZ_WIDGET_GONK
-// Bug 1154053: Serialize B2G memory reports; smaller devices are
-// usually overcommitted on memory by using zRAM, so memory reporting
-// causes memory pressure from uncompressing cold heap memory.
-pref("memory.report_concurrency", 1);
-#else
-// Desktop probably doesn't have swapped-out children like that.
+// Desktop probably doesn't have swapped-out children.
 pref("memory.report_concurrency", 10);
-#endif
 
 // Add Mozilla AudioChannel APIs.
 pref("media.useAudioChannelAPI", false);
@@ -5523,7 +5416,7 @@ pref("dom.maxHardwareConcurrency", 16);
 pref("osfile.reset_worker_delay", 30000);
 #endif
 
-#if !defined(MOZ_WIDGET_GONK) && !defined(MOZ_WIDGET_ANDROID)
+#if !defined(MOZ_WIDGET_ANDROID)
 pref("dom.webkitBlink.dirPicker.enabled", true);
 pref("dom.webkitBlink.filesystem.enabled", true);
 #endif
@@ -5539,22 +5432,11 @@ pref("media.block-autoplay-until-in-foreground", false);
 pref("layout.css.servo.enabled", true);
 #endif
 
-// HSTS Priming
-// If a request is mixed-content, send an HSTS priming request to attempt to
-// see if it is available over HTTPS.
-#ifdef RELEASE_OR_BETA
-// Don't change the order of evaluation of mixed-content and HSTS upgrades in
-// order to be most compatible with current standards
-pref("security.mixed_content.send_hsts_priming", false);
-pref("security.mixed_content.use_hsts", false);
-#else
-// Change the order of evaluation so HSTS upgrades happen before
-// mixed-content blocking
-pref("security.mixed_content.send_hsts_priming", true);
-pref("security.mixed_content.use_hsts", true);
-#endif
-// Approximately 1 week default cache for HSTS priming failures
-pref ("security.mixed_content.hsts_priming_cache_timeout", 10080);
+// Block toplevel data: URI navigations
+// If true, all toplevel data: URI navigations will be blocked.
+// Please note that manually entering a data: URI in the
+// URL-Bar will not be blocked when flipping this pref.
+pref("security.data_uri.block_toplevel_data_uri_navigations", true);
 
 // Disable Storage api in release builds.
 #ifdef NIGHTLY_BUILD

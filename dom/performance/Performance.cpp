@@ -13,23 +13,21 @@
 #include "PerformanceMeasure.h"
 #include "PerformanceObserver.h"
 #include "PerformanceResourceTiming.h"
+#include "PerformanceService.h"
 #include "PerformanceWorker.h"
 #include "mozilla/ErrorResult.h"
 #include "mozilla/dom/PerformanceBinding.h"
 #include "mozilla/dom/PerformanceEntryEvent.h"
 #include "mozilla/dom/PerformanceNavigationBinding.h"
 #include "mozilla/dom/PerformanceObserverBinding.h"
+#include "mozilla/dom/PerformanceNavigationTiming.h"
 #include "mozilla/IntegerPrintfMacros.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/TimerClamping.h"
 #include "WorkerPrivate.h"
 #include "WorkerRunnable.h"
 
-#ifdef MOZ_WIDGET_GONK
-#define PERFLOG(msg, ...)  __android_log_print(ANDROID_LOG_INFO, "PerformanceTiming", msg, ##__VA_ARGS__)
-#else
 #define PERFLOG(msg, ...) printf_stderr(msg, ##__VA_ARGS__)
-#endif
 
 namespace mozilla {
 namespace dom {
@@ -37,27 +35,6 @@ namespace dom {
 using namespace workers;
 
 namespace {
-
-// Helper classes
-class MOZ_STACK_CLASS PerformanceEntryComparator final
-{
-public:
-  bool Equals(const PerformanceEntry* aElem1,
-              const PerformanceEntry* aElem2) const
-  {
-    MOZ_ASSERT(aElem1 && aElem2,
-               "Trying to compare null performance entries");
-    return aElem1->StartTime() == aElem2->StartTime();
-  }
-
-  bool LessThan(const PerformanceEntry* aElem1,
-                const PerformanceEntry* aElem2) const
-  {
-    MOZ_ASSERT(aElem1 && aElem2,
-               "Trying to compare null performance entries");
-    return aElem1->StartTime() < aElem2->StartTime();
-  }
-};
 
 class PrefEnabledRunnable final
   : public WorkerCheckAPIExposureOnMainThreadRunnable
@@ -103,14 +80,12 @@ NS_IMPL_RELEASE_INHERITED(Performance, DOMEventTargetHelper)
 /* static */ already_AddRefed<Performance>
 Performance::CreateForMainThread(nsPIDOMWindowInner* aWindow,
                                  nsDOMNavigationTiming* aDOMTiming,
-                                 nsITimedChannel* aChannel,
-                                 Performance* aParentPerformance)
+                                 nsITimedChannel* aChannel)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
   RefPtr<Performance> performance =
-    new PerformanceMainThread(aWindow, aDOMTiming, aChannel,
-                              aParentPerformance);
+    new PerformanceMainThread(aWindow, aDOMTiming, aChannel);
   return performance.forget();
 }
 
@@ -141,6 +116,24 @@ Performance::Performance(nsPIDOMWindowInner* aWindow)
 
 Performance::~Performance()
 {}
+
+DOMHighResTimeStamp
+Performance::Now() const
+{
+  TimeDuration duration = TimeStamp::Now() - CreationTimeStamp();
+  return RoundTime(duration.ToMilliseconds());
+}
+
+DOMHighResTimeStamp
+Performance::TimeOrigin()
+{
+  if (!mPerformanceService) {
+    mPerformanceService = PerformanceService::GetOrCreate();
+  }
+
+  MOZ_ASSERT(mPerformanceService);
+  return mPerformanceService->TimeOrigin(CreationTimeStamp());
+}
 
 JSObject*
 Performance::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto)
@@ -266,7 +259,7 @@ Performance::ClearMarks(const Optional<nsAString>& aName)
 
 DOMHighResTimeStamp
 Performance::ResolveTimestampFromName(const nsAString& aName,
-                                          ErrorResult& aRv)
+                                      ErrorResult& aRv)
 {
   AutoTArray<RefPtr<PerformanceEntry>, 1> arr;
   DOMHighResTimeStamp ts;

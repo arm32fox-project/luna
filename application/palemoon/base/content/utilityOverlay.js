@@ -9,6 +9,9 @@ Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
 Components.utils.import("resource:///modules/RecentWindow.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this, "ShellService",
+                                  "resource:///modules/ShellService.jsm");
+
 XPCOMUtils.defineLazyGetter(this, "BROWSER_NEW_TAB_URL", function () {
   const PREF = "browser.newtab.url";
 
@@ -104,7 +107,8 @@ function openUILink(url, event, aIgnoreButton, aIgnoreAlt, aAllowThirdPartyFixup
       allowThirdPartyFixup: aAllowThirdPartyFixup,
       postData: aPostData,
       referrerURI: aReferrerURI,
-      initiatingDoc: event ? event.target.ownerDocument : null
+      referrerPolicy: Components.interfaces.nsIHttpChannel.REFERRER_POLICY_DEFAULT,
+      initiatingDoc: event ? event.target.ownerDocument : null,
     };
   }
 
@@ -196,7 +200,8 @@ function openUILinkIn(url, where, aAllowThirdPartyFixup, aPostData, aReferrerURI
     params = {
       allowThirdPartyFixup: aAllowThirdPartyFixup,
       postData: aPostData,
-      referrerURI: aReferrerURI
+      referrerURI: aReferrerURI,
+      referrerPolicy: Components.interfaces.nsIHttpChannel.REFERRER_POLICY_DEFAULT,
     };
   }
 
@@ -205,16 +210,22 @@ function openUILinkIn(url, where, aAllowThirdPartyFixup, aPostData, aReferrerURI
   openLinkIn(url, where, params);
 }
 
+/* eslint-disable complexity */
 function openLinkIn(url, where, params) {
   if (!where || !url)
     return;
+  const Cc = Components.classes;
+  const Ci = Components.interfaces;
 
   var aFromChrome           = params.fromChrome;
   var aAllowThirdPartyFixup = params.allowThirdPartyFixup;
   var aPostData             = params.postData;
   var aCharset              = params.charset;
   var aReferrerURI          = params.referrerURI;
+  var aReferrerPolicy       = ('referrerPolicy' in params ?
+      params.referrerPolicy : Ci.nsIHttpChannel.REFERRER_POLICY_DEFAULT);
   var aRelatedToCurrent     = params.relatedToCurrent;
+  var aForceAllowDataURI    = params.forceAllowDataURI;
   var aInBackground         = params.inBackground;
   var aDisallowInheritPrincipal = params.disallowInheritPrincipal;
   var aInitiatingDoc        = params.initiatingDoc;
@@ -227,11 +238,10 @@ function openLinkIn(url, where, params) {
         "where == 'save' but without initiatingDoc.  See bug 814264.");
       return;
     }
+    // TODO(1073187): propagate referrerPolicy.
     saveURL(url, null, null, true, null, aReferrerURI, aInitiatingDoc);
     return;
   }
-  const Cc = Components.classes;
-  const Ci = Components.interfaces;
 
   var w = getTopWin();
   if ((where == "tab" || where == "tabshifted") &&
@@ -240,7 +250,12 @@ function openLinkIn(url, where, params) {
     aRelatedToCurrent = false;
   }
 
+  // We can only do this after we're sure of what |w| will be the rest of this function.
+  // Note that if |w| is null we might have no current browser (we'll open a new window).
+  var aCurrentBrowser = params.currentBrowser || (w && w.gBrowser.selectedBrowser);
+  
   if (!w || where == "window") {
+    // This propagates to window.arguments.
     // Strip referrer data when opening a new private window, to prevent
     // regular browsing data from leaking into it.
     if (aIsPrivate) {
@@ -265,12 +280,23 @@ function openLinkIn(url, where, params) {
                                        createInstance(Ci.nsISupportsPRBool);
     allowThirdPartyFixupSupports.data = aAllowThirdPartyFixup;
 
+    var referrerURISupports = null;
+    if (aReferrerURI && sendReferrerURI) {
+      referrerURISupports = Cc["@mozilla.org/supports-string;1"].
+                            createInstance(Ci.nsISupportsString);
+      referrerURISupports.data = aReferrerURI.spec;
+    }
+
+    var referrerPolicySupports = Cc["@mozilla.org/supports-PRUint32;1"].
+                                 createInstance(Ci.nsISupportsPRUint32);
+    referrerPolicySupports.data = aReferrerPolicy;
+
     sa.AppendElement(wuri);
     sa.AppendElement(charset);
-    if (sendReferrerURI)
-      sa.AppendElement(aReferrerURI);
+    sa.AppendElement(referrerURISupports);
     sa.AppendElement(aPostData);
     sa.AppendElement(allowThirdPartyFixupSupports);
+    sa.AppendElement(referrerPolicySupports);
 
     let features = "chrome,dialog=no,all";
     if (aIsPrivate) {
@@ -306,6 +332,7 @@ function openLinkIn(url, where, params) {
   // result in a new frontmost window (e.g. "javascript:window.open('');").
   w.focus();
 
+  let browserUsedForLoad = null;
   switch (where) {
   case "current":
     let flags = Ci.nsIWebNavigation.LOAD_FLAGS_NONE;
@@ -314,28 +341,45 @@ function openLinkIn(url, where, params) {
       flags |= Ci.nsIWebNavigation.LOAD_FLAGS_FIXUP_SCHEME_TYPOS;
     }
     if (aDisallowInheritPrincipal)
-      flags |= Ci.nsIWebNavigation.LOAD_FLAGS_DISALLOW_INHERIT_OWNER;
-    w.gBrowser.loadURIWithFlags(url, flags, aReferrerURI, null, aPostData);
+      flags |= Ci.nsIWebNavigation.LOAD_FLAGS_DISALLOW_INHERIT_PRINCIPAL;
+    if (aForceAllowDataURI) {
+      flags |= Ci.nsIWebNavigation.LOAD_FLAGS_FORCE_ALLOW_DATA_URI;
+    }
+    w.gBrowser.loadURIWithFlags(url, {
+                                flags: flags,
+                                referrerURI: aReferrerURI,
+                                referrerPolicy: aReferrerPolicy,
+                                postData: aPostData,
+                                }); 
+    browserUsedForLoad = aCurrentBrowser;
     break;
   case "tabshifted":
     loadInBackground = !loadInBackground;
     // fall through
   case "tab":
     let browser = w.gBrowser;
-    browser.loadOneTab(url, {
-                       referrerURI: aReferrerURI,
-                       charset: aCharset,
-                       postData: aPostData,
-                       inBackground: loadInBackground,
-                       allowThirdPartyFixup: aAllowThirdPartyFixup,
-                       relatedToCurrent: aRelatedToCurrent});
+    let tabUsedForLoad = browser.loadOneTab(url, {
+                           referrerURI: aReferrerURI,
+                           referrerPolicy: aReferrerPolicy,
+                           charset: aCharset,
+                           postData: aPostData,
+                           inBackground: loadInBackground,
+                           allowThirdPartyFixup: aAllowThirdPartyFixup,
+                           relatedToCurrent: aRelatedToCurrent});
+    browserUsedForLoad = tabUsedForLoad.linkedBrowser;
     break;
   }
 
-  w.gBrowser.selectedBrowser.focus();
+  // Focus the content, but only if the browser used for the load is selected.
+  if (browserUsedForLoad &&
+      browserUsedForLoad == browserUsedForLoad.getTabBrowser().selectedBrowser) {
+    browserUsedForLoad.focus();
+  }
 
   if (!loadInBackground && w.isBlankPageURL(url))
-    w.focusAndSelectUrlBar();
+    if (!w.focusAndSelectUrlBar()) {
+      console.error("Unable to focus and select address bar.")
+    }
 }
 
 // Used as an onclick handler for UI elements with link-like behavior.
@@ -420,15 +464,10 @@ function gatherTextUnder ( root )
   return text;
 }
 
+// This function exists for legacy reasons.
 function getShellService()
 {
-  var shell = null;
-  try {
-    shell = Components.classes["@mozilla.org/browser/shell-service;1"]
-      .getService(Components.interfaces.nsIShellService);
-  } catch (e) {
-  }
-  return shell;
+  return ShellService;
 }
 
 function isBidiEnabled() {
@@ -572,9 +611,11 @@ function makeURLAbsolute(aBase, aUrl)
  * @param [optional] aReferrer
  *        If aDocument is null, then this will be used as the referrer.
  *        There will be no security check.
+ * @param [optional] aReferrerPolicy
+ *        Referrer policy - Ci.nsIHttpChannel.REFERRER_POLICY_*.
  */ 
 function openNewTabWith(aURL, aDocument, aPostData, aEvent,
-                        aAllowThirdPartyFixup, aReferrer) {
+                        aAllowThirdPartyFixup, aReferrer, aReferrerPolicy) {
   if (aDocument)
     urlSecurityCheck(aURL, aDocument.nodePrincipal);
 
@@ -589,10 +630,13 @@ function openNewTabWith(aURL, aDocument, aPostData, aEvent,
              { charset: originCharset,
                postData: aPostData,
                allowThirdPartyFixup: aAllowThirdPartyFixup,
-               referrerURI: aDocument ? aDocument.documentURIObject : aReferrer });
+               referrerURI: aDocument ? aDocument.documentURIObject : aReferrer,
+               referrerPolicy: aReferrerPolicy,
+             });
 }
 
-function openNewWindowWith(aURL, aDocument, aPostData, aAllowThirdPartyFixup, aReferrer) {
+function openNewWindowWith(aURL, aDocument, aPostData, aAllowThirdPartyFixup,
+                           aReferrer, aReferrerPolicy) {
   if (aDocument)
     urlSecurityCheck(aURL, aDocument.nodePrincipal);
 
@@ -609,7 +653,9 @@ function openNewWindowWith(aURL, aDocument, aPostData, aAllowThirdPartyFixup, aR
              { charset: originCharset,
                postData: aPostData,
                allowThirdPartyFixup: aAllowThirdPartyFixup,
-               referrerURI: aDocument ? aDocument.documentURIObject : aReferrer });
+               referrerURI: aDocument ? aDocument.documentURIObject : aReferrer,
+               referrerPolicy: aReferrerPolicy,
+             });
 }
 
 /**

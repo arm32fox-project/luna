@@ -224,6 +224,11 @@ pref("keyword.enabled", true);
 pref("general.useragent.locale", "@AB_CD@");
 pref("general.skins.selectedSkin", "classic/1.0");
 
+// Native UA mode by default
+pref("general.useragent.compatMode", 0);
+pref("general.useragent.compatmode.gecko", false);
+pref("general.useragent.compatmode.firefox", false);
+
 pref("general.smoothScroll", true);
 #ifdef UNIX_BUT_NOT_MAC
 pref("general.autoScroll", false);
@@ -236,6 +241,15 @@ pref("general.useragent.complexOverride.moodle", false); // bug 797703
 // At startup, check if we're the default browser and prompt user if not.
 pref("browser.shell.checkDefaultBrowser", true);
 pref("browser.shell.shortcutFavicons",true);
+pref("browser.shell.mostRecentDateSetAsDefault", "");
+#ifdef RELEASE_OR_BETA
+pref("browser.shell.skipDefaultBrowserCheckOnFirstRun", false);
+#else
+pref("browser.shell.skipDefaultBrowserCheckOnFirstRun", true);
+#endif
+pref("browser.shell.skipDefaultBrowserCheck", true);
+pref("browser.shell.defaultBrowserCheckCount", 0);
+pref("browser.defaultbrowser.notificationbar", false);
 
 // 0 = blank, 1 = home (browser.startup.homepage), 2 = last visited page, 3 = resume previous browser session
 // The behavior of option 3 is detailed at: http://wiki.mozilla.org/Session_Restore
@@ -667,6 +681,9 @@ pref("browser.backspace_action", 2);
 pref("browser.backspace_action", 0);
 #endif
 
+// Pale Moon never eats the space with word selection, regardless of O.S.
+pref("layout.word_select.eat_space_to_next_word", false);
+
 // this will automatically enable inline spellchecking (if it is available) for
 // editable elements in HTML
 // 0 = spellcheck nothing
@@ -756,6 +773,7 @@ pref("goanna.handlerService.allowRegisterFromDifferentHost", false);
 
 pref("browser.geolocation.warning.infoURL", "http://www.palemoon.org/info-url/geolocation.shtml");
 pref("browser.mixedcontent.warning.infoURL", "http://www.palemoon.org/info-url/mixedcontent.shtml");
+pref("browser.push.warning.infoURL", "https://www.mozilla.org/%LOCALE%/firefox/push/");
 
 pref("browser.EULA.version", 3);
 pref("browser.rights.version", 3);
@@ -999,7 +1017,6 @@ pref("services.sync.prefs.sync.privacy.clearOnShutdown.sessions", true);
 pref("services.sync.prefs.sync.privacy.clearOnShutdown.siteSettings", true);
 pref("services.sync.prefs.sync.privacy.clearOnShutdown.connectivityData", true);
 pref("services.sync.prefs.sync.privacy.donottrackheader.enabled", true);
-pref("services.sync.prefs.sync.privacy.donottrackheader.value", true);
 pref("services.sync.prefs.sync.privacy.sanitize.sanitizeOnShutdown", true);
 pref("services.sync.prefs.sync.security.OCSP.enabled", true);
 pref("services.sync.prefs.sync.security.OCSP.require", true);
@@ -1039,19 +1056,19 @@ pref("browser.newtabpage.enabled", true);
 // XXX: Remove this when "enhanced" tiles are dead
 pref("browser.newtabpage.enhanced", false);
 
+// enables showing basic placeholders for missing thumbnails
+pref("browser.newtabpage.thumbnailPlaceholder", false);
+
+pref("privacy.usercontext.about_newtab_segregation.enabled", false);
+
 // number of columns of newtab grid
 pref("browser.newtabpage.columns", 4);
 
 // number of rows of newtab grid
-pref("browser.newtabpage.rows", 4);
+pref("browser.newtabpage.rows", 3);
 
 // Enable the DOM fullscreen API.
 pref("full-screen-api.enabled", true);
-
-// True if the fullscreen API requires approval upon a domain entering fullscreen.
-// Domains that have already had fullscreen permission granted won't re-request
-// approval.
-pref("full-screen-api.approval-required", true);
 
 // about:permissions
 // Maximum number of sites to return from the places database.
@@ -1074,6 +1091,8 @@ pref("security.csp.speccompliant", true);
 // Block insecure active content on https pages
 pref("security.mixed_content.block_active_content", true);
 
+// Disable HPKP telemetry
+pref("security.ssl.errorReporting.enabled", false);
 
 // Override the Goanna-default value of false for Firefox.
 pref("plain_text.wrap_long_lines", true);
@@ -1102,6 +1121,17 @@ pref("browser.padlock.urlbar_background", 2);
 
 //Pale Moon standalone image background color
 pref("browser.display.standalone_images.background_color", "#2E3B41");
+
+// These are the thumbnail width/height set in about:newtab.
+// If you change this, make sure the size is sufficient for tile sizes
+// in about:newtab. These values are in CSS pixels.
+pref("toolkit.pageThumbs.minWidth", 250);
+pref("toolkit.pageThumbs.minHeight", 180);
+
+// On GTK, we now default to showing the menubar only when alt is pressed:
+#ifdef MOZ_WIDGET_GTK
+pref("ui.key.menuAccessKeyFocuses", true);
+#endif
 
 // ****************** domain-specific UAs ******************
 

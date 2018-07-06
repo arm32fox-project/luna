@@ -30,7 +30,7 @@
               <xul:vbox flex="1" class="browserContainer">
                 <xul:stack flex="1" class="browserStack" anonid="browserStack">
                   <xul:browser anonid="initialBrowser" type="content-primary" message="true" disablehistory="true"
-                               xbl:inherits="tooltip=contenttooltip,contextmenu=contentcontextmenu,autocompletepopup"/>
+                               xbl:inherits="tooltip=contenttooltip,contextmenu=contentcontextmenu,autocompletepopup,datetimepicker"/>
                 </xul:stack>
               </xul:vbox>
             </xul:hbox>
@@ -73,7 +73,7 @@
                   .getService(Components.interfaces.nsIFaviconService);
       </field>
       <field name="_placesAutocomplete" readonly="true">
-         Components.classes["@mozilla.org/autocomplete/search;1?name=unifiedcomplete"]
+         Components.classes["@mozilla.org/autocomplete/search;1?name=history"]
                    .getService(Components.interfaces.mozIPlacesAutoComplete);
       </field>
       <field name="mTabBox" readonly="true">
@@ -128,6 +128,10 @@
         false
       </field>
 
+      <field name="_lastFindValue">
+        ""
+      </field>
+
       <property name="_numPinnedTabs" readonly="true">
         <getter><![CDATA[
           for (var i = 0; i < this.tabs.length; i++) {
@@ -138,21 +142,58 @@
         ]]></getter>
       </property>
 
-      <property name="formValidationAnchor" readonly="true">
+      <property name="popupAnchor" readonly="true">
         <getter><![CDATA[
-        if (this.mCurrentTab._formValidationAnchor) {
-          return this.mCurrentTab._formValidationAnchor;
+        if (this.mCurrentTab._popupAnchor) {
+          return this.mCurrentTab._popupAnchor;
         }
         let stack = this.mCurrentBrowser.parentNode;
-        // Create an anchor for the form validation popup
+        // Create an anchor for the popup
         const NS_XUL = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
-        let formValidationAnchor = document.createElementNS(NS_XUL, "hbox");
-        formValidationAnchor.className = "form-validation-anchor";
-        formValidationAnchor.hidden = true;
-        stack.appendChild(formValidationAnchor);
-        return this.mCurrentTab._formValidationAnchor = formValidationAnchor;
+        let popupAnchor = document.createElementNS(NS_XUL, "hbox");
+        popupAnchor.className = "popup-anchor";
+        popupAnchor.hidden = true;
+        stack.appendChild(popupAnchor);
+        return this.mCurrentTab._popupAnchor = popupAnchor;
         ]]></getter>
       </property>
+
+      <method name="isFindBarInitialized">
+        <parameter name="aTab"/>
+        <body><![CDATA[
+          return (aTab || this.selectedTab)._findBar != undefined;
+        ]]></body>
+      </method>
+
+      <method name="getFindBar">
+        <parameter name="aTab"/>
+        <body><![CDATA[
+          if (!aTab)
+            aTab = this.selectedTab;
+
+          if (aTab._findBar)
+            return aTab._findBar;
+
+          let findBar = document.createElementNS(this.namespaceURI, "findbar");
+          let browser = this.getBrowserForTab(aTab);
+          let browserContainer = this.getBrowserContainer(browser);
+          browserContainer.appendChild(findBar);
+
+          // Force a style flush to ensure that our binding is attached.
+          findBar.clientTop;
+
+          findBar.browser = browser;
+          findBar._findField.value = this._lastFindValue;
+
+          aTab._findBar = findBar;
+
+          let event = document.createEvent("Events");
+          event.initEvent("TabFindInitialized", true, false);
+          aTab.dispatchEvent(event);
+
+          return findBar;
+        ]]></body>
+      </method>
 
       <method name="updateWindowResizers">
         <body><![CDATA[
@@ -570,6 +611,12 @@
 
               const nsIWebProgressListener = Components.interfaces.nsIWebProgressListener;
               const nsIChannel = Components.interfaces.nsIChannel;
+              let location, originalLocation;
+              try {
+                aRequest.QueryInterface(nsIChannel)
+                location = aRequest.URI;
+                originalLocation = aRequest.originalURI;
+              } catch (ex) {}
 
               if (aStateFlags & nsIWebProgressListener.STATE_START) {
                 this.mRequestCount++;
@@ -588,16 +635,8 @@
 
               if (aStateFlags & nsIWebProgressListener.STATE_START &&
                   aStateFlags & nsIWebProgressListener.STATE_IS_NETWORK) {
-                // It's okay to clear what the user typed when we start
-                // loading a document. If the user types, this counter gets
-                // set to zero, if the document load ends without an
-                // onLocationChange, this counter gets decremented
-                // (so we keep it while switching tabs after failed loads)
-                // We need to add 2 because loadURIWithFlags may have
-                // cancelled a pending load which would have cleared
-                // its anchor scroll detection temporary increment.
                 if (aWebProgress.isTopLevel)
-                  this.mBrowser.userTypedClear += 2;
+                  this.mBrowser.urlbarChangeTracker.startedLoad();
 
                 if (this._shouldShowProgress(aRequest)) {
                   if (!(aStateFlags & nsIWebProgressListener.STATE_RESTORING)) {
@@ -625,8 +664,8 @@
                 this.mTab.removeAttribute("progress");
 
                 if (aWebProgress.isTopLevel) {
-                  if (!Components.isSuccessCode(aStatus) &&
-                      !isTabEmpty(this.mTab)) {
+                  let isSuccessful = Components.isSuccessCode(aStatus);
+                  if (!isSuccessful && !isTabEmpty(this.mTab)) {
                     // Restore the current document's location in case the
                     // request was stopped (possibly from a content script)
                     // before the location changed.
@@ -635,14 +674,8 @@
 
                     if (this.mTab.selected && gURLBar)
                       URLBarSetURI();
-                  } else {
-                    // The document is done loading, we no longer want the
-                    // value cleared.
-
-                    if (this.mBrowser.userTypedClear > 1)
-                      this.mBrowser.userTypedClear -= 2;
-                    else if (this.mBrowser.userTypedClear > 0)
-                      this.mBrowser.userTypedClear--;
+                  } else if (isSuccessful) {
+                    this.mBrowser.urlbarChangeTracker.finishedLoad();
                   }
 
                   if (!this.mBrowser.mIconURL)
@@ -651,8 +684,6 @@
 
                 if (this.mBlank)
                   this.mBlank = false;
-
-                var location = aRequest.QueryInterface(nsIChannel).URI;
 
                 // For keyword URIs clear the user typed value since they will be changed into real URIs
                 if (location.scheme == "keyword")
@@ -696,13 +727,12 @@
               let topLevel = aWebProgress.isTopLevel;
 
               if (topLevel) {
-                // If userTypedClear > 0, the document loaded correctly and we should be
-                // clearing the user typed value. We also need to clear the typed value
+                // We need to clear the typed value
                 // if the document failed to load, to make sure the urlbar reflects the
                 // failed URI (particularly for SSL errors). However, don't clear the value
                 // if the error page's URI is about:blank, because that causes complete
                 // loss of urlbar contents for invalid URI errors (see bug 867957).
-                if (this.mBrowser.userTypedClear > 0 ||
+                if (this.mBrowser.didStartLoadSinceLastUserTyping() ||
                     ((aFlags & Ci.nsIWebProgressListener.LOCATION_CHANGE_ERROR_PAGE) &&
                      aLocation.spec != "about:blank"))
                   this.mBrowser.userTypedValue = null;
@@ -738,8 +768,10 @@
                                              aFlags]);
               }
 
-              if (topLevel)
+              if (topLevel) {
                 this.mBrowser.lastURI = aLocation;
+                this.mBrowser.lastLocationChange = Date.now();
+              }
             },
 
             onStatusChange: function (aWebProgress, aRequest, aStatus, aMessage) {
@@ -778,19 +810,28 @@
       <method name="setIcon">
         <parameter name="aTab"/>
         <parameter name="aURI"/>
+        <parameter name="aLoadingPrincipal"/>
         <body>
           <![CDATA[
-            var browser = this.getBrowserForTab(aTab);
+            let browser = this.getBrowserForTab(aTab);
             browser.mIconURL = aURI instanceof Ci.nsIURI ? aURI.spec : aURI;
 
             if (aURI && this.mFaviconService) {
-              if (!(aURI instanceof Ci.nsIURI))
+              if (!(aURI instanceof Ci.nsIURI)) {
                 aURI = makeURI(aURI);
-              this.mFaviconService.setAndFetchFaviconForPage(browser.currentURI,
-                                                             aURI, false,
-                                                             PrivateBrowsingUtils.isWindowPrivate(window) ?
-                                                               this.mFaviconService.FAVICON_LOAD_PRIVATE :
-                                                               this.mFaviconService.FAVICON_LOAD_NON_PRIVATE);
+              }
+              // We do not serialize the principal from within SessionStore.jsm,
+              // hence if aLoadingPrincipal is null we default to the
+              // systemPrincipal which will allow the favicon to load.
+              let loadingPrincipal = aLoadingPrincipal
+                ? aLoadingPrincipal
+                : Services.scriptSecurityManager.getSystemPrincipal();
+              let loadType = PrivateBrowsingUtils.isWindowPrivate(window)
+                ? this.mFaviconService.FAVICON_LOAD_PRIVATE
+                : this.mFaviconService.FAVICON_LOAD_NON_PRIVATE;
+
+              this.mFaviconService.setAndFetchFaviconForPage(
+                browser.currentURI, aURI, false, loadType, null, loadingPrincipal);
             }
 
             let sizedIconUrl = browser.mIconURL || "";
@@ -886,7 +927,7 @@
               if (!this.isFailedIcon(url))
                 icon = url;
             }
-            this.setIcon(aTab, icon);
+            this.setIcon(aTab, icon, browser.contentPrincipal);
           ]]>
         </body>
       </method>
@@ -1063,9 +1104,11 @@
               this.mCurrentTab.removeAttribute("unread");
               this.selectedTab.lastAccessed = Date.now();
 
-              // Bug 666816 - TypeAheadFind support for e10s
-              if (!gMultiProcessBrowser)
-                this._fastFind.setDocShell(this.mCurrentBrowser.docShell);
+              let oldFindBar = oldTab._findBar;
+              if (oldFindBar &&
+                  oldFindBar.findMode == oldFindBar.FIND_NORMAL &&
+                  !oldFindBar.hidden)
+                this._lastFindValue = oldFindBar._findField.value;
 
               this.updateTitlebar();
 
@@ -1116,6 +1159,11 @@
 
               // Adjust focus
               oldBrowser._urlbarFocused = (gURLBar && gURLBar.focused);
+              if (this.isFindBarInitialized(oldTab)) {
+                let findBar = this.getFindBar(oldTab);
+                oldTab._findBarFocused = (!findBar.hidden &&
+                  findBar._findField.getAttribute("focused") == "true");
+              }
               do {
                 // When focus is in the tab bar, retain it there.
                 if (document.activeElement == oldTab) {
@@ -1151,11 +1199,12 @@
                   }
                 }
 
-                // If the find bar is focused, keep it focused.
-                if (gFindBarInitialized &&
-                    !gFindBar.hidden &&
-                    gFindBar.getElement("findbar-textbox").getAttribute("focused") == "true")
+                // Focus the find bar if it was previously focused for that tab.
+                if (gFindBarInitialized && !gFindBar.hidden &&
+                    this.selectedTab._findBarFocused) {
+                  gFindBar._findField.focus();
                   break;
+                }
 
                 // Otherwise, focus the content area.
                 let fm = Cc["@mozilla.org/focus-manager;1"].getService(Ci.nsIFocusManager);
@@ -1264,6 +1313,7 @@
         <parameter name="aAllowThirdPartyFixup"/>
         <body>
           <![CDATA[
+            var aReferrerPolicy;
             var aFromExternal;
             var aRelatedToCurrent;
             if (arguments.length == 2 &&
@@ -1271,6 +1321,7 @@
                 !(arguments[1] instanceof Ci.nsIURI)) {
               let params = arguments[1];
               aReferrerURI          = params.referrerURI;
+              aReferrerPolicy       = params.referrerPolicy;
               aCharset              = params.charset;
               aPostData             = params.postData;
               aLoadInBackground     = params.inBackground;
@@ -1284,6 +1335,7 @@
             var owner = bgLoad ? null : this.selectedTab;
             var tab = this.addTab(aURI, {
                                   referrerURI: aReferrerURI,
+                                  referrerPolicy: aReferrerPolicy,
                                   charset: aCharset,
                                   postData: aPostData,
                                   ownerTab: owner,
@@ -1303,6 +1355,24 @@
         <parameter name="aLoadInBackground"/>
         <parameter name="aReplace"/>
         <body><![CDATA[
+          let aAllowThirdPartyFixup;
+          let aTargetTab;
+          let aNewIndex = -1;
+          let aPostDatas = [];
+          let aUserContextId;
+          if (arguments.length == 2 &&
+              typeof arguments[1] == "object") {
+            let params = arguments[1];
+            aLoadInBackground     = params.inBackground;
+            aReplace              = params.replace;
+            aAllowThirdPartyFixup = params.allowThirdPartyFixup;
+            aTargetTab            = params.targetTab;
+            aNewIndex             = typeof params.newIndex === "number" ?
+                                    params.newIndex : aNewIndex;
+            aPostDatas            = params.postDatas || aPostDatas;
+            aUserContextId        = params.userContextId;
+          }
+
           if (!aURIs.length)
             return;
 
@@ -1320,22 +1390,53 @@
           var multiple = aURIs.length > 1;
           var owner = multiple || aLoadInBackground ? null : this.selectedTab;
           var firstTabAdded = null;
+          var targetTabIndex = -1;
 
           if (aReplace) {
+            let browser;
+            if (aTargetTab) {
+              browser = this.getBrowserForTab(aTargetTab);
+              targetTabIndex = aTargetTab._tPos;
+            } else {
+              browser = this.mCurrentBrowser;
+              targetTabIndex = this.tabContainer.selectedIndex;
+            }
+            let flags = Ci.nsIWebNavigation.LOAD_FLAGS_NONE;
+            if (aAllowThirdPartyFixup) {
+              flags |= Ci.nsIWebNavigation.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP |
+                       Ci.nsIWebNavigation.LOAD_FLAGS_FIXUP_SCHEME_TYPOS;
+            }
             try {
-              this.loadURI(aURIs[0], null, null);
+              browser.loadURIWithFlags(aURIs[0], {
+                flags, postData: aPostDatas[0]
+              });
             } catch (e) {
               // Ignore failure in case a URI is wrong, so we can continue
               // opening the next ones.
             }
+          } else {
+            firstTabAdded = this.addTab(aURIs[0], {
+              ownerTab: owner,
+              skipAnimation: multiple,
+              allowThirdPartyFixup: aAllowThirdPartyFixup,
+              postData: aPostDatas[0],
+              userContextId: aUserContextId
+            });
+            if (aNewIndex !== -1) {
+              this.moveTabTo(firstTabAdded, aNewIndex);
+              targetTabIndex = firstTabAdded._tPos;
+            }
           }
-          else
-            firstTabAdded = this.addTab(aURIs[0], {ownerTab: owner, skipAnimation: multiple});
 
-          var tabNum = this.tabContainer.selectedIndex;
+          let tabNum = targetTabIndex;
           for (let i = 1; i < aURIs.length; ++i) {
-            let tab = this.addTab(aURIs[i], {skipAnimation: true});
-            if (aReplace)
+            let tab = this.addTab(aURIs[i], {
+              skipAnimation: true,
+              allowThirdPartyFixup: aAllowThirdPartyFixup,
+              postData: aPostDatas[i],
+              userContextId: aUserContextId
+            });
+            if (targetTabIndex !== -1)
               this.moveTabTo(tab, ++tabNum);
           }
 
@@ -1360,6 +1461,7 @@
         <body>
           <![CDATA[
             const NS_XUL = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
+            var aReferrerPolicy;
             var aFromExternal;
             var aRelatedToCurrent;
             var aSkipAnimation;
@@ -1368,6 +1470,7 @@
                 !(arguments[1] instanceof Ci.nsIURI)) {
               let params = arguments[1];
               aReferrerURI          = params.referrerURI;
+              aReferrerPolicy       = params.referrerPolicy;
               aCharset              = params.charset;
               aPostData             = params.postData;
               aOwner                = params.ownerTab;
@@ -1442,6 +1545,10 @@
               b.setAttribute("autocompletepopup", this.getAttribute("autocompletepopup"));
             b.setAttribute("autoscrollpopup", this._autoScrollPopup.id);
 
+            if (this.hasAttribute("datetimepicker")) {
+              b.setAttribute("datetimepicker", this.getAttribute("datetimepicker"));
+            }
+
             // Create the browserStack container
             var stack = document.createElementNS(NS_XUL, "stack");
             stack.className = "browserStack";
@@ -1500,7 +1607,6 @@
             this.mTabListeners[position] = tabListener;
             this.mTabFilters[position] = filter;
 
-            b._fastFind = this.fastFind;
             b.droppedLinkHandler = handleDroppedLink;
 
             // If we just created a new tab that loads the default
@@ -1535,7 +1641,13 @@
               if (aFromExternal)
                 flags |= Ci.nsIWebNavigation.LOAD_FLAGS_FROM_EXTERNAL;
               try {
-                b.loadURIWithFlags(aURI, flags, aReferrerURI, aCharset, aPostData);
+                b.loadURIWithFlags(aURI, {
+                                   flags: flags,
+                                   referrerURI: aReferrerURI,
+                                   referrerPolicy: aReferrerPolicy,
+                                   charset: aCharset,
+                                   postData: aPostData,
+                                   });
               } catch (ex) {
                 Cu.reportError(ex);
               }
@@ -1605,8 +1717,22 @@
           var tabsToClose;
           switch (aCloseTabs) {
             case this.closingTabsEnum.ALL:
-              tabsToClose = this.tabs.length - this._removingTabs.length -
-                            gBrowser._numPinnedTabs;
+              // If there are multiple windows, pinned tabs will be closed, so
+              // we warn about them, too; if there is just one window, pinned
+              // tabs should come back on restart, so exclude them from warning.
+              var numberOfWindows = 0;
+              var browserEnum = Services.wm.getEnumerator("navigator:browser");
+              while (browserEnum.hasMoreElements() && numberOfWindows < 2) {
+                numberOfWindows++;
+                browserEnum.getNext();
+              }
+              if (numberOfWindows > 1) {
+                tabsToClose = this.tabs.length - this._removingTabs.length
+              }
+              else {
+                tabsToClose = this.tabs.length - this._removingTabs.length -
+                              gBrowser._numPinnedTabs;
+              }
               break;
             case this.closingTabsEnum.OTHER:
               tabsToClose = this.visibleTabs.length - 1 - gBrowser._numPinnedTabs;
@@ -2146,7 +2272,7 @@
               // Workarounds for bug 458697
               // Icon might have been set on DOMLinkAdded, don't override that.
               if (!ourBrowser.mIconURL && otherBrowser.mIconURL)
-                this.setIcon(aOurTab, otherBrowser.mIconURL);
+                this.setIcon(aOurTab, otherBrowser.mIconURL, otherBrowser.contentPrincipal);
               var isBusy = aOtherTab.hasAttribute("busy");
               if (isBusy) {
                 aOurTab.setAttribute("busy", "true");
@@ -2156,6 +2282,17 @@
               }
 
               this._swapBrowserDocShells(aOurTab, otherBrowser);
+            }
+
+            // Handle findbar data (if any)
+            let otherFindBar = aOtherTab._findBar;
+            if (otherFindBar &&
+                otherFindBar.findMode == otherFindBar.FIND_NORMAL) {
+              let ourFindBar = this.getFindBar(aOurTab);
+              ourFindBar._findField.value = otherFindBar._findField.value;
+              if (!otherFindBar.hidden) {
+                ourFindBar.onFindCommand();
+              }
             }
 
             // Finish tearing down the tab that's going away.
@@ -2647,6 +2784,11 @@
         <parameter name="aPostData"/>
         <body>
           <![CDATA[
+            // Note - the callee understands both:
+            // (a) loadURIWithFlags(aURI, aFlags, ...)
+            // (b) loadURIWithFlags(aURI, { flags: aFlags, ... })
+            // Forwarding it as (a) here actually supports both (a) and (b),
+            // so you can call us either way too.
             return this.mCurrentBrowser.loadURIWithFlags(aURI, aFlags, aReferrerURI, aCharset, aPostData);
           ]]>
         </body>
@@ -2704,21 +2846,6 @@
       <property name="currentURI"
                 onget="return this.mCurrentBrowser.currentURI;"
                 readonly="true"/>
-
-      <field name="_fastFind">null</field>
-      <property name="fastFind"
-                readonly="true">
-        <getter>
-        <![CDATA[
-          if (!this._fastFind) {
-            this._fastFind = Components.classes["@mozilla.org/typeaheadfind;1"]
-                                       .createInstance(Components.interfaces.nsITypeAheadFind);
-            this._fastFind.init(this.docShell);
-          }
-          return this._fastFind;
-        ]]>
-        </getter>
-      </property>
 
       <field name="_lastSearchString">null</field>
       <field name="_lastSearchHighlight">false</field>
@@ -2963,10 +3090,6 @@
         ]]></body>
       </method>
 
-      <property name="userTypedClear"
-                onget="return this.mCurrentBrowser.userTypedClear;"
-                onset="return this.mCurrentBrowser.userTypedClear = val;"/>
-
       <property name="userTypedValue"
                 onget="return this.mCurrentBrowser.userTypedValue;"
                 onset="return this.mCurrentBrowser.userTypedValue = val;"/>
@@ -3028,13 +3151,27 @@
               break;
             }
             case "Findbar:Keypress":
-              if (!gFindBarInitialized) {
-                // If the find bar for this tab is not yet alive, change that,
-                // and make sure we return the result:
-                return gFindBar.receiveMessage(aMessage);
+              let tab = this.getTabForBrowser(browser);
+              // If the find bar for this tab is not yet alive, only initialize
+              // it if there's a possibility FindAsYouType will be used.
+              // There's no point in doing it for most random keypresses.
+              if (!this.isFindBarInitialized(tab) &&
+                aMessage.data.shouldFastFind) {
+                let shouldFastFind = this._findAsYouType;
+                if (!shouldFastFind) {
+                  // Please keep in sync with toolkit/content/widgets/findbar.xml
+                  const FAYT_LINKS_KEY = "'";
+                  const FAYT_TEXT_KEY = "/";
+                  let charCode = aMessage.data.fakeEvent.charCode;
+                  let key = charCode ? String.fromCharCode(charCode) : null;
+                  shouldFastFind = key == FAYT_LINKS_KEY || key == FAYT_TEXT_KEY;
+                }
+                if (shouldFastFind) {
+                  // Make sure we return the result.
+                  return this.getFindBar(tab).receiveMessage(aMessage);
+                }
               }
               break;
-
           }
         ]]></body>
       </method>
@@ -3101,6 +3238,10 @@
                                               this.mCurrentBrowser);
           }
           messageManager.addMessageListener("DOMWebNotificationClicked", this);
+
+          // To correctly handle keypresses for potential FindAsYouType, while
+          // the tab's find bar is not yet initialized.
+          this._findAsYouType = Services.prefs.getBoolPref("accessibility.typeaheadfind");
           messageManager.addMessageListener("Findbar:Keypress", this);
         ]]>
       </constructor>
@@ -3356,6 +3497,7 @@
           tab.setAttribute("onerror", "this.removeAttribute('image');");
           this.adjustTabstrip();
 
+          Services.prefs.addObserver("accessibility.typeaheadfind", this._prefObserver, false);
           Services.prefs.addObserver("browser.tabs.", this._prefObserver, false);
           window.addEventListener("resize", this, false);
           window.addEventListener("load", this, false);
@@ -3371,6 +3513,7 @@
 
       <destructor>
         <![CDATA[
+          Services.prefs.removeObserver("accessibility.typeaheadfind", this._prefObserver);
           Services.prefs.removeObserver("browser.tabs.", this._prefObserver);
         ]]>
       </destructor>
@@ -3436,6 +3579,9 @@
 
         observe: function (subject, topic, data) {
           switch (data) {
+            case "accessibility.typeaheadfind":
+              this._findAsYouType = Services.prefs.getBoolPref(data);
+              break;
             case "browser.tabs.closeButtons":
               this.tabContainer.mCloseButtons = Services.prefs.getIntPref(data);
               this.tabContainer.adjustTabstrip();
@@ -4443,40 +4589,35 @@
           this.tabbrowser.updateCurrentBrowser(true);
         } else {
           // Pass true to disallow dropping javascript: or data: urls
-          let url;
+          let links;
           try {
-            url = browserDragAndDrop.drop(event, { }, true);
+            links = browserDragAndDrop.dropLinks(event, true);
           } catch (ex) {}
 
 //          // valid urls don't contain spaces ' '; if we have a space it isn't a valid url.
 //          if (!url || url.includes(" ")) //PMed
-          if (!url) //FF
+          if (!links || links.length === 0) //FF
             return;
 
-          let bgLoad = Services.prefs.getBoolPref("browser.tabs.loadInBackground");
+          let inBackground = Services.prefs.getBoolPref("browser.tabs.loadInBackground");
 
           if (event.shiftKey)
-            bgLoad = !bgLoad;
+            inBackground = !inBackground;
 
-          let tab = this._getDragTargetTab(event);
-          if (!tab || dropEffect == "copy") {
-            // We're adding a new tab.
-            let newIndex = this._getDropIndex(event);
-            let newTab = this.tabbrowser.loadOneTab(url, {inBackground: bgLoad, allowThirdPartyFixup: true});
-            this.tabbrowser.moveTabTo(newTab, newIndex);
-          } else {
-            // Load in an existing tab.
-            try {
-              let webNav = Ci.nsIWebNavigation;
-              let flags = webNav.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP |
-                          webNav.LOAD_FLAGS_FIXUP_SCHEME_TYPOS;
-              this.tabbrowser.getBrowserForTab(tab).loadURIWithFlags(url, flags);
-              if (!bgLoad)
-                this.selectedItem = tab;
-            } catch(ex) {
-              // Just ignore invalid urls
-            }
-          }
+          let targetTab = this._getDragTargetTab(event);
+          let userContextId = this.selectedItem
+                              .getAttribute("usercontextid") || 0;
+          let replace = !(!targetTab || dropEffect == "copy");
+          let newIndex = this._getDropIndex(event);
+          let urls = links.map(link => link.url);
+          this.tabbrowser.loadTabs(urls, {
+            inBackground,
+            replace,
+            allowThirdPartyFixup: true,
+            targetTab,
+            newIndex,
+            userContextId,
+          });
         }
 
         if (draggedTab) {

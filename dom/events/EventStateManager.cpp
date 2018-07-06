@@ -492,6 +492,7 @@ IsMessageMouseUserActivity(EventMessage aMessage)
   return aMessage == eMouseMove ||
          aMessage == eMouseUp ||
          aMessage == eMouseDown ||
+         aMessage == eMouseAuxClick ||
          aMessage == eMouseDoubleClick ||
          aMessage == eMouseClick ||
          aMessage == eMouseActivate ||
@@ -731,6 +732,9 @@ EventStateManager::PreHandleEvent(nsPresContext* aPresContext,
     FlushPendingEvents(aPresContext);
     break;
   }
+  case ePointerGotCapture:
+    GenerateMouseEnterExit(mouseEvent);
+    break;
   case eDragStart:
     if (Prefs::ClickHoldContextMenu()) {
       // an external drag gesture event came in, not generated internally
@@ -3890,10 +3894,7 @@ CreateMouseOrPointerWidgetEvent(WidgetMouseEvent* aMouseEvent,
     newPointerEvent->mWidth = sourcePointer->mWidth;
     newPointerEvent->mHeight = sourcePointer->mHeight;
     newPointerEvent->inputSource = sourcePointer->inputSource;
-    newPointerEvent->relatedTarget =
-      nsIPresShell::GetPointerCapturingContent(sourcePointer->pointerId)
-        ? nullptr
-        : aRelatedContent;
+    newPointerEvent->relatedTarget = aRelatedContent;
     aNewEvent = newPointerEvent.forget();
   } else {
     aNewEvent =
@@ -4034,7 +4035,7 @@ public:
     }
   }
 
-  ~EnterLeaveDispatcher()
+  void Dispatch()
   {
     if (mEventMessage == eMouseEnter || mEventMessage == ePointerEnter) {
       for (int32_t i = mTargets.Count() - 1; i >= 0; --i) {
@@ -4106,19 +4107,14 @@ EventStateManager::NotifyMouseOut(WidgetMouseEvent* aMouseEvent,
     SetContentState(nullptr, NS_EVENT_STATE_HOVER);
   }
 
-  // In case we go out from capturing element (retargetedByPointerCapture is true)
-  // we should dispatch ePointerLeave event and only for capturing element.
-  RefPtr<nsIContent> movingInto = aMouseEvent->retargetedByPointerCapture
-                                    ? wrapper->mLastOverElement->GetParent()
-                                    : aMovingInto;
-
   EnterLeaveDispatcher leaveDispatcher(this, wrapper->mLastOverElement,
-                                       movingInto, aMouseEvent,
+                                       aMovingInto, aMouseEvent,
                                        isPointer ? ePointerLeave : eMouseLeave);
 
   // Fire mouseout
   DispatchMouseOrPointerEvent(aMouseEvent, isPointer ? ePointerOut : eMouseOut,
                               wrapper->mLastOverElement, aMovingInto);
+  leaveDispatcher.Dispatch();
 
   wrapper->mLastOverFrame = nullptr;
   wrapper->mLastOverElement = nullptr;
@@ -4133,13 +4129,9 @@ EventStateManager::NotifyMouseOver(WidgetMouseEvent* aMouseEvent,
 {
   NS_ASSERTION(aContent, "Mouse must be over something");
 
-  // If pointer capture is set, we should suppress pointerover/pointerenter events
-  // for all elements except element which have pointer capture.
-  bool dispatch = !aMouseEvent->retargetedByPointerCapture;
-
   OverOutElementsWrapper* wrapper = GetWrapperByEventID(aMouseEvent);
 
-  if (wrapper->mLastOverElement == aContent && dispatch)
+  if (wrapper->mLastOverElement == aContent)
     return;
 
   // Before firing mouseover, check for recursion
@@ -4162,7 +4154,7 @@ EventStateManager::NotifyMouseOver(WidgetMouseEvent* aMouseEvent,
   }
   // Firing the DOM event in the parent document could cause all kinds
   // of havoc.  Reverify and take care.
-  if (wrapper->mLastOverElement == aContent && dispatch)
+  if (wrapper->mLastOverElement == aContent)
     return;
 
   // Remember mLastOverElement as the related content for the
@@ -4171,11 +4163,9 @@ EventStateManager::NotifyMouseOver(WidgetMouseEvent* aMouseEvent,
 
   bool isPointer = aMouseEvent->mClass == ePointerEventClass;
   
-  Maybe<EnterLeaveDispatcher> enterDispatcher;
-  if (dispatch) {
-    enterDispatcher.emplace(this, aContent, lastOverElement, aMouseEvent,
-                            isPointer ? ePointerEnter : eMouseEnter);
-  }
+  EnterLeaveDispatcher enterDispatcher(this, aContent, lastOverElement,
+                                       aMouseEvent,
+                                       isPointer ? ePointerEnter : eMouseEnter);
 
   NotifyMouseOut(aMouseEvent, aContent);
 
@@ -4187,17 +4177,13 @@ EventStateManager::NotifyMouseOver(WidgetMouseEvent* aMouseEvent,
     SetContentState(aContent, NS_EVENT_STATE_HOVER);
   }
 
-  if (dispatch) {
-    // Fire mouseover
-    wrapper->mLastOverFrame = 
-      DispatchMouseOrPointerEvent(aMouseEvent,
-                                  isPointer ? ePointerOver : eMouseOver,
-                                  aContent, lastOverElement);
-    wrapper->mLastOverElement = aContent;
-  } else {
-    wrapper->mLastOverFrame = nullptr;
-    wrapper->mLastOverElement = nullptr;
-  }
+  // Fire mouseover
+  wrapper->mLastOverFrame =
+    DispatchMouseOrPointerEvent(aMouseEvent,
+                                isPointer ? ePointerOver : eMouseOver,
+                                aContent, lastOverElement);
+  enterDispatcher.Dispatch();
+  wrapper->mLastOverElement = aContent;
 
   // Turn recursion protection back off
   wrapper->mFirstOverEventElement = nullptr;
@@ -4290,6 +4276,7 @@ EventStateManager::GenerateMouseEnterExit(WidgetMouseEvent* aMouseEvent)
     MOZ_FALLTHROUGH;
   case ePointerMove:
   case ePointerDown:
+  case ePointerGotCapture:
     {
       // Get the target content target (mousemove target == mouseover target)
       nsCOMPtr<nsIContent> targetElement = GetEventTargetContent(aMouseEvent);
@@ -4647,6 +4634,32 @@ EventStateManager::SetClickCount(WidgetMouseEvent* aEvent,
 }
 
 nsresult
+EventStateManager::InitAndDispatchClickEvent(WidgetMouseEvent* aEvent,
+                                             nsEventStatus* aStatus,
+                                             EventMessage aMessage,
+                                             nsIPresShell* aPresShell,
+                                             nsIContent* aMouseTarget,
+                                             nsWeakFrame aCurrentTarget,
+                                             bool aNoContentDispatch)
+{
+  WidgetMouseEvent event(aEvent->IsTrusted(), aMessage,
+                         aEvent->mWidget, WidgetMouseEvent::eReal);
+
+  event.mRefPoint = aEvent->mRefPoint;
+  event.mClickCount = aEvent->mClickCount;
+  event.mModifiers = aEvent->mModifiers;
+  event.buttons = aEvent->buttons;
+  event.mTime = aEvent->mTime;
+  event.mTimeStamp = aEvent->mTimeStamp;
+  event.mFlags.mNoContentDispatch = aNoContentDispatch;
+  event.button = aEvent->button;
+  event.inputSource = aEvent->inputSource;
+
+  return aPresShell->HandleEventWithTarget(&event, aCurrentTarget,
+                                           aMouseTarget, aStatus);
+}
+
+nsresult
 EventStateManager::CheckForAndDispatchClick(WidgetMouseEvent* aEvent,
                                             nsEventStatus* aStatus)
 {
@@ -4665,17 +4678,7 @@ EventStateManager::CheckForAndDispatchClick(WidgetMouseEvent* aEvent,
      (aEvent->button == WidgetMouseEvent::eMiddleButton ||
       aEvent->button == WidgetMouseEvent::eRightButton);
 
-    WidgetMouseEvent event(aEvent->IsTrusted(), eMouseClick,
-                           aEvent->mWidget, WidgetMouseEvent::eReal);
-    event.mRefPoint = aEvent->mRefPoint;
-    event.mClickCount = aEvent->mClickCount;
-    event.mModifiers = aEvent->mModifiers;
-    event.buttons = aEvent->buttons;
-    event.mTime = aEvent->mTime;
-    event.mTimeStamp = aEvent->mTimeStamp;
-    event.mFlags.mNoContentDispatch = notDispatchToContents;
-    event.button = aEvent->button;
-    event.inputSource = aEvent->inputSource;
+    bool fireAuxClick = notDispatchToContents;
 
     nsCOMPtr<nsIPresShell> presShell = mPresContext->GetPresShell();
     if (presShell) {
@@ -4694,23 +4697,22 @@ EventStateManager::CheckForAndDispatchClick(WidgetMouseEvent* aEvent,
 
       // HandleEvent clears out mCurrentTarget which we might need again
       nsWeakFrame currentTarget = mCurrentTarget;
-      ret = presShell->HandleEventWithTarget(&event, currentTarget,
-                                             mouseContent, aStatus);
+      ret = InitAndDispatchClickEvent(aEvent, aStatus, eMouseClick,
+                                      presShell, mouseContent, currentTarget,
+                                      notDispatchToContents);
+
       if (NS_SUCCEEDED(ret) && aEvent->mClickCount == 2 &&
           mouseContent && mouseContent->IsInComposedDoc()) {
         //fire double click
-        WidgetMouseEvent event2(aEvent->IsTrusted(), eMouseDoubleClick,
-                                aEvent->mWidget, WidgetMouseEvent::eReal);
-        event2.mRefPoint = aEvent->mRefPoint;
-        event2.mClickCount = aEvent->mClickCount;
-        event2.mModifiers = aEvent->mModifiers;
-        event2.buttons = aEvent->buttons;
-        event2.mFlags.mNoContentDispatch = notDispatchToContents;
-        event2.button = aEvent->button;
-        event2.inputSource = aEvent->inputSource;
-
-        ret = presShell->HandleEventWithTarget(&event2, currentTarget,
-                                               mouseContent, aStatus);
+        ret = InitAndDispatchClickEvent(aEvent, aStatus, eMouseDoubleClick,
+                                        presShell, mouseContent, currentTarget,
+                                        notDispatchToContents);
+      }
+      if (NS_SUCCEEDED(ret) && mouseContent && fireAuxClick &&
+          mouseContent->IsInComposedDoc()) {
+        ret = InitAndDispatchClickEvent(aEvent, aStatus, eMouseAuxClick,
+                                        presShell, mouseContent, currentTarget,
+                                        false);
       }
     }
   }

@@ -9,6 +9,7 @@
 
 #include "mozilla/ArrayUtils.h"
 #include "mozilla/Attributes.h"
+#include "mozilla/FilePreferences.h"
 #include "mozilla/ChaosMode.h"
 #include "mozilla/IOInterposer.h"
 #include "mozilla/Likely.h"
@@ -106,10 +107,6 @@
 #endif
 #endif
 
-#if (defined(XP_WIN) || defined(XP_MACOSX)) && defined(MOZ_CONTENT_SANDBOX)
-#include "nsIUUIDGenerator.h"
-#endif
-
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"
 #if defined(XP_WIN)
@@ -186,23 +183,11 @@
 #include "mozilla/Logging.h"
 #endif
 
-#ifdef MOZ_JPROF
-#include "jprof.h"
-#endif
-
 #include "base/command_line.h"
 #include "GTestRunner.h"
 
 #ifdef MOZ_WIDGET_ANDROID
 #include "GeneratedJNIWrappers.h"
-#endif
-
-#if defined(MOZ_SANDBOX)
-#if defined(XP_LINUX) && !defined(ANDROID)
-#include "mozilla/SandboxInfo.h"
-#elif defined(XP_WIN)
-#include "SandboxBroker.h"
-#endif
 #endif
 
 extern uint32_t gRestartMode;
@@ -1357,7 +1342,9 @@ DumpHelp()
          "  -v or --version                              Print %s version.\n"
          "  -P <profile>                                 Start with <profile>.\n"
          "  --profile <path>                             Start with profile at <path>.\n"
+#ifdef MC_BASILISK
          "  --migration                                  Start with migration wizard.\n"
+#endif
          "  --ProfileManager                             Start with ProfileManager.\n"
          "  --no-remote                                  Do not accept or send remote commands;\n"
          "                                               implies --new-instance.\n"
@@ -1522,11 +1509,6 @@ static nsresult LaunchChild(nsINativeAppSupport* aNative,
 
   // Restart this process by exec'ing it into the current process
   // if supported by the platform.  Otherwise, use NSPR.
-
-#ifdef MOZ_JPROF
-  // make sure JPROF doesn't think we're E10s
-  unsetenv("JPROF_SLAVE");
-#endif
 
   if (aBlankCommandLine) {
     gRestartArgc = 1;
@@ -1886,17 +1868,20 @@ ShowProfileManager(nsIToolkitProfileService* aProfileSvc,
 }
 
 /**
- * Set the currently running profile as the default/selected one.
+ * Get the currently running profile using its root directory.
  *
+ * @param aProfileSvc         The profile service
  * @param aCurrentProfileRoot The root directory of the current profile.
- * @return an error if aCurrentProfileRoot is not found or the profile could not
- * be set as the default.
+ * @param aProfile            Out-param that returns the profile object.
+ * @return an error if aCurrentProfileRoot is not found
  */
 static nsresult
-SetCurrentProfileAsDefault(nsIToolkitProfileService* aProfileSvc,
-                           nsIFile* aCurrentProfileRoot)
+GetCurrentProfile(nsIToolkitProfileService* aProfileSvc,
+                  nsIFile* aCurrentProfileRoot,
+                  nsIToolkitProfile** aProfile)
 {
   NS_ENSURE_ARG_POINTER(aProfileSvc);
+  NS_ENSURE_ARG_POINTER(aProfile);
 
   nsCOMPtr<nsISimpleEnumerator> profiles;
   nsresult rv = aProfileSvc->GetProfiles(getter_AddRefs(profiles));
@@ -1912,7 +1897,8 @@ SetCurrentProfileAsDefault(nsIToolkitProfileService* aProfileSvc,
     profile->GetRootDir(getter_AddRefs(profileRoot));
     profileRoot->Equals(aCurrentProfileRoot, &foundMatchingProfile);
     if (foundMatchingProfile) {
-      return aProfileSvc->SetSelectedProfile(profile);
+      profile.forget(aProfile);
+      return NS_OK;
     }
     rv = profiles->GetNext(getter_AddRefs(supports));
   }
@@ -2000,7 +1986,7 @@ SelectProfile(nsIProfileLock* *aResult, nsIToolkitProfileService* aProfileSvc, n
     if (gDoProfileReset) {
       // If we're resetting a profile, create a new one and use it to startup.
       nsCOMPtr<nsIToolkitProfile> newProfile;
-      rv = CreateResetProfile(aProfileSvc, getter_AddRefs(newProfile));
+      rv = CreateResetProfile(aProfileSvc, gResetOldProfileName, getter_AddRefs(newProfile));
       if (NS_SUCCEEDED(rv)) {
         rv = newProfile->GetRootDir(getter_AddRefs(lf));
         NS_ENSURE_SUCCESS(rv, rv);
@@ -2146,20 +2132,20 @@ SelectProfile(nsIProfileLock* *aResult, nsIToolkitProfileService* aProfileSvc, n
             return ProfileLockedDialog(profile, unlocker, aNative, &tempProfileLock);
         }
 
-        nsCOMPtr<nsIToolkitProfile> newProfile;
-        rv = CreateResetProfile(aProfileSvc, getter_AddRefs(newProfile));
-        if (NS_FAILED(rv)) {
-          NS_WARNING("Failed to create a profile to reset to.");
-          gDoProfileReset = false;
-        } else {
-          nsresult gotName = profile->GetName(gResetOldProfileName);
-          if (NS_SUCCEEDED(gotName)) {
-            profile = newProfile;
-          } else {
-            NS_WARNING("Failed to get the name of the profile we're resetting, so aborting reset.");
-            gResetOldProfileName.Truncate(0);
+        nsresult gotName = profile->GetName(gResetOldProfileName);
+        if (NS_SUCCEEDED(gotName)) {
+          nsCOMPtr<nsIToolkitProfile> newProfile;
+          rv = CreateResetProfile(aProfileSvc, gResetOldProfileName, getter_AddRefs(newProfile));
+          if (NS_FAILED(rv)) {
+            NS_WARNING("Failed to create a profile to reset to.");
             gDoProfileReset = false;
+          } else {
+            profile = newProfile;
           }
+        } else {
+          NS_WARNING("Failed to get the name of the profile we're resetting, so aborting reset.");
+          gResetOldProfileName.Truncate(0);
+          gDoProfileReset = false;
         }
       }
 
@@ -2254,20 +2240,22 @@ SelectProfile(nsIProfileLock* *aResult, nsIToolkitProfileService* aProfileSvc, n
             return ProfileLockedDialog(profile, unlocker, aNative, &tempProfileLock);
         }
 
-        nsCOMPtr<nsIToolkitProfile> newProfile;
-        rv = CreateResetProfile(aProfileSvc, getter_AddRefs(newProfile));
-        if (NS_FAILED(rv)) {
-          NS_WARNING("Failed to create a profile to reset to.");
-          gDoProfileReset = false;
-        } else {
-          nsresult gotName = profile->GetName(gResetOldProfileName);
-          if (NS_SUCCEEDED(gotName)) {
-            profile = newProfile;
-          } else {
-            NS_WARNING("Failed to get the name of the profile we're resetting, so aborting reset.");
-            gResetOldProfileName.Truncate(0);
+        nsresult gotName = profile->GetName(gResetOldProfileName);
+        if (NS_SUCCEEDED(gotName)) {
+          nsCOMPtr<nsIToolkitProfile> newProfile;
+          rv = CreateResetProfile(aProfileSvc, gResetOldProfileName, getter_AddRefs(newProfile));
+          if (NS_FAILED(rv)) {
+            NS_WARNING("Failed to create a profile to reset to.");
             gDoProfileReset = false;
           }
+          else {
+            profile = newProfile;
+          }
+        }
+        else {
+          NS_WARNING("Failed to get the name of the profile we're resetting, so aborting reset.");
+          gResetOldProfileName.Truncate(0);
+          gDoProfileReset = false;
         }
       }
 
@@ -2944,25 +2932,6 @@ XREMain::XRE_mainInit(bool* aExitFlag)
   if (NS_FAILED(rv))
     return 1;
 
-#if defined(MOZ_SANDBOX) && defined(XP_WIN)
-  if (mAppData->sandboxBrokerServices) {
-    SandboxBroker::Initialize(mAppData->sandboxBrokerServices);
-    Telemetry::Accumulate(Telemetry::SANDBOX_BROKER_INITIALIZED, true);
-  } else {
-    Telemetry::Accumulate(Telemetry::SANDBOX_BROKER_INITIALIZED, false);
-#if defined(MOZ_CONTENT_SANDBOX)
-    // If we're sandboxing content and we fail to initialize, then crashing here
-    // seems like the sensible option.
-    if (BrowserTabsRemoteAutostart()) {
-      MOZ_CRASH("Failed to initialize broker services, can't continue.");
-    }
-#endif
-    // Otherwise just warn for the moment, as most things will work.
-    NS_WARNING("Failed to initialize broker services, sandboxed processes will "
-               "fail to start.");
-  }
-#endif
-
 #ifdef XP_MACOSX
   // Set up ability to respond to system (Apple) events. This must occur before
   // ProcessUpdates to ensure that links clicked in external applications aren't
@@ -3416,11 +3385,6 @@ XREMain::XRE_mainStartup(bool* aExitFlag)
   XRE_InstallX11ErrorHandler();
 #endif
 
-  // Call the code to install our handler
-#ifdef MOZ_JPROF
-  setupProfilingStuff();
-#endif
-
   rv = NS_CreateNativeAppSupport(getter_AddRefs(mNativeApp));
   if (NS_FAILED(rv))
     return 1;
@@ -3739,7 +3703,12 @@ XREMain::XRE_mainRun()
         if (gDoProfileReset) {
           // Automatically migrate from the current application if we just
           // reset the profile.
-          aKey = MOZ_APP_NAME;
+          // For Basilisk and Pale Moon:
+          // Hard-code MOZ_APP_NAME to firefox because of hard-coded type in migrator.
+          aKey = (((MOZ_APP_NAME == "basilisk")
+                     || (MOZ_APP_NAME == "palemoon"))
+                  ? "firefox" : MOZ_APP_NAME);
+
         }
         pm->Migrate(&mDirProvider, aKey, gResetOldProfileName);
       }
@@ -3749,20 +3718,32 @@ XREMain::XRE_mainRun()
       nsresult backupCreated = ProfileResetCleanup(profileBeingReset);
       if (NS_FAILED(backupCreated)) NS_WARNING("Could not cleanup the profile that was reset");
 
-      // Set the new profile as the default after we're done cleaning up the old profile,
-      // iff that profile was already the default
-      if (profileWasSelected) {
-        // this is actually "broken" - see bug 1122124
-        rv = SetCurrentProfileAsDefault(mProfileSvc, mProfD);
-        if (NS_FAILED(rv)) NS_WARNING("Could not set current profile as the default");
+      nsCOMPtr<nsIToolkitProfile> newProfile;
+      rv = GetCurrentProfile(mProfileSvc, mProfD, getter_AddRefs(newProfile));
+      if (NS_SUCCEEDED(rv)) {
+        newProfile->SetName(gResetOldProfileName);
+        mProfileName.Assign(gResetOldProfileName);
+        // Set the new profile as the default after we're done cleaning up the old profile,
+        // iff that profile was already the default
+        if (profileWasSelected) {
+          rv = mProfileSvc->SetDefaultProfile(newProfile);
+          if (NS_FAILED(rv)) NS_WARNING("Could not set current profile as the default");
+        }
+      } else {
+        NS_WARNING("Could not find current profile to set as default / change name.");
       }
-      // Need to write out the fact that the profile has been removed and potentially
-      // that the selected/default profile changed.
+
+      // Need to write out the fact that the profile has been removed, the new profile
+      // renamed, and potentially that the selected/default profile changed.
       mProfileSvc->Flush();
     }
   }
 
   mDirProvider.DoStartup();
+
+  // As FilePreferences need the profile directory, we must initialize right here.
+  mozilla::FilePreferences::InitDirectoriesWhitelist();
+  mozilla::FilePreferences::InitPrefs();
 
   OverrideDefaultLocaleIfNeeded();
 
@@ -3892,24 +3873,6 @@ XREMain::XRE_mainRun()
   }
 #endif /* MOZ_INSTRUMENT_EVENT_LOOP */
 
-#if defined(MOZ_SANDBOX) && defined(XP_LINUX) && !defined(MOZ_WIDGET_GONK)
-  // If we're on Linux, we now have information about the OS capabilities
-  // available to us.
-  SandboxInfo sandboxInfo = SandboxInfo::Get();
-  Telemetry::Accumulate(Telemetry::SANDBOX_HAS_SECCOMP_BPF,
-                        sandboxInfo.Test(SandboxInfo::kHasSeccompBPF));
-  Telemetry::Accumulate(Telemetry::SANDBOX_HAS_SECCOMP_TSYNC,
-                        sandboxInfo.Test(SandboxInfo::kHasSeccompTSync));
-  Telemetry::Accumulate(Telemetry::SANDBOX_HAS_USER_NAMESPACES_PRIVILEGED,
-                        sandboxInfo.Test(SandboxInfo::kHasPrivilegedUserNamespaces));
-  Telemetry::Accumulate(Telemetry::SANDBOX_HAS_USER_NAMESPACES,
-                        sandboxInfo.Test(SandboxInfo::kHasUserNamespaces));
-  Telemetry::Accumulate(Telemetry::SANDBOX_CONTENT_ENABLED,
-                        sandboxInfo.Test(SandboxInfo::kEnabledForContent));
-  Telemetry::Accumulate(Telemetry::SANDBOX_MEDIA_ENABLED,
-                        sandboxInfo.Test(SandboxInfo::kEnabledForMedia));
-#endif /* MOZ_SANDBOX && XP_LINUX && !MOZ_WIDGET_GONK */
-
   {
     rv = appStartup->Run();
     if (NS_FAILED(rv)) {
@@ -3974,10 +3937,6 @@ XREMain::XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
   //   WARNING: XPCOM objects created/destroyed from static ctor/dtor: [..]
   // See bug 1279614.
   XRE_CreateStatsObject();
-
-#if defined(MOZ_SANDBOX) && defined(XP_LINUX) && !defined(ANDROID)
-  SandboxInfo::ThreadingCheck();
-#endif
 
   char aLocal;
   GeckoProfilerInitRAII profilerGuard(&aLocal);
@@ -4285,7 +4244,6 @@ MultiprocessBlockPolicy() {
 
   if (addonsCanDisable && disabledByAddons) {
     gMultiprocessBlockPolicy = kE10sDisabledForAddons;
-    return gMultiprocessBlockPolicy;
   }
 
 #if defined(XP_WIN)
@@ -4319,16 +4277,13 @@ MultiprocessBlockPolicy() {
 
   if (disabledForA11y) {
     gMultiprocessBlockPolicy = kE10sDisabledForAccessibility;
-    return gMultiprocessBlockPolicy;
   }
 #endif
+  
+  // We do not support E10S, block by policy.
+  gMultiprocessBlockPolicy = kE10sForceDisabled;
 
-  /*
-   * None of the blocking policies matched, so e10s is allowed to run.
-   * Cache the information and return 0, indicating success.
-   */
-  gMultiprocessBlockPolicy = 0;
-  return 0;
+  return gMultiprocessBlockPolicy;
 }
 
 bool

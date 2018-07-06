@@ -13,6 +13,7 @@
 #include "gfxWindowsSurface.h"
 
 #include "nsUnicharUtils.h"
+#include "nsUnicodeProperties.h"
 
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
@@ -31,8 +32,6 @@
 #include "imgLoader.h"
 
 #include "nsIGfxInfo.h"
-
-#include "gfxCrashReporterUtils.h"
 
 #include "gfxGDIFontList.h"
 #include "gfxGDIFont.h"
@@ -81,6 +80,7 @@ using namespace mozilla::gfx;
 using namespace mozilla::layers;
 using namespace mozilla::widget;
 using namespace mozilla::image;
+using namespace mozilla::unicode;
 
 IDWriteRenderingParams* GetDwriteRenderingParams(bool aGDI)
 {
@@ -398,7 +398,6 @@ gfxWindowsPlatform::InitDWriteSupport()
     return false;
   }
 
-  mozilla::ScopedGfxFeatureReporter reporter("DWrite");
   decltype(DWriteCreateFactory)* createDWriteFactory = (decltype(DWriteCreateFactory)*)
       GetProcAddress(LoadLibraryW(L"dwrite.dll"), "DWriteCreateFactory");
   if (!createDWriteFactory) {
@@ -420,7 +419,6 @@ gfxWindowsPlatform::InitDWriteSupport()
   Factory::SetDWriteFactory(mDWriteFactory);
 
   SetupClearTypeParams();
-  reporter.SetSuccessful();
   return true;
 }
 
@@ -669,9 +667,15 @@ gfxWindowsPlatform::GetCommonFallbackFonts(uint32_t aCh, uint32_t aNextCh,
                                            Script aRunScript,
                                            nsTArray<const char*>& aFontList)
 {
-    if (aNextCh == 0xfe0fu) {
-        aFontList.AppendElement(kFontSegoeUIEmoji);
-        aFontList.AppendElement(kFontTwemojiMozilla);
+    EmojiPresentation emoji = GetEmojiPresentation(aCh);
+    if (emoji != EmojiPresentation::TextOnly) {
+        if (aNextCh == kVariationSelector16 ||
+           (aNextCh != kVariationSelector15 &&
+            emoji == EmojiPresentation::EmojiDefault)) {
+            // if char is followed by VS16, try for a color emoji glyph
+            // XXX: For Win8+ native, aFontList.AppendElement(kFontSegoeUIEmoji);
+            aFontList.AppendElement(kFontTwemojiMozilla);
+        }
     }
 
     // Arial is used as the default fallback for system fallback
@@ -680,17 +684,7 @@ gfxWindowsPlatform::GetCommonFallbackFonts(uint32_t aCh, uint32_t aNextCh,
     if (!IS_IN_BMP(aCh)) {
         uint32_t p = aCh >> 16;
         if (p == 1) { // SMP plane
-            if (aNextCh == 0xfe0eu) {
-                aFontList.AppendElement(kFontSegoeUISymbol);
-                aFontList.AppendElement(kFontSegoeUIEmoji);
-                aFontList.AppendElement(kFontTwemojiMozilla);
-            } else {
-                if (aNextCh != 0xfe0fu) {
-                    aFontList.AppendElement(kFontSegoeUIEmoji);
-                    aFontList.AppendElement(kFontTwemojiMozilla);
-                }
-                aFontList.AppendElement(kFontSegoeUISymbol);
-            }
+            aFontList.AppendElement(kFontSegoeUISymbol);
             aFontList.AppendElement(kFontEbrima);
             aFontList.AppendElement(kFontNirmalaUI);
             aFontList.AppendElement(kFontCambriaMath);
@@ -1571,8 +1565,6 @@ gfxWindowsPlatform::InitializeD2DConfig()
 void
 gfxWindowsPlatform::InitializeD2D()
 {
-  ScopedGfxFeatureReporter d2d1_1("D2D1.1");
-
   FeatureState& d2d1 = gfxConfig::GetFeature(Feature::DIRECT2D);
 
   DeviceManagerDx* dm = DeviceManagerDx::Get();
@@ -1623,7 +1615,6 @@ gfxWindowsPlatform::InitializeD2D()
   }
 
   MOZ_ASSERT(d2d1.IsEnabled());
-  d2d1_1.SetSuccessful();
 }
 
 bool

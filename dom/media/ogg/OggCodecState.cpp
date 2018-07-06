@@ -18,18 +18,6 @@
 #include <opus/opus.h>
 #include "opus/opus_multistream.h"
 
-// On Android JellyBean, the hardware.h header redefines version_major and
-// version_minor, which breaks our build.  See:
-// https://bugzilla.mozilla.org/show_bug.cgi?id=912702#c6
-#ifdef MOZ_WIDGET_GONK
-#ifdef version_major
-#undef version_major
-#endif
-#ifdef version_minor
-#undef version_minor
-#endif
-#endif
-
 namespace mozilla {
 
 extern LazyLogModule gMediaDecoderLog;
@@ -1241,12 +1229,13 @@ already_AddRefed<MediaRawData>
 OpusState::PacketOutAsMediaRawData()
 {
   ogg_packet* packet = PacketPeek();
-  uint32_t frames = 0;
-  const int64_t endFrame = packet->granulepos;
-
   if (!packet) {
     return nullptr;
   }
+
+  uint32_t frames = 0;
+  const int64_t endFrame = packet->granulepos;
+
   if (packet->e_o_s) {
     frames = GetOpusDeltaGP(packet);
   }

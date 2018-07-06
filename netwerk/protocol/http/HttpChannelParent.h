@@ -143,7 +143,13 @@ protected:
                    const nsCString&           aContentTypeHint,
                    const nsCString&           aChannelId,
                    const uint64_t&            aContentWindowId,
-                   const nsCString&           aPreferredAlternativeType);
+                   const nsCString&           aPreferredAlternativeType,
+                   const TimeStamp&           aLaunchServiceWorkerStart,
+                   const TimeStamp&           aLaunchServiceWorkerEnd,
+                   const TimeStamp&           aDispatchFetchEventStart,
+                   const TimeStamp&           aDispatchFetchEventEnd,
+                   const TimeStamp&           aHandleFetchEventStart,
+                   const TimeStamp&           aHandleFetchEventEnd);
 
   virtual bool RecvSetPriority(const uint16_t& priority) override;
   virtual bool RecvSetClassOfService(const uint32_t& cos) override;
@@ -156,8 +162,6 @@ protected:
                                    const uint32_t& loadFlags,
                                    const OptionalURIParams& apiRedirectUri,
                                    const OptionalCorsPreflightArgs& aCorsPreflightArgs,
-                                   const bool& aForceHSTSPriming,
-                                   const bool& aMixedContentWouldBlock,
                                    const bool& aChooseAppcache) override;
   virtual bool RecvUpdateAssociatedContentSecurity(const int32_t& broken,
                                                    const int32_t& no) override;

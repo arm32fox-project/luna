@@ -4,6 +4,8 @@
 
 Components.utils.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
 
+var gContextMenuContentData = null;
+
 function nsContextMenu(aXulMenu, aIsShift) {
   this.shouldDisplay = true;
   this.initMenu(aXulMenu, aIsShift);
@@ -39,6 +41,7 @@ nsContextMenu.prototype = {
   },
 
   hiding: function CM_hiding() {
+    gContextMenuContentData = null;
     InlineSpellCheckerUI.clearSuggestionsFromMenu();
     InlineSpellCheckerUI.clearDictionaryListFromMenu();
     InlineSpellCheckerUI.uninit();
@@ -750,7 +753,8 @@ nsContextMenu.prototype = {
     urlSecurityCheck(this.linkURL, doc.nodePrincipal);
     openLinkIn(this.linkURL, "window",
                { charset: doc.characterSet,
-                 referrerURI: doc.documentURIObject });
+                 referrerURI: doc.documentURIObject,
+                 referrerPolicy: doc.referrerPolicy });
   },
 
   // Open linked-to URL in a new private window.
@@ -760,6 +764,7 @@ nsContextMenu.prototype = {
     openLinkIn(this.linkURL, "window",
                { charset: doc.characterSet,
                  referrerURI: doc.documentURIObject,
+                 referrerPolicy: doc.referrerPolicy,
                  private: true });
   },
 
@@ -769,7 +774,8 @@ nsContextMenu.prototype = {
     urlSecurityCheck(this.linkURL, doc.nodePrincipal);
     openLinkIn(this.linkURL, "tab",
                { charset: doc.characterSet,
-                 referrerURI: doc.documentURIObject });
+                 referrerURI: doc.documentURIObject,
+                 referrerPolicy: doc.referrerPolicy });
   },
 
   // open URL in current tab
@@ -906,7 +912,8 @@ nsContextMenu.prototype = {
                        Ci.nsIScriptSecurityManager.DISALLOW_SCRIPT);
       let doc = this.target.ownerDocument;
       openUILink(viewURL, e, { disallowInheritPrincipal: true,
-                               referrerURI: doc.documentURIObject });
+                               referrerURI: doc.documentURIObject,
+                               forceAllowDataURI: true });
     }
   },
 
@@ -1117,14 +1124,11 @@ nsContextMenu.prototype = {
     }
 
     // setting up a new channel for 'right click - save link as ...'
-    // ideally we should use:
-    // * doc            - as the loadingNode, and/or
-    // * this.principal - as the loadingPrincipal
-    // for now lets use systemPrincipal to bypass mixedContentBlocker
-    // checks after redirects, see bug: 1136055
     var channel = NetUtil.newChannel({
                     uri: makeURI(linkURL),
-                    loadUsingSystemPrincipal: true
+                    loadingPrincipal: this.target.ownerDocument.nodePrincipal,
+                    contentPolicyType: Ci.nsIContentPolicy.TYPE_SAVEAS_DOWNLOAD,
+                    securityFlags: Ci.nsILoadInfo.SEC_ALLOW_CROSS_ORIGIN_DATA_INHERITS,
                   });
 
     if (linkDownload)
@@ -1394,9 +1398,8 @@ nsContextMenu.prototype = {
 
   isDisabledForEvents: function(aNode) {
     let ownerDoc = aNode.ownerDocument;
-    return
-      ownerDoc.defaultView &&
-      ownerDoc.defaultView
+    return ownerDoc.defaultView &&
+           ownerDoc.defaultView
               .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
               .getInterface(Components.interfaces.nsIDOMWindowUtils)
               .isNodeDisabledForEvents(aNode);

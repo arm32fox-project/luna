@@ -81,15 +81,8 @@ this.AppConstants = Object.freeze({
   false,
 #endif
 
-  MOZ_SANDBOX:
-#ifdef MOZ_SANDBOX
-  true,
-#else
-  false,
-#endif
-
-  MOZ_CONTENT_SANDBOX:
-#ifdef MOZ_CONTENT_SANDBOX
+MOZ_SAFE_BROWSING:
+#ifdef MOZ_SAFE_BROWSING
   true,
 #else
   false,
@@ -144,14 +137,6 @@ this.AppConstants = Object.freeze({
   false,
 #endif
 
-# MOZ_B2G covers both device and desktop b2g
-  MOZ_B2G:
-#ifdef MOZ_B2G
-  true,
-#else
-  false,
-#endif
-
   XP_UNIX:
 #ifdef XP_UNIX
   true,
@@ -170,8 +155,6 @@ this.AppConstants = Object.freeze({
   "macosx",
 #elif MOZ_WIDGET_ANDROID
   "android",
-#elif MOZ_WIDGET_GONK
-  "gonk",
 #elif XP_LINUX
   "linux",
 #else
@@ -213,13 +196,6 @@ this.AppConstants = Object.freeze({
 
   ASAN:
 #ifdef MOZ_ASAN
-  true,
-#else
-  false,
-#endif
-
-  MOZ_B2G_RIL:
-#ifdef MOZ_B2G_RIL
   true,
 #else
   false,
@@ -281,13 +257,6 @@ this.AppConstants = Object.freeze({
   false,
 #endif
 
-  MOZ_ENABLE_PROFILER_SPS:
-#ifdef MOZ_ENABLE_PROFILER_SPS
-  true,
-#else
-  false,
-#endif
-
   MOZ_ANDROID_ACTIVITY_STREAM:
 #ifdef MOZ_ANDROID_ACTIVITY_STREAM
   true,
@@ -314,8 +283,6 @@ this.AppConstants = Object.freeze({
   INSTALL_LOCALE: "@AB_CD@",
   MOZ_WIDGET_TOOLKIT: "@MOZ_WIDGET_TOOLKIT@",
   ANDROID_PACKAGE_NAME: "@ANDROID_PACKAGE_NAME@",
-  MOZ_B2G_VERSION: @MOZ_B2G_VERSION@,
-  MOZ_B2G_OS_NAME: @MOZ_B2G_OS_NAME@,
 
   DEBUG_JS_MODULES: "@DEBUG_JS_MODULES@",
 

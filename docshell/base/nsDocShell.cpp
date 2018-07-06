@@ -42,6 +42,7 @@
 
 #include "nsArray.h"
 #include "nsArrayUtils.h"
+#include "nsContentSecurityManager.h"
 #include "nsICaptivePortalService.h"
 #include "nsIDOMStorage.h"
 #include "nsIContentViewer.h"
@@ -138,6 +139,7 @@
 #include "nsISiteSecurityService.h"
 #include "nsStructuredCloneContainer.h"
 #include "nsIStructuredCloneContainer.h"
+#include "nsISupportsPrimitives.h"
 #ifdef MOZ_PLACES
 #include "nsIFaviconService.h"
 #include "mozIPlacesPendingOperation.h"
@@ -1272,6 +1274,7 @@ nsDocShell::LoadURI(nsIURI* aURI,
   nsCOMPtr<nsISHEntry> shEntry;
   nsXPIDLString target;
   nsAutoString srcdoc;
+  bool forceAllowDataURI = false;
   nsCOMPtr<nsIDocShell> sourceDocShell;
   nsCOMPtr<nsIURI> baseURI;
 
@@ -1307,6 +1310,7 @@ nsDocShell::LoadURI(nsIURI* aURI,
     aLoadInfo->GetSrcdocData(srcdoc);
     aLoadInfo->GetSourceDocShell(getter_AddRefs(sourceDocShell));
     aLoadInfo->GetBaseURI(getter_AddRefs(baseURI));
+    aLoadInfo->GetForceAllowDataURI(&forceAllowDataURI);
   }
 
 #if defined(DEBUG)
@@ -1560,6 +1564,10 @@ nsDocShell::LoadURI(nsIURI* aURI,
     flags |= INTERNAL_LOAD_FLAGS_IS_SRCDOC;
   }
 
+  if (forceAllowDataURI) {
+    flags |= INTERNAL_LOAD_FLAGS_FORCE_ALLOW_DATA_URI;
+  }
+
   return InternalLoad(aURI,
                       originalURI,
                       loadReplace,
@@ -1636,7 +1644,7 @@ nsDocShell::LoadStream(nsIInputStream* aStream, nsIURI* aURI,
                                          uri,
                                          aStream,
                                          triggeringPrincipal,
-                                         nsILoadInfo::SEC_NORMAL,
+                                         nsILoadInfo::SEC_ALLOW_CROSS_ORIGIN_DATA_IS_NULL,
                                          nsIContentPolicy::TYPE_OTHER,
                                          aContentType,
                                          aContentCharset);
@@ -4724,7 +4732,7 @@ nsDocShell::LoadURI(const char16_t* aURI,
 {
   return LoadURIWithOptions(aURI, aLoadFlags, aReferringURI,
                             mozilla::net::RP_Default, aPostStream,
-                            aHeaderStream, nullptr);
+                            aHeaderStream, nullptr, nullptr);
 }
 
 NS_IMETHODIMP
@@ -4734,7 +4742,8 @@ nsDocShell::LoadURIWithOptions(const char16_t* aURI,
                                uint32_t aReferrerPolicy,
                                nsIInputStream* aPostStream,
                                nsIInputStream* aHeaderStream,
-                               nsIURI* aBaseURI)
+                               nsIURI* aBaseURI,
+                               nsIPrincipal* aTriggeringPrincipal)
 {
   NS_ASSERTION((aLoadFlags & 0xf) == 0, "Unexpected flags");
 
@@ -4821,6 +4830,9 @@ nsDocShell::LoadURIWithOptions(const char16_t* aURI,
   }
   nsAutoPopupStatePusher statePusher(popupState);
 
+  bool forceAllowDataURI =
+    aLoadFlags & LOAD_FLAGS_FORCE_ALLOW_DATA_URI;
+
   // Don't pass certain flags that aren't needed and end up confusing
   // ConvertLoadTypeToDocShellLoadInfo.  We do need to ensure that they are
   // passed to LoadURI though, since it uses them.
@@ -4850,6 +4862,8 @@ nsDocShell::LoadURIWithOptions(const char16_t* aURI,
   loadInfo->SetReferrerPolicy(aReferrerPolicy);
   loadInfo->SetHeadersStream(aHeaderStream);
   loadInfo->SetBaseURI(aBaseURI);
+  loadInfo->SetTriggeringPrincipal(aTriggeringPrincipal);
+  loadInfo->SetForceAllowDataURI(forceAllowDataURI);
 
   if (fixupInfo) {
     nsAutoString searchProvider, keyword;
@@ -5675,6 +5689,11 @@ nsDocShell::LoadPage(nsISupports* aPageDescriptor, uint32_t aDisplayType)
     }
     shEntry->SetURI(newUri);
     shEntry->SetOriginalURI(nullptr);
+    // shEntry's current triggering principal is whoever loaded that page initially.
+    // But now we're doing another load of the page, via an API that is only exposed
+    // to system code.  The triggering principal for this load should be the system
+    // principal.
+    shEntry->SetTriggeringPrincipal(nsContentUtils::GetSystemPrincipal());
   }
 
   rv = LoadHistoryEntry(shEntry, LOAD_HISTORY);
@@ -9133,8 +9152,13 @@ nsDocShell::CreateContentViewer(const nsACString& aContentType,
 
     // Make sure we have a URI to set currentURI.
     nsCOMPtr<nsIURI> failedURI;
+    nsCOMPtr<nsIPrincipal> triggeringPrincipal;
     if (failedChannel) {
       NS_GetFinalChannelURI(failedChannel, getter_AddRefs(failedURI));
+    } else {
+      // if there is no failed channel we have to explicitly provide
+      // a triggeringPrincipal for the history entry.
+      triggeringPrincipal = nsContentUtils::GetSystemPrincipal();
     }
 
     if (!failedURI) {
@@ -9155,7 +9179,8 @@ nsDocShell::CreateContentViewer(const nsACString& aContentType,
     // Create an shistory entry for the old load.
     if (failedURI) {
       bool errorOnLocationChangeNeeded = OnNewURI(
-        failedURI, failedChannel, nullptr, nullptr, mLoadType, false, false, false);
+        failedURI, failedChannel, triggeringPrincipal,
+        nullptr, mLoadType, false, false, false);
 
       if (errorOnLocationChangeNeeded) {
         FireOnLocationChange(this, failedChannel, failedURI,
@@ -9884,41 +9909,41 @@ nsDocShell::InternalLoad(nsIURI* aURI,
     contentType = nsIContentPolicy::TYPE_DOCUMENT;
   }
 
-  // If there's no targetDocShell, that means we are about to create a new window,
-  // perform a content policy check before creating the window.
-  if (!targetDocShell) {
-    nsCOMPtr<Element> requestingElement;
+  // If there's no targetDocShell, that means we are about to create a new
+  // window (or aWindowTarget is empty). Perform a content policy check before
+  // creating the window. Please note for all other docshell loads
+  // content policy checks are performed within the contentSecurityManager
+  // when the channel is about to be openend.
+  if (!targetDocShell && !aWindowTarget.IsEmpty()) {
+    MOZ_ASSERT(contentType == nsIContentPolicy::TYPE_DOCUMENT,
+               "opening a new window requires type to be TYPE_DOCUMENT");
+
     nsISupports* requestingContext = nullptr;
 
-    if (contentType == nsIContentPolicy::TYPE_DOCUMENT) {
-      if (XRE_IsContentProcess()) {
-        // In e10s the child process doesn't have access to the element that
-        // contains the browsing context (because that element is in the chrome
-        // process). So we just pass mScriptGlobal.
-        requestingContext = ToSupports(mScriptGlobal);
-      } else {
-        // This is for loading non-e10s tabs and toplevel windows of various
-        // sorts.
-        // For the toplevel window cases, requestingElement will be null.
-        requestingElement = mScriptGlobal->AsOuter()->GetFrameElementInternal();
-        requestingContext = requestingElement;
-      }
+    if (XRE_IsContentProcess()) {
+      // In e10s the child process doesn't have access to the element that
+      // contains the browsing context (because that element is in the chrome
+      // process). So we just pass mScriptGlobal.
+      requestingContext = ToSupports(mScriptGlobal);
     } else {
-      requestingElement = mScriptGlobal->AsOuter()->GetFrameElementInternal();
+      // This is for loading non-e10s tabs and toplevel windows of various
+      // sorts.
+      // For the toplevel window cases, requestingElement will be null.
+      nsCOMPtr<Element> requestingElement =
+        mScriptGlobal->AsOuter()->GetFrameElementInternal();
       requestingContext = requestingElement;
-
-#ifdef DEBUG
-      if (requestingElement) {
-        // Get the docshell type for requestingElement.
-        nsCOMPtr<nsIDocument> requestingDoc = requestingElement->OwnerDoc();
-        nsCOMPtr<nsIDocShell> elementDocShell = requestingDoc->GetDocShell();
-
-        // requestingElement docshell type = current docshell type.
-        MOZ_ASSERT(mItemType == elementDocShell->ItemType(),
-                  "subframes should have the same docshell type as their parent");
-      }
-#endif
     }
+
+    // Since Content Policy checks are performed within docShell as well as
+    // the ContentSecurityManager we need a reliable way to let certain
+    // nsIContentPolicy consumers ignore duplicate calls. Let's use the 'extra'
+    // argument to pass a specific identifier.
+    nsCOMPtr<nsISupportsString> extraStr =
+      do_CreateInstance(NS_SUPPORTS_STRING_CONTRACTID, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+    NS_NAMED_LITERAL_STRING(msg, "conPolCheckFromDocShell");
+    rv = extraStr->SetData(msg);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     int16_t shouldLoad = nsIContentPolicy::ACCEPT;
     rv = NS_CheckContentLoadPolicy(contentType,
@@ -9926,7 +9951,7 @@ nsDocShell::InternalLoad(nsIURI* aURI,
                                    aTriggeringPrincipal,
                                    requestingContext,
                                    EmptyCString(),  // mime guess
-                                   nullptr,  // extra
+                                   extraStr,  // extra
                                    &shouldLoad);
 
     if (NS_FAILED(rv) || NS_CP_REJECTED(shouldLoad)) {
@@ -9935,27 +9960,6 @@ nsDocShell::InternalLoad(nsIURI* aURI,
       }
 
       return NS_ERROR_CONTENT_BLOCKED;
-    }
-
-    // If HSTS priming was set by nsMixedContentBlocker::ShouldLoad, and we
-    // would block due to mixed content, go ahead and block here. If we try to
-    // proceed with priming, we will error out later on.
-    nsCOMPtr<nsIDocShell> docShell = NS_CP_GetDocShellFromContext(requestingContext);
-    // When loading toplevel windows, requestingContext can be null.  We don't
-    // really care about HSTS in that situation, though; loads in toplevel
-    // windows should all be browser UI.
-    if (docShell) {
-      nsIDocument* document = docShell->GetDocument();
-      NS_ENSURE_TRUE(document, NS_OK);
-
-      HSTSPrimingState state = document->GetHSTSPrimingStateForLocation(aURI);
-      if (state == HSTSPrimingState::eHSTS_PRIMING_BLOCK) {
-        // HSTS Priming currently disabled for InternalLoad, so we need to clear
-        // the location that was added by nsMixedContentBlocker::ShouldLoad
-        // Bug 1269815 will address images loaded via InternalLoad
-        document->ClearHSTSPrimingLocation(aURI);
-        return NS_ERROR_CONTENT_BLOCKED;
-      }
     }
   }
 
@@ -10082,6 +10086,7 @@ nsDocShell::InternalLoad(nsIURI* aURI,
         // principal to inherit is: it should be aTriggeringPrincipal.
         loadInfo->SetPrincipalIsExplicit(true);
         loadInfo->SetLoadType(ConvertLoadTypeToDocShellLoadInfo(LOAD_LINK));
+        loadInfo->SetForceAllowDataURI(aFlags & INTERNAL_LOAD_FLAGS_FORCE_ALLOW_DATA_URI);
 
         rv = win->Open(NS_ConvertUTF8toUTF16(spec),
                        aWindowTarget, // window name
@@ -10232,8 +10237,11 @@ nsDocShell::InternalLoad(nsIURI* aURI,
     }
   }
 
+  bool loadFromExternal = false;
+
   // Before going any further vet loads initiated by external programs.
   if (aLoadType == LOAD_NORMAL_EXTERNAL) {
+    loadFromExternal = true;
     // Disallow external chrome: loads targetted at content windows
     bool isChrome = false;
     if (NS_SUCCEEDED(aURI->SchemeIs("chrome", &isChrome)) && isChrome) {
@@ -10378,10 +10386,13 @@ nsDocShell::InternalLoad(nsIURI* aURI,
        * call OnNewURI() so that, this traversal will be
        * recorded in session and global history.
        */
-      nsCOMPtr<nsIPrincipal> triggeringPrincipal, principalToInherit;
+      nsCOMPtr<nsIPrincipal> newURITriggeringPrincipal, newURIPrincipalToInherit;
       if (mOSHE) {
-        mOSHE->GetTriggeringPrincipal(getter_AddRefs(triggeringPrincipal));
-        mOSHE->GetPrincipalToInherit(getter_AddRefs(principalToInherit));
+        mOSHE->GetTriggeringPrincipal(getter_AddRefs(newURITriggeringPrincipal));
+        mOSHE->GetPrincipalToInherit(getter_AddRefs(newURIPrincipalToInherit));
+      } else {
+        newURITriggeringPrincipal = aTriggeringPrincipal;
+        newURIPrincipalToInherit = doc->NodePrincipal();
       }
       // Pass true for aCloneSHChildren, since we're not
       // changing documents here, so all of our subframes are
@@ -10391,7 +10402,7 @@ nsDocShell::InternalLoad(nsIURI* aURI,
       // flag on firing onLocationChange(...).
       // Anyway, aCloneSHChildren param is simply reflecting
       // doShortCircuitedLoad in this scope.
-      OnNewURI(aURI, nullptr, triggeringPrincipal, principalToInherit,
+      OnNewURI(aURI, nullptr, newURITriggeringPrincipal, newURIPrincipalToInherit,
                mLoadType, true, true, true);
 
       nsCOMPtr<nsIInputStream> postData;
@@ -10590,7 +10601,7 @@ nsDocShell::InternalLoad(nsIURI* aURI,
     }
     bool shouldLoad;
     rv = browserChrome3->ShouldLoadURI(this, uriForShouldLoadCheck, aReferrer,
-                                       &shouldLoad);
+                                       aTriggeringPrincipal, &shouldLoad);
     if (NS_SUCCEEDED(rv) && !shouldLoad) {
       return NS_OK;
     }
@@ -10724,7 +10735,9 @@ nsDocShell::InternalLoad(nsIURI* aURI,
                         nsINetworkPredictor::PREDICT_LOAD, this, nullptr);
 
   nsCOMPtr<nsIRequest> req;
-  rv = DoURILoad(aURI, aOriginalURI, aLoadReplace, aReferrer,
+  rv = DoURILoad(aURI, aOriginalURI, aLoadReplace, loadFromExternal,
+                 (aFlags & INTERNAL_LOAD_FLAGS_FORCE_ALLOW_DATA_URI),
+                 aReferrer,
                  !(aFlags & INTERNAL_LOAD_FLAGS_DONT_SEND_REFERRER),
                  aReferrerPolicy,
                  aTriggeringPrincipal, principalToInherit, aTypeHint,
@@ -10804,6 +10817,8 @@ nsresult
 nsDocShell::DoURILoad(nsIURI* aURI,
                       nsIURI* aOriginalURI,
                       bool aLoadReplace,
+                      bool aLoadFromExternal,
+                      bool aForceAllowDataURI,
                       nsIURI* aReferrerURI,
                       bool aSendReferrer,
                       uint32_t aReferrerPolicy,
@@ -10880,17 +10895,40 @@ nsDocShell::DoURILoad(nsIURI* aURI,
   nsCOMPtr<nsINode> loadingNode;
   nsCOMPtr<nsPIDOMWindowOuter> loadingWindow;
   nsCOMPtr<nsIPrincipal> loadingPrincipal;
+  nsCOMPtr<nsISupports> topLevelLoadingContext;
 
   if (aContentPolicyType == nsIContentPolicy::TYPE_DOCUMENT) {
     loadingNode = nullptr;
     loadingPrincipal = nullptr;
     loadingWindow = mScriptGlobal->AsOuter();
+    if (XRE_IsContentProcess()) {
+      // In e10s the child process doesn't have access to the element that
+      // contains the browsing context (because that element is in the chrome
+      // process).
+      nsCOMPtr<nsITabChild> tabChild = GetTabChild();
+      topLevelLoadingContext = ToSupports(tabChild);
+    } else {
+      // This is for loading non-e10s tabs and toplevel windows of various
+      // sorts.
+      // For the toplevel window cases, requestingElement will be null.
+      nsCOMPtr<Element> requestingElement =
+        loadingWindow->GetFrameElementInternal();
+      topLevelLoadingContext = requestingElement;
+    }
   } else {
     loadingWindow = nullptr;
     loadingNode = mScriptGlobal->AsOuter()->GetFrameElementInternal();
     if (loadingNode) {
       // If we have a loading node, then use that as our loadingPrincipal.
       loadingPrincipal = loadingNode->NodePrincipal();
+#ifdef DEBUG
+      // Get the docshell type for requestingElement.
+      nsCOMPtr<nsIDocument> requestingDoc = loadingNode->OwnerDoc();
+      nsCOMPtr<nsIDocShell> elementDocShell = requestingDoc->GetDocShell();
+      // requestingElement docshell type = current docshell type.
+      MOZ_ASSERT(mItemType == elementDocShell->ItemType(),
+                "subframes should have the same docshell type as their parent");
+#endif
     } else {
       // If this isn't a top-level load and mScriptGlobal's frame element is
       // null, then the element got removed from the DOM while we were trying
@@ -10918,7 +10956,8 @@ nsDocShell::DoURILoad(nsIURI* aURI,
   }
 
   nsLoadFlags loadFlags = mDefaultLoadFlags;
-  nsSecurityFlags securityFlags = nsILoadInfo::SEC_NORMAL;
+  nsSecurityFlags securityFlags =
+    nsILoadInfo::SEC_ALLOW_CROSS_ORIGIN_DATA_IS_NULL;
 
   if (aFirstParty) {
     // tag first party URL loads
@@ -10940,7 +10979,7 @@ nsDocShell::DoURILoad(nsIURI* aURI,
 
   nsCOMPtr<nsILoadInfo> loadInfo =
     (aContentPolicyType == nsIContentPolicy::TYPE_DOCUMENT) ?
-      new LoadInfo(loadingWindow, aTriggeringPrincipal,
+      new LoadInfo(loadingWindow, aTriggeringPrincipal, topLevelLoadingContext,
                    securityFlags) :
       new LoadInfo(loadingPrincipal, aTriggeringPrincipal, loadingNode,
                    securityFlags, aContentPolicyType);
@@ -10948,6 +10987,8 @@ nsDocShell::DoURILoad(nsIURI* aURI,
   if (aPrincipalToInherit) {
     loadInfo->SetPrincipalToInherit(aPrincipalToInherit);
   }
+  loadInfo->SetLoadTriggeredFromExternal(aLoadFromExternal);
+  loadInfo->SetForceAllowDataURI(aForceAllowDataURI);
 
   // We have to do this in case our OriginAttributes are different from the
   // OriginAttributes of the parent document. Or in case there isn't a
@@ -12078,7 +12119,9 @@ nsDocShell::AddState(JS::Handle<JS::Value> aData, const nsAString& aTitle,
 
     // Since we're not changing which page we have loaded, pass
     // true for aCloneChildren.
-    rv = AddToSessionHistory(newURI, nullptr, nullptr, nullptr, true,
+    rv = AddToSessionHistory(newURI, nullptr,
+                             document->NodePrincipal(), // triggeringPrincipal
+                             nullptr, true,
                              getter_AddRefs(newSHEntry));
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -12354,11 +12397,6 @@ nsDocShell::AddToSessionHistory(nsIURI* aURI, nsIChannel* aChannel,
       discardLayoutState = ShouldDiscardLayoutState(httpChannel);
     }
 
-    // XXX Bug 1286838: Replace channel owner with loadInfo triggeringPrincipal
-    nsCOMPtr<nsISupports> owner;
-    aChannel->GetOwner(getter_AddRefs(owner));
-    triggeringPrincipal = do_QueryInterface(owner);
-
     nsCOMPtr<nsILoadInfo> loadInfo = aChannel->GetLoadInfo();
     if (loadInfo) {
       if (!triggeringPrincipal) {
@@ -12604,10 +12642,6 @@ nsDocShell::LoadHistoryEntry(nsISHEntry* aEntry, uint32_t aLoadType)
     srcdoc = NullString();
   }
 
-  // If there is no triggeringPrincipal we can fall back to using the
-  // SystemPrincipal as the triggeringPrincipal for loading the history
-  // entry, since the history entry can only end up in history if security
-  // checks passed in the initial loading phase.
   if (!triggeringPrincipal) {
     triggeringPrincipal = nsContentUtils::GetSystemPrincipal();
   }
@@ -13872,7 +13906,8 @@ public:
                    const nsAString& aFileName,
                    nsIInputStream* aPostDataStream,
                    nsIInputStream* aHeadersDataStream,
-                   bool aIsTrusted);
+                   bool aIsTrusted,
+                   nsIPrincipal* aTriggeringPrincipal);
 
   NS_IMETHOD Run() override
   {
@@ -13888,7 +13923,7 @@ public:
       mHandler->OnLinkClickSync(mContent, mURI,
                                 mTargetSpec.get(), mFileName,
                                 mPostDataStream, mHeadersDataStream,
-                                nullptr, nullptr);
+                                nullptr, nullptr, mTriggeringPrincipal);
     }
     return NS_OK;
   }
@@ -13903,6 +13938,7 @@ private:
   nsCOMPtr<nsIContent> mContent;
   PopupControlState mPopupState;
   bool mIsTrusted;
+  nsCOMPtr<nsIPrincipal> mTriggeringPrincipal;
 };
 
 OnLinkClickEvent::OnLinkClickEvent(nsDocShell* aHandler,
@@ -13912,7 +13948,8 @@ OnLinkClickEvent::OnLinkClickEvent(nsDocShell* aHandler,
                                    const nsAString& aFileName,
                                    nsIInputStream* aPostDataStream,
                                    nsIInputStream* aHeadersDataStream,
-                                   bool aIsTrusted)
+                                   bool aIsTrusted,
+                                   nsIPrincipal* aTriggeringPrincipal)
   : mHandler(aHandler)
   , mURI(aURI)
   , mTargetSpec(aTargetSpec)
@@ -13922,6 +13959,7 @@ OnLinkClickEvent::OnLinkClickEvent(nsDocShell* aHandler,
   , mContent(aContent)
   , mPopupState(mHandler->mScriptGlobal->GetPopupControlState())
   , mIsTrusted(aIsTrusted)
+  , mTriggeringPrincipal(aTriggeringPrincipal)
 {
 }
 
@@ -13932,7 +13970,8 @@ nsDocShell::OnLinkClick(nsIContent* aContent,
                         const nsAString& aFileName,
                         nsIInputStream* aPostDataStream,
                         nsIInputStream* aHeadersDataStream,
-                        bool aIsTrusted)
+                        bool aIsTrusted,
+                        nsIPrincipal* aTriggeringPrincipal)
 {
   NS_ASSERTION(NS_IsMainThread(), "wrong thread");
 
@@ -13971,7 +14010,8 @@ nsDocShell::OnLinkClick(nsIContent* aContent,
 
   nsCOMPtr<nsIRunnable> ev =
     new OnLinkClickEvent(this, aContent, aURI, target.get(), aFileName,
-                         aPostDataStream, aHeadersDataStream, aIsTrusted);
+                         aPostDataStream, aHeadersDataStream,
+                         aIsTrusted, aTriggeringPrincipal);
   return NS_DispatchToCurrentThread(ev);
 }
 
@@ -13983,7 +14023,8 @@ nsDocShell::OnLinkClickSync(nsIContent* aContent,
                             nsIInputStream* aPostDataStream,
                             nsIInputStream* aHeadersDataStream,
                             nsIDocShell** aDocShell,
-                            nsIRequest** aRequest)
+                            nsIRequest** aRequest,
+                            nsIPrincipal* aTriggeringPrincipal)
 {
   // Initialize the DocShell / Request
   if (aDocShell) {
@@ -14106,13 +14147,18 @@ nsDocShell::OnLinkClickSync(nsIContent* aContent,
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
+  // if the triggeringPrincipal is not passed explicitly, then we
+  // fall back to using doc->NodePrincipal() as the triggeringPrincipal.
+  nsCOMPtr<nsIPrincipal> triggeringPrincipal =
+    aTriggeringPrincipal ? aTriggeringPrincipal
+                         : aContent->NodePrincipal();
+
   nsresult rv = InternalLoad(clonedURI,                 // New URI
                              nullptr,                   // Original URI
                              false,                     // LoadReplace
                              referer,                   // Referer URI
                              refererPolicy,             // Referer policy
-                             aContent->NodePrincipal(), // Triggering is our node's
-                                                        // principal
+                             triggeringPrincipal,
                              aContent->NodePrincipal(),
                              flags,
                              target,                    // Window target

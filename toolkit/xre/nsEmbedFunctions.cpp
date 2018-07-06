@@ -52,6 +52,7 @@
 #include "base/process_util.h"
 #include "chrome/common/child_process.h"
 
+#include "mozilla/FilePreferences.h"
 #include "mozilla/ipc/BrowserProcessSubThread.h"
 #include "mozilla/ipc/GeckoChildProcessHost.h"
 #include "mozilla/ipc/IOThreadChild.h"
@@ -75,25 +76,12 @@
 
 #include "mozilla/Telemetry.h"
 
-#if defined(MOZ_SANDBOX) && defined(XP_WIN)
-#include "mozilla/sandboxTarget.h"
-#include "mozilla/sandboxing/loggingCallbacks.h"
-#endif
-
-#if defined(MOZ_CONTENT_SANDBOX) && !defined(MOZ_WIDGET_GONK)
-#include "mozilla/Preferences.h"
-#endif
-
 #ifdef MOZ_IPDL_TESTS
 #include "mozilla/_ipdltest/IPDLUnitTests.h"
 #include "mozilla/_ipdltest/IPDLUnitTestProcessChild.h"
 
 using mozilla::_ipdltest::IPDLUnitTestProcessChild;
 #endif  // ifdef MOZ_IPDL_TESTS
-
-#ifdef MOZ_JPROF
-#include "jprof.h"
-#endif
 
 using namespace mozilla;
 
@@ -259,12 +247,7 @@ XRE_InitChildProcess(int aArgc,
   NS_ENSURE_ARG_POINTER(aArgv[0]);
   MOZ_ASSERT(aChildData);
 
-#ifdef MOZ_JPROF
-  // Call the code to install our handler
-  setupProfilingStuff();
-#endif
-
-#if !defined(MOZ_WIDGET_ANDROID) && !defined(MOZ_WIDGET_GONK)
+#if !defined(MOZ_WIDGET_ANDROID)
   // On non-Fennec Gecko, the GMPLoader code resides in plugin-container,
   // and we must forward it through to the GMP code here.
   GMPProcessChild::SetGMPLoader(aChildData->gmpLoader.get());
@@ -299,11 +282,6 @@ XRE_InitChildProcess(int aArgc,
         freopen("CONIN$", "r", stdin);
   }
 
-#if defined(MOZ_SANDBOX)
-  if (aChildData->sandboxTargetServices) {
-    SandboxTarget::Instance()->SetTargetServices(aChildData->sandboxTargetServices);
-  }
-#endif
 #endif
 
   // NB: This must be called before profiler_init
@@ -519,11 +497,6 @@ XRE_InitChildProcess(int aArgc,
           // If passed in grab the application path for xpcom init
           bool foundAppdir = false;
 
-#if defined(XP_MACOSX) && defined(MOZ_CONTENT_SANDBOX)
-          // If passed in grab the profile path for sandboxing
-          bool foundProfile = false;
-#endif
-
           for (int idx = aArgc; idx > 0; idx--) {
             if (aArgv[idx] && !strcmp(aArgv[idx], "-appdir")) {
               MOZ_ASSERT(!foundAppdir);
@@ -539,19 +512,6 @@ XRE_InitChildProcess(int aArgc,
             if (aArgv[idx] && !strcmp(aArgv[idx], "-safeMode")) {
               gSafeMode = true;
             }
-
-#if defined(XP_MACOSX) && defined(MOZ_CONTENT_SANDBOX)
-            if (aArgv[idx] && !strcmp(aArgv[idx], "-profile")) {
-              MOZ_ASSERT(!foundProfile);
-              if (foundProfile) {
-                continue;
-              }
-              nsCString profile;
-              profile.Assign(nsDependentCString(aArgv[idx+1]));
-              static_cast<ContentProcess*>(process.get())->SetProfile(profile);
-              foundProfile = true;
-            }
-#endif /* XP_MACOSX && MOZ_CONTENT_SANDBOX */
           }
         }
         break;
@@ -587,11 +547,8 @@ XRE_InitChildProcess(int aArgc,
       ::SetProcessShutdownParameters(0x280 - 1, SHUTDOWN_NORETRY);
 #endif
 
-#if defined(MOZ_SANDBOX) && defined(XP_WIN)
-      // We need to do this after the process has been initialised, as
-      // InitLoggingIfRequired may need access to prefs.
-      mozilla::sandboxing::InitLoggingIfRequired(aChildData->ProvideLogFunction);
-#endif
+      mozilla::FilePreferences::InitDirectoriesWhitelist();
+      mozilla::FilePreferences::InitPrefs();
 
       OverrideDefaultLocaleIfNeeded();
 

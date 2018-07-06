@@ -16,9 +16,7 @@
 #include "js/GCAPI.h"
 #include "js/GCHashTable.h"
 
-#if ENABLE_INTL_API
 #include "unicode/utypes.h"
-#endif
 
 /*
  * The Intl module specified by standard ECMA-402,
@@ -387,7 +385,48 @@ intl_FormatDateTime(JSContext* cx, unsigned argc, Value* vp);
 extern MOZ_MUST_USE bool
 intl_GetCalendarInfo(JSContext* cx, unsigned argc, Value* vp);
 
-#if ENABLE_INTL_API
+/**
+ * Returns an Array with CLDR-based fields display names.
+ * The function takes three arguments:
+ *
+ *   locale
+ *     BCP47 compliant locale string
+ *   style
+ *     A string with values: long or short or narrow
+ *   keys
+ *     An array or path-like strings that identify keys to be returned
+ *     At the moment the following types of keys are supported:
+ *
+ *       'dates/fields/{year|month|week|day}'
+ *       'dates/gregorian/months/{january|...|december}'
+ *       'dates/gregorian/weekdays/{sunday|...|saturday}'
+ *       'dates/gregorian/dayperiods/{am|pm}'
+ *
+ * Example:
+ *
+ * let info = intl_ComputeDisplayNames(
+ *   'en-US',
+ *   'long',
+ *   [
+ *     'dates/fields/year',
+ *     'dates/gregorian/months/january',
+ *     'dates/gregorian/weekdays/monday',
+ *     'dates/gregorian/dayperiods/am',
+ *   ]
+ * );
+ *
+ * Returned value:
+ *
+ * [
+ *   'year',
+ *   'January',
+ *   'Monday',
+ *   'AM'
+ * ]
+ */
+extern MOZ_MUST_USE bool
+intl_ComputeDisplayNames(JSContext* cx, unsigned argc, Value* vp);
+
 /**
  * Cast char16_t* strings to UChar* strings used by ICU.
  */
@@ -402,7 +441,18 @@ Char16ToUChar(char16_t* chars)
 {
   return reinterpret_cast<UChar*>(chars);
 }
-#endif // ENABLE_INTL_API
+
+inline char16_t*
+UCharToChar16(UChar* chars)
+{
+  return reinterpret_cast<char16_t*>(chars);
+}
+
+inline const char16_t*
+UCharToChar16(const UChar* chars)
+{
+  return reinterpret_cast<const char16_t*>(chars);
+}
 
 } // namespace js
 

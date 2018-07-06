@@ -77,8 +77,7 @@ const nsIDM = Ci.nsIDownloadManager;
 const kDownloadsStringBundleUrl =
   "chrome://browser/locale/downloads/downloads.properties";
 
-const kPrefBdmScanWhenDone =   "browser.download.manager.scanWhenDone";
-const kPrefBdmAlertOnExeOpen = "browser.download.manager.alertOnEXEOpen";
+const kPrefConfirmOpenExe = "browser.download.confirmOpenExecutable";
 
 const kDownloadsStringsRequiringFormatting = {
   sizeWithUnits: true,
@@ -104,7 +103,7 @@ const kPartialDownloadSuffix = ".part";
 
 const kPrefBranch = Services.prefs.getBranch("browser.download.");
 
-let PrefObserver = {
+var PrefObserver = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver,
                                          Ci.nsISupportsWeakReference]),
   getPref: function PO_getPref(name) {
@@ -518,21 +517,22 @@ this.DownloadsCommon = {
     if (!(aOwnerWindow instanceof Ci.nsIDOMWindow))
       throw new Error("aOwnerWindow must be a dom-window object");
 
+#ifdef XP_WIN
+    // On Windows, the system will provide a native confirmation prompt
+    // for .exe files. Exclude this from our prompt, but prompt on other
+    // executable types.
+    let isWindowsExe = aFile.leafName.toLowerCase().endsWith(".exe");
+#else
+    let isWindowsExe = false;
+#endif
+
     // Confirm opening executable files if required.
-    if (aFile.isExecutable()) {
+    if (aFile.isExecutable() && !isWindowsExe) {
       let showAlert = true;
       try {
-        showAlert = Services.prefs.getBoolPref(kPrefBdmAlertOnExeOpen);
-      } catch (ex) { }
-
-      // On Vista and above, we rely on native security prompting for
-      // downloaded content unless it's disabled.
-      if (DownloadsCommon.isWinVistaOrHigher) {
-        try {
-          if (Services.prefs.getBoolPref(kPrefBdmScanWhenDone)) {
-            showAlert = false;
-          }
-        } catch (ex) { }
+        showAlert = Services.prefs.getBoolPref(kPrefConfirmOpenExe);
+      } catch (ex) {
+        // If the preference does not exist, continue with the prompt.
       }
 
       if (showAlert) {
@@ -541,18 +541,11 @@ this.DownloadsCommon = {
           DownloadsCommon.strings.fileExecutableSecurityWarning(name, name);
         let title =
           DownloadsCommon.strings.fileExecutableSecurityWarningTitle;
-        let dontAsk =
-          DownloadsCommon.strings.fileExecutableSecurityWarningDontAsk;
 
-        let checkbox = { value: false };
-        let open = Services.prompt.confirmCheck(aOwnerWindow, title, message,
-                                                dontAsk, checkbox);
+        let open = Services.prompt.confirm(aOwnerWindow, title, message);
         if (!open) {
           return;
         }
-
-        Services.prefs.setBoolPref(kPrefBdmAlertOnExeOpen,
-                                   !checkbox.value);
       }
     }
 

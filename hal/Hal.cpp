@@ -89,8 +89,6 @@ AssertMainProcess()
   MOZ_ASSERT(GeckoProcessType_Default == XRE_GetProcessType());
 }
 
-#if !defined(MOZ_WIDGET_GONK)
-
 bool
 WindowIsActive(nsPIDOMWindowInner* aWindow)
 {
@@ -99,8 +97,6 @@ WindowIsActive(nsPIDOMWindowInner* aWindow)
 
   return !document->Hidden();
 }
-
-#endif // !defined(MOZ_WIDGET_GONK)
 
 StaticAutoPtr<WindowIdentifier::IDArrayType> gLastIDToVibrate;
 
@@ -123,7 +119,6 @@ Vibrate(const nsTArray<uint32_t>& pattern, const WindowIdentifier &id)
 {
   AssertMainThread();
 
-#if !defined(MOZ_WIDGET_GONK)
   // Only active windows may start vibrations.  If |id| hasn't gone
   // through the IPC layer -- that is, if our caller is the outside
   // world, not hal_proxy -- check whether the window is active.  If
@@ -134,7 +129,6 @@ Vibrate(const nsTArray<uint32_t>& pattern, const WindowIdentifier &id)
     HAL_LOG("Vibrate: Window is inactive, dropping vibrate.");
     return;
   }
-#endif // !defined(MOZ_WIDGET_GONK)
 
   if (!InSandbox()) {
     if (!gLastIDToVibrate) {
@@ -758,96 +752,6 @@ UnlockScreenOrientation()
 {
   AssertMainThread();
   PROXY_IF_SANDBOXED(UnlockScreenOrientation());
-}
-
-void
-EnableSwitchNotifications(SwitchDevice aDevice) {
-  AssertMainThread();
-  PROXY_IF_SANDBOXED(EnableSwitchNotifications(aDevice));
-}
-
-void
-DisableSwitchNotifications(SwitchDevice aDevice) {
-  AssertMainThread();
-  PROXY_IF_SANDBOXED(DisableSwitchNotifications(aDevice));
-}
-
-SwitchState GetCurrentSwitchState(SwitchDevice aDevice)
-{
-  AssertMainThread();
-  RETURN_PROXY_IF_SANDBOXED(GetCurrentSwitchState(aDevice), SWITCH_STATE_UNKNOWN);
-}
-
-void NotifySwitchStateFromInputDevice(SwitchDevice aDevice, SwitchState aState)
-{
-  AssertMainThread();
-  PROXY_IF_SANDBOXED(NotifySwitchStateFromInputDevice(aDevice, aState));
-}
-
-typedef mozilla::ObserverList<SwitchEvent> SwitchObserverList;
-
-static SwitchObserverList *sSwitchObserverLists = nullptr;
-
-static SwitchObserverList&
-GetSwitchObserverList(SwitchDevice aDevice) {
-  MOZ_ASSERT(0 <= aDevice && aDevice < NUM_SWITCH_DEVICE);
-  if (sSwitchObserverLists == nullptr) {
-    sSwitchObserverLists = new SwitchObserverList[NUM_SWITCH_DEVICE];
-  }
-  return sSwitchObserverLists[aDevice];
-}
-
-static void
-ReleaseObserversIfNeeded() {
-  for (int i = 0; i < NUM_SWITCH_DEVICE; i++) {
-    if (sSwitchObserverLists[i].Length() != 0)
-      return;
-  }
-
-  //The length of every list is 0, no observer in the list.
-  delete [] sSwitchObserverLists;
-  sSwitchObserverLists = nullptr;
-}
-
-void
-RegisterSwitchObserver(SwitchDevice aDevice, SwitchObserver *aObserver)
-{
-  AssertMainThread();
-  SwitchObserverList& observer = GetSwitchObserverList(aDevice);
-  observer.AddObserver(aObserver);
-  if (observer.Length() == 1) {
-    EnableSwitchNotifications(aDevice);
-  }
-}
-
-void
-UnregisterSwitchObserver(SwitchDevice aDevice, SwitchObserver *aObserver)
-{
-  AssertMainThread();
-
-  if (!sSwitchObserverLists) {
-    return;
-  }
-
-  SwitchObserverList& observer = GetSwitchObserverList(aDevice);
-  if (!observer.RemoveObserver(aObserver) || observer.Length() > 0) {
-    return;
-  }
-
-  DisableSwitchNotifications(aDevice);
-  ReleaseObserversIfNeeded();
-}
-
-void
-NotifySwitchChange(const SwitchEvent& aEvent)
-{
-  // When callback this notification, main thread may call unregister function
-  // first. We should check if this pointer is valid.
-  if (!sSwitchObserverLists)
-    return;
-
-  SwitchObserverList& observer = GetSwitchObserverList(aEvent.device());
-  observer.Broadcast(aEvent);
 }
 
 static AlarmObserver* sAlarmObserver;

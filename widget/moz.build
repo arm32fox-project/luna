@@ -6,9 +6,9 @@
 
 toolkit = CONFIG['MOZ_WIDGET_TOOLKIT']
 
-if toolkit in ('cocoa', 'android', 'gonk', 'uikit'):
+if toolkit in ('cocoa', 'android', 'uikit'):
     DIRS += [toolkit]
-if toolkit in ('android', 'gonk', 'gtk2', 'gtk3'):
+if toolkit in ('android', 'gtk2', 'gtk3'):
     EXPORTS += ['nsIPrintDialogService.h']
 
 if toolkit == 'windows':
@@ -65,7 +65,6 @@ XPIDL_SOURCES += [
     'nsIClipboardHelper.idl',
     'nsIClipboardOwner.idl',
     'nsIColorPicker.idl',
-    'nsIDatePicker.idl',
     'nsIDisplayInfo.idl',
     'nsIDragService.idl',
     'nsIDragSession.idl',
@@ -151,7 +150,6 @@ UNIFIED_SOURCES += [
     'nsClipboardProxy.cpp',
     'nsColorPickerProxy.cpp',
     'nsContentProcessWidgetFactory.cpp',
-    'nsDatePickerProxy.cpp',
     'nsDragServiceProxy.cpp',
     'nsFilePickerProxy.cpp',
     'nsHTMLFormatConverter.cpp',
@@ -224,7 +222,7 @@ if toolkit in ('cocoa', 'windows'):
     ]
 
 if toolkit in {'gtk2', 'gtk3', 'cocoa', 'windows',
-               'android', 'gonk', 'uikit'}:
+               'android', 'uikit'}:
     UNIFIED_SOURCES += [
         'nsBaseFilePicker.cpp',
     ]
@@ -238,8 +236,7 @@ if toolkit == 'gtk3':
         'nsIApplicationChooser.idl',
     ]
 
-if not CONFIG['MOZ_B2G']:
-    DEFINES['MOZ_CROSS_PROCESS_IME'] = True
+DEFINES['MOZ_CROSS_PROCESS_IME'] = True
 
 include('/ipc/chromium/chromium-config.mozbuild')
 

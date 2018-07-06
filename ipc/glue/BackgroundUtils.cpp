@@ -280,6 +280,7 @@ LoadInfoToLoadInfoArgs(nsILoadInfo *aLoadInfo,
       aLoadInfo->GetUpgradeInsecureRequests(),
       aLoadInfo->GetVerifySignedContent(),
       aLoadInfo->GetEnforceSRI(),
+      aLoadInfo->GetForceAllowDataURI(),
       aLoadInfo->GetForceInheritPrincipalDropped(),
       aLoadInfo->GetInnerWindowID(),
       aLoadInfo->GetOuterWindowID(),
@@ -294,8 +295,8 @@ LoadInfoToLoadInfoArgs(nsILoadInfo *aLoadInfo,
       aLoadInfo->CorsUnsafeHeaders(),
       aLoadInfo->GetForcePreflight(),
       aLoadInfo->GetIsPreflight(),
-      aLoadInfo->GetForceHSTSPriming(),
-      aLoadInfo->GetMixedContentWouldBlock());
+      aLoadInfo->GetLoadTriggeredFromExternal()
+      );
 
   return NS_OK;
 }
@@ -356,6 +357,7 @@ LoadInfoArgsToLoadInfo(const OptionalLoadInfoArgs& aOptionalLoadInfoArgs,
                           loadInfoArgs.upgradeInsecureRequests(),
                           loadInfoArgs.verifySignedContent(),
                           loadInfoArgs.enforceSRI(),
+                          loadInfoArgs.forceAllowDataURI(),
                           loadInfoArgs.forceInheritPrincipalDropped(),
                           loadInfoArgs.innerWindowID(),
                           loadInfoArgs.outerWindowID(),
@@ -370,8 +372,7 @@ LoadInfoArgsToLoadInfo(const OptionalLoadInfoArgs& aOptionalLoadInfoArgs,
                           loadInfoArgs.corsUnsafeHeaders(),
                           loadInfoArgs.forcePreflight(),
                           loadInfoArgs.isPreflight(),
-                          loadInfoArgs.forceHSTSPriming(),
-                          loadInfoArgs.mixedContentWouldBlock()
+                          loadInfoArgs.loadTriggeredFromExternal()
                           );
 
    loadInfo.forget(outLoadInfo);

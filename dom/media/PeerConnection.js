@@ -516,6 +516,18 @@ RTCPeerConnection.prototype = {
     };
   },
 
+  // This implements the fairly common "Queue a task" logic
+  async _queueTaskWithClosedCheck(func) {
+    return new Promise(resolve => {
+      Services.tm.mainThread.dispatch({ run() {
+        if (!this._closed) {
+          func();
+          resolve();
+        }
+      }}, Ci.nsIThread.DISPATCH_NORMAL);
+    });
+  },
+
   /**
    * An RTCConfiguration may look like this:
    *
@@ -791,7 +803,6 @@ RTCPeerConnection.prototype = {
       return this._havePermission;
     }
     if (this._isChrome ||
-        AppConstants.MOZ_B2G ||
         Services.prefs.getBoolPref("media.navigator.permission.disabled")) {
       return this._havePermission = Promise.resolve();
     }
@@ -1446,7 +1457,10 @@ PeerConnectionObserver.prototype = {
         break;
 
       case "IceConnectionState":
-        this.handleIceConnectionStateChange(this._dompc._pc.iceConnectionState);
+        let connState = this._dompc._pc.iceConnectionState;
+        this._dompc._queueTaskWithClosedCheck(() => {
+          this.handleIceConnectionStateChange(connState);
+        });
         break;
 
       case "IceGatheringState":

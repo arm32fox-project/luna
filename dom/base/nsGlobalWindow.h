@@ -102,6 +102,8 @@ struct nsRect;
 
 class nsWindowSizes;
 
+class IdleRequestExecutor;
+
 namespace mozilla {
 class DOMEventTargetHelper;
 class ThrottledEventQueue;
@@ -118,6 +120,7 @@ class Gamepad;
 enum class ImageBitmapFormat : uint32_t;
 class IdleRequest;
 class IdleRequestCallback;
+class IncrementalRunnable;
 class Location;
 class MediaQueryList;
 class MozSelfSupport;
@@ -135,7 +138,7 @@ class U2F;
 class VRDisplay;
 class VREventObserver;
 class WakeLock;
-#if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_WIDGET_GONK)
+#if defined(MOZ_WIDGET_ANDROID)
 class WindowOrientationObserver;
 #endif
 class Worklet;
@@ -628,20 +631,13 @@ public:
   virtual void EnableDeviceSensor(uint32_t aType) override;
   virtual void DisableDeviceSensor(uint32_t aType) override;
 
-#if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_WIDGET_GONK)
+#if defined(MOZ_WIDGET_ANDROID)
   virtual void EnableOrientationChangeListener() override;
   virtual void DisableOrientationChangeListener() override;
 #endif
 
   virtual void EnableTimeChangeNotifications() override;
   virtual void DisableTimeChangeNotifications() override;
-
-#ifdef MOZ_B2G
-  // Inner windows only.
-  virtual void EnableNetworkEvent(mozilla::EventMessage aEventMessage) override;
-  virtual void DisableNetworkEvent(
-                 mozilla::EventMessage aEventMessage) override;
-#endif // MOZ_B2G
 
   virtual nsresult SetArguments(nsIArray* aArguments) override;
 
@@ -909,7 +905,7 @@ public:
   nsIDOMOfflineResourceList* GetApplicationCache(mozilla::ErrorResult& aError);
   already_AddRefed<nsIDOMOfflineResourceList> GetApplicationCache() override;
 
-#if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_WIDGET_GONK)
+#if defined(MOZ_WIDGET_ANDROID)
   int16_t Orientation(mozilla::dom::CallerType aCallerType) const;
 #endif
 
@@ -1096,7 +1092,6 @@ public:
                                const mozilla::dom::IdleRequestOptions& aOptions,
                                mozilla::ErrorResult& aError);
   void CancelIdleCallback(uint32_t aHandle);
-
 
 #ifdef MOZ_WEBSPEECH
   mozilla::dom::SpeechSynthesis*
@@ -1762,6 +1757,21 @@ private:
   mozilla::dom::TabGroup* TabGroupInner();
   mozilla::dom::TabGroup* TabGroupOuter();
 
+public:
+  void DisableIdleCallbackRequests();
+  uint32_t IdleRequestHandle() const { return mIdleRequestCallbackCounter; }
+  nsresult RunIdleRequest(mozilla::dom::IdleRequest* aRequest,
+                          DOMHighResTimeStamp aDeadline, bool aDidTimeout);
+  nsresult ExecuteIdleRequest(TimeStamp aDeadline);
+  void ScheduleIdleRequestDispatch();
+  void SuspendIdleRequests();
+  void ResumeIdleRequests();
+
+  typedef mozilla::LinkedList<mozilla::dom::IdleRequest> IdleRequests;
+  void InsertIdleCallback(mozilla::dom::IdleRequest* aRequest);
+
+  void RemoveIdleCallback(mozilla::dom::IdleRequest* aRequest);
+
 protected:
   // These members are only used on outer window objects. Make sure
   // you never set any of these on an inner object!
@@ -1912,31 +1922,17 @@ protected:
 
   uint32_t mSerial;
 
-  void DisableIdleCallbackRequests();
-  void UnthrottleIdleCallbackRequests();
-
-  void PostThrottledIdleCallback();
-
-  typedef mozilla::LinkedList<mozilla::dom::IdleRequest> IdleRequests;
-  static void InsertIdleCallbackIntoList(mozilla::dom::IdleRequest* aRequest,
-                                         IdleRequests& aList);
-
    // The current idle request callback timeout handle
   uint32_t mIdleCallbackTimeoutCounter;
   // The current idle request callback handle
   uint32_t mIdleRequestCallbackCounter;
   IdleRequests mIdleRequestCallbacks;
-  IdleRequests mThrottledIdleRequestCallbacks;
+  RefPtr<IdleRequestExecutor> mIdleRequestExecutor;
 
 #ifdef DEBUG
   bool mSetOpenerWindowCalled;
   nsCOMPtr<nsIURI> mLastOpenedURI;
 #endif
-
-#ifdef MOZ_B2G
-  bool mNetworkUploadObserverEnabled;
-  bool mNetworkDownloadObserverEnabled;
-#endif // MOZ_B2G
 
   bool mCleanedUp;
 
@@ -1975,7 +1971,7 @@ protected:
 
   nsTArray<uint32_t> mEnabledSensors;
 
-#if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_WIDGET_GONK)
+#if defined(MOZ_WIDGET_ANDROID)
   nsAutoPtr<mozilla::dom::WindowOrientationObserver> mOrientationChangeObserver;
 #endif
 
@@ -2002,6 +1998,7 @@ protected:
   friend class nsDOMWindowUtils;
   friend class mozilla::dom::PostMessageEvent;
   friend class DesktopNotification;
+  friend class IdleRequestExecutor;
 
   static WindowByIdTable* sWindowsById;
   static bool sWarnedAboutWindowInternal;

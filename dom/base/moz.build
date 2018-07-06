@@ -217,6 +217,7 @@ EXPORTS.mozilla.dom += [
     'TabGroup.h',
     'Text.h',
     'Timeout.h',
+    'TimeoutHandler.h',
     'TreeWalker.h',
     'WebKitCSSMatrix.h',
     'WebSocket.h',
@@ -364,6 +365,7 @@ UNIFIED_SOURCES += [
     'TextInputProcessor.cpp',
     'ThirdPartyUtil.cpp',
     'Timeout.cpp',
+    'TimeoutHandler.cpp',
     'TimerClamping.cpp',
     'TreeWalker.cpp',
     'WebKitCSSMatrix.cpp',
@@ -459,11 +461,6 @@ LOCAL_INCLUDES += [
     '/widget',
     '/xpcom/ds',
 ]
-
-if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
-    LOCAL_INCLUDES += [
-        '../system/gonk',
-    ]
 
 if CONFIG['MOZ_WEBRTC']:
     LOCAL_INCLUDES += [

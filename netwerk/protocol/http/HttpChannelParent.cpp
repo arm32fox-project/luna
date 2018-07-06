@@ -130,7 +130,13 @@ HttpChannelParent::Init(const HttpChannelCreationArgs& aArgs)
                        a.initialRwin(), a.blockAuthPrompt(),
                        a.suspendAfterSynthesizeResponse(),
                        a.allowStaleCacheContent(), a.contentTypeHint(),
-                       a.channelId(), a.contentWindowId(), a.preferredAlternativeType());
+                       a.channelId(), a.contentWindowId(), a.preferredAlternativeType(),
+                       a.launchServiceWorkerStart(),
+                       a.launchServiceWorkerEnd(),
+                       a.dispatchFetchEventStart(),
+                       a.dispatchFetchEventEnd(),
+                       a.handleFetchEventStart(),
+                       a.handleFetchEventEnd());
   }
   case HttpChannelCreationArgs::THttpChannelConnectArgs:
   {
@@ -329,7 +335,13 @@ HttpChannelParent::DoAsyncOpen(  const URIParams&           aURI,
                                  const nsCString&           aContentTypeHint,
                                  const nsCString&           aChannelId,
                                  const uint64_t&            aContentWindowId,
-                                 const nsCString&           aPreferredAlternativeType)
+                                 const nsCString&           aPreferredAlternativeType,
+                                 const TimeStamp&           aLaunchServiceWorkerStart,
+                                 const TimeStamp&           aLaunchServiceWorkerEnd,
+                                 const TimeStamp&           aDispatchFetchEventStart,
+                                 const TimeStamp&           aDispatchFetchEventEnd,
+                                 const TimeStamp&           aHandleFetchEventStart,
+                                 const TimeStamp&           aHandleFetchEventEnd)
 {
   nsCOMPtr<nsIURI> uri = DeserializeURI(aURI);
   if (!uri) {
@@ -534,6 +546,13 @@ HttpChannelParent::DoAsyncOpen(  const URIParams&           aURI,
   mChannel->SetInitialRwin(aInitialRwin);
   mChannel->SetBlockAuthPrompt(aBlockAuthPrompt);
 
+  mChannel->SetLaunchServiceWorkerStart(aLaunchServiceWorkerStart);
+  mChannel->SetLaunchServiceWorkerEnd(aLaunchServiceWorkerEnd);
+  mChannel->SetDispatchFetchEventStart(aDispatchFetchEventStart);
+  mChannel->SetDispatchFetchEventEnd(aDispatchFetchEventEnd);
+  mChannel->SetHandleFetchEventStart(aHandleFetchEventStart);
+  mChannel->SetHandleFetchEventEnd(aHandleFetchEventEnd);
+
   nsCOMPtr<nsIApplicationCacheChannel> appCacheChan =
     do_QueryObject(mChannel);
   nsCOMPtr<nsIApplicationCacheService> appCacheService =
@@ -714,13 +733,10 @@ HttpChannelParent::RecvRedirect2Verify(const nsresult& result,
                                        const uint32_t& loadFlags,
                                        const OptionalURIParams& aAPIRedirectURI,
                                        const OptionalCorsPreflightArgs& aCorsPreflightArgs,
-                                       const bool& aForceHSTSPriming,
-                                       const bool& aMixedContentWouldBlock,
                                        const bool& aChooseAppcache)
 {
   LOG(("HttpChannelParent::RecvRedirect2Verify [this=%p result=%x]\n",
        this, result));
-  nsresult rv;
   if (NS_SUCCEEDED(result)) {
     nsCOMPtr<nsIHttpChannel> newHttpChannel =
         do_QueryInterface(mRedirectChannel);
@@ -753,14 +769,6 @@ HttpChannelParent::RecvRedirect2Verify(const nsresult& result,
         MOZ_RELEASE_ASSERT(newInternalChannel);
         const CorsPreflightArgs& args = aCorsPreflightArgs.get_CorsPreflightArgs();
         newInternalChannel->SetCorsPreflightParameters(args.unsafeHeaders());
-      }
-
-      if (aForceHSTSPriming) {
-        nsCOMPtr<nsILoadInfo> newLoadInfo;
-        rv = newHttpChannel->GetLoadInfo(getter_AddRefs(newLoadInfo));
-        if (NS_SUCCEEDED(rv) && newLoadInfo) {
-          newLoadInfo->SetHSTSPriming(aMixedContentWouldBlock);
-        }
       }
 
       nsCOMPtr<nsIApplicationCacheChannel> appCacheChannel =
@@ -1159,7 +1167,7 @@ HttpChannelParent::OnStartRequest(nsIRequest *aRequest, nsISupports *aContext)
   nsCString secInfoSerialization;
   UpdateAndSerializeSecurityInfo(secInfoSerialization);
 
-  uint16_t redirectCount = 0;
+  uint8_t redirectCount = 0;
   chan->GetRedirectCount(&redirectCount);
 
   nsCOMPtr<nsISupports> cacheKey;

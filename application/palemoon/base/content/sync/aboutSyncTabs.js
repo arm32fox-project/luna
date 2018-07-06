@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-const Cu = Components.utils;
+var Cu = Components.utils;
 
 Cu.import("resource://services-common/utils.js");
 Cu.import("resource://services-sync/main.js");
@@ -11,7 +11,7 @@ Cu.import("resource://gre/modules/PlacesUtils.jsm", this);
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
-let RemoteTabViewer = {
+var RemoteTabViewer = {
   _tabsList: null,
 
   init: function () {

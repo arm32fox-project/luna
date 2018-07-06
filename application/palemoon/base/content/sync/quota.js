@@ -10,7 +10,7 @@ const Cu = Components.utils;
 Cu.import("resource://services-sync/main.js");
 Cu.import("resource://gre/modules/DownloadUtils.jsm");
 
-let gSyncQuota = {
+var gSyncQuota = {
 
   init: function init() {
     this.bundle = document.getElementById("quotaStrings");
@@ -86,7 +86,7 @@ let gSyncQuota = {
 
 };
 
-let gUsageTreeView = {
+var gUsageTreeView = {
 
   _ignored: {keys: true,
              meta: true,
@@ -193,10 +193,15 @@ let gUsageTreeView = {
       return;
     }
 
-    toremove = [this._byname[coll].title for each (coll in toremove)];
-    toremove = toremove.join(gSyncQuota.bundle.getString("quota.list.separator"));
+    // Tycho: toremove = [this._byname[coll].title for each (coll in toremove)];
+    let toremovetitles = [];
+    for (let coll in toremove) {
+      toremovetitles.push(this._byname[coll].title);
+    }
+    
+    toremovetitles = toremovetitles.join(gSyncQuota.bundle.getString("quota.list.separator"));
     caption.firstChild.nodeValue = gSyncQuota.bundle.getFormattedString(
-      "quota.removal.label", [toremove]);
+      "quota.removal.label", [toremovetitles]);
     if (freeup)
       caption.firstChild.nodeValue += gSyncQuota.bundle.getFormattedString(
         "quota.freeup.label", gSyncQuota.convertKB(freeup));
@@ -208,7 +213,14 @@ let gUsageTreeView = {
    * disabled.
    */
   getEnginesToDisable: function getEnginesToDisable() {
-    return [coll.name for each (coll in this._collections) if (!coll.enabled)];
+    // Tycho: return [coll.name for each (coll in this._collections) if (!coll.enabled)];
+    let engines = [];
+    for each (let coll in this._collections) {
+      if (!coll.enabled) {
+        engines.push(coll.name);
+      }
+    }
+    return engines;
   },
 
   // nsITreeView

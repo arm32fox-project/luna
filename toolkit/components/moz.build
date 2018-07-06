@@ -17,6 +17,7 @@ DIRS += [
     'alerts',
     'apppicker',
     'asyncshutdown',
+    'blocklist',
     'commandlines',
     'console',
     'contentprefs',
@@ -50,7 +51,6 @@ DIRS += [
     'reader',
     'remotebrowserutils',
     'reflect',
-    'securityreporter',
     'sqlite',
     'startup',
     'statusfilter',
@@ -60,7 +60,6 @@ DIRS += [
     'tooltiptext',
     'typeaheadfind',
     'utils',
-    'url-classifier',
     'urlformatter',
     'viewconfig',
     'workerloader',
@@ -70,8 +69,7 @@ DIRS += [
 if CONFIG['MOZ_WEBEXTENSIONS']:
     DIRS += ['webextensions']
 
-if CONFIG['ENABLE_INTL_API']:
-    DIRS += ['mozintl']
+DIRS += ['mozintl']
 
 if not CONFIG['MOZ_FENNEC']:
     DIRS += ['narrate', 'viewsource'];
@@ -93,6 +91,9 @@ if 'gtk' in CONFIG['MOZ_WIDGET_TOOLKIT']:
 
 if CONFIG['MOZ_TOOLKIT_SEARCH']:
     DIRS += ['search']
+
+if CONFIG['MOZ_URL_CLASSIFIER']:
+    DIRS += ['url-classifier']
 
 DIRS += ['captivedetect']
 

@@ -42,6 +42,9 @@ var snapshotFormatters = {
     $("os-box").textContent = data.osVersion;
     $("supportLink").href = data.supportURL;
     let version = AppConstants.MOZ_APP_VERSION_DISPLAY;
+    if (data.versionArch) {
+      version += " (" + data.versionArch + ")";
+    }
     if (data.vendor)
       version += " (" + data.vendor + ")";
     $("version-box").textContent = version;
@@ -497,26 +500,7 @@ var snapshotFormatters = {
     $("prefs-user-js-section").style.display = "";
     // Clear the no-copy class
     $("prefs-user-js-section").className = "";
-  },
-
-  sandbox: function sandbox(data) {
-    if (!AppConstants.MOZ_SANDBOX)
-      return;
-
-    let strings = stringBundle();
-    let tbody = $("sandbox-tbody");
-    for (let key in data) {
-      // Simplify the display a little in the common case.
-      if (key === "hasPrivilegedUserNamespaces" &&
-          data[key] === data["hasUserNamespaces"]) {
-        continue;
-      }
-      tbody.appendChild($.new("tr", [
-        $.new("th", strings.GetStringFromName(key), "column"),
-        $.new("td", data[key])
-      ]));
-    }
-  },
+  }
 };
 
 var $ = document.getElementById.bind(document);
@@ -895,16 +879,25 @@ function populateActionBox() {
   }
 }
 
-// Prompt user to restart the browser in safe mode
-function safeModeRestart() {
+// Prompt user to restart the browser
+function restart(safeMode) {
   let cancelQuit = Cc["@mozilla.org/supports-PRBool;1"]
                      .createInstance(Ci.nsISupportsPRBool);
   Services.obs.notifyObservers(cancelQuit, "quit-application-requested", "restart");
 
-  if (!cancelQuit.data) {
-    Services.startup.restartInSafeMode(Ci.nsIAppStartup.eAttemptQuit);
+  if (cancelQuit.data) {
+    return;
+  }
+
+  let flags = Ci.nsIAppStartup.eAttemptQuit;
+
+  if (safeMode) {
+    Services.startup.restartInSafeMode(flags);
+  } else {
+    Services.startup.quit(flags | Ci.nsIAppStartup.eRestart);
   }
 }
+
 /**
  * Set up event listeners for buttons.
  */
@@ -931,8 +924,11 @@ function setupEventListeners() {
     if (Services.obs.enumerateObservers("restart-in-safe-mode").hasMoreElements()) {
       Services.obs.notifyObservers(null, "restart-in-safe-mode", "");
     } else {
-      safeModeRestart();
+      restart(true);
     }
+  });
+  $("restart-button").addEventListener("click", function(event) {
+    restart(false);
   });
   $("verify-place-integrity-button").addEventListener("click", function(event) {
     PlacesDBUtils.checkAndFixDatabase(function(aLog) {

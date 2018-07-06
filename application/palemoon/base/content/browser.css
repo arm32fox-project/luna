@@ -280,6 +280,10 @@ panel[noactions] > richlistbox > richlistitem[type~="action"] > .ac-url-box > .a
   -moz-binding: url("chrome://browser/content/urlbarBindings.xml#urlbar-rich-result-popup");
 }
 
+#DateTimePickerPanel[active="true"] {
+  -moz-binding: url("chrome://global/content/bindings/datetimepopup.xml#datetime-popup");
+}
+
 /* Pale Moon: Address bar: Feeds */
 #ub-feed-button > .button-box > .box-inherit > .button-text,
 #ub-feed-button > .button-box > .button-menu-dropmarker {
@@ -323,6 +327,66 @@ panel[noactions] > richlistbox > richlistitem[type~="action"] > .ac-url-box > .a
 #wrapper-search-container > #search-container > #searchbar > .searchbar-textbox > .autocomplete-textbox-container > .textbox-input-box > html|*.textbox-input {
   visibility: hidden;
 }
+
+/* Private Autocomplete */
+textbox[type="private-autocomplete"] {
+  -moz-binding: url("chrome://browser/content/autocomplete.xml#autocomplete");
+}
+
+panel[type="private-autocomplete"] {
+  -moz-binding: url("chrome://browser/content/autocomplete.xml#autocomplete-result-popup");
+}
+
+panel[type="private-autocomplete-richlistbox"] {
+  -moz-binding: url("chrome://browser/content/autocomplete.xml#private-autocomplete-rich-result-popup");
+}
+
+.private-autocomplete-tree {
+  -moz-binding: url("chrome://browser/content/autocomplete.xml#private-autocomplete-tree");
+  -moz-user-focus: ignore;
+}
+
+.private-autocomplete-treebody {
+  -moz-binding: url("chrome://browser/content/autocomplete.xml#private-autocomplete-treebody");
+}
+
+.private-autocomplete-richlistbox {
+  -moz-binding: url("chrome://browser/content/autocomplete.xml#private-autocomplete-richlistbox");
+  -moz-user-focus: ignore;
+}
+
+.private-autocomplete-richlistbox > scrollbox {
+  overflow-x: hidden !important;
+}
+
+.private-autocomplete-richlistitem {
+  -moz-binding: url("chrome://browser/content/autocomplete.xml#private-autocomplete-richlistitem");
+  -moz-box-orient: vertical;
+  overflow: -moz-hidden-unscrollable;
+}
+
+.private-autocomplete-treerows {
+  -moz-binding: url("chrome://browser/content/autocomplete.xml#private-autocomplete-treerows");
+}
+
+.private-autocomplete-history-dropmarker {
+  display: none;
+}
+
+.private-autocomplete-history-dropmarker[enablehistory="true"] {
+  display: -moz-box;
+  -moz-binding: url("chrome://browser/content/autocomplete.xml#private-history-dropmarker");
+}
+
+.ac-ellipsis-after {
+  visibility: hidden;
+}
+
+.ac-url-text[type~="action"],
+.ac-action-text:not([type~="action"]) {
+  visibility: collapse;
+}
+
 
 /* ::::: Unified Back-/Forward Button ::::: */
 #back-button > .toolbarbutton-menu-dropmarker,
@@ -440,6 +504,7 @@ window[chromehidden~="toolbar"] toolbar:not(.toolbar-primary):not(#nav-bar):not(
   width: 100%;
   height: 100%;
   z-index: 2147483647 !important;
+  pointer-events: none;
 }
 
 #full-screen-warning-container[fade-warning-out] {
@@ -448,22 +513,13 @@ window[chromehidden~="toolbar"] toolbar:not(.toolbar-primary):not(#nav-bar):not(
   opacity: 0.0;
 }
 
-/* When the modal fullscreen approval UI is showing, don't allow interaction
-   with the page, but when we're just showing the warning upon entering
-   fullscreen on an already approved page, do allow interaction with the page.
- */
-#full-screen-warning-container:not([obscure-browser]) {
-  pointer-events: none;
-}
-
 #full-screen-warning-message {
   /* We must specify a max-width, otherwise word-wrap:break-word doesn't
      work in descendant <description> and <label> elements. Bug 630864. */
   max-width: 800px;
 }
 
-#full-screen-domain-text,
-#full-screen-remember-decision > .checkbox-label-box > .checkbox-label {
+#full-screen-domain-text {
   word-wrap: break-word;
   /* We must specify a min-width, otherwise word-wrap:break-word doesn't work. Bug 630864. */
   min-width: 1px;
@@ -542,11 +598,11 @@ window[chromehidden~="toolbar"] toolbar:not(.toolbar-primary):not(#nav-bar):not(
   max-width: 280px;
 }
 
-.form-validation-anchor {
+.popup-anchor {
   /* should occupy space but not be visible */
   opacity: 0;
-  visibility: hidden;
   pointer-events: none;
+  -moz-stack-sizing: ignore;
 }
 
 #addon-progress-notification {
@@ -627,10 +683,6 @@ statuspanel[inactive][previoustype=overLink] {
   -moz-box-align: end;
 }
 
-.panel-inner-arrowcontentfooter[footertype="promobox"] {
-  -moz-binding: url("chrome://browser/content/urlbarBindings.xml#promobox");
-}
-
 /* highlighter */
 %include highlighter.css
 
@@ -690,7 +742,7 @@ toolbarbutton[type="badged"] {
 }
 
 /* Strict icon size for PMkit 'ui/button' */
-toolbarbutton[pmkit-button="true"] > .toolbarbutton-badge-container > .toolbarbutton-icon {
+toolbarbutton[pmkit-button="true"] > .toolbarbutton-badge-stack > .toolbarbutton-icon {
   width: 16px;
   height: 16px;
 }
@@ -699,4 +751,9 @@ toolbarbutton[pmkit-button="true"] > .toolbarbutton-badge-container > .toolbarbu
 #main-window[inFullscreen] #global-notificationbox,
 #main-window[inFullscreen] #high-priority-global-notificationbox {
   visibility: collapse;
+}
+
+#navigator-toolbox[fullscreenShouldAnimate] {
+  transition: 0.7s margin-top ease-out;
+  transition-delay: 0.8s;
 }

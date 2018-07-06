@@ -21,7 +21,9 @@
   locale/@AB_CD@/global/aboutSupport.properties         (%chrome/global/aboutSupport.properties)
   locale/@AB_CD@/global/aboutTelemetry.dtd              (%chrome/global/aboutTelemetry.dtd)
   locale/@AB_CD@/global/aboutTelemetry.properties       (%chrome/global/aboutTelemetry.properties)
+#ifdef MOZ_WEBRTC
   locale/@AB_CD@/global/aboutWebrtc.properties          (%chrome/global/aboutWebrtc.properties)
+#endif
   locale/@AB_CD@/global/autocomplete.properties         (%chrome/global/autocomplete.properties)
   locale/@AB_CD@/global/appPicker.dtd                   (%chrome/global/appPicker.dtd)
   locale/@AB_CD@/global/brand.dtd                       (generic/chrome/global/brand.dtd)
@@ -39,6 +41,7 @@
   locale/@AB_CD@/global/customizeToolbar.dtd            (%chrome/global/customizeToolbar.dtd)
   locale/@AB_CD@/global/customizeToolbar.properties     (%chrome/global/customizeToolbar.properties)
 #endif
+  locale/@AB_CD@/global/datetimebox.dtd                 (%chrome/global/datetimebox.dtd)
   locale/@AB_CD@/global/datetimepicker.dtd              (%chrome/global/datetimepicker.dtd)
   locale/@AB_CD@/global/dateFormat.properties           (%chrome/global/dateFormat.properties)
   locale/@AB_CD@/global/dialogOverlay.dtd               (%chrome/global/dialogOverlay.dtd)
@@ -64,7 +67,6 @@
   locale/@AB_CD@/global/intl.properties                 (%chrome/global/intl.properties)
   locale/@AB_CD@/global/keys.properties                 (%chrome/global/keys.properties)
   locale/@AB_CD@/global/languageNames.properties        (%chrome/global/languageNames.properties)
-  locale/@AB_CD@/global/mozilla.dtd                     (%chrome/global/mozilla.dtd)
 #ifndef MOZ_FENNEC
   locale/@AB_CD@/global/narrate.properties              (%chrome/global/narrate.properties)
 #endif
@@ -105,19 +107,7 @@
   locale/@AB_CD@/mozapps/downloads/settingsChange.dtd             (%chrome/mozapps/downloads/settingsChange.dtd)
   locale/@AB_CD@/mozapps/downloads/downloads.dtd                  (%chrome/mozapps/downloads/downloads.dtd)
   locale/@AB_CD@/mozapps/downloads/downloads.properties           (%chrome/mozapps/downloads/downloads.properties)
-#ifdef MOZ_WEBEXTENSIONS
-  locale/@AB_CD@/mozapps/extensions/extensions.dtd                (%chrome/mozapps/webextensions/extensions.dtd)
-#ifndef MOZ_FENNEC
-  locale/@AB_CD@/mozapps/extensions/extensions.properties         (%chrome/mozapps/webextensions/extensions.properties)
-  locale/@AB_CD@/mozapps/extensions/blocklist.dtd                 (%chrome/mozapps/webextensions/blocklist.dtd)
-  locale/@AB_CD@/mozapps/extensions/about.dtd                     (%chrome/mozapps/webextensions/about.dtd)
-  locale/@AB_CD@/mozapps/extensions/update.dtd                    (%chrome/mozapps/webextensions/update.dtd)
-  locale/@AB_CD@/mozapps/extensions/update.properties             (%chrome/mozapps/webextensions/update.properties)
-  locale/@AB_CD@/mozapps/extensions/newaddon.dtd                  (%chrome/mozapps/webextensions/newaddon.dtd)
-  locale/@AB_CD@/mozapps/extensions/newaddon.properties           (%chrome/mozapps/webextensions/newaddon.properties)
-#endif
-#else
-  locale/@AB_CD@/mozapps/extensions/extensions.dtd                (%chrome/mozapps/extensions/extensions.dtd)
+* locale/@AB_CD@/mozapps/extensions/extensions.dtd                (%chrome/mozapps/extensions/extensions.dtd)
   locale/@AB_CD@/mozapps/extensions/extensions.properties         (%chrome/mozapps/extensions/extensions.properties)
   locale/@AB_CD@/mozapps/extensions/blocklist.dtd                 (%chrome/mozapps/extensions/blocklist.dtd)
   locale/@AB_CD@/mozapps/extensions/about.dtd                     (%chrome/mozapps/extensions/about.dtd)
@@ -127,7 +117,6 @@
   locale/@AB_CD@/mozapps/extensions/update.properties             (%chrome/mozapps/extensions/update.properties)
   locale/@AB_CD@/mozapps/extensions/newaddon.dtd                  (%chrome/mozapps/extensions/newaddon.dtd)
   locale/@AB_CD@/mozapps/extensions/newaddon.properties           (%chrome/mozapps/extensions/newaddon.properties)
-#endif
   locale/@AB_CD@/mozapps/handling/handling.dtd                    (%chrome/mozapps/handling/handling.dtd)
   locale/@AB_CD@/mozapps/handling/handling.properties             (%chrome/mozapps/handling/handling.properties)
   locale/@AB_CD@/mozapps/preferences/changemp.dtd                 (%chrome/mozapps/preferences/changemp.dtd)
@@ -141,13 +130,8 @@
   locale/@AB_CD@/mozapps/update/updates.properties                (%chrome/mozapps/update/updates.properties)
 #endif
   locale/@AB_CD@/mozapps/update/history.dtd                       (%chrome/mozapps/update/history.dtd)
-#ifdef MOZ_WEBEXTENSIONS
-  locale/@AB_CD@/mozapps/xpinstall/xpinstallConfirm.dtd           (%chrome/mozapps/webextensions/xpinstallConfirm.dtd)
-  locale/@AB_CD@/mozapps/xpinstall/xpinstallConfirm.properties    (%chrome/mozapps/webextensions/xpinstallConfirm.properties)
-#else
   locale/@AB_CD@/mozapps/xpinstall/xpinstallConfirm.dtd           (%chrome/mozapps/extensions/xpinstallConfirm.dtd)
   locale/@AB_CD@/mozapps/xpinstall/xpinstallConfirm.properties    (%chrome/mozapps/extensions/xpinstallConfirm.properties)
-#endif
 % locale pluginproblem @AB_CD@ %locale/@AB_CD@/pluginproblem/
   locale/@AB_CD@/pluginproblem/pluginproblem.dtd                  (%chrome/pluginproblem/pluginproblem.dtd)
 % locale alerts @AB_CD@ %locale/@AB_CD@/alerts/

@@ -9,6 +9,7 @@
 
 #include "mozilla/HashFunctions.h"
 #include "mozilla/PodOperations.h"
+#include "mozilla/TextUtils.h"
 
 #include <stdio.h>
 
@@ -95,7 +96,7 @@ struct JSSubString {
 #define JS7_UNOCT(c)    (JS7_UNDEC(c))
 #define JS7_ISHEX(c)    ((c) < 128 && isxdigit(c))
 #define JS7_UNHEX(c)    (unsigned)(JS7_ISDEC(c) ? (c) - '0' : 10 + tolower(c) - 'a')
-#define JS7_ISLET(c)    ((c) < 128 && isalpha(c))
+#define JS7_ISLET(c)    (mozilla::IsAsciiAlpha(c))
 
 extern size_t
 js_strlen(const char16_t* s);
@@ -377,13 +378,8 @@ str_toLocaleLowerCase(JSContext* cx, unsigned argc, Value* vp);
 extern bool
 str_toLocaleUpperCase(JSContext* cx, unsigned argc, Value* vp);
 
-#if !EXPOSE_INTL_API
-extern bool
-str_localeCompare(JSContext* cx, unsigned argc, Value* vp);
-#else
 extern bool
 str_normalize(JSContext* cx, unsigned argc, Value* vp);
-#endif
 
 extern bool
 str_concat(JSContext* cx, unsigned argc, Value* vp);

@@ -26,8 +26,6 @@ EXPORTS.mozilla.dom += [
     'ContentProcess.h',
     'ContentProcessManager.h',
     'CPOWManagerGetter.h',
-    'CrashReporterChild.h',
-    'CrashReporterParent.h',
     'FilePickerParent.h',
     'nsIContentChild.h',
     'nsIContentParent.h',
@@ -54,8 +52,6 @@ UNIFIED_SOURCES += [
     'ContentParent.cpp',
     'ContentProcess.cpp',
     'ContentProcessManager.cpp',
-    'CrashReporterParent.cpp',
-    'DatePickerParent.cpp',
     'FilePickerParent.cpp',
     'nsIContentChild.cpp',
     'nsIContentParent.cpp',
@@ -71,13 +67,10 @@ UNIFIED_SOURCES += [
 ]
 
 # Blob.cpp cannot be compiled in unified mode because it triggers a fatal gcc warning.
-# CrashReporterChild.cpp cannot be compiled in unified mode because of name clashes
-# in OS X headers.
 # ContentChild.cpp cannot be compiled in unified mode on  linux due to Time conflict
 SOURCES += [
     'Blob.cpp',
     'ContentChild.cpp',
-    'CrashReporterChild.cpp',
     'ProcessHangMonitor.cpp',
 ]
 
@@ -93,9 +86,7 @@ IPDL_SOURCES += [
     'PContentBridge.ipdl',
     'PContentPermission.ipdlh',
     'PContentPermissionRequest.ipdl',
-    'PCrashReporter.ipdl',
     'PCycleCollectWithLogs.ipdl',
-    'PDatePicker.ipdl',
     'PFilePicker.ipdl',
     'PMemoryReportRequest.ipdl',
     'PPluginWidget.ipdl',
@@ -110,11 +101,6 @@ include('/ipc/chromium/chromium-config.mozbuild')
 FINAL_LIBRARY = 'xul'
 
 if CONFIG['MOZ_SANDBOX'] and CONFIG['OS_TARGET'] == 'Darwin':
-    USE_LIBS += [
-        'mozsandbox',
-    ]
-
-if CONFIG['MOZ_CONTENT_SANDBOX'] and CONFIG['OS_ARCH'] == 'Linux':
     USE_LIBS += [
         'mozsandbox',
     ]
@@ -139,19 +125,12 @@ LOCAL_INCLUDES += [
     '/layout/base',
     '/media/webrtc',
     '/netwerk/base',
-    '/toolkit/crashreporter',
     '/toolkit/xre',
     '/uriloader/exthandler',
     '/widget',
     '/xpcom/base',
     '/xpcom/threads',
 ]
-
-if CONFIG['MOZ_SANDBOX'] and CONFIG['OS_ARCH'] == 'WINNT':
-    LOCAL_INCLUDES += [
-        '/security/sandbox/chromium',
-        '/security/sandbox/chromium-shim',
-    ]
 
 if CONFIG['OS_ARCH'] != 'WINNT':
     LOCAL_INCLUDES += [
@@ -160,7 +139,7 @@ if CONFIG['OS_ARCH'] != 'WINNT':
 
 DEFINES['BIN_SUFFIX'] = '"%s"' % CONFIG['BIN_SUFFIX']
 
-if CONFIG['MOZ_WIDGET_TOOLKIT'] in ('android', 'gtk2', 'gonk'):
+if CONFIG['MOZ_WIDGET_TOOLKIT'] in ('android', 'gtk2'):
     DEFINES['MOZ_ENABLE_FREETYPE'] = True
 
 if CONFIG['MOZ_TOOLKIT_SEARCH']:

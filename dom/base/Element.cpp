@@ -183,6 +183,12 @@ Element::DoGetClasses() const
 NS_IMETHODIMP
 Element::QueryInterface(REFNSIID aIID, void** aInstancePtr)
 {
+  if (aIID.Equals(NS_GET_IID(Element))) {
+    NS_ADDREF_THIS();
+    *aInstancePtr = this;
+    return NS_OK;
+  }
+
   NS_ASSERTION(aInstancePtr,
                "QueryInterface requires a non-NULL destination!");
   nsresult rv = FragmentOrElement::QueryInterface(aIID, aInstancePtr);
@@ -1837,6 +1843,24 @@ Element::UnbindFromTree(bool aDeep, bool aNullParent)
     }
     SetParentIsContent(false);
   }
+
+#ifdef DEBUG
+  // If we can get access to the PresContext, then we sanity-check that
+  // we're not leaving behind a pointer to ourselves as the PresContext's
+  // cached provider of the viewport's scrollbar styles.
+  if (document) {
+    nsIPresShell* presShell = document->GetShell();
+    if (presShell) {
+      nsPresContext* presContext = presShell->GetPresContext();
+      if (presContext) {
+        MOZ_ASSERT(this !=
+                   presContext->GetViewportScrollbarStylesOverrideNode(),
+                   "Leaving behind a raw pointer to this node (as having "
+                   "propagated scrollbar styles) - that's dangerous...");
+      }
+    }
+  }
+#endif
 
   // Ensure that CSS transitions don't continue on an element at a
   // different place in the tree (even if reinserted before next
@@ -3888,44 +3912,55 @@ Element::ClearDataset()
   slots->mDataset = nullptr;
 }
 
-nsTArray<Element::nsDOMSlots::IntersectionObserverRegistration>*
+nsDataHashtable<nsPtrHashKey<DOMIntersectionObserver>, int32_t>*
 Element::RegisteredIntersectionObservers()
 {
   nsDOMSlots* slots = DOMSlots();
   return &slots->mRegisteredIntersectionObservers;
 }
 
+enum nsPreviousIntersectionThreshold {
+  eUninitialized = -2,
+  eNonIntersecting = -1
+};
+
 void
 Element::RegisterIntersectionObserver(DOMIntersectionObserver* aObserver)
 {
-  RegisteredIntersectionObservers()->AppendElement(
-    nsDOMSlots::IntersectionObserverRegistration { aObserver, -1 });
+  nsDataHashtable<nsPtrHashKey<DOMIntersectionObserver>, int32_t>* observers =
+    RegisteredIntersectionObservers();
+  if (observers->Contains(aObserver)) {
+    return;
+  }
+
+  // Value can be:
+  //   -2:   Makes sure next calculated threshold always differs, leading to a
+  //         notification task being scheduled.
+  //   -1:   Non-intersecting.
+  //   >= 0: Intersecting, valid index of aObserver->mThresholds.
+  RegisteredIntersectionObservers()->Put(aObserver, eUninitialized);
 }
 
 void
 Element::UnregisterIntersectionObserver(DOMIntersectionObserver* aObserver)
 {
-  nsTArray<nsDOMSlots::IntersectionObserverRegistration>* observers =
+  nsDataHashtable<nsPtrHashKey<DOMIntersectionObserver>, int32_t>* observers =
     RegisteredIntersectionObservers();
-  for (uint32_t i = 0; i < observers->Length(); ++i) {
-    nsDOMSlots::IntersectionObserverRegistration reg = observers->ElementAt(i);
-    if (reg.observer == aObserver) {
-      observers->RemoveElementAt(i);
-      break;
-    }
-  }
+  observers->Remove(aObserver);
 }
 
 bool
 Element::UpdateIntersectionObservation(DOMIntersectionObserver* aObserver, int32_t aThreshold)
 {
-  nsTArray<nsDOMSlots::IntersectionObserverRegistration>* observers =
+  nsDataHashtable<nsPtrHashKey<DOMIntersectionObserver>, int32_t>* observers =
     RegisteredIntersectionObservers();
-  for (auto& reg : *observers) {
-    if (reg.observer == aObserver && reg.previousThreshold != aThreshold) {
-      reg.previousThreshold = aThreshold;
-      return true;
-    }
+  if (!observers->Contains(aObserver)) {
+    return false;
+  }
+  int32_t previousThreshold = observers->Get(aObserver);
+  if (previousThreshold != aThreshold) {
+    observers->Put(aObserver, aThreshold);
+    return true;
   }
   return false;
 }

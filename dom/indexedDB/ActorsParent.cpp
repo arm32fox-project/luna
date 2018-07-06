@@ -121,7 +121,7 @@
          LogLevel::Debug,                                                         \
          _args )
 
-#if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_WIDGET_GONK)
+#if defined(MOZ_WIDGET_ANDROID)
 #define IDB_MOBILE
 #endif
 
@@ -3694,8 +3694,6 @@ UpgradeSchemaFrom18_0To19_0(mozIStorageConnection* aConnection)
   return NS_OK;
 }
 
-#if !defined(MOZ_B2G)
-
 class NormalJSContext;
 
 class UpgradeFileIdsFunction final
@@ -3731,8 +3729,6 @@ private:
                  nsIVariant** aResult) override;
 };
 
-#endif // MOZ_B2G
-
 nsresult
 UpgradeSchemaFrom19_0To20_0(nsIFile* aFMDirectory,
                             mozIStorageConnection* aConnection)
@@ -3743,20 +3739,6 @@ UpgradeSchemaFrom19_0To20_0(nsIFile* aFMDirectory,
   PROFILER_LABEL("IndexedDB",
                  "UpgradeSchemaFrom19_0To20_0",
                  js::ProfileEntry::Category::STORAGE);
-
-#if defined(MOZ_B2G)
-
-  // We don't have to do the upgrade of file ids on B2G. The old format was
-  // only used by the previous single process implementation and B2G was
-  // always multi process. This is a nice optimization since the upgrade needs
-  // to deserialize all structured clones which reference a stored file or
-  // a mutable file.
-  nsresult rv = aConnection->SetSchemaVersion(MakeSchemaVersion(20, 0));
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return rv;
-  }
-
-#else // MOZ_B2G
 
   nsCOMPtr<mozIStorageStatement> stmt;
   nsresult rv = aConnection->CreateStatement(NS_LITERAL_CSTRING(
@@ -3855,8 +3837,6 @@ UpgradeSchemaFrom19_0To20_0(nsIFile* aFMDirectory,
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
   }
-
-#endif // MOZ_B2G
 
   return NS_OK;
 }
@@ -7767,12 +7747,10 @@ private:
   virtual void
   SendResults() override;
 
-#ifdef ENABLE_INTL_API
   static nsresult
   UpdateLocaleAwareIndex(mozIStorageConnection* aConnection,
                          const IndexMetadata& aIndexMetadata,
                          const nsCString& aLocale);
-#endif
 };
 
 class OpenDatabaseOp::VersionChangeOp final
@@ -8462,12 +8440,12 @@ class ObjectStoreAddOrPutRequestOp::SCInputStream final
   : public nsIInputStream
 {
   const JSStructuredCloneData& mData;
-  JSStructuredCloneData::IterImpl mIter;
+  JSStructuredCloneData::Iterator mIter;
 
 public:
   explicit SCInputStream(const JSStructuredCloneData& aData)
     : mData(aData)
-    , mIter(aData.Iter())
+    , mIter(aData.Start())
   { }
 
 private:
@@ -13492,10 +13470,6 @@ nsresult
 ConnectionPool::
 ThreadRunnable::Run()
 {
-#ifdef MOZ_ENABLE_PROFILER_SPS
-  char stackTopGuess;
-#endif // MOZ_ENABLE_PROFILER_SPS
-
   MOZ_ASSERT(!IsOnBackgroundThread());
   MOZ_ASSERT(mContinueRunning);
 
@@ -13512,10 +13486,6 @@ ThreadRunnable::Run()
     const nsPrintfCString threadName("IndexedDB #%lu", mSerialNumber);
 
     PR_SetCurrentThreadName(threadName.get());
-
-#ifdef MOZ_ENABLE_PROFILER_SPS
-    profiler_register_thread(threadName.get(), &stackTopGuess);
-#endif // MOZ_ENABLE_PROFILER_SPS
   }
 
   {
@@ -13558,10 +13528,6 @@ ThreadRunnable::Run()
 #endif // DEBUG
     }
   }
-
-#ifdef MOZ_ENABLE_PROFILER_SPS
-  profiler_unregister_thread();
-#endif // MOZ_ENABLE_PROFILER_SPS
 
   return NS_OK;
 }
@@ -19666,8 +19632,6 @@ AutoProgressHandler::OnProgress(mozIStorageConnection* aConnection,
 NS_IMPL_ISUPPORTS(CompressDataBlobsFunction, mozIStorageFunction)
 NS_IMPL_ISUPPORTS(EncodeKeysFunction, mozIStorageFunction)
 
-#if !defined(MOZ_B2G)
-
 nsresult
 UpgradeFileIdsFunction::Init(nsIFile* aFMDirectory,
                              mozIStorageConnection* aConnection)
@@ -19723,7 +19687,7 @@ UpgradeFileIdsFunction::OnFunctionCall(mozIStorageValueArray* aArguments,
     return NS_ERROR_UNEXPECTED;
   }
 
-  StructuredCloneReadInfo cloneInfo;
+  StructuredCloneReadInfo cloneInfo(JS::StructuredCloneScope::DifferentProcess);
   DatabaseOperationBase::GetStructuredCloneReadInfoFromValueArray(aArguments,
                                                                   1,
                                                                   0,
@@ -19761,8 +19725,6 @@ UpgradeFileIdsFunction::OnFunctionCall(mozIStorageValueArray* aArguments,
   result.forget(aResult);
   return NS_OK;
 }
-
-#endif // MOZ_B2G
 
 // static
 void
@@ -19930,7 +19892,7 @@ DatabaseOperationBase::GetStructuredCloneReadInfoFromBlob(
     return NS_ERROR_FILE_CORRUPTED;
   }
 
-  if (!aInfo->mData.WriteBytes(uncompressedBuffer, uncompressed.Length())) {
+  if (!aInfo->mData.AppendBytes(uncompressedBuffer, uncompressed.Length())) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
@@ -20016,7 +19978,7 @@ DatabaseOperationBase::GetStructuredCloneReadInfoFromExternalBlob(
       break;
     }
 
-    if (NS_WARN_IF(!aInfo->mData.WriteBytes(buffer, numRead))) {
+    if (NS_WARN_IF(!aInfo->mData.AppendBytes(buffer, numRead))) {
       rv = NS_ERROR_OUT_OF_MEMORY;
       break;
     }
@@ -20064,9 +20026,6 @@ DatabaseOperationBase::BindKeyRangeToStatement(
                                             mozIStorageStatement* aStatement,
                                             const nsCString& aLocale)
 {
-#ifndef ENABLE_INTL_API
-  return BindKeyRangeToStatement(aKeyRange, aStatement);
-#else
   MOZ_ASSERT(!IsOnBackgroundThread());
   MOZ_ASSERT(aStatement);
   MOZ_ASSERT(!aLocale.IsEmpty());
@@ -20104,7 +20063,6 @@ DatabaseOperationBase::BindKeyRangeToStatement(
   }
 
   return NS_OK;
-#endif
 }
 
 // static
@@ -22197,7 +22155,6 @@ OpenDatabaseOp::LoadDatabaseInformation(mozIStorageConnection* aConnection)
 
     indexMetadata->mCommonMetadata.multiEntry() = !!scratch;
 
-#ifdef ENABLE_INTL_API
     const bool localeAware = !stmt->IsNull(6);
     if (localeAware) {
       rv = stmt->GetUTF8String(6, indexMetadata->mCommonMetadata.locale());
@@ -22227,7 +22184,6 @@ OpenDatabaseOp::LoadDatabaseInformation(mozIStorageConnection* aConnection)
         }
       }
     }
-#endif
 
     if (NS_WARN_IF(!objectStoreMetadata->mIndexes.Put(indexId, indexMetadata,
                                                       fallible))) {
@@ -22253,7 +22209,6 @@ OpenDatabaseOp::LoadDatabaseInformation(mozIStorageConnection* aConnection)
   return NS_OK;
 }
 
-#ifdef ENABLE_INTL_API
 /* static */
 nsresult
 OpenDatabaseOp::UpdateLocaleAwareIndex(mozIStorageConnection* aConnection,
@@ -22371,7 +22326,6 @@ OpenDatabaseOp::UpdateLocaleAwareIndex(mozIStorageConnection* aConnection,
   rv = metaStmt->Execute();
   return rv;
 }
-#endif
 
 nsresult
 OpenDatabaseOp::BeginVersionChange()
@@ -25383,7 +25337,7 @@ UpdateIndexDataValuesFunction::OnFunctionCall(mozIStorageValueArray* aValues,
   }
 #endif
 
-  StructuredCloneReadInfo cloneInfo;
+  StructuredCloneReadInfo cloneInfo(JS::StructuredCloneScope::DifferentProcess);
   nsresult rv =
     GetStructuredCloneReadInfoFromValueArray(aValues,
                                              /* aDataIndex */ 3,
@@ -26592,18 +26546,9 @@ ObjectStoreAddOrPutRequestOp::DoDatabaseWork(DatabaseConnection* aConnection)
       char keyPropBuffer[keyPropSize];
       LittleEndian::writeUint64(keyPropBuffer, keyPropValue);
 
-      auto iter = cloneData.Iter();
-      DebugOnly<bool> result =
-       iter.AdvanceAcrossSegments(cloneData, cloneInfo.offsetToKeyProp());
-      MOZ_ASSERT(result);
-
-      for (uint32_t index = 0; index < keyPropSize; index++) {
-        char* keyPropPointer = iter.Data();
-        *keyPropPointer = keyPropBuffer[index];
-
-        result = iter.AdvanceAcrossSegments(cloneData, 1);
-        MOZ_ASSERT(result);
-      }
+      auto iter = cloneData.Start();
+      MOZ_ALWAYS_TRUE(cloneData.Advance(iter, cloneInfo.offsetToKeyProp()));
+      MOZ_ALWAYS_TRUE(cloneData.UpdateBytes(iter, keyPropBuffer, keyPropSize));
     }
   }
 
@@ -26629,7 +26574,7 @@ ObjectStoreAddOrPutRequestOp::DoDatabaseWork(DatabaseConnection* aConnection)
   } else {
     nsCString flatCloneData;
     flatCloneData.SetLength(cloneDataSize);
-    auto iter = cloneData.Iter();
+    auto iter = cloneData.Start();
     cloneData.ReadBytes(iter, flatCloneData.BeginWriting(), cloneDataSize);
 
     // Compress the bytes before adding into the database.
@@ -26886,7 +26831,7 @@ SCInputStream::ReadSegments(nsWriteSegmentFun aWriter,
     *_retval += count;
     aCount -= count;
 
-    mIter.Advance(mData, count);
+    mData.Advance(mIter, count);
   }
 
   return NS_OK;
@@ -28075,7 +28020,7 @@ CursorOpBase::PopulateResponseFromStatement(
 
   switch (mCursor->mType) {
     case OpenCursorParams::TObjectStoreOpenCursorParams: {
-      StructuredCloneReadInfo cloneInfo;
+      StructuredCloneReadInfo cloneInfo(JS::StructuredCloneScope::DifferentProcess);
       rv = GetStructuredCloneReadInfoFromStatement(aStmt,
                                                    2,
                                                    1,
@@ -28123,7 +28068,7 @@ CursorOpBase::PopulateResponseFromStatement(
         return rv;
       }
 
-      StructuredCloneReadInfo cloneInfo;
+      StructuredCloneReadInfo cloneInfo(JS::StructuredCloneScope::DifferentProcess);
       rv = GetStructuredCloneReadInfoFromStatement(aStmt,
                                                    4,
                                                    3,
@@ -28191,15 +28136,12 @@ OpenOp::GetRangeKeyInfo(bool aLowerBound, Key* aKey, bool* aOpen)
     if (range.isOnly()) {
       *aKey = range.lower();
       *aOpen = false;
-#ifdef ENABLE_INTL_API
       if (mCursor->IsLocaleAware()) {
         range.lower().ToLocaleBasedKey(*aKey, mCursor->mLocale);
       }
-#endif
     } else {
       *aKey = aLowerBound ? range.lower() : range.upper();
       *aOpen = aLowerBound ? range.lowerOpen() : range.upperOpen();
-#ifdef ENABLE_INTL_API
       if (mCursor->IsLocaleAware()) {
         if (aLowerBound) {
           range.lower().ToLocaleBasedKey(*aKey, mCursor->mLocale);
@@ -28207,7 +28149,6 @@ OpenOp::GetRangeKeyInfo(bool aLowerBound, Key* aKey, bool* aOpen)
           range.upper().ToLocaleBasedKey(*aKey, mCursor->mLocale);
         }
       }
-#endif
     }
   } else {
     *aOpen = false;

@@ -21,10 +21,6 @@
 #include "nsWeakPtr.h"
 #include "nsIWindowProvider.h"
 
-#if defined(XP_MACOSX) && defined(MOZ_CONTENT_SANDBOX)
-#include "nsIFile.h"
-#endif
-
 struct ChromePackage;
 class nsIObserver;
 struct SubstitutionMapping;
@@ -118,19 +114,6 @@ public:
 
   void GetProcessName(nsACString& aName) const;
 
-#if defined(XP_MACOSX) && defined(MOZ_CONTENT_SANDBOX)
-  void GetProfileDir(nsIFile** aProfileDir) const
-  {
-    *aProfileDir = mProfileDir;
-    NS_IF_ADDREF(*aProfileDir);
-  }
-
-  void SetProfileDir(nsIFile* aProfileDir)
-  {
-    mProfileDir = aProfileDir;
-  }
-#endif
-
   bool IsAlive() const;
 
   bool IsShuttingDown() const;
@@ -202,13 +185,6 @@ public:
   AllocPBlobChild(const BlobConstructorParams& aParams) override;
 
   virtual bool DeallocPBlobChild(PBlobChild* aActor) override;
-
-  virtual PCrashReporterChild*
-  AllocPCrashReporterChild(const mozilla::dom::NativeThreadId& id,
-                           const uint32_t& processType) override;
-
-  virtual bool
-  DeallocPCrashReporterChild(PCrashReporterChild*) override;
 
   virtual PHalChild* AllocPHalChild() override;
   virtual bool DeallocPHalChild(PHalChild*) override;
@@ -478,14 +454,6 @@ public:
 
   virtual bool RecvUpdateWindow(const uintptr_t& aChildId) override;
 
-  virtual bool RecvStartProfiler(const ProfilerInitParams& params) override;
-
-  virtual bool RecvPauseProfiler(const bool& aPause) override;
-
-  virtual bool RecvStopProfiler() override;
-
-  virtual bool RecvGatherProfile() override;
-
   virtual bool RecvDomainSetChanged(const uint32_t& aSetType,
                                     const uint32_t& aChangeType,
                                     const OptionalURIParams& aDomain) override;
@@ -678,10 +646,6 @@ private:
 
   nsCOMPtr<nsIDomainPolicy> mPolicy;
   nsCOMPtr<nsITimer> mForceKillTimer;
-
-#if defined(XP_MACOSX) && defined(MOZ_CONTENT_SANDBOX)
-  nsCOMPtr<nsIFile> mProfileDir;
-#endif
 
   // Hashtable to keep track of the pending GetFilesHelper objects.
   // This GetFilesHelperChild objects are removed when RecvGetFilesResponse is

@@ -594,12 +594,6 @@ var Printing = {
       contentElement.setAttribute("class", "content");
       containerElement.appendChild(contentElement);
 
-      // Create style element for content div and import aboutReaderContent.css
-      let controlContentStyle = content.document.createElement("style");
-      controlContentStyle.setAttribute("scoped", "");
-      controlContentStyle.textContent = "@import url(\"chrome://global/skin/aboutReaderContent.css\");";
-      contentElement.appendChild(controlContentStyle);
-
       // Jam the article's content into content div
       let readerContent = content.document.createElement("div");
       readerContent.setAttribute("id", "moz-reader-content");
@@ -847,6 +841,7 @@ var FindBar = {
         fakeEvent[k] = event[k];
       }
     }
+
     // sendSyncMessage returns an array of the responses from all listeners
     let rv = sendSyncMessage("Findbar:Keypress", {
       fakeEvent: fakeEvent,
@@ -1714,6 +1709,14 @@ let DateTimePickerListener = {
             (aEvent.originalTarget.type == "time" && !this.getTimePickerPref())) {
           return;
         }
+
+        if (this._inputElement) {
+          // This happens when we're trying to open a picker when another picker
+          // is still open. We ignore this request to let the first picker
+          // close gracefully.
+          return;
+        }
+
         this._inputElement = aEvent.originalTarget;
         this._inputElement.setDateTimePickerState(true);
         this.addListeners();
@@ -1728,15 +1731,17 @@ let DateTimePickerListener = {
             // element's value.
             value: Object.keys(value).length > 0 ? value
                                                  : this._inputElement.value,
-            step: this._inputElement.step,
-            min: this._inputElement.min,
-            max: this._inputElement.max,
+            min: this._inputElement.getMinimum(),
+            max: this._inputElement.getMaximum(),
+            step: this._inputElement.getStep(),
+            stepBase: this._inputElement.getStepBase(),
           },
         });
         break;
       }
       case "MozUpdateDateTimePicker": {
         let value = this._inputElement.getDateTimeInputBoxValue();
+        value.type = this._inputElement.type;
         sendAsyncMessage("FormDateTime:UpdatePicker", { value });
         break;
       }

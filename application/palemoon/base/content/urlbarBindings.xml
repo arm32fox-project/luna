@@ -17,32 +17,32 @@
           xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
           xmlns:xbl="http://www.mozilla.org/xbl">
 
-  <binding id="urlbar" extends="chrome://global/content/bindings/autocomplete.xml#autocomplete">
+  <binding id="urlbar" extends="chrome://browser/content/autocomplete.xml#private-autocomplete">
 
     <content sizetopopup="pref">
       <xul:hbox anonid="textbox-container"
-                class="autocomplete-textbox-container urlbar-textbox-container"
+                class="private-autocomplete-textbox-container urlbar-textbox-container"
                 flex="1" xbl:inherits="focused">
         <children includes="image|deck|stack|box">
-          <xul:image class="autocomplete-icon" allowevents="true"/>
+          <xul:image class="private-autocomplete-icon" allowevents="true"/>
         </children>
         <xul:hbox anonid="textbox-input-box"
                   class="textbox-input-box urlbar-input-box"
                   flex="1" xbl:inherits="tooltiptext=inputtooltiptext">
           <children/>
           <html:input anonid="input"
-                      class="autocomplete-textbox urlbar-input textbox-input uri-element-right-align"
+                      class="private-autocomplete-textbox urlbar-input textbox-input uri-element-right-align"
                       allowevents="true"
                       xbl:inherits="tooltiptext=inputtooltiptext,value,type,maxlength,disabled,size,readonly,placeholder,tabindex,accesskey"/>
         </xul:hbox>
         <children includes="hbox"/>
       </xul:hbox>
       <xul:dropmarker anonid="historydropmarker"
-                      class="autocomplete-history-dropmarker urlbar-history-dropmarker"
+                      class="private-autocomplete-history-dropmarker urlbar-history-dropmarker"
                       allowevents="true"
                       xbl:inherits="open,enablehistory,parentfocused=focused"/>
       <xul:popupset anonid="popupset"
-                    class="autocomplete-result-popupset"/>
+                    class="private-autocomplete-result-popupset"/>
       <children includes="toolbarbutton"/>
     </content>
 
@@ -263,6 +263,9 @@
           var postData = null;
 
           var action = this._parseActionUrl(url);
+          let lastLocationChange = gBrowser.selectedBrowser.lastLocationChange;
+
+          let matchLastLocationChange = true;
           if (action) {
             url = action.param;
             if (this.hasAttribute("actiontype")) {
@@ -275,82 +278,94 @@
               }
               return;
             }
+            continueOperation.call(this);
           }
           else {
-            [url, postData, mayInheritPrincipal] = this._canonizeURL(aTriggeringEvent);
-            if (!url)
-              return;
+            this._canonizeURL(aTriggeringEvent, response => {
+              [url, postData, mayInheritPrincipal] = response;
+              if (url) {
+                matchLastLocationChange = (lastLocationChange ==
+                                           gBrowser.selectedBrowser.lastLocationChange);
+                continueOperation.call(this);
+              }
+            });
           }
 
-          this.value = url;
-          gBrowser.userTypedValue = url;
-          try {
-            addToUrlbarHistory(url);
-          } catch (ex) {
-            // Things may go wrong when adding url to session history,
-            // but don't let that interfere with the loading of the url.
-            Cu.reportError(ex);
-          }
-
-          function loadCurrent() {
-            let webnav = Ci.nsIWebNavigation;
-            let flags = webnav.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP |
-                        webnav.LOAD_FLAGS_FIXUP_SCHEME_TYPOS;
-            // Pass LOAD_FLAGS_DISALLOW_INHERIT_OWNER to prevent any loads from
-            // inheriting the currently loaded document's principal, unless this
-            // URL is marked as safe to inherit (e.g. came from a bookmark
-            // keyword).
-            if (!mayInheritPrincipal)
-              flags |= Ci.nsIWebNavigation.LOAD_FLAGS_DISALLOW_INHERIT_OWNER;
-            gBrowser.loadURIWithFlags(url, flags, null, null, postData);
-          }
-
-          // Focus the content area before triggering loads, since if the load
-          // occurs in a new tab, we want focus to be restored to the content
-          // area when the current tab is re-selected.
-          gBrowser.selectedBrowser.focus();
-
-          let isMouseEvent = aTriggeringEvent instanceof MouseEvent;
-          let altEnter = !isMouseEvent && aTriggeringEvent && aTriggeringEvent.altKey;
-
-          if (altEnter) {
-            // XXX This was added a long time ago, and I'm not sure why it is
-            // necessary. Alt+Enter's default action might cause a system beep,
-            // or something like that?
-            aTriggeringEvent.preventDefault();
-            aTriggeringEvent.stopPropagation();
-          }
-
-          // If the current tab is empty, ignore Alt+Enter (just reuse this tab)
-          altEnter = altEnter && !isTabEmpty(gBrowser.selectedTab);
-
-          if (isMouseEvent || altEnter) {
-            // Use the standard UI link behaviors for clicks or Alt+Enter
-            let where = "tab";
-            if (isMouseEvent)
-              where = whereToOpenLink(aTriggeringEvent, false, false);
-
-            if (where == "current") {
-              loadCurrent();
-            } else {
-              this.handleRevert();
-              let params = { allowThirdPartyFixup: true,
-                             postData: postData,
-                             initiatingDoc: document };
-              openUILinkIn(url, where, params);
+          function continueOperation()
+          {
+            this.value = url;
+            gBrowser.userTypedValue = url;
+            try {
+              addToUrlbarHistory(url);
+            } catch (ex) {
+              // Things may go wrong when adding url to session history,
+              // but don't let that interfere with the loading of the url.
+              Cu.reportError(ex);
             }
-          } else {
-            loadCurrent();
+
+            function loadCurrent() {
+              let flags = Ci.nsIWebNavigation.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP;
+              // Pass LOAD_FLAGS_DISALLOW_INHERIT_PRINCIPAL to prevent any loads from
+              // inheriting the currently loaded document's principal, unless this
+              // URL is marked as safe to inherit (e.g. came from a bookmark
+              // keyword).
+              if (!mayInheritPrincipal)
+                flags |= Ci.nsIWebNavigation.LOAD_FLAGS_DISALLOW_INHERIT_PRINCIPAL;
+              // If the value wasn't typed, we know that we decoded the value as
+              // UTF-8 (see losslessDecodeURI)
+              if (!this.valueIsTyped)
+                flags |= Ci.nsIWebNavigation.LOAD_FLAGS_URI_IS_UTF8;
+              gBrowser.loadURIWithFlags(url, flags, null, null, postData);
+            }
+
+            // Focus the content area before triggering loads, since if the load
+            // occurs in a new tab, we want focus to be restored to the content
+            // area when the current tab is re-selected.
+            gBrowser.selectedBrowser.focus();
+
+            let isMouseEvent = aTriggeringEvent instanceof MouseEvent;
+
+            // If the current tab is empty, ignore Alt+Enter (just reuse this tab)
+            let altEnter = !isMouseEvent && aTriggeringEvent &&
+              aTriggeringEvent.altKey && !isTabEmpty(gBrowser.selectedTab);
+
+            if (isMouseEvent || altEnter) {
+              // Use the standard UI link behaviors for clicks or Alt+Enter
+              let where = "tab";
+              if (isMouseEvent)
+                where = whereToOpenLink(aTriggeringEvent, false, false);
+
+              if (where == "current") {
+                if (matchLastLocationChange) {
+                  loadCurrent();
+                }
+              } else {
+                this.handleRevert();
+                let params = { allowThirdPartyFixup: true,
+                               postData: postData,
+                               initiatingDoc: document };
+                if (!this.valueIsTyped)
+                  params.isUTF8 = true;
+                openUILinkIn(url, where, params);
+              }
+            } else {
+              if (matchLastLocationChange) {
+                loadCurrent();
+              }
+            }
           }
         ]]></body>
       </method>
 
       <method name="_canonizeURL">
         <parameter name="aTriggeringEvent"/>
+        <parameter name="aCallback"/>
         <body><![CDATA[
           var url = this.value;
-          if (!url)
-            return ["", null, false];
+          if (!url) {
+            aCallback(["", null, false]);
+            return;
+          }
 
           // Only add the suffix when the URL bar value isn't already "URL-like",
           // and only if we get a keyboard event, to match user expectations.
@@ -403,11 +418,9 @@
             }
           }
 
-          var postData = {};
-          var mayInheritPrincipal = { value: false };
-          url = getShortcutOrURI(url, postData, mayInheritPrincipal);
-
-          return [url, postData.value, mayInheritPrincipal.value];
+          getShortcutOrURIAndPostData(url).then(data => {
+            aCallback([data.url, data.postData, data.mayInheritPrincipal]);
+          });
         ]]></body>
       </method>
 
@@ -442,11 +455,12 @@
       <method name="onDrop">
         <parameter name="aEvent"/>
         <body><![CDATA[
-          let url = browserDragAndDrop.drop(aEvent, { })
+          let links = browserDragAndDrop.dropLinks(aEvent);
 
           // The URL bar automatically handles inputs with newline characters,
           // so we can get away with treating text/x-moz-url flavours as text/plain.
-          if (url) {
+          if (links.length > 0 && links[0].url) {
+            let url = links[0].url;
             aEvent.preventDefault();
             this.value = url;
             SetPageProxyState("invalid");
@@ -823,7 +837,7 @@
       </implementation>
     </binding>
 
-    <binding id="urlbar-rich-result-popup" extends="chrome://global/content/bindings/autocomplete.xml#autocomplete-rich-result-popup">
+    <binding id="urlbar-rich-result-popup" extends="chrome://browser/content/autocomplete.xml#private-autocomplete-rich-result-popup">
       <implementation>
       <field name="_maxResults">0</field>
 
@@ -990,9 +1004,11 @@
         document.getAnonymousElementByAttribute(this, "anonid", "cancel");
       </field>
       <field name="DownloadUtils" readonly="true">
-        let utils = {};
-        Components.utils.import("resource://gre/modules/DownloadUtils.jsm", utils);
-        utils.DownloadUtils;
+        {
+          let utils = {};
+          Components.utils.import("resource://gre/modules/DownloadUtils.jsm", utils);
+          utils.DownloadUtils;
+        }
       </field>
 
       <method name="destroy">
@@ -1354,8 +1370,8 @@
             return;
           }
 
-          let host = gPluginHandler._getHostFromPrincipal(this.notification.browser.contentWindow.document.nodePrincipal);
-          this._setupDescription("pluginActivateMultiple.message", null, host);
+          let prePath = this.notification.browser.contentWindow.document.nodePrincipal.URI.prePath;
+          this._setupDescription("pluginActivateMultiple.message", null, prePath);
 
           var showBox = document.getAnonymousElementByAttribute(this, "anonid", "plugin-notification-showbox");
 
@@ -1394,7 +1410,7 @@
       <method name="_setupSingleState">
         <body><![CDATA[
           var action = this.notification.options.centerActions[0];
-          var host = action.pluginPermissionHost;
+          var prePath = action.pluginPermissionPrePath;
 
           let label, linkLabel, linkUrl, button1, button2;
 
@@ -1489,7 +1505,7 @@
               Cu.reportError(Error("Unexpected blocklist state"));
             }
           }
-          this._setupDescription(label, action.pluginName, host);
+          this._setupDescription(label, action.pluginName, prePath);
           this._setupLink(linkLabel, action.detailsLink);
 
           this._primaryButton.label = gNavigatorBundle.getString(button1.label);
@@ -1510,7 +1526,7 @@
       <method name="_setupDescription">
         <parameter name="baseString" />
         <parameter name="pluginName" /> <!-- null for the multiple-plugin case -->
-        <parameter name="host" />
+        <parameter name="prePath" />
         <body><![CDATA[
           var bsn = this._brandShortName;
           var span = document.getAnonymousElementByAttribute(this, "anonid", "click-to-play-plugins-notification-description");
@@ -1518,17 +1534,17 @@
             span.removeChild(span.lastChild);
           }
 
-          var args = ["__host__", this._brandShortName];
+          var args = ["__prepath__", this._brandShortName];
           if (pluginName) {
             args.unshift(pluginName);
           }
           var bases = gNavigatorBundle.getFormattedString(baseString, args).
-            split("__host__", 2);
+            split("__prepath__", 2);
 
           span.appendChild(document.createTextNode(bases[0]));
-          var hostSpan = document.createElementNS("http://www.w3.org/1999/xhtml", "em");
-          hostSpan.appendChild(document.createTextNode(host));
-          span.appendChild(hostSpan);
+          var prePathSpan = document.createElementNS("http://www.w3.org/1999/xhtml", "em");
+          prePathSpan.appendChild(document.createTextNode(prePath));
+          span.appendChild(prePathSpan);
           span.appendChild(document.createTextNode(bases[1] + " "));
         ]]></body>
       </method>
@@ -1764,203 +1780,14 @@
     </implementation>
   </binding>
 
- <binding id="promobox">
-    <content>
-      <xul:hbox class="panel-promo-box" align="start" flex="1">
-        <xul:hbox align="center" flex="1">
-          <xul:image class="panel-promo-icon"/>
-          <xul:description anonid="promo-message" class="panel-promo-message" flex="1">
-            <xul:description anonid="promo-link"
-                             class="plain text-link inline-link"
-                             onclick="document.getBindingParent(this).onLinkClick();"/>
-          </xul:description>
-        </xul:hbox>
-        <xul:toolbarbutton class="panel-promo-closebutton close-icon"
-                           oncommand="document.getBindingParent(this).onCloseButtonCommand();"
-                           tooltiptext="&closeNotification.tooltip;"/>
-      </xul:hbox>
-    </content>
-
-    <implementation implements="nsIDOMEventListener">
-      <constructor><![CDATA[
-        this._panel.addEventListener("popupshowing", this, false);
-      ]]></constructor>
-
-      <destructor><![CDATA[
-        this._panel.removeEventListener("popupshowing", this, false);
-      ]]></destructor>
-
-      <field name="_panel" readonly="true"><![CDATA[
-        let node = this.parentNode;
-        while(node && node.localName != "panel") {
-          node = node.parentNode;
-        }
-        node;
-      ]]></field>
-      <field name="_promomessage" readonly="true">
-        document.getAnonymousElementByAttribute(this, "anonid", "promo-message");
-      </field>
-      <field name="_promolink" readonly="true">
-        document.getAnonymousElementByAttribute(this, "anonid", "promo-link");
-      </field>
-      <field name="_brandBundle" readonly="true">
-        Services.strings.createBundle("chrome://branding/locale/brand.properties");
-      </field>
-      <property name="_viewsLeftMap">
-        <getter><![CDATA[
-          let viewsLeftMap = {};
-          try {
-            viewsLeftMap = JSON.parse(Services.prefs.getCharPref("browser.syncPromoViewsLeftMap"));
-          } catch (ex) {
-            // If the old preference exists, migrate it to the new one.
-            try {
-              let oldPref = Services.prefs.getIntPref("browser.syncPromoViewsLeft");
-              Services.prefs.clearUserPref("browser.syncPromoViewsLeft");
-              viewsLeftMap.bookmarks = oldPref;
-              viewsLeftMap.passwords = oldPref;
-              Services.prefs.setCharPref("browser.syncPromoViewsLeftMap",
-                                         JSON.stringify(viewsLeftMap));
-            } catch (ex2) {}
-          }
-          return viewsLeftMap;
-        ]]></getter>
-      </property>
-      <property name="_viewsLeft">
-        <getter><![CDATA[
-          let views = 5;
-          let map = this._viewsLeftMap;
-          if (this._notificationType in map) {
-            views = map[this._notificationType];
-          }
-          return views;
-        ]]></getter>
-        <setter><![CDATA[
-          let map = this._viewsLeftMap;
-          map[this._notificationType] = val;
-          Services.prefs.setCharPref("browser.syncPromoViewsLeftMap",
-                                     JSON.stringify(map));
-          return val;
-        ]]></setter>
-      </property>
-      <property name="_notificationType">
-        <getter><![CDATA[
-          // Use the popupid attribute to identify the notification type,
-          // otherwise just rely on the panel id for common arrowpanels.
-          let type = this._panel.firstChild.getAttribute("popupid") ||
-                     this._panel.id;
-          if (type.startsWith("password-"))
-            return "passwords";
-          if (type == "editBookmarkPanel")
-            return "bookmarks";
-          if (type == "addon-install-complete") {
-            if (!Services.prefs.prefHasUserValue("services.sync.username"))
-              return "addons";
-            if (!Services.prefs.getBoolPref("services.sync.engine.addons"))
-              return "addons-sync-disabled";
-          }
-          return null;
-        ]]></getter>
-      </property>
-      <property name="_notificationMessage">
-        <getter><![CDATA[
-          return gNavigatorBundle.getFormattedString(
-            "syncPromoNotification." + this._notificationType + ".description",
-            [this._brandBundle.GetStringFromName("syncBrandShortName")]
-          );
-        ]]></getter>
-      </property>
-      <property name="_notificationLink">
-        <getter><![CDATA[
-          if (this._notificationType == "addons-sync-disabled") {
-            return "https://forum.palemoon.org/viewforum.php?f=52";
-          }
-          return "http://www.palemoon.org/sync/";
-        ]]></getter>
-      </property>
-      <method name="onCloseButtonCommand">
-        <body><![CDATA[
-          this._viewsLeft = 0;
-          this.hidden = true;
-        ]]></body>
-      </method>
-      <method name="onLinkClick">
-        <body><![CDATA[
-          // Open a new selected tab and close the current panel.
-          gBrowser.loadOneTab(this._promolink.getAttribute("href"),
-                              { inBackground: false });
-          this._panel.hidePopup();
-        ]]></body>
-      </method>
-      <method name="handleEvent">
-        <parameter name="event"/>
-        <body><![CDATA[
-          if (event.type != "popupshowing" || event.target != this._panel)
-            return;
-
-          // A previous notification may have unhidden this.
-          this.hidden = true;
-
-          // Only handle supported notification panels.
-          if (!this._notificationType) {
-            return;
-          }
-
-          let viewsLeft = this._viewsLeft;
-          if (viewsLeft) {
-            // XXX: Short-circuit this for now.
-            // TO-DO: Clean up this code for sync promotion
-            this._viewsLeft = 0;
-            viewsLeft = 0;
-            return;
-            // XXX
-            
-            if (Services.prefs.prefHasUserValue("services.sync.username") &&
-               this._notificationType != "addons-sync-disabled") {
-              // If the user has already setup Sync, don't show the notification.
-              this._viewsLeft = 0;
-              // Be sure to hide the panel, in case it was visible and the user
-              // decided to setup Sync after noticing it.
-              viewsLeft = 0;
-              // The panel is still hidden, just bail out.
-              return;
-            }
-            else {
-              this._viewsLeft = viewsLeft - 1;
-            }
-
-            this._promolink.setAttribute("href", this._notificationLink);
-            this._promolink.value = gNavigatorBundle.getString("syncPromoNotification.learnMoreLinkText");
-
-            this.hidden = false;
-
-            // HACK: The description element doesn't wrap correctly in panels,
-            // thus set a width on it, based on the available space, before
-            // setting its textContent.  Then set its height as well, to
-            // fix wrong height calculation on Linux (bug 659578).
-            this._panel.addEventListener("popupshown", function panelShown() {
-              this._panel.removeEventListener("popupshown", panelShown, true);
-              // Previous popupShown events may close the panel or change
-              // its contents, so ensure this is still valid.
-              if (this._panel.state != "open" || !this._notificationType)
-                return;
-              this._promomessage.width = this._promomessage.getBoundingClientRect().width;
-              this._promomessage.firstChild.textContent = this._notificationMessage;
-              this._promomessage.height = this._promomessage.getBoundingClientRect().height;
-            }.bind(this), true);
-          }
-        ]]></body>
-      </method>
-    </implementation>
-  </binding>
-
   <binding id="toolbarbutton-badged" display="xul:button"
            extends="chrome://global/content/bindings/toolbarbutton.xml#toolbarbutton">
     <content>
       <children includes="observes|template|menupopup|panel|tooltip"/>
-      <xul:hbox class="toolbarbutton-badge-container" align="start" pack="end" flex="1">
-        <xul:hbox class="toolbarbutton-badge" xbl:inherits="badge"/>
+      <xul:stack class="toolbarbutton-badge-stack">
         <xul:image class="toolbarbutton-icon" xbl:inherits="validate,src=image,label"/>
-      </xul:hbox>
+        <xul:label class="toolbarbutton-badge" xbl:inherits="value=badge" top="0" end="0"/>
+      </xul:stack>
       <xul:label class="toolbarbutton-text" crop="right" flex="1"
                  xbl:inherits="value=label,accesskey,crop"/>
     </content>

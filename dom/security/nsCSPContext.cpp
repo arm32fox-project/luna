@@ -171,9 +171,10 @@ nsCSPContext::ShouldLoad(nsContentPolicyType aContentType,
     }
   }
 
-  // aExtra is only non-null if the channel got redirected.
-  bool wasRedirected = (aExtra != nullptr);
+  // aExtra holds the original URI of the channel if the
+  // channel got redirected (until we fix Bug 1332422).
   nsCOMPtr<nsIURI> originalURI = do_QueryInterface(aExtra);
+  bool wasRedirected = originalURI;
 
   bool permitted = permitsInternal(dir,
                                    aContentLocation,
@@ -219,14 +220,6 @@ nsCSPContext::permitsInternal(CSPDirective aDir,
 
   nsAutoString violatedDirective;
   for (uint32_t p = 0; p < mPolicies.Length(); p++) {
-
-    // According to the W3C CSP spec, frame-ancestors checks are ignored for
-    // report-only policies (when "monitoring").
-    if (aDir == nsIContentSecurityPolicy::FRAME_ANCESTORS_DIRECTIVE &&
-        mPolicies[p]->getReportOnlyFlag()) {
-      continue;
-    }
-
     if (!mPolicies[p]->permits(aDir,
                                aContentLocation,
                                aNonce,
@@ -823,15 +816,6 @@ nsCSPContext::SendReports(nsISupports* aBlockedContentSource,
                           uint32_t aLineNum)
 {
   NS_ENSURE_ARG_MAX(aViolatedPolicyIndex, mPolicies.Length() - 1);
-
-#ifdef MOZ_B2G
-  // load group information (on process-split necko implementations like b2g).
-  // (fix this in bug 1011086)
-  if (!mCallingChannelLoadGroup) {
-    NS_WARNING("Load group required but not present for report sending; cannot send CSP violation reports");
-    return NS_ERROR_FAILURE;
-  }
-#endif
 
   dom::CSPReport report;
   nsresult rv;

@@ -7,7 +7,7 @@
 var browser;
 var dialog = {};
 var pref = null;
-let openLocationModule = {};
+var openLocationModule = {};
 try {
   pref = Components.classes["@mozilla.org/preferences-service;1"]
                    .getService(Components.interfaces.nsIPrefBranch);
@@ -16,7 +16,7 @@ try {
 }
 
 Components.utils.import("resource:///modules/openLocationLastURL.jsm", openLocationModule);
-let gOpenLocationLastURL = new openLocationModule.OpenLocationLastURL(window.opener);
+var gOpenLocationLastURL = new openLocationModule.OpenLocationLastURL(window.opener);
 
 function onLoad()
 {
@@ -61,46 +61,62 @@ function doEnabling()
 
 function open()
 {
-  var url;
-  var postData = {};
-  var mayInheritPrincipal = {value: false};
-  if (browser)
-    url = browser.getShortcutOrURI(dialog.input.value, postData, mayInheritPrincipal);
-  else
-    url = dialog.input.value;
+  var openData = {
+    "url": null,
+    "postData": null,
+    "mayInheritPrincipal": false
+  };
+  if (browser) {
+    browser.getShortcutOrURIAndPostData(dialog.input.value).then(data => {
+      openData.url = data.url;
+      openData.postData = data.postData;
+      openData.mayInheritPrincipal = data.mayInheritPrincipal;
 
+      openLocation(openData);
+    });
+  } else {
+    openData.url = dialog.input.value;
+
+    openLocation(openData);
+  }
+
+  return false;
+}
+
+function openLocation(openData)
+{
   try {
     // Whichever target we use for the load, we allow third-party services to
-    // fixup the URI
+    // fix up the URI
     switch (dialog.openWhereList.value) {
       case "0":
         var webNav = Components.interfaces.nsIWebNavigation;
         var flags = webNav.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP |
                     webNav.LOAD_FLAGS_FIXUP_SCHEME_TYPOS;
-        if (!mayInheritPrincipal.value)
-          flags |= webNav.LOAD_FLAGS_DISALLOW_INHERIT_OWNER;
-        browser.gBrowser.loadURIWithFlags(url, flags, null, null, postData.value);
+        if (!openData.mayInheritPrincipal)
+          flags |= webNav.LOAD_FLAGS_DISALLOW_INHERIT_PRINCIPAL;
+        browser.gBrowser.loadURIWithFlags(
+            openData.url, flags, null, null, openData.postData);
         break;
       case "1":
         window.opener.delayedOpenWindow(getBrowserURL(), "all,dialog=no",
-                                        url, postData.value, null, null, true);
+                                        openData.url, openData.postData,
+                                        null, null, true);
         break;
       case "3":
-        browser.delayedOpenTab(url, null, null, postData.value, true);
+        browser.delayedOpenTab(
+            openData.url, null, null, openData.postData, true);
         break;
     }
-  }
-  catch(exception) {
-  }
+  } catch (ex) {}
 
   if (pref) {
     gOpenLocationLastURL.value = dialog.input.value;
-    pref.setIntPref("general.open_location.last_window_choice", dialog.openWhereList.value);
+    pref.setIntPref(
+        "general.open_location.last_window_choice", dialog.openWhereList.value);
   }
 
-  // Delay closing slightly to avoid timing bug on Linux.
   window.close();
-  return false;
 }
 
 function createInstance(contractid, iidName)

@@ -529,16 +529,17 @@ function String_iterator() {
 }
 
 function StringIteratorNext() {
-    if (!IsObject(this) || !IsStringIterator(this)) {
+    var obj;
+    if (!IsObject(this) || (obj = GuardToStringIterator(this)) === null) {
         return callFunction(CallStringIteratorMethodIfWrapped, this,
                             "StringIteratorNext");
     }
 
-    var S = UnsafeGetStringFromReservedSlot(this, ITERATOR_SLOT_TARGET);
+    var S = UnsafeGetStringFromReservedSlot(obj, ITERATOR_SLOT_TARGET);
     // We know that JSString::MAX_LENGTH <= INT32_MAX (and assert this in
     // SelfHostring.cpp) so our current index can never be anything other than
     // an Int32Value.
-    var index = UnsafeGetInt32FromReservedSlot(this, ITERATOR_SLOT_NEXT_INDEX);
+    var index = UnsafeGetInt32FromReservedSlot(obj, ITERATOR_SLOT_NEXT_INDEX);
     var size = S.length;
     var result = { value: undefined, done: false };
 
@@ -556,7 +557,7 @@ function StringIteratorNext() {
         }
     }
 
-    UnsafeSetReservedSlot(this, ITERATOR_SLOT_NEXT_INDEX, index + charCount);
+    UnsafeSetReservedSlot(obj, ITERATOR_SLOT_NEXT_INDEX, index + charCount);
     result.value = callFunction(String_substring, S, index, index + charCount);
 
     return result;
@@ -659,11 +660,7 @@ function String_static_localeCompare(str1, str2) {
         ThrowTypeError(JSMSG_MISSING_FUN_ARG, 0, "String.localeCompare");
     var locales = arguments.length > 2 ? arguments[2] : undefined;
     var options = arguments.length > 3 ? arguments[3] : undefined;
-#if EXPOSE_INTL_API
     return callFunction(String_localeCompare, str1, str2, locales, options);
-#else
-    return callFunction(std_String_localeCompare, str1, str2, locales, options);
-#endif
 }
 
 // ES6 draft 2014-04-27 B.2.3.3
@@ -855,14 +852,12 @@ function String_static_toLocaleUpperCase(string) {
     return callFunction(std_String_toLocaleUpperCase, string);
 }
 
-#if EXPOSE_INTL_API
 function String_static_normalize(string) {
     if (arguments.length < 1)
         ThrowTypeError(JSMSG_MISSING_FUN_ARG, 0, 'String.normalize');
     var form = arguments.length > 1 ? arguments[1] : undefined;
     return callFunction(std_String_normalize, string, form);
 }
-#endif
 
 function String_static_concat(string, arg1) {
     if (arguments.length < 1)

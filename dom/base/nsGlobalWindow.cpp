@@ -23,8 +23,9 @@
 #include "mozilla/dom/StorageEvent.h"
 #include "mozilla/dom/StorageEventBinding.h"
 #include "mozilla/dom/Timeout.h"
+#include "mozilla/dom/TimeoutHandler.h"
 #include "mozilla/IntegerPrintfMacros.h"
-#if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_WIDGET_GONK)
+#if defined(MOZ_WIDGET_ANDROID)
 #include "mozilla/dom/WindowOrientationObserver.h"
 #endif
 #include "nsDOMOfflineResourceList.h"
@@ -246,10 +247,6 @@
 
 #ifdef MOZ_WEBSPEECH
 #include "mozilla/dom/SpeechSynthesis.h"
-#endif
-
-#ifdef MOZ_B2G
-#include "nsPISocketTransportService.h"
 #endif
 
 // Apple system headers seem to have a check() macro.  <sigh>
@@ -552,28 +549,283 @@ DialogValueHolder::Get(JSContext* aCx, JS::Handle<JSObject*> aScope,
   }
 }
 
-void
-nsGlobalWindow::PostThrottledIdleCallback()
+class IdleRequestExecutor final : public nsIRunnable
+                                , public nsICancelableRunnable
+                                , public nsIIncrementalRunnable
 {
-  AssertIsOnMainThread();
+public:
+  explicit IdleRequestExecutor(nsGlobalWindow* aWindow)
+    : mDispatched(false)
+    , mDeadline(TimeStamp::Now())
+    , mWindow(aWindow)
+  {
+    MOZ_DIAGNOSTIC_ASSERT(mWindow);
+    MOZ_DIAGNOSTIC_ASSERT(mWindow->IsInnerWindow());
+  }
 
-  if (mThrottledIdleRequestCallbacks.isEmpty())
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(IdleRequestExecutor, nsIRunnable)
+
+  NS_DECL_NSIRUNNABLE
+  nsresult Cancel() override;
+  void SetDeadline(TimeStamp aDeadline) override;
+
+  void MaybeDispatch();
+private:
+  ~IdleRequestExecutor() {}
+
+  bool mDispatched;
+  TimeStamp mDeadline;
+  RefPtr<nsGlobalWindow> mWindow;
+};
+
+NS_IMPL_CYCLE_COLLECTION_CLASS(IdleRequestExecutor)
+
+NS_IMPL_CYCLE_COLLECTING_ADDREF(IdleRequestExecutor)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(IdleRequestExecutor)
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(IdleRequestExecutor)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mWindow)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(IdleRequestExecutor)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mWindow)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(IdleRequestExecutor)
+  NS_INTERFACE_MAP_ENTRY(nsIRunnable)
+  NS_INTERFACE_MAP_ENTRY(nsICancelableRunnable)
+  NS_INTERFACE_MAP_ENTRY(nsIIncrementalRunnable)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIRunnable)
+NS_INTERFACE_MAP_END
+
+NS_IMETHODIMP
+IdleRequestExecutor::Run()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  mDispatched = false;
+  if (mWindow) {
+    return mWindow->ExecuteIdleRequest(mDeadline);
+  }
+
+  return NS_OK;
+}
+
+nsresult
+IdleRequestExecutor::Cancel()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  mWindow = nullptr;
+  return NS_OK;
+}
+
+void
+IdleRequestExecutor::SetDeadline(TimeStamp aDeadline)
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  if (!mWindow) {
     return;
+  }
 
-  RefPtr<IdleRequest> request(mThrottledIdleRequestCallbacks.popFirst());
-  // ownership transferred from mThrottledIdleRequestCallbacks to
-  // mIdleRequestCallbacks
-  mIdleRequestCallbacks.insertBack(request);
+  mDeadline = aDeadline;
+}
+
+void
+IdleRequestExecutor::MaybeDispatch()
+{
+  // If we've already dispatched the executor we don't want to do it
+  // again. Also, if we've called IdleRequestExecutor::Cancel mWindow
+  // will be null, which indicates that we shouldn't dispatch this
+  // executor either.
+  if (mDispatched || !mWindow) {
+    return;
+  }
+
+  mDispatched = true;
+  RefPtr<IdleRequestExecutor> request = this;
   NS_IdleDispatchToCurrentThread(request.forget());
 }
 
-/* static */ void
-nsGlobalWindow::InsertIdleCallbackIntoList(IdleRequest* aRequest,
-                                           IdleRequests& aList)
+class IdleRequestExecutorTimeoutHandler final : public TimeoutHandler
 {
-  aList.insertBack(aRequest);
+public:
+  explicit IdleRequestExecutorTimeoutHandler(IdleRequestExecutor* aExecutor)
+    : mExecutor(aExecutor)
+  {
+  }
+
+  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(IdleRequestExecutorTimeoutHandler,
+                                           TimeoutHandler)
+
+  nsresult Call() override
+  {
+    mExecutor->MaybeDispatch();
+    return NS_OK;
+  }
+private:
+  ~IdleRequestExecutorTimeoutHandler() {}
+  RefPtr<IdleRequestExecutor> mExecutor;
+};
+
+NS_IMPL_CYCLE_COLLECTION_INHERITED(IdleRequestExecutorTimeoutHandler, TimeoutHandler, mExecutor)
+
+NS_IMPL_ADDREF_INHERITED(IdleRequestExecutorTimeoutHandler, TimeoutHandler)
+NS_IMPL_RELEASE_INHERITED(IdleRequestExecutorTimeoutHandler, TimeoutHandler)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(IdleRequestExecutorTimeoutHandler)
+  NS_INTERFACE_MAP_ENTRY(nsITimeoutHandler)
+NS_INTERFACE_MAP_END_INHERITING(TimeoutHandler)
+
+void
+nsGlobalWindow::ScheduleIdleRequestDispatch()
+{
+  AssertIsOnMainThread();
+
+  if (mIdleRequestCallbacks.isEmpty()) {
+    if (mIdleRequestExecutor) {
+      mIdleRequestExecutor->Cancel();
+      mIdleRequestExecutor = nullptr;
+    }
+
+    return;
+  }
+
+  if (!mIdleRequestExecutor) {
+    mIdleRequestExecutor = new IdleRequestExecutor(this);
+  }
+
+  nsPIDOMWindowOuter* outer = GetOuterWindow();
+  if (outer && outer->AsOuter()->IsBackground()) {
+    nsCOMPtr<nsITimeoutHandler> handler = new IdleRequestExecutorTimeoutHandler(mIdleRequestExecutor);
+    int32_t dummy;
+    // Set a timeout handler with a timeout of 0 ms to throttle idle
+    // callback requests coming from a backround window using
+    // background timeout throttling.
+    SetTimeoutOrInterval(handler, 0, false,
+                         Timeout::Reason::eIdleCallbackTimeout, &dummy);
+    return;
+  }
+
+  mIdleRequestExecutor->MaybeDispatch();
+}
+
+void
+nsGlobalWindow::SuspendIdleRequests()
+{
+  if (mIdleRequestExecutor) {
+    mIdleRequestExecutor->Cancel();
+    mIdleRequestExecutor = nullptr;
+  }
+}
+
+void
+nsGlobalWindow::ResumeIdleRequests()
+{
+  MOZ_ASSERT(!mIdleRequestExecutor);
+
+  ScheduleIdleRequestDispatch();
+}
+
+void
+nsGlobalWindow::InsertIdleCallback(IdleRequest* aRequest)
+{
+  AssertIsOnMainThread();
+  mIdleRequestCallbacks.insertBack(aRequest);
   aRequest->AddRef();
 }
+
+void
+nsGlobalWindow::RemoveIdleCallback(mozilla::dom::IdleRequest* aRequest)
+{
+  AssertIsOnMainThread();
+
+  if (aRequest->HasTimeout()) {
+    ClearTimeoutOrInterval(aRequest->GetTimeoutHandle(),
+                           Timeout::Reason::eIdleCallbackTimeout);
+  }
+
+  aRequest->removeFrom(mIdleRequestCallbacks);
+  aRequest->Release();
+}
+
+nsresult
+nsGlobalWindow::RunIdleRequest(IdleRequest* aRequest,
+                               DOMHighResTimeStamp aDeadline,
+                               bool aDidTimeout)
+{
+  AssertIsOnMainThread();
+  RefPtr<IdleRequest> request(aRequest);
+  RemoveIdleCallback(request);
+  return request->IdleRun(AsInner(), aDeadline, aDidTimeout);
+}
+
+nsresult
+nsGlobalWindow::ExecuteIdleRequest(TimeStamp aDeadline)
+{
+  AssertIsOnMainThread();
+  RefPtr<IdleRequest> request = mIdleRequestCallbacks.getFirst();
+
+  if (!request) {
+    // There are no more idle requests, so stop scheduling idle
+    // request callbacks.
+    return NS_OK;
+  }
+
+  DOMHighResTimeStamp deadline = 0.0;
+
+  if (Performance* perf = GetPerformance()) {
+    deadline = perf->GetDOMTiming()->TimeStampToDOMHighRes(aDeadline);
+  }
+
+  nsresult result = RunIdleRequest(request, deadline, false);
+
+  ScheduleIdleRequestDispatch();
+  return result;
+}
+
+class IdleRequestTimeoutHandler final : public TimeoutHandler
+{
+public:
+  IdleRequestTimeoutHandler(JSContext* aCx,
+                            IdleRequest* aIdleRequest,
+                            nsPIDOMWindowInner* aWindow)
+    : TimeoutHandler(aCx)
+    , mIdleRequest(aIdleRequest)
+    , mWindow(aWindow)
+  {
+  }
+
+  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(IdleRequestTimeoutHandler,
+                                           TimeoutHandler)
+
+  nsresult Call() override
+  {
+    return nsGlobalWindow::Cast(mWindow)->RunIdleRequest(mIdleRequest, 0.0, true);
+  }
+
+private:
+  ~IdleRequestTimeoutHandler() {}
+
+  RefPtr<IdleRequest> mIdleRequest;
+  nsCOMPtr<nsPIDOMWindowInner> mWindow;
+};
+
+NS_IMPL_CYCLE_COLLECTION_INHERITED(IdleRequestTimeoutHandler,
+                                   TimeoutHandler,
+                                   mIdleRequest,
+                                   mWindow)
+
+NS_IMPL_ADDREF_INHERITED(IdleRequestTimeoutHandler, TimeoutHandler)
+NS_IMPL_RELEASE_INHERITED(IdleRequestTimeoutHandler, TimeoutHandler)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(IdleRequestTimeoutHandler)
+  NS_INTERFACE_MAP_ENTRY(nsITimeoutHandler)
+NS_INTERFACE_MAP_END_INHERITING(TimeoutHandler)
 
 uint32_t
 nsGlobalWindow::RequestIdleCallback(JSContext* aCx,
@@ -584,33 +836,36 @@ nsGlobalWindow::RequestIdleCallback(JSContext* aCx,
   MOZ_RELEASE_ASSERT(IsInnerWindow());
   AssertIsOnMainThread();
 
-  uint32_t handle = ++mIdleRequestCallbackCounter;
+  uint32_t handle = mIdleRequestCallbackCounter++;
 
   RefPtr<IdleRequest> request =
-    new IdleRequest(aCx, AsInner(), aCallback, handle);
+    new IdleRequest(&aCallback, handle);
 
   if (aOptions.mTimeout.WasPassed()) {
-    aError = request->SetTimeout(aOptions.mTimeout.Value());
-    if (NS_WARN_IF(aError.Failed())) {
+    int32_t timeoutHandle;
+    nsCOMPtr<nsITimeoutHandler> handler(new IdleRequestTimeoutHandler(aCx, request, AsInner()));
+
+    nsresult rv = SetTimeoutOrInterval(
+        handler, aOptions.mTimeout.Value(), false,
+        Timeout::Reason::eIdleCallbackTimeout, &timeoutHandle);
+
+    if (NS_WARN_IF(NS_FAILED(rv))) {
       return 0;
     }
+
+    request->SetTimeoutHandle(timeoutHandle);
   }
 
-  nsGlobalWindow* outer = GetOuterWindowInternal();
-  if (outer && outer->AsOuter()->IsBackground()) {
-    // mThrottledIdleRequestCallbacks now owns request
-    InsertIdleCallbackIntoList(request, mThrottledIdleRequestCallbacks);
+  // If the list of idle callback requests is not empty it means that
+  // we've already dispatched the first idle request. If we're
+  // suspended we should only queue the idle callback and not schedule
+  // it to run, that will be done in ResumeIdleRequest.
+  bool needsScheduling = !IsSuspended() && mIdleRequestCallbacks.isEmpty();
+  // mIdleRequestCallbacks now owns request
+  InsertIdleCallback(request);
 
-    NS_DelayedDispatchToCurrentThread(
-      NewRunnableMethod(this, &nsGlobalWindow::PostThrottledIdleCallback),
-      10000);
-  } else {
-    MOZ_ASSERT(mThrottledIdleRequestCallbacks.isEmpty());
-
-    // mIdleRequestCallbacks now owns request
-    InsertIdleCallbackIntoList(request, mIdleRequestCallbacks);
-
-    NS_IdleDispatchToCurrentThread(request.forget());
+  if (needsScheduling) {
+    ScheduleIdleRequestDispatch();
   }
 
   return handle;
@@ -623,7 +878,7 @@ nsGlobalWindow::CancelIdleCallback(uint32_t aHandle)
 
   for (IdleRequest* r : mIdleRequestCallbacks) {
     if (r->Handle() == aHandle) {
-      r->Cancel();
+      RemoveIdleCallback(r);
       break;
     }
   }
@@ -632,28 +887,16 @@ nsGlobalWindow::CancelIdleCallback(uint32_t aHandle)
 void
 nsGlobalWindow::DisableIdleCallbackRequests()
 {
+  if (mIdleRequestExecutor) {
+    mIdleRequestExecutor->Cancel();
+    mIdleRequestExecutor = nullptr;
+  }
+
   while (!mIdleRequestCallbacks.isEmpty()) {
-    RefPtr<IdleRequest> request = mIdleRequestCallbacks.popFirst();
-    request->Cancel();
-  }
-
-  while (!mThrottledIdleRequestCallbacks.isEmpty()) {
-    RefPtr<IdleRequest> request = mThrottledIdleRequestCallbacks.popFirst();
-    request->Cancel();
+    RefPtr<IdleRequest> request = mIdleRequestCallbacks.getFirst();
+    RemoveIdleCallback(request);
   }
 }
-
-void nsGlobalWindow::UnthrottleIdleCallbackRequests()
-{
-  AssertIsOnMainThread();
-
-  while (!mThrottledIdleRequestCallbacks.isEmpty()) {
-    RefPtr<IdleRequest> request(mThrottledIdleRequestCallbacks.popFirst());
-    mIdleRequestCallbacks.insertBack(request);
-    NS_IdleDispatchToCurrentThread(request.forget());
-  }
-}
-
 
 namespace mozilla {
 namespace dom {
@@ -1306,12 +1549,9 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
     mSerial(0),
     mIdleCallbackTimeoutCounter(1),
     mIdleRequestCallbackCounter(1),
+    mIdleRequestExecutor(nullptr),
 #ifdef DEBUG
     mSetOpenerWindowCalled(false),
-#endif
-#ifdef MOZ_B2G
-    mNetworkUploadObserverEnabled(false),
-    mNetworkDownloadObserverEnabled(false),
 #endif
     mCleanedUp(false),
     mDialogAbuseCount(0),
@@ -1665,11 +1905,6 @@ nsGlobalWindow::CleanUp()
       os->RemoveObserver(mObserver, "dom-storage2-changed");
     }
 
-#ifdef MOZ_B2G
-    DisableNetworkEvent(eNetworkUpload);
-    DisableNetworkEvent(eNetworkDownload);
-#endif // MOZ_B2G
-
     if (mIdleService) {
       mIdleService->RemoveIdleObserver(mObserver, MIN_IDLE_NOTIFICATION_TIME_S);
     }
@@ -1713,7 +1948,7 @@ nsGlobalWindow::CleanUp()
   mSpeechSynthesis = nullptr;
 #endif
 
-#if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_WIDGET_GONK)
+#if defined(MOZ_WIDGET_ANDROID)
   mOrientationChangeObserver = nullptr;
 #endif
 
@@ -1738,9 +1973,6 @@ nsGlobalWindow::CleanUp()
     mHasGamepad = false;
     DisableVRUpdates();
     mHasVREvents = false;
-#ifdef MOZ_B2G
-    DisableTimeChangeNotifications();
-#endif
     DisableIdleCallbackRequests();
   } else {
     MOZ_ASSERT(!mHasGamepad);
@@ -1844,7 +2076,7 @@ nsGlobalWindow::FreeInnerObjects()
     mScreen = nullptr;
   }
 
-#if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_WIDGET_GONK)
+#if defined(MOZ_WIDGET_ANDROID)
   mOrientationChangeObserver = nullptr;
 #endif
 
@@ -2033,11 +2265,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsGlobalWindow)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mWakeLock)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPendingStorageEvents)
 
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mIdleRequestExecutor)
   for (IdleRequest* request : tmp->mIdleRequestCallbacks) {
-    cb.NoteNativeChild(request, NS_CYCLE_COLLECTION_PARTICIPANT(IdleRequest));
-  }
-
-  for (IdleRequest* request : tmp->mThrottledIdleRequestCallbacks) {
     cb.NoteNativeChild(request, NS_CYCLE_COLLECTION_PARTICIPANT(IdleRequest));
   }
 
@@ -2147,6 +2376,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGlobalWindow)
 
   tmp->UnlinkHostObjectURIs();
 
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mIdleRequestExecutor)
   tmp->DisableIdleCallbackRequests();
 
   NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
@@ -2275,8 +2505,13 @@ nsGlobalWindow::WouldReuseInnerWindow(nsIDocument* aNewDocument)
     return false;
   }
 
-  NS_ASSERTION(NS_IsAboutBlank(mDoc->GetDocumentURI()),
-               "How'd this happen?");
+#ifdef DEBUG
+{
+  nsCOMPtr<nsIURI> uri;
+  mDoc->GetDocumentURI()->CloneIgnoringRef(getter_AddRefs(uri));
+  NS_ASSERTION(NS_IsAboutBlank(uri), "How'd this happen?");
+}
+#endif
 
   // Great, we're the original document, check for one of the other
   // conditions.
@@ -2878,8 +3113,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
           newInnerWindow->mPerformance =
             Performance::CreateForMainThread(newInnerWindow->AsInner(),
                                              currentInner->mPerformance->GetDOMTiming(),
-                                             currentInner->mPerformance->GetChannel(),
-                                             currentInner->mPerformance->GetParentPerformance());
+                                             currentInner->mPerformance->GetChannel());
         }
       }
 
@@ -4093,22 +4327,7 @@ nsPIDOMWindowInner::CreatePerformanceObjectIfNeeded()
     timedChannel = nullptr;
   }
   if (timing) {
-    // If we are dealing with an iframe, we will need the parent's performance
-    // object (so we can add the iframe as a resource of that page).
-    Performance* parentPerformance = nullptr;
-    nsCOMPtr<nsPIDOMWindowOuter> parentWindow = GetScriptableParentOrNull();
-    if (parentWindow) {
-      nsPIDOMWindowInner* parentInnerWindow = nullptr;
-      if (parentWindow) {
-        parentInnerWindow = parentWindow->GetCurrentInnerWindow();
-      }
-      if (parentInnerWindow) {
-        parentPerformance = parentInnerWindow->GetPerformance();
-      }
-    }
-    mPerformance =
-      Performance::CreateForMainThread(this, timing, timedChannel,
-                                       parentPerformance);
+    mPerformance = Performance::CreateForMainThread(this, timing, timedChannel);
   }
 }
 
@@ -10237,12 +10456,6 @@ void nsGlobalWindow::SetIsBackground(bool aIsBackground)
     ResetTimersForThrottleReduction(gMinBackgroundTimeoutValue);
   }
 
-  if (!aIsBackground) {
-    nsGlobalWindow* inner = GetCurrentInnerWindowInternal();
-    if (inner) {
-      inner->UnthrottleIdleCallbackRequests();
-    }
-  }
 #ifdef MOZ_GAMEPAD
   if (!aIsBackground) {
     nsGlobalWindow* inner = GetCurrentInnerWindowInternal();
@@ -11904,27 +12117,6 @@ nsGlobalWindow::Observe(nsISupports* aSubject, const char* aTopic,
     return NS_OK;
   }
 
-#ifdef MOZ_B2G
-  if (!nsCRT::strcmp(aTopic, NS_NETWORK_ACTIVITY_BLIP_UPLOAD_TOPIC) ||
-      !nsCRT::strcmp(aTopic, NS_NETWORK_ACTIVITY_BLIP_DOWNLOAD_TOPIC)) {
-    MOZ_ASSERT(IsInnerWindow());
-    if (!AsInner()->IsCurrentInnerWindow()) {
-      return NS_OK;
-    }
-
-    RefPtr<Event> event = NS_NewDOMEvent(this, nullptr, nullptr);
-    event->InitEvent(
-      !nsCRT::strcmp(aTopic, NS_NETWORK_ACTIVITY_BLIP_UPLOAD_TOPIC)
-        ? NETWORK_UPLOAD_EVENT_NAME
-        : NETWORK_DOWNLOAD_EVENT_NAME,
-      false, false);
-    event->SetTrusted(true);
-
-    bool dummy;
-    return DispatchEvent(event, &dummy);
-  }
-#endif // MOZ_B2G
-
   if (!nsCRT::strcmp(aTopic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID)) {
     MOZ_ASSERT(!NS_strcmp(aData, u"intl.accept_languages"));
     MOZ_ASSERT(IsInnerWindow());
@@ -12036,6 +12228,8 @@ nsGlobalWindow::Suspend()
 
   mozilla::dom::workers::SuspendWorkersForWindow(AsInner());
 
+  SuspendIdleRequests();
+
   for (Timeout* t = mTimeouts.getFirst(); t; t = t->getNext()) {
     // Leave the timers with the current time remaining.  This will
     // cause the timers to potentially fire when the window is
@@ -12145,6 +12339,8 @@ nsGlobalWindow::Resume()
     // Add a reference for the new timer's closure.
     t->AddRef();
   }
+
+  ResumeIdleRequests();
 
   // Resume all of the workers for this window.  We must do this
   // after timeouts since workers may have queued events that can trigger
@@ -13813,7 +14009,7 @@ nsGlobalWindow::DisableDeviceSensor(uint32_t aType)
   }
 }
 
-#if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_WIDGET_GONK)
+#if defined(MOZ_WIDGET_ANDROID)
 void
 nsGlobalWindow::EnableOrientationChangeListener()
 {
@@ -14437,7 +14633,9 @@ nsGlobalWindow::NotifyDefaultButtonLoaded(Element& aDefaultButton,
     return;
   }
   LayoutDeviceIntRect buttonRect =
-    LayoutDeviceIntRect::FromUnknownRect(frame->GetScreenRect());
+    LayoutDeviceIntRect::FromAppUnitsToNearest(
+      frame->GetScreenRectInAppUnits(),
+      frame->PresContext()->AppUnitsPerDevPixel());
 
   // Get the widget rect in screen coordinates.
   nsIWidget *widget = GetNearestWidget();
@@ -14706,7 +14904,7 @@ nsGlobalWindow::IsModalContentWindow(JSContext* aCx, JSObject* aGlobal)
   return xpc::WindowOrNull(aGlobal)->IsModalContentWindow();
 }
 
-#if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_WIDGET_GONK)
+#if defined(MOZ_WIDGET_ANDROID)
 int16_t
 nsGlobalWindow::Orientation(CallerType aCallerType) const
 {
@@ -14819,80 +15017,6 @@ nsGlobalWindow::GetIsPrerendered()
   nsIDocShell* docShell = GetDocShell();
   return docShell && docShell->GetIsPrerendered();
 }
-
-#ifdef MOZ_B2G
-void
-nsGlobalWindow::EnableNetworkEvent(EventMessage aEventMessage)
-{
-  MOZ_ASSERT(IsInnerWindow());
-
-  nsCOMPtr<nsIPermissionManager> permMgr =
-    services::GetPermissionManager();
-  if (!permMgr) {
-    NS_ERROR("No PermissionManager available!");
-    return;
-  }
-
-  uint32_t permission = nsIPermissionManager::DENY_ACTION;
-  permMgr->TestExactPermissionFromPrincipal(GetPrincipal(), "network-events",
-                                            &permission);
-
-  if (permission != nsIPermissionManager::ALLOW_ACTION) {
-    return;
-  }
-
-  nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
-  if (!os) {
-    NS_ERROR("ObserverService should be available!");
-    return;
-  }
-
-  switch (aEventMessage) {
-    case eNetworkUpload:
-      if (!mNetworkUploadObserverEnabled) {
-        mNetworkUploadObserverEnabled = true;
-        os->AddObserver(mObserver, NS_NETWORK_ACTIVITY_BLIP_UPLOAD_TOPIC, false);
-      }
-      break;
-    case eNetworkDownload:
-      if (!mNetworkDownloadObserverEnabled) {
-        mNetworkDownloadObserverEnabled = true;
-        os->AddObserver(mObserver, NS_NETWORK_ACTIVITY_BLIP_DOWNLOAD_TOPIC, false);
-      }
-      break;
-    default:
-      break;
-  }
-}
-
-void
-nsGlobalWindow::DisableNetworkEvent(EventMessage aEventMessage)
-{
-  MOZ_ASSERT(IsInnerWindow());
-
-  nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
-  if (!os) {
-    return;
-  }
-
-  switch (aEventMessage) {
-    case eNetworkUpload:
-      if (mNetworkUploadObserverEnabled) {
-        mNetworkUploadObserverEnabled = false;
-        os->RemoveObserver(mObserver, NS_NETWORK_ACTIVITY_BLIP_UPLOAD_TOPIC);
-      }
-      break;
-    case eNetworkDownload:
-      if (mNetworkDownloadObserverEnabled) {
-        mNetworkDownloadObserverEnabled = false;
-        os->RemoveObserver(mObserver, NS_NETWORK_ACTIVITY_BLIP_DOWNLOAD_TOPIC);
-      }
-      break;
-    default:
-      break;
-  }
-}
-#endif // MOZ_B2G
 
 void
 nsGlobalWindow::RedefineProperty(JSContext* aCx, const char* aPropName,

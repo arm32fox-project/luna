@@ -8,14 +8,14 @@ toolkit.jar:
    content/global/textbox.css
    content/global/menulist.css
    content/global/autocomplete.css
-   content/global/about.js
+*  content/global/about.js
    content/global/about.xhtml
    content/global/aboutAbout.js
    content/global/aboutAbout.xhtml
-#ifdef MC_OFFICIAL
-   content/global/aboutRights.xhtml
+#ifdef MOZ_OFFICIAL_BRANDING
+*  content/global/aboutRights.xhtml
 #else
-   content/global/aboutRights.xhtml           (aboutRights-unbranded.xhtml)
+*  content/global/aboutRights.xhtml           (aboutRights-unbranded.xhtml)
 #endif
    content/global/aboutNetworking.js
    content/global/aboutNetworking.xhtml
@@ -25,9 +25,11 @@ toolkit.jar:
 #endif
    content/global/aboutServiceWorkers.js
    content/global/aboutServiceWorkers.xhtml
+#ifdef MOZ_WEBRTC
    content/global/aboutwebrtc/aboutWebrtc.css   (aboutwebrtc/aboutWebrtc.css)
    content/global/aboutwebrtc/aboutWebrtc.js    (aboutwebrtc/aboutWebrtc.js)
    content/global/aboutwebrtc/aboutWebrtc.html (aboutwebrtc/aboutWebrtc.html)
+#endif
 *  content/global/aboutSupport.js
 *  content/global/aboutSupport.xhtml
    content/global/aboutTelemetry.js
@@ -38,13 +40,14 @@ toolkit.jar:
    content/global/plugins.css
    content/global/browser-child.js
    content/global/browser-content.js
-*   content/global/buildconfig.html
+*  content/global/buildconfig.html
    content/global/contentAreaUtils.js
 #ifndef MOZ_FENNEC
    content/global/customizeToolbar.css
    content/global/customizeToolbar.js
    content/global/customizeToolbar.xul
 #endif
+   content/global/datepicker.xhtml
 #ifndef MOZ_FENNEC
    content/global/editMenuOverlay.js
 *  content/global/editMenuOverlay.xul
@@ -54,8 +57,6 @@ toolkit.jar:
 #endif
    content/global/filepicker.properties
    content/global/globalOverlay.js
-   content/global/memoriam.xhtml
-*   content/global/mozilla.css
    content/global/mozilla.xhtml
 #ifdef MOZ_PHOENIX
    content/global/logopage.xhtml
@@ -80,8 +81,11 @@ toolkit.jar:
    content/global/bindings/autocomplete.xml    (widgets/autocomplete.xml)
    content/global/bindings/browser.xml         (widgets/browser.xml)
    content/global/bindings/button.xml          (widgets/button.xml)
+   content/global/bindings/calendar.js         (widgets/calendar.js)
    content/global/bindings/checkbox.xml        (widgets/checkbox.xml)
    content/global/bindings/colorpicker.xml     (widgets/colorpicker.xml)
+   content/global/bindings/datekeeper.js       (widgets/datekeeper.js)
+   content/global/bindings/datepicker.js       (widgets/datepicker.js)
    content/global/bindings/datetimepicker.xml  (widgets/datetimepicker.xml)
    content/global/bindings/datetimepopup.xml   (widgets/datetimepopup.xml)
    content/global/bindings/datetimebox.xml     (widgets/datetimebox.xml)

@@ -13,7 +13,11 @@ const XULNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
-// Define Lazy Module Gitters
+// Define Lazy Service Getters
+XPCOMUtils.defineLazyServiceGetter(this, "AlertsService",
+                                   "@mozilla.org/alerts-service;1", "nsIAlertsService");
+
+// Define Lazy Module Getters
 [
   ["AddonManager", "resource://gre/modules/AddonManager.jsm"],
   ["NetUtil", "resource://gre/modules/NetUtil.jsm"],
@@ -35,7 +39,20 @@ Cu.import("resource://gre/modules/Services.jsm");
   ["OS", "resource://gre/modules/osfile.jsm"],
   ["LoginManagerParent", "resource://gre/modules/LoginManagerParent.jsm"],
   ["FormValidationHandler", "resource:///modules/FormValidationHandler.jsm"],
+  ["AutoCompletePopup", "resource:///modules/AutoCompletePopup.jsm"],
+  ["DateTimePickerHelper", "resource://gre/modules/DateTimePickerHelper.jsm"],
+  ["ShellService", "resource:///modules/ShellService.jsm"],
 ].forEach(([name, resource]) => XPCOMUtils.defineLazyModuleGetter(this, name, resource));
+
+// Define Lazy Getters
+
+XPCOMUtils.defineLazyGetter(this, "gBrandBundle", function() {
+  return Services.strings.createBundle('chrome://branding/locale/brand.properties');
+});
+
+XPCOMUtils.defineLazyGetter(this, "gBrowserBundle", function() {
+  return Services.strings.createBundle('chrome://browser/locale/browser.properties');
+});
 
 const PREF_PLUGINS_NOTIFYUSER = "plugins.update.notifyUser";
 const PREF_PLUGINS_UPDATEURL  = "plugins.update.url";
@@ -167,6 +184,7 @@ BrowserGlue.prototype = {
         } catch (e) {
           Cu.reportError("Could not end startup crash tracking in quit-application-granted: " + e);
         }
+        DateTimePickerHelper.uninit();
         break;
 #ifdef OBSERVE_LASTWINDOW_CLOSE_TOPICS
       case "browser-lastwindow-close-requested":
@@ -403,6 +421,8 @@ BrowserGlue.prototype = {
 #endif
     FormValidationHandler.init();
     
+    AutoCompletePopup.init();
+    
     LoginManagerParent.init();
     
     Services.obs.notifyObservers(null, "browser-ui-startup-complete", "");
@@ -455,9 +475,7 @@ BrowserGlue.prototype = {
     if (!win)
       return;
 
-    let productName = Services.strings
-                              .createBundle("chrome://branding/locale/brand.properties")
-                              .GetStringFromName("brandFullName");
+    let productName = gBrandBundle.GetStringFromName("brandFullName");
     let message = win.gNavigatorBundle.getFormattedString("slowStartup.message", [productName]);
 
     let buttons = [
@@ -496,6 +514,8 @@ BrowserGlue.prototype = {
     }
 #endif
 
+    DateTimePickerHelper.init();
+
     this._trackSlowStartup();
   },
 
@@ -511,6 +531,7 @@ BrowserGlue.prototype = {
     webrtcUI.uninit();
 #endif
     FormValidationHandler.uninit();
+    AutoCompletePopup.uninit();
     this._dispose();
   },
 
@@ -551,17 +572,17 @@ BrowserGlue.prototype = {
     }
 
     // Perform default browser checking.
-    var shell;
-    try {
-      shell = Components.classes["@mozilla.org/browser/shell-service;1"]
-        .getService(Components.interfaces.nsIShellService);
-    } catch (e) { }
-    if (shell) {
-#ifdef DEBUG
-      let shouldCheck = false;
-#else
-      let shouldCheck = shell.shouldCheckDefaultBrowser;
-#endif
+    if (ShellService) {
+      let shouldCheck = ShellService.shouldCheckDefaultBrowser;
+
+      const skipDefaultBrowserCheck =
+        Services.prefs.getBoolPref("browser.shell.skipDefaultBrowserCheckOnFirstRun") &&
+        Services.prefs.getBoolPref("browser.shell.skipDefaultBrowserCheck");
+
+      const usePromptLimit = false;
+      let promptCount =
+        usePromptLimit ? Services.prefs.getIntPref("browser.shell.defaultBrowserCheckCount") : 0;
+
       let willRecoverSession = false;
       try {
         let ss = Cc["@mozilla.org/browser/sessionstartup;1"].
@@ -571,9 +592,25 @@ BrowserGlue.prototype = {
       }
       catch (ex) { /* never mind; suppose SessionStore is broken */ }
 
-      let isDefault = shell.isDefaultBrowser(true, false); // startup check, check all assoc
+      // startup check, check all assoc
+      let isDefault = false;
+      let isDefaultError = false;
+      try {
+        isDefault = ShellService.isDefaultBrowser(true, false);
+      } catch (ex) {
+        isDefaultError = true;
+      }
 
-      if (shouldCheck && !isDefault && !willRecoverSession) {
+      if (isDefault) {
+        let now = (Math.floor(Date.now() / 1000)).toString();
+        Services.prefs.setCharPref("browser.shell.mostRecentDateSetAsDefault", now);
+      }
+
+      let willPrompt = shouldCheck && !isDefault && !willRecoverSession;
+
+      // Skip the "Set Default Browser" check during first-run or after the
+      // browser has been run a few times.
+      if (willPrompt) {
         Services.tm.mainThread.dispatch(function() {
           var win = this.getMostRecentBrowserWindow();
           var brandBundle = win.document.getElementById("bundle_brand");
@@ -602,9 +639,9 @@ BrowserGlue.prototype = {
               claimAllTypes = (parseFloat(version) < 6.2);
             } catch (ex) { }
 #endif
-            shell.setDefaultBrowser(claimAllTypes, false);
+            ShellService.setDefaultBrowser(claimAllTypes, false);
           }
-          shell.shouldCheckDefaultBrowser = checkEveryTime.value;
+          ShellService.shouldCheckDefaultBrowser = checkEveryTime.value;
         }.bind(this), Ci.nsIThread.DISPATCH_NORMAL);
       }
     }
@@ -685,9 +722,8 @@ BrowserGlue.prototype = {
 
     let prompt = Services.prompt;
     let quitBundle = Services.strings.createBundle("chrome://browser/locale/quitDialog.properties");
-    let brandBundle = Services.strings.createBundle("chrome://branding/locale/brand.properties");
 
-    let appName = brandBundle.GetStringFromName("brandShortName");
+    let appName = gBrandBundle.GetStringFromName("brandShortName");
     let quitDialogTitle = quitBundle.formatStringFromName("quitDialogTitle",
                                                           [appName], 1);
     let neverAskText = quitBundle.GetStringFromName("neverAsk2");
@@ -764,9 +800,7 @@ BrowserGlue.prototype = {
 
     var formatter = Cc["@mozilla.org/toolkit/URLFormatterService;1"].
                     getService(Ci.nsIURLFormatter);
-    var browserBundle = Services.strings.createBundle("chrome://browser/locale/browser.properties");
-    var brandBundle = Services.strings.createBundle("chrome://branding/locale/brand.properties");
-    var appName = brandBundle.GetStringFromName("brandShortName");
+    var appName = gBrandBundle.GetStringFromName("brandShortName");
 
     function getNotifyString(aPropData) {
       var propValue = update.getProperty(aPropData.propName);
@@ -774,11 +808,11 @@ BrowserGlue.prototype = {
         if (aPropData.prefName)
           propValue = formatter.formatURLPref(aPropData.prefName);
         else if (aPropData.stringParams)
-          propValue = browserBundle.formatStringFromName(aPropData.stringName,
-                                                         aPropData.stringParams,
-                                                         aPropData.stringParams.length);
+          propValue = gBrowserBundle.formatStringFromName(aPropData.stringName,
+                                                          aPropData.stringParams,
+                                                          aPropData.stringParams.length);
         else
-          propValue = browserBundle.GetStringFromName(aPropData.stringName);
+          propValue = gBrowserBundle.GetStringFromName(aPropData.stringName);
       }
       return propValue;
     }
@@ -817,16 +851,6 @@ BrowserGlue.prototype = {
     if (actions.indexOf("showAlert") == -1)
       return;
 
-    let notifier;
-    try {
-      notifier = Cc["@mozilla.org/alerts-service;1"].
-                 getService(Ci.nsIAlertsService);
-    }
-    catch (e) {
-      // nsIAlertsService is not available for this platform
-      return;
-    }
-
     let title = getNotifyString({propName: "alertTitle",
                                  stringName: "puAlertTitle",
                                  stringParams: [appName]});
@@ -848,10 +872,11 @@ BrowserGlue.prototype = {
     try {
       // This will throw NS_ERROR_NOT_AVAILABLE if the notification cannot
       // be displayed per the idl.
-      notifier.showAlertNotification(null, title, text,
-                                     true, url, clickCallback);
+      AlertsService.showAlertNotification(null, title, text,
+                                          true, url, clickCallback);
     }
     catch (e) {
+      Cu.reportError(e);
     }
   },
 
@@ -1148,8 +1173,7 @@ BrowserGlue.prototype = {
    * Show the notificationBox for a locked places database.
    */
   _showPlacesLockedNotificationBox: function BG__showPlacesLockedNotificationBox() {
-    var brandBundle  = Services.strings.createBundle("chrome://branding/locale/brand.properties");
-    var applicationName = brandBundle.GetStringFromName("brandShortName");
+    var applicationName = gBrandBundle.GetStringFromName("brandShortName");
     var placesBundle = Services.strings.createBundle("chrome://browser/locale/places/places.properties");
     var title = placesBundle.GetStringFromName("lockPrompt.title");
     var text = placesBundle.formatStringFromName("lockPrompt.text", [applicationName], 1);
@@ -1183,7 +1207,7 @@ BrowserGlue.prototype = {
   },
 
   _migrateUI: function BG__migrateUI() {
-    const UI_VERSION = 15;
+    const UI_VERSION = 19;
     const BROWSER_DOCURL = "chrome://browser/content/browser.xul#";
     let currentUIVersion = 0;
     try {
@@ -1378,14 +1402,94 @@ BrowserGlue.prototype = {
       }
     }
 
+    if (currentUIVersion < 17) {
+      this._notifyNotificationsUpgrade();
+    }
+
     if (this._dirty)
       this._dataSource.QueryInterface(Ci.nsIRDFRemoteDataSource).Flush();
 
     delete this._rdf;
     delete this._dataSource;
 
+    if (currentUIVersion < 18) {
+      // Make sure the doNotTrack value conforms to the conversion from
+      // three-state to two-state. (This reverts a setting of "please track me"
+      // to the default "don't say anything").
+      try {
+        if (Services.prefs.getBoolPref("privacy.donottrackheader.enabled") &&
+            Services.prefs.getIntPref("privacy.donottrackheader.value") != 1) {
+          Services.prefs.clearUserPref("privacy.donottrackheader.enabled");
+          Services.prefs.clearUserPref("privacy.donottrackheader.value");
+        }
+      }
+      catch (ex) {}
+    }
+
+#ifndef MOZ_JXR
+    // Until JPEG-XR decoder is implemented (UXP #144)
+    if (currentUIVersion < 19) {
+      try {
+        let ihaPref = "image.http.accept";
+        let ihaValue = Services.prefs.getCharPref(ihaPref);
+        if (ihaValue.includes("image/jxr,")) {
+          Services.prefs.setCharPref(ihaPref, ihaValue.replace("image/jxr,", ""));
+        } else if (ihaValue.includes("image/jxr")) {
+          Services.prefs.clearUserPref(ihaPref);
+        }
+      }
+      catch (ex) {}
+    }
+#endif
+
     // Update the migration version.
     Services.prefs.setIntPref("browser.migration.version", UI_VERSION);
+  },
+
+  _hasExistingNotificationPermission: function BG__hasExistingNotificationPermission() {
+    let enumerator = Services.perms.enumerator;
+    while (enumerator.hasMoreElements()) {
+      let permission = enumerator.getNext().QueryInterface(Ci.nsIPermission);
+      if (permission.type == "desktop-notification") {
+        return true;
+      }
+    }
+    return false;
+  },
+
+  _notifyNotificationsUpgrade: function BG__notifyNotificationsUpgrade() {
+    if (!this._hasExistingNotificationPermission()) {
+      return;
+    }
+    function clickCallback(subject, topic, data) {
+      if (topic != "alertclickcallback")
+        return;
+      let win = RecentWindow.getMostRecentBrowserWindow();
+      win.openUILinkIn(data, "tab");
+    }
+    // Show the application icon for XUL notifications. We assume system-level
+    // notifications will include their own icon.
+    let imageURL = this._hasSystemAlertsService() ? "" :
+                   "chrome://branding/content/about-logo.png";
+    let title = gBrowserBundle.GetStringFromName("webNotifications.upgradeTitle");
+    let text = gBrowserBundle.GetStringFromName("webNotifications.upgradeBody");
+    let url = Services.urlFormatter.formatURLPref("browser.push.warning.infoURL");
+
+    try {
+      AlertsService.showAlertNotification(imageURL, title, text,
+                                          true, url, clickCallback);
+    }
+    catch (e) {
+      Cu.reportError(e);
+    }
+  },
+
+  _hasSystemAlertsService: function() {
+    try {
+      return !!Cc["@mozilla.org/system-alerts-service;1"].getService(
+        Ci.nsIAlertsService);
+    } catch (e) {}
+    return false;
   },
 
   _getPersist: function BG__getPersist(aSource, aProperty) {
@@ -1637,6 +1741,16 @@ ContentPermissionPrompt.prototype = {
     return chromeWin;
   },
 
+  _getBrowserForRequest: function (aRequest) {
+    let requestingWindow = aRequest.window.top;
+    // find the requesting browser or iframe
+    let browser = requestingWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+                                  .getInterface(Ci.nsIWebNavigation)
+                                  .QueryInterface(Ci.nsIDocShell)
+                                  .chromeEventHandler;
+    return browser;
+  },
+
   /**
    * Show a permission prompt.
    *
@@ -1656,8 +1770,6 @@ ContentPermissionPrompt.prototype = {
     function onFullScreen() {
       popup.remove();
     }
-
-    var browserBundle = Services.strings.createBundle("chrome://browser/locale/browser.properties");
 
     var requestingWindow = aRequest.window.top;
     var chromeWin = this._getChromeWindow(requestingWindow).wrappedJSObject;
@@ -1684,8 +1796,8 @@ ContentPermissionPrompt.prototype = {
       }
 
       var action = {
-        label: browserBundle.GetStringFromName(promptAction.stringId),
-        accessKey: browserBundle.GetStringFromName(promptAction.stringId + ".accesskey"),
+        label: gBrowserBundle.GetStringFromName(promptAction.stringId),
+        accessKey: gBrowserBundle.GetStringFromName(promptAction.stringId + ".accesskey"),
         callback: function() {
           if (promptAction.callback) {
             promptAction.callback();
@@ -1744,7 +1856,6 @@ ContentPermissionPrompt.prototype = {
   },
 
   _promptGeo : function(aRequest) {
-    var browserBundle = Services.strings.createBundle("chrome://browser/locale/browser.properties");
     var requestingURI = aRequest.principal.URI;
 
     var message;
@@ -1760,11 +1871,11 @@ ContentPermissionPrompt.prototype = {
     }];
 
     if (requestingURI.schemeIs("file")) {
-      message = browserBundle.formatStringFromName("geolocation.shareWithFile",
-                                                   [requestingURI.path], 1);
+      message = gBrowserBundle.formatStringFromName("geolocation.shareWithFile",
+                                                    [requestingURI.path], 1);
     } else {
-      message = browserBundle.formatStringFromName("geolocation.shareWithSite",
-                                                   [requestingURI.host], 1);
+      message = gBrowserBundle.formatStringFromName("geolocation.shareWithSite",
+                                                    [requestingURI.host], 1);
       // Always share location action.
       actions.push({
         stringId: "geolocation.alwaysShareLocation",
@@ -1795,47 +1906,63 @@ ContentPermissionPrompt.prototype = {
   },
 
   _promptWebNotifications : function(aRequest) {
-    var browserBundle = Services.strings.createBundle("chrome://browser/locale/browser.properties");
     var requestingURI = aRequest.principal.URI;
 
-    var message = browserBundle.formatStringFromName("webNotifications.showFromSite",
-                                                     [requestingURI.host], 1);
+    var message = gBrowserBundle.formatStringFromName("webNotifications.showFromSite",
+                                                      [requestingURI.host], 1);
 
-    var actions = [
-      {
-        stringId: "webNotifications.showForSession",
-        action: Ci.nsIPermissionManager.ALLOW_ACTION,
-        expireType: Ci.nsIPermissionManager.EXPIRE_SESSION,
-        callback: function() {},
-      },
-      {
-        stringId: "webNotifications.alwaysShow",
-        action: Ci.nsIPermissionManager.ALLOW_ACTION,
-        expireType: null,
-        callback: function() {},
-      },
-      {
-        stringId: "webNotifications.neverShow",
-        action: Ci.nsIPermissionManager.DENY_ACTION,
-        expireType: null,
-        callback: function() {},
-      },
-    ];
+    var actions;
+
+    var browser = this._getBrowserForRequest(aRequest);
+    // Only show "allow for session" in PB mode, we don't
+    // support "allow for session" in non-PB mode.
+    if (PrivateBrowsingUtils.isBrowserPrivate(browser)) {
+      actions = [
+        {
+          stringId: "webNotifications.showForSession",
+          action: Ci.nsIPermissionManager.ALLOW_ACTION,
+          expireType: Ci.nsIPermissionManager.EXPIRE_SESSION,
+          callback: function() {},
+        },
+      ];
+    } else {
+      actions = [
+        {
+          stringId: "webNotifications.showForSession",
+          action: Ci.nsIPermissionManager.ALLOW_ACTION,
+          expireType: Ci.nsIPermissionManager.EXPIRE_SESSION,
+          callback: function() {},
+        },
+        {
+          stringId: "webNotifications.alwaysShow",
+          action: Ci.nsIPermissionManager.ALLOW_ACTION,
+          expireType: null,
+          callback: function() {},
+        },
+        {
+          stringId: "webNotifications.neverShow",
+          action: Ci.nsIPermissionManager.DENY_ACTION,
+          expireType: null,
+          callback: function() {},
+        },
+      ];
+    }
+    var options = {
+      learnMoreURL: Services.urlFormatter.formatURLPref("browser.push.warning.infoURL"),
+    };
 
     this._showPrompt(aRequest, message, "desktop-notification", actions,
                      "web-notifications",
-                     "web-notifications-notification-icon", null);
+                     "web-notifications-notification-icon", options);
   },
 
   _promptPointerLock: function CPP_promtPointerLock(aRequest, autoAllow) {
-
-    let browserBundle = Services.strings.createBundle("chrome://browser/locale/browser.properties");
     let requestingURI = aRequest.principal.URI;
 
     let originString = requestingURI.schemeIs("file") ? requestingURI.path : requestingURI.host;
-    let message = browserBundle.formatStringFromName(autoAllow ?
-                                  "pointerLock.autoLock.title2" : "pointerLock.title2",
-                                  [originString], 1);
+    let message = gBrowserBundle.formatStringFromName(autoAllow ?
+                                 "pointerLock.autoLock.title2" : "pointerLock.title2",
+                                 [originString], 1);
     // If this is an autoAllow info prompt, offer no actions.
     // _showPrompt() will allow the request when it's dismissed.
     let actions = [];
@@ -1867,7 +1994,6 @@ ContentPermissionPrompt.prototype = {
   },
 
   prompt: function CPP_prompt(request) {
-
     // Only allow exactly one permission rquest here.
     let types = request.types.QueryInterface(Ci.nsIArray);
     if (types.length != 1) {
@@ -1913,15 +2039,15 @@ ContentPermissionPrompt.prototype = {
 
     // Show the prompt.
     switch (perm.type) {
-    case "geolocation":
-      this._promptGeo(request);
-      break;
-    case "desktop-notification":
-      this._promptWebNotifications(request);
-      break;
-    case "pointerLock":
-      this._promptPointerLock(request, autoAllow);
-      break;
+      case "geolocation":
+        this._promptGeo(request);
+        break;
+      case "desktop-notification":
+        this._promptWebNotifications(request);
+        break;
+      case "pointerLock":
+        this._promptPointerLock(request, autoAllow);
+        break;
     }
   },
 

@@ -88,7 +88,7 @@ XPCOMUtils.defineLazyServiceGetter(this, "gScreenManager",
 // retrieved from a given docShell if not already collected before.
 // This is made so they're automatically in sync with all nsIDocShell.allow*
 // properties.
-let gDocShellCapabilities = (function () {
+var gDocShellCapabilities = (function () {
   let caps;
 
   return docShell => {
@@ -247,7 +247,7 @@ this.SessionStore = {
 // Freeze the SessionStore object. We don't want anyone to modify it.
 Object.freeze(SessionStore);
 
-let SessionStoreInternal = {
+var SessionStoreInternal = {
   QueryInterface: XPCOMUtils.generateQI([
     Ci.nsIDOMEventListener,
     Ci.nsIObserver,
@@ -1951,7 +1951,13 @@ let SessionStoreInternal = {
     // userTypedValue.
     if (browser.userTypedValue) {
       tabData.userTypedValue = browser.userTypedValue;
-      tabData.userTypedClear = browser.userTypedClear;
+      // We always used to keep track of the loading state as an integer, where
+      // '0' indicated the user had typed since the last load (or no load was
+      // ongoing), and any positive value indicated we had started a load since
+      // the last time the user typed in the URL bar. Mimic this to keep the
+      // session store representation in sync, even though we now represent this
+      // more explicitly:
+      tabData.userTypedClear = browser.didStartLoadSinceLastUserTyping() ? 1 : 0;
     } else {
       delete tabData.userTypedValue;
       delete tabData.userTypedClear;
@@ -2079,7 +2085,7 @@ let SessionStoreInternal = {
     }
     catch (ex) { debug(ex); } // POSTDATA is tricky - especially since some extensions don't get it right
 
-    if (aEntry.owner) {
+    if (aEntry.triggeringPrincipal) {
       // Not catching anything specific here, just possible errors
       // from writeCompoundObject and the like.
       try {
@@ -2088,19 +2094,19 @@ let SessionStoreInternal = {
         var pipe = Cc["@mozilla.org/pipe;1"].createInstance(Ci.nsIPipe);
         pipe.init(false, false, 0, 0xffffffff, null);
         binaryStream.setOutputStream(pipe.outputStream);
-        binaryStream.writeCompoundObject(aEntry.owner, Ci.nsISupports, true);
+        binaryStream.writeCompoundObject(aEntry.triggeringPrincipal, Ci.nsIPrincipal, true);
         binaryStream.close();
 
         // Now we want to read the data from the pipe's input end and encode it.
         var scriptableStream = Cc["@mozilla.org/binaryinputstream;1"].
                                createInstance(Ci.nsIBinaryInputStream);
         scriptableStream.setInputStream(pipe.inputStream);
-        var ownerBytes =
+        var triggeringPrincipalBytes =
           scriptableStream.readByteArray(scriptableStream.available());
         // We can stop doing base64 encoding once our serialization into JSON
         // is guaranteed to handle all chars in strings, including embedded
         // nulls.
-        entry.owner_b64 = btoa(String.fromCharCode.apply(null, ownerBytes));
+        entry.triggeringPrincipal_b64 = btoa(String.fromCharCode.apply(null, triggeringPrincipalBytes));
       }
       catch (ex) { debug(ex); }
     }
@@ -2404,7 +2410,7 @@ let SessionStoreInternal = {
       for (var [host, isPinned] in Iterator(internalWindow.hosts)) {
         let list;
         try {
-          list = Services.cookies.getCookiesFromHost(host);
+          list = Services.cookies.getCookiesFromHost(host, {});
         }
         catch (ex) {
           debug("getCookiesFromHost failed. Host: " + host);
@@ -3131,7 +3137,11 @@ let SessionStoreInternal = {
 
     // Restore the tab icon.
     if ("image" in tabData) {
-      aWindow.gBrowser.setIcon(tab, tabData.image);
+      // Using null as the loadingPrincipal because serializing
+      // the principal would be overkill. Within SetIcon we
+      // default to the systemPrincipal if aLoadingPrincipal is
+      // null which will allow the favicon to load.
+      aWindow.gBrowser.setIcon(tab, tabData.image, null);
     }
 
     if (tabData.storage && browser.docShell instanceof Ci.nsIDocShell)
@@ -3390,16 +3400,24 @@ let SessionStoreInternal = {
       }
     }
 
-    if (aEntry.owner_b64) {
-      var ownerInput = Cc["@mozilla.org/io/string-input-stream;1"].
-                       createInstance(Ci.nsIStringInputStream);
-      var binaryData = atob(aEntry.owner_b64);
-      ownerInput.setData(binaryData, binaryData.length);
+    // The field aEntry.owner_b64 got renamed to aEntry.triggeringPricipal_b64 in
+    // Bug 1286472. To remain backward compatible we still have to support that
+    // field for a few cycles before we can remove it within Bug 1289785.
+     if (aEntry.owner_b64) {
+      aEntry.triggeringPrincipal_b64 = aEntry.owner_b64;
+      delete aEntry.owner_b64;
+    }
+
+    if (aEntry.triggeringPrincipal_b64) {
+      var triggeringPrincipalInput = Cc["@mozilla.org/io/string-input-stream;1"].
+                                     createInstance(Ci.nsIStringInputStream);
+      var binaryData = atob(aEntry.triggeringPrincipal_b64);
+      triggeringPrincipalInput.setData(binaryData, binaryData.length);
       var binaryStream = Cc["@mozilla.org/binaryinputstream;1"].
                          createInstance(Ci.nsIObjectInputStream);
-      binaryStream.setInputStream(ownerInput);
+      binaryStream.setInputStream(triggeringPrincipalInput);
       try { // Catch possible deserialization exceptions
-        shEntry.owner = binaryStream.readObject(true);
+        shEntry.triggeringPrincipal = binaryStream.readObject(true);
       } catch (ex) { debug(ex); }
     }
 
@@ -3580,38 +3598,70 @@ let SessionStoreInternal = {
     var _this = this;
     function win_(aName) { return _this._getWindowDimension(win, aName); }
 
-    // find available space on the screen where this window is being placed
+    // Find available space on the screen where this window is being placed
     let screen = gScreenManager.screenForRect(aLeft, aTop, aWidth, aHeight);
     if (screen && !this._prefBranch.getBoolPref("sessionstore.exactPos")) {
       let screenLeft = {}, screenTop = {}, screenWidth = {}, screenHeight = {};
       screen.GetAvailRectDisplayPix(screenLeft, screenTop, screenWidth, screenHeight);
-      // constrain the dimensions to the actual space available
-      if (aWidth > screenWidth.value) {
-        aWidth = screenWidth.value;
+
+      // Screen X/Y are based on the origin of the screen's desktop-pixel coordinate space
+      let screenLeftCss = screenLeft.value;
+      let screenTopCss = screenTop.value;
+      
+      // Convert the screen's device pixel dimensions to CSS px dimensions
+      screen.GetAvailRect(screenLeft, screenTop, screenWidth, screenHeight);
+      let cssToDevScale = screen.defaultCSSScaleFactor;
+      let screenRightCss = screenLeftCss + screenWidth.value / cssToDevScale;
+      let screenBottomCss = screenTopCss + screenHeight.value / cssToDevScale;
+      
+      // Pull the window within the screen's bounds.
+      // First, ensure the left edge is on-screen
+      if (aLeft < screenLeftCss) {
+        aLeft = screenLeftCss;
       }
-      if (aHeight > screenHeight.value) {
-        aHeight = screenHeight.value;
+      // Then check the resulting right edge, and reduce it if necessary.
+      let right = aLeft + aWidth;
+      if (right > screenRightCss) {
+        right = screenRightCss;
+        // See if we can move the left edge leftwards to maintain width.
+        if (aLeft > screenLeftCss) {
+          aLeft = Math.max(right - aWidth, screenLeftCss);
+        }
       }
-      // and then pull the window within the screen's bounds
-      if (aLeft < screenLeft.value) {
-        aLeft = screenLeft.value;
-      } else if (aLeft + aWidth > screenLeft.value + screenWidth.value) {
-        aLeft = screenLeft.value + screenWidth.value - aWidth;
+      // Finally, update aWidth to account for the adjusted left and right edges.
+      aWidth = right - aLeft;
+
+      // Do the same in the vertical dimension.
+      // First, ensure the top edge is on-screen
+      if (aTop < screenTopCss) {
+        aTop = screenTopCss;
       }
-      if (aTop < screenTop.value) {
-        aTop = screenTop.value;
-      } else if (aTop + aHeight > screenTop.value + screenHeight.value) {
-        aTop = screenTop.value + screenHeight.value - aHeight;
+      // Then check the resulting right edge, and reduce it if necessary.
+      let bottom = aTop + aHeight;
+      if (bottom > screenBottomCss) {
+        bottom = screenBottomCss;
+        // See if we can move the top edge upwards to maintain height.
+        if (aTop > screenTopCss) {
+          aTop = Math.max(bottom - aHeight, screenTopCss);
+        }
       }
+      // Finally, update aHeight to account for the adjusted top and bottom edges.
+      aHeight = bottom - aTop;
     }
 
-    // only modify those aspects which aren't correct yet
-    if (aWidth && aHeight && (aWidth != win_("width") || aHeight != win_("height"))) {
-      aWindow.resizeTo(aWidth, aHeight);
-    }
+    // Only modify those aspects which aren't correct yet
     if (!isNaN(aLeft) && !isNaN(aTop) && (aLeft != win_("screenX") || aTop != win_("screenY"))) {
       aWindow.moveTo(aLeft, aTop);
     }
+    if (aWidth && aHeight && (aWidth != win_("width") || aHeight != win_("height"))) {
+      // Don't resize the window if it's currently maximized and we would
+      // maximize it again shortly after.
+      if (aSizeMode != "maximized" || win_("sizemode") != "maximized") {
+        aWindow.resizeTo(aWidth, aHeight);
+      }
+    }
+    
+    // Restore window state
     if (aSizeMode && win_("sizemode") != aSizeMode)
     {
       switch (aSizeMode)
@@ -3651,7 +3701,7 @@ let SessionStoreInternal = {
       try {
         Services.cookies.add(cookie.host, cookie.path || "", cookie.name || "",
                              cookie.value, !!cookie.secure, !!cookie.httponly, true,
-                             "expiry" in cookie ? cookie.expiry : MAX_EXPIRY);
+                             "expiry" in cookie ? cookie.expiry : MAX_EXPIRY, {});
       }
       catch (ex) { Cu.reportError(ex); } // don't let a single cookie stop recovering
     }
@@ -4467,7 +4517,7 @@ let SessionStoreInternal = {
  * pinned, visible and hidden tabs in that and FIFO order. Hidden tabs are only
  * restored with restore_hidden_tabs=true.
  */
-let TabRestoreQueue = {
+var TabRestoreQueue = {
   // The separate buckets used to store tabs.
   tabs: {priority: [], visible: [], hidden: []},
 
@@ -4604,7 +4654,7 @@ let TabRestoreQueue = {
 // A map storing a closed window's state data until it goes aways (is GC'ed).
 // This ensures that API clients can still read (but not write) states of
 // windows they still hold a reference to but we don't.
-let DyingWindowCache = {
+var DyingWindowCache = {
   _data: new WeakMap(),
 
   has: function (window) {
@@ -4627,7 +4677,7 @@ let DyingWindowCache = {
 // A set of tab attributes to persist. We will read a given list of tab
 // attributes when collecting tab data and will re-set those attributes when
 // the given tab data is restored to a new tab.
-let TabAttributes = {
+var TabAttributes = {
   _attrs: new Set(),
 
   // We never want to directly read or write those attributes.
@@ -4673,7 +4723,7 @@ let TabAttributes = {
 // This is used to help meter the number of restoring tabs. This is the control
 // point for telling the next tab to restore. It gets attached to each gBrowser
 // via gBrowser.addTabsProgressListener
-let gRestoreTabsProgressListener = {
+var gRestoreTabsProgressListener = {
   onStateChange: function(aBrowser, aWebProgress, aRequest, aStateFlags, aStatus) {
     // Ignore state changes on browsers that we've already restored and state
     // changes that aren't applicable.

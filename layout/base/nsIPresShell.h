@@ -51,10 +51,6 @@
 #include "nsFrameState.h"
 #include "Units.h"
 
-#ifdef MOZ_B2G
-#include "nsIHardwareKeyHandler.h"
-#endif
-
 class nsDocShell;
 class nsIDocument;
 class nsIFrame;
@@ -1298,11 +1294,11 @@ public:
     }
   };
 
-  static void DispatchGotOrLostPointerCaptureEvent(bool aIsGotCapture,
-                                                   uint32_t aPointerId,
-                                                   uint16_t aPointerType,
-                                                   bool aIsPrimary,
-                                                   nsIContent* aCaptureTarget);
+  static void DispatchGotOrLostPointerCaptureEvent(
+                bool aIsGotCapture,
+                const mozilla::WidgetPointerEvent* aPointerEvent,
+                nsIContent* aCaptureTarget);
+
   static PointerCaptureInfo* GetPointerCaptureInfo(uint32_t aPointerId);
   static void SetPointerCapturingContent(uint32_t aPointerId,
                                          nsIContent* aContent);
@@ -1311,8 +1307,8 @@ public:
 
   // CheckPointerCaptureState checks cases, when got/lostpointercapture events
   // should be fired.
-  static void CheckPointerCaptureState(uint32_t aPointerId,
-                                       uint16_t aPointerType, bool aIsPrimary);
+  static void CheckPointerCaptureState(
+                const mozilla::WidgetPointerEvent* aPointerEvent);
 
   // GetPointerInfo returns true if pointer with aPointerId is situated in
   // device, false otherwise.
@@ -1765,11 +1761,6 @@ protected:
   // posted messages are processed before other messages when the modal
   // moving/sizing loop is running, see bug 491700 for details.
   nsCOMPtr<nsITimer>        mReflowContinueTimer;
-
-#ifdef MOZ_B2G
-  // Forward hardware key events to the input-method-app
-  nsCOMPtr<nsIHardwareKeyHandler> mHardwareKeyHandler;
-#endif // MOZ_B2G
 
 #ifdef DEBUG
   nsIFrame*                 mDrawEventTargetFrame;

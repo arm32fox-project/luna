@@ -18,15 +18,10 @@
 #include "nsIObserverService.h"
 #include "GMPTimerParent.h"
 #include "runnable_utils.h"
-#if defined(XP_LINUX) && defined(MOZ_GMP_SANDBOX)
-#include "mozilla/SandboxInfo.h"
-#endif
 #include "GMPContentParent.h"
 #include "MediaPrefs.h"
 #include "VideoUtils.h"
 
-#include "mozilla/dom/CrashReporterParent.h"
-using mozilla::dom::CrashReporterParent;
 using mozilla::ipc::GeckoChildProcessHost;
 
 #include "mozilla/Telemetry.h"
@@ -583,22 +578,6 @@ GMPParent::ActorDestroy(ActorDestroyReason aWhy)
   }
 }
 
-mozilla::dom::PCrashReporterParent*
-GMPParent::AllocPCrashReporterParent(const NativeThreadId& aThread)
-{
-  MOZ_ASSERT(false, "Should only be sent if crash reporting is enabled.");
-  CrashReporterParent* cr = new CrashReporterParent();
-  cr->SetChildData(aThread, GeckoProcessType_GMPlugin);
-  return cr;
-}
-
-bool
-GMPParent::DeallocPCrashReporterParent(PCrashReporterParent* aCrashReporter)
-{
-  delete aCrashReporter;
-  return true;
-}
-
 PGMPStorageParent*
 GMPParent::AllocPGMPStorageParent()
 {
@@ -749,14 +728,6 @@ GMPParent::ReadGMPInfoFile(nsIFile* aFile)
     if (cap.mAPIName.EqualsLiteral(GMP_API_DECRYPTOR)) {
       mCanDecrypt = true;
 
-#if defined(XP_LINUX) && defined(MOZ_GMP_SANDBOX)
-      if (!mozilla::SandboxInfo::Get().CanSandboxMedia()) {
-        printf_stderr("GMPParent::ReadGMPMetaData: Plugin \"%s\" is an EME CDM"
-                      " but this system can't sandbox it; not loading.\n",
-                      mDisplayName.get());
-        return GenericPromise::CreateAndReject(NS_ERROR_FAILURE, __func__);
-      }
-#endif
 #ifdef XP_WIN
       // Adobe GMP doesn't work without SSE2. Check the tags to see if
       // the decryptor is for the Adobe GMP, and refuse to load it if

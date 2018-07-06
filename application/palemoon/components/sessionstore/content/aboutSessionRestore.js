@@ -2,9 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
+var Cc = Components.classes;
+var Ci = Components.interfaces;
+var Cu = Components.utils;
 
 var gStateObject;
 var gTreeData;
@@ -134,6 +134,9 @@ function onListClick(aEvent) {
   if (aEvent.button == 2)
     return;
 
+  if (!treeView.treeBox) {
+    return;
+  }
   var cell = treeView.treeBox.getCellAt(aEvent.clientX, aEvent.clientY);
   if (cell.col) {
     // Restore this specific tab in the same window for middle/double/accel clicking

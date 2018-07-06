@@ -59,10 +59,12 @@ public:
            nsSecurityFlags aSecurityFlags,
            nsContentPolicyType aContentPolicyType);
 
-  // Constructor used for TYPE_DOCUMENT loads which have no reasonable
-  // loadingNode or loadingPrincipal
+  // Constructor used for TYPE_DOCUMENT loads which have a different
+  // loadingContext than other loads. This ContextForTopLevelLoad is
+  // only used for content policy checks.
   LoadInfo(nsPIDOMWindowOuter* aOuterWindow,
            nsIPrincipal* aTriggeringPrincipal,
+           nsISupports* aContextForTopLevelLoad,
            nsSecurityFlags aSecurityFlags);
 
   // create an exact copy of the loadinfo
@@ -94,6 +96,7 @@ private:
            bool aUpgradeInsecureRequests,
            bool aVerifySignedContent,
            bool aEnforceSRI,
+           bool aForceAllowDataURI,
            bool aForceInheritPrincipalDropped,
            uint64_t aInnerWindowID,
            uint64_t aOuterWindowID,
@@ -108,8 +111,7 @@ private:
            const nsTArray<nsCString>& aUnsafeHeaders,
            bool aForcePreflight,
            bool aIsPreflight,
-           bool aForceHSTSPriming,
-           bool aMixedContentWouldBlock);
+           bool aLoadTriggeredFromExternal);
   LoadInfo(const LoadInfo& rhs);
 
   friend nsresult
@@ -132,12 +134,14 @@ private:
   nsCOMPtr<nsIPrincipal>           mTriggeringPrincipal;
   nsCOMPtr<nsIPrincipal>           mPrincipalToInherit;
   nsWeakPtr                        mLoadingContext;
+  nsWeakPtr                        mContextForTopLevelLoad;
   nsSecurityFlags                  mSecurityFlags;
   nsContentPolicyType              mInternalContentPolicyType;
   LoadTainting                     mTainting;
   bool                             mUpgradeInsecureRequests;
   bool                             mVerifySignedContent;
   bool                             mEnforceSRI;
+  bool                             mForceAllowDataURI;
   bool                             mForceInheritPrincipalDropped;
   uint64_t                         mInnerWindowID;
   uint64_t                         mOuterWindowID;
@@ -152,9 +156,7 @@ private:
   nsTArray<nsCString>              mCorsUnsafeHeaders;
   bool                             mForcePreflight;
   bool                             mIsPreflight;
-
-  bool                             mForceHSTSPriming : 1;
-  bool                             mMixedContentWouldBlock : 1;
+  bool                             mLoadTriggeredFromExternal;
 };
 
 } // namespace net

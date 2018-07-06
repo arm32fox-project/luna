@@ -393,6 +393,10 @@ Location::GetHost(nsAString& aHost)
 NS_IMETHODIMP
 Location::SetHost(const nsAString& aHost)
 {
+  if (aHost.IsEmpty()) {
+    return NS_OK; // Ignore empty string
+  }
+
   nsCOMPtr<nsIURI> uri;
   nsresult rv = GetWritableURI(getter_AddRefs(uri));
   if (NS_WARN_IF(NS_FAILED(rv) || !uri)) {
@@ -424,6 +428,10 @@ Location::GetHostname(nsAString& aHostname)
 NS_IMETHODIMP
 Location::SetHostname(const nsAString& aHostname)
 {
+  if (aHostname.IsEmpty()) {
+    return NS_OK; // Ignore empty string
+  }
+
   nsCOMPtr<nsIURI> uri;
   nsresult rv = GetWritableURI(getter_AddRefs(uri));
   if (NS_WARN_IF(NS_FAILED(rv) || !uri)) {
@@ -507,6 +515,10 @@ nsresult
 Location::SetHrefWithBase(const nsAString& aHref, nsIURI* aBase,
                             bool aReplace)
 {
+  if (aHref.IsEmpty()) {
+    return NS_OK; // Ignore empty string
+  }
+
   nsresult result;
   nsCOMPtr<nsIURI> newUri;
 
@@ -577,19 +589,17 @@ Location::GetPathname(nsAString& aPathname)
   aPathname.Truncate();
 
   nsCOMPtr<nsIURI> uri;
-  nsresult result = NS_OK;
+  nsresult result = GetURI(getter_AddRefs(uri));
+  if (NS_FAILED(result) || !uri) {
+    return result;
+  }
 
-  result = GetURI(getter_AddRefs(uri));
+  nsAutoCString file;
 
-  nsCOMPtr<nsIURIWithQuery> url(do_QueryInterface(uri));
-  if (url) {
-    nsAutoCString file;
+  result = uri->GetFilePath(file);
 
-    result = url->GetFilePath(file);
-
-    if (NS_SUCCEEDED(result)) {
-      AppendUTF8toUTF16(file, aPathname);
-    }
+  if (NS_SUCCEEDED(result)) {
+    AppendUTF8toUTF16(file, aPathname);
   }
 
   return result;
@@ -604,8 +614,7 @@ Location::SetPathname(const nsAString& aPathname)
     return rv;
   }
 
-  nsCOMPtr<nsIURIWithQuery> url(do_QueryInterface(uri));
-  if (url && NS_SUCCEEDED(url->SetFilePath(NS_ConvertUTF16toUTF8(aPathname)))) {
+  if (NS_SUCCEEDED(uri->SetFilePath(NS_ConvertUTF16toUTF8(aPathname)))) {
     return SetURI(uri);
   }
 
@@ -697,6 +706,10 @@ Location::GetProtocol(nsAString& aProtocol)
 NS_IMETHODIMP
 Location::SetProtocol(const nsAString& aProtocol)
 {
+  if (aProtocol.IsEmpty()) {
+    return NS_OK; // Ignore empty string
+  }
+
   nsCOMPtr<nsIURI> uri;
   nsresult rv = GetWritableURI(getter_AddRefs(uri));
   if (NS_WARN_IF(NS_FAILED(rv) || !uri)) {
@@ -750,6 +763,10 @@ Location::GetSearch(nsAString& aSearch)
 NS_IMETHODIMP
 Location::SetSearch(const nsAString& aSearch)
 {
+  if (aSearch.IsEmpty()) {
+    return NS_OK; // Ignore empty string
+  }
+
   nsresult rv = SetSearchInternal(aSearch);
   if (NS_FAILED(rv)) {
     return rv;

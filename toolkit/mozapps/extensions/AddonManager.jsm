@@ -47,8 +47,7 @@ const KEY_APPDIR                      = "XCurProcD";
 const FILE_BLOCKLIST                  = "blocklist.xml";
 
 const BRANCH_REGEXP                   = /^([^\.]+\.[0-9]+[a-z]*).*/gi;
-const PREF_EM_CHECK_COMPATIBILITY_BASE = "extensions.checkCompatibility";
-var PREF_EM_CHECK_COMPATIBILITY;
+const PREF_EM_CHECK_COMPATIBILITY = "extensions.enableCompatibilityChecking";
 
 const TOOLKIT_ID                      = "toolkit@mozilla.org";
 
@@ -88,9 +87,9 @@ Cu.import("resource://gre/modules/Log.jsm");
 // Configure a logger at the parent 'addons' level to format
 // messages for all the modules under addons.*
 const PARENT_LOGGER_ID = "addons";
-let parentLogger = Log.repository.getLogger(PARENT_LOGGER_ID);
+var parentLogger = Log.repository.getLogger(PARENT_LOGGER_ID);
 parentLogger.level = Log.Level.Warn;
-let formatter = new Log.BasicFormatter();
+var formatter = new Log.BasicFormatter();
 // Set parent logger (and its children) to append to
 // the Javascript section of the Browser Console
 parentLogger.addAppender(new Log.ConsoleAppender(formatter));
@@ -101,7 +100,7 @@ parentLogger.addAppender(new Log.DumpAppender(formatter));
 // Create a new logger (child of 'addons' logger)
 // for use by the Addons Manager
 const LOGGER_ID = "addons.manager";
-let logger = Log.repository.getLogger(LOGGER_ID);
+var logger = Log.repository.getLogger(LOGGER_ID);
 
 // Provide the ability to enable/disable logging
 // messages at runtime.
@@ -808,9 +807,6 @@ var AddonManagerInternal = {
                                   (appChanged === undefined ? 0 : -1));
         this.validateBlocklist();
       }
-
-      PREF_EM_CHECK_COMPATIBILITY = PREF_EM_CHECK_COMPATIBILITY_BASE + "." +
-                                    Services.appinfo.version.replace(BRANCH_REGEXP, "$1");
 
       try {
         gCheckCompatibility = Services.prefs.getBoolPref(PREF_EM_CHECK_COMPATIBILITY);
@@ -2671,6 +2667,8 @@ this.AddonManager = {
   ERROR_CORRUPT_FILE: -3,
   // An error occured trying to write to the filesystem.
   ERROR_FILE_ACCESS: -4,
+  // The downloaded file seems to be Jetpack.
+  ERROR_JETPACKSDK_FILE: -8,
   // The downloaded file seems to be WebExtension.
   ERROR_WEBEXT_FILE: -9,
 

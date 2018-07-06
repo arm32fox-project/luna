@@ -13,9 +13,6 @@
 #include "nsArray.h"
 #include "nsContentUtils.h"
 #include "nsHashPropertyBag.h"
-#ifdef MOZ_WIDGET_GONK
-#include "nsIAudioManager.h"
-#endif
 #include "nsIEventTarget.h"
 #include "nsIUUIDGenerator.h"
 #include "nsIScriptGlobalObject.h"
@@ -71,10 +68,6 @@
 #if defined(MOZ_WEBRTC)
 #include "MediaEngineWebRTC.h"
 #include "browser_logging/WebRtcLog.h"
-#endif
-
-#ifdef MOZ_B2G
-#include "MediaPermissionGonk.h"
 #endif
 
 #if defined (XP_WIN)
@@ -1573,7 +1566,7 @@ private:
   RefPtr<MediaManager> mManager; // get ref to this when creating the runnable
 };
 
-#if defined(ANDROID) && !defined(MOZ_WIDGET_GONK)
+#if defined(ANDROID)
 class GetUserMediaRunnableWrapper : public Runnable
 {
 public:
@@ -1819,10 +1812,6 @@ MediaManager::Get() {
                                             __LINE__,
                                             NS_LITERAL_STRING("Media shutdown"));
     MOZ_RELEASE_ASSERT(NS_SUCCEEDED(rv));
-#ifdef MOZ_B2G
-    // Init MediaPermissionManager before sending out any permission requests.
-    (void) MediaPermissionManager::GetInstance();
-#endif //MOZ_B2G
   }
   return sSingleton;
 }
@@ -3050,18 +3039,6 @@ MediaManager::Observe(nsISupports* aSubject, const char* aTopic,
     }
     return NS_OK;
   }
-#ifdef MOZ_WIDGET_GONK
-  else if (!strcmp(aTopic, "phone-state-changed")) {
-    nsString state(aData);
-    nsresult rv;
-    uint32_t phoneState = state.ToInteger(&rv);
-
-    if (NS_SUCCEEDED(rv) && phoneState == nsIAudioManager::PHONE_STATE_IN_CALL) {
-      StopMediaStreams();
-    }
-    return NS_OK;
-  }
-#endif
 
   return NS_OK;
 }

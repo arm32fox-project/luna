@@ -30,7 +30,7 @@ const LOGGER_ID = "addons.repository.sqlmigrator";
 
 // Create a new logger for use by the Addons Repository SQL Migrator
 // (Requires AddonManager.jsm)
-let logger = Log.repository.getLogger(LOGGER_ID);
+var logger = Log.repository.getLogger(LOGGER_ID);
 
 this.EXPORTED_SYMBOLS = ["AddonRepository_SQLiteMigrator"];
 
@@ -60,7 +60,11 @@ this.AddonRepository_SQLiteMigrator = {
 
     this._retrieveStoredData((results) => {
       this._closeConnection();
-      let resultArray = [addon for ([,addon] of Iterator(results))];
+      // Tycho: let resultArray = [addon for ([,addon] of Iterator(results))];
+      let resultArray = [];
+      for (let [,addon] of Iterator(results)) {
+        resultArray.push(addon);
+      }
       logger.debug(resultArray.length + " addons imported.")
       aCallback(resultArray);
     });

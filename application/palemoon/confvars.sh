@@ -47,7 +47,7 @@ MOZ_PHOENIX=1
 MOZ_BROWSER_STATUSBAR=1
 
 # Browser Feature: Profile Migration Component
-MOZ_PROFILE_MIGRATOR=1
+MOZ_PROFILE_MIGRATOR=
 
 # Platform Feature: Application Update Service
 # MAR_CHANNEL_ID must not contained the follow 3 characters: ",\t"
@@ -79,12 +79,6 @@ MOZ_JSDOWNLOADS=1
 # conformant implementations.
 MOZ_WEBGL_CONFORMANT=1
 
-# Platform Feature: Windows Maintaince Service
-# XXX: This is never used
-if test "$OS_ARCH" = "WINNT"; then
-  MOZ_MAINTENANCE_SERVICE=
-fi
-
 # Set the chrome packing format
 # Possible values are omni, jar, and flat
 # Currently, only omni and flat are supported
@@ -103,3 +97,9 @@ if test "$OS_ARCH" = "WINNT" -o \
         "$OS_ARCH" = "Linux"; then
   MOZ_BUNDLED_FONTS=1
 fi
+
+# Short-circuit a few services to be removed
+MOZ_MAINTENANCE_SERVICE=
+MOZ_SERVICES_HEALTHREPORT=
+MOZ_ADDON_SIGNING=0
+MOZ_REQUIRE_SIGNING=0

@@ -40,10 +40,6 @@ public:
   // GMPAsyncShutdownHost
   void ShutdownComplete() override;
 
-#if defined(XP_MACOSX) && defined(MOZ_GMP_SANDBOX)
-  bool SetMacSandboxInfo(MacSandboxPluginType aPluginType);
-#endif
-
 private:
   friend class GMPContentChild;
 
@@ -55,9 +51,6 @@ private:
   bool RecvSetNodeId(const nsCString& aNodeId) override;
   bool AnswerStartPlugin(const nsString& aAdapter) override;
   bool RecvPreloadLibs(const nsCString& aLibs) override;
-
-  PCrashReporterChild* AllocPCrashReporterChild(const NativeThreadId& aThread) override;
-  bool DeallocPCrashReporterChild(PCrashReporterChild*) override;
 
   PGMPTimerChild* AllocPGMPTimerChild() override;
   bool DeallocPGMPTimerChild(PGMPTimerChild* aActor) override;

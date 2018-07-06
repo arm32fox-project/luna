@@ -7,11 +7,12 @@
 /**
  * This singleton represents the grid that contains all sites.
  */
-let gGrid = {
+var gGrid = {
   /**
    * The DOM node of the grid.
    */
   _node: null,
+  _gridDefaultContent: null,
   get node() { return this._node; },
 
   /**
@@ -22,16 +23,26 @@ let gGrid = {
   /**
    * All cells contained in the grid.
    */
-  _cells: null,
+  _cells: [],
   get cells() { return this._cells; },
 
   /**
    * All sites contained in the grid's cells. Sites may be empty.
    */
-  get sites() { return [for (cell of this.cells) cell.site]; },
+  get sites() { 
+    // return [for (cell of this.cells) cell.site];
+    let aSites = [];
+    for (let cell of this.cells) {
+      aSites.push(cell.site);
+    }
+    return aSites;
+  },
 
   // Tells whether the grid has already been initialized.
-  get ready() { return !!this._node; },
+  get ready() { return !!this._ready; },
+
+  // Returns whether the page has finished loading yet.
+  get isDocumentLoaded() { return document.readyState == "complete"; },
 
   /**
    * Initializes the grid.
@@ -39,8 +50,13 @@ let gGrid = {
    */
   init: function Grid_init() {
     this._node = document.getElementById("newtab-grid");
+    this._gridDefaultContent = this._node.lastChild;
     this._createSiteFragment();
-    this._render();
+
+    gLinks.populateCache(() => {
+      this._refreshGrid();
+      this._ready = true;
+    });
   },
 
   /**
@@ -56,20 +72,10 @@ let gGrid = {
   },
 
   /**
-   * Refreshes the grid and re-creates all sites.
+   * Handles all grid events.
    */
-  refresh: function Grid_refresh() {
-    // Remove all sites.
-    this.cells.forEach(function (cell) {
-      let node = cell.node;
-      let child = node.firstElementChild;
-
-      if (child)
-        node.removeChild(child);
-    }, this);
-
-    // Render the grid again.
-    this._render();
+  handleEvent: function Grid_handleEvent(aEvent) {
+    // Any specific events should go here.
   },
 
   /**
@@ -87,12 +93,19 @@ let gGrid = {
   },
 
   /**
-   * Creates the newtab grid.
+   * Renders the grid.
    */
-  _renderGrid: function Grid_renderGrid() {
+  refresh() {
+    this._refreshGrid();
+  },
+
+  /**
+   * Renders the grid, including cells and sites.
+   */
+  _refreshGrid() {
     let row = document.createElementNS(HTML_NAMESPACE, "div");
-    let cell = document.createElementNS(HTML_NAMESPACE, "div");
     row.classList.add("newtab-row");
+    let cell = document.createElementNS(HTML_NAMESPACE, "div");
     cell.classList.add("newtab-cell");
 
     // Clear the grid
@@ -102,19 +115,32 @@ let gGrid = {
     for (let i = 0; i < gGridPrefs.gridColumns; i++) {
       row.appendChild(cell.cloneNode(true));
     }
+
     // Creates the grid
     for (let j = 0; j < gGridPrefs.gridRows; j++) {
       this._node.appendChild(row.cloneNode(true));
+    }      
+
+    // Create cell array.
+    let cellElements = this.node.querySelectorAll(".newtab-cell");
+    let cells = Array.from(cellElements, (cell) => new Cell(this, cell));
+
+    // Fetch links.
+    let links = gLinks.getLinks();
+
+    // Create sites.
+    let numLinks = Math.min(links.length, cells.length);
+    let hasHistoryTiles = false;
+    for (let i = 0; i < numLinks; i++) {
+      if (links[i]) {
+        this.createSite(links[i], cells[i]);
+        if (links[i].type == "history") {
+          hasHistoryTiles = true;
+        }
+      }
     }
 
-    // (Re-)initialize all cells.
-    let cellElements = this.node.querySelectorAll(".newtab-cell");
-    // Tycho: this._cells = [new Cell(this, cell) for (cell of cellElements)];
-    this.cells = [];
-    
-    for (let cellItem of cellElements) {
-      this.cells.push(new Cell(this, cellItem));
-    }
+    this._cells = cells;
   },
 
   /**
@@ -128,7 +154,8 @@ let gGrid = {
     // Create the site's inner HTML code.
     site.innerHTML =
       '<a class="newtab-link">' +
-      '  <span class="newtab-thumbnail"/>' +
+      '  <span class="newtab-thumbnail placeholder"/>' +
+      '  <span class="newtab-thumbnail thumbnail"/>' +
       '  <span class="newtab-title"/>' +
       '</a>' +
       '<input type="button" title="' + newTabString("pin") + '"' +
@@ -141,36 +168,12 @@ let gGrid = {
   },
 
   /**
-   * Renders the sites, creates all sites and puts them into their cells.
+   * Test a tile at a given position for being pinned or history
+   * @param position Position in sites array
    */
-  _renderSites: function Grid_renderSites() {
-    let cells = this.cells;
-    // Put sites into the cells.
-    let links = gLinks.getLinks();
-    let length = Math.min(links.length, cells.length);
-
-    for (let i = 0; i < length; i++) {
-      if (links[i])
-        this.createSite(links[i], cells[i]);
-    }
-  },
-
-  /**
-   * Renders the grid.
-   */
-  _render: function Grid_render() {
-    if (this._shouldRenderGrid()) {
-      this._renderGrid();
-    }
-
-    this._renderSites();
-  },
-
-  _shouldRenderGrid : function Grid_shouldRenderGrid() {
-    let rowsLength = this._node.querySelectorAll(".newtab-row").length;
-    let cellsLength = this._node.querySelectorAll(".newtab-cell").length;
-
-    return (rowsLength != gGridPrefs.gridRows ||
-            cellsLength != (gGridPrefs.gridRows * gGridPrefs.gridColumns));
+  _isHistoricalTile: function Grid_isHistoricalTile(aPos) {
+    let site = this.sites[aPos];
+    return site && (site.isPinned() || site.link && site.link.type == "history");
   }
+
 };

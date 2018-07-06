@@ -30,14 +30,6 @@ class nsIProfileSaveEvent;
 class nsPluginTag;
 
 namespace mozilla {
-#ifdef MOZ_ENABLE_PROFILER_SPS
-class ProfileGatherer;
-#endif
-namespace dom {
-class PCrashReporterParent;
-class CrashReporterParent;
-} // namespace dom
-
 namespace layers {
 class TextureClientRecycleAllocator;
 } // namespace layers
@@ -76,8 +68,6 @@ class PluginModuleParent
 {
 protected:
     typedef mozilla::PluginLibrary PluginLibrary;
-    typedef mozilla::dom::PCrashReporterParent PCrashReporterParent;
-    typedef mozilla::dom::CrashReporterParent CrashReporterParent;
 
     PPluginInstanceParent*
     AllocPPluginInstanceParent(const nsCString& aMimeType,
@@ -158,12 +148,6 @@ protected:
     virtual bool
     RecvPluginHideWindow(const uint32_t& aWindowId) override;
 
-    virtual PCrashReporterParent*
-    AllocPCrashReporterParent(mozilla::dom::NativeThreadId* id,
-                              uint32_t* processType) override;
-    virtual bool
-    DeallocPCrashReporterParent(PCrashReporterParent* actor) override;
-
     virtual bool
     RecvSetCursor(const NSCursorInfo& aCursorInfo) override;
 
@@ -200,8 +184,6 @@ protected:
     virtual void UpdatePluginTimeout() {}
 
     virtual bool RecvNotifyContentModuleDestroyed() override { return true; }
-
-    virtual bool RecvProfile(const nsCString& aProfile) override { return true; }
 
     virtual bool AnswerGetKeyState(const int32_t& aVirtKey, int16_t* aRet) override;
 
@@ -267,7 +249,7 @@ protected:
                        const mozilla::NativeEventData& aNativeKeyData,
                        bool aIsConsumed) override;
 
-#if defined(XP_UNIX) && !defined(XP_MACOSX) && !defined(MOZ_WIDGET_GONK)
+#if defined(XP_UNIX) && !defined(XP_MACOSX)
     virtual nsresult NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* pFuncs, NPError* error) override;
 #else
     virtual nsresult NP_Initialize(NPNetscapeFuncs* bFuncs, NPError* error) override;
@@ -348,7 +330,6 @@ protected:
     bool
     GetPluginDetails();
 
-    friend class mozilla::dom::CrashReporterParent;
     friend class mozilla::plugins::PluginAsyncSurrogate;
 
     bool              mIsStartingAsync;
@@ -480,16 +461,6 @@ class PluginModuleChromeParent
 
     void CachedSettingChanged();
 
-#ifdef  MOZ_ENABLE_PROFILER_SPS
-    void GatherAsyncProfile();
-    void GatheredAsyncProfile(nsIProfileSaveEvent* aSaveEvent);
-    void StartProfiler(nsIProfilerStartParams* aParams);
-    void StopProfiler();
-#endif
-
-    virtual bool
-    RecvProfile(const nsCString& aProfile) override;
-
     virtual bool
     AnswerGetKeyState(const int32_t& aVirtKey, int16_t* aRet) override;
 
@@ -508,16 +479,10 @@ private:
 
     virtual bool ShouldContinueFromReplyTimeout() override;
 
-    virtual PCrashReporterParent*
-    AllocPCrashReporterParent(mozilla::dom::NativeThreadId* id,
-                              uint32_t* processType) override;
-    virtual bool
-    DeallocPCrashReporterParent(PCrashReporterParent* actor) override;
-
     PluginProcessParent* Process() const { return mSubprocess; }
     base::ProcessHandle ChildProcessHandle() { return mSubprocess->GetChildProcessHandle(); }
 
-#if defined(XP_UNIX) && !defined(XP_MACOSX) && !defined(MOZ_WIDGET_GONK)
+#if defined(XP_UNIX) && !defined(XP_MACOSX)
     virtual nsresult NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* pFuncs, NPError* error) override;
 #else
     virtual nsresult NP_Initialize(NPNetscapeFuncs* bFuncs, NPError* error) override;
@@ -534,16 +499,9 @@ private:
                                       int32_t aSandboxLevel,
                                       bool aAllowAsyncInit);
 
-    CrashReporterParent* CrashReporter();
-
     void CleanupFromTimeout(const bool aByHangUI);
 
     virtual void UpdatePluginTimeout() override;
-
-#ifdef MOZ_ENABLE_PROFILER_SPS
-    void InitPluginProfiling();
-    void ShutdownPluginProfiling();
-#endif
 
     void RegisterSettingsCallbacks();
     void UnregisterSettingsCallbacks();
@@ -593,7 +551,6 @@ private:
     FinishHangUI();
 #endif
 
-    friend class mozilla::dom::CrashReporterParent;
     friend class mozilla::plugins::PluginAsyncSurrogate;
 
     void OnProcessLaunched(const bool aSucceeded);
@@ -628,9 +585,6 @@ private:
     // processes in existence!
     dom::ContentParent* mContentParent;
     nsCOMPtr<nsIObserver> mPluginOfflineObserver;
-#ifdef MOZ_ENABLE_PROFILER_SPS
-    RefPtr<mozilla::ProfileGatherer> mGatherer;
-#endif
     nsCString mProfile;
     bool mIsBlocklisted;
     static bool sInstantiated;

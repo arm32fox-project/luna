@@ -67,7 +67,7 @@ struct IDBObjectStore::StructuredCloneWriteInfo
   uint64_t mOffsetToKeyProp;
 
   explicit StructuredCloneWriteInfo(IDBDatabase* aDatabase)
-    : mCloneBuffer(JS::StructuredCloneScope::SameProcessSameThread, nullptr,
+    : mCloneBuffer(JS::StructuredCloneScope::DifferentProcessForIndexedDB, nullptr,
                    nullptr)
     , mDatabase(aDatabase)
     , mOffsetToKeyProp(0)
@@ -859,10 +859,6 @@ public:
   }
 };
 
-// We don't need to upgrade database on B2G. See the comment in ActorsParent.cpp,
-// UpgradeSchemaFrom18_0To19_0()
-#if !defined(MOZ_B2G)
-
 class UpgradeDeserializationHelper
 {
 public:
@@ -928,8 +924,6 @@ public:
     return false;
   }
 };
-
-#endif // MOZ_B2G
 
 template <class Traits>
 JSObject*
@@ -1086,9 +1080,7 @@ IDBObjectStore::AppendIndexUpdateInfo(
 {
   nsresult rv;
 
-#ifdef ENABLE_INTL_API
   const bool localeAware = !aLocale.IsEmpty();
-#endif
 
   if (!aMultiEntry) {
     Key key;
@@ -1106,14 +1098,12 @@ IDBObjectStore::AppendIndexUpdateInfo(
     IndexUpdateInfo* updateInfo = aUpdateInfoArray.AppendElement();
     updateInfo->indexId() = aIndexID;
     updateInfo->value() = key;
-#ifdef ENABLE_INTL_API
     if (localeAware) {
       rv = key.ToLocaleBasedKey(updateInfo->localizedValue(), aLocale);
       if (NS_WARN_IF(NS_FAILED(rv))) {
         return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
       }
     }
-#endif
 
     return NS_OK;
   }
@@ -1153,14 +1143,12 @@ IDBObjectStore::AppendIndexUpdateInfo(
       IndexUpdateInfo* updateInfo = aUpdateInfoArray.AppendElement();
       updateInfo->indexId() = aIndexID;
       updateInfo->value() = value;
-#ifdef ENABLE_INTL_API
       if (localeAware) {
         rv = value.ToLocaleBasedKey(updateInfo->localizedValue(), aLocale);
         if (NS_WARN_IF(NS_FAILED(rv))) {
           return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
         }
       }
-#endif
     }
   }
   else {
@@ -1174,14 +1162,12 @@ IDBObjectStore::AppendIndexUpdateInfo(
     IndexUpdateInfo* updateInfo = aUpdateInfoArray.AppendElement();
     updateInfo->indexId() = aIndexID;
     updateInfo->value() = value;
-#ifdef ENABLE_INTL_API
     if (localeAware) {
       rv = value.ToLocaleBasedKey(updateInfo->localizedValue(), aLocale);
       if (NS_WARN_IF(NS_FAILED(rv))) {
         return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
       }
     }
-#endif
   }
 
   return NS_OK;
@@ -1230,7 +1216,7 @@ IDBObjectStore::DeserializeValue(JSContext* aCx,
   // FIXME: Consider to use StructuredCloneHolder here and in other
   //        deserializing methods.
   if (!JS_ReadStructuredClone(aCx, aCloneReadInfo.mData, JS_STRUCTURED_CLONE_VERSION,
-                              JS::StructuredCloneScope::SameProcessSameThread,
+                              JS::StructuredCloneScope::DifferentProcessForIndexedDB,
                               aValue, &callbacks, &aCloneReadInfo)) {
     return false;
   }
@@ -1263,15 +1249,13 @@ IDBObjectStore::DeserializeIndexValue(JSContext* aCx,
   };
 
   if (!JS_ReadStructuredClone(aCx, aCloneReadInfo.mData, JS_STRUCTURED_CLONE_VERSION,
-                              JS::StructuredCloneScope::SameProcessSameThread,
+                              JS::StructuredCloneScope::DifferentProcessForIndexedDB,
                               aValue, &callbacks, &aCloneReadInfo)) {
     return false;
   }
 
   return true;
 }
-
-#if !defined(MOZ_B2G)
 
 // static
 bool
@@ -1301,15 +1285,13 @@ IDBObjectStore::DeserializeUpgradeValue(JSContext* aCx,
   };
 
   if (!JS_ReadStructuredClone(aCx, aCloneReadInfo.mData, JS_STRUCTURED_CLONE_VERSION,
-                              JS::StructuredCloneScope::SameProcessSameThread,
+                              JS::StructuredCloneScope::DifferentProcessForIndexedDB,
                               aValue, &callbacks, &aCloneReadInfo)) {
     return false;
   }
 
   return true;
 }
-
-#endif // MOZ_B2G
 
 #ifdef DEBUG
 
@@ -2052,11 +2034,9 @@ IDBObjectStore::CreateIndex(const nsAString& aName,
   // Valid locale names are always ASCII as per BCP-47.
   nsCString locale = NS_LossyConvertUTF16toASCII(aOptionalParameters.mLocale);
   bool autoLocale = locale.EqualsASCII("auto");
-#ifdef ENABLE_INTL_API
   if (autoLocale) {
     locale = IndexedDatabaseManager::GetLocale();
   }
-#endif
 
   IndexMetadata* metadata = indexes.AppendElement(
     IndexMetadata(transaction->NextIndexId(), nsString(aName), keyPath,

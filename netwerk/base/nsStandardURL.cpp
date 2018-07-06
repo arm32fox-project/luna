@@ -781,11 +781,13 @@ nsStandardURL::BuildNormalizedSpec(const char *spec)
         i = AppendSegmentToBuf(buf, i, spec, username, mUsername,
                                &encUsername, useEncUsername, &diff);
         ShiftFromPassword(diff);
-        if (password.mLen >= 0) {
+        if (password.mLen > 0) {
             buf[i++] = ':';
             i = AppendSegmentToBuf(buf, i, spec, password, mPassword,
                                    &encPassword, useEncPassword, &diff);
             ShiftFromHost(diff);
+        } else {
+            mPassword.mLen = -1;
         }
         buf[i++] = '@';
     }
@@ -1180,7 +1182,6 @@ NS_IMPL_RELEASE(nsStandardURL)
 NS_INTERFACE_MAP_BEGIN(nsStandardURL)
     NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIStandardURL)
     NS_INTERFACE_MAP_ENTRY(nsIURI)
-    NS_INTERFACE_MAP_ENTRY(nsIURIWithQuery)
     NS_INTERFACE_MAP_ENTRY(nsIURL)
     NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsIFileURL, mSupportsFileURL)
     NS_INTERFACE_MAP_ENTRY(nsIStandardURL)
@@ -1483,6 +1484,11 @@ nsStandardURL::SetSpec(const nsACString &input)
         rv = BuildNormalizedSpec(spec);
     }
 
+    // Make sure that a URLTYPE_AUTHORITY has a non-empty hostname.
+    if (mURLType == URLTYPE_AUTHORITY && mHost.mLen == -1) {
+        rv = NS_ERROR_MALFORMED_URI;
+    }
+
     if (NS_FAILED(rv)) {
         Clear();
         // If parsing the spec has failed, restore the old URL
@@ -1616,7 +1622,7 @@ nsStandardURL::SetUserPass(const nsACString &input)
                                                             usernameLen),
                                                  esc_Username | esc_AlwaysCopy,
                                                  buf, ignoredOut);
-        if (passwordLen >= 0) {
+        if (passwordLen > 0) {
             buf.Append(':');
             passwordLen = encoder.EncodeSegmentCount(userpass.get(),
                                                      URLSegment(passwordPos,
@@ -1624,6 +1630,8 @@ nsStandardURL::SetUserPass(const nsACString &input)
                                                      esc_Password |
                                                      esc_AlwaysCopy, buf,
                                                      ignoredOut);
+        } else {
+            passwordLen = -1;
         }
         if (mUsername.mLen < 0)
             buf.Append('@');
@@ -1654,8 +1662,10 @@ nsStandardURL::SetUserPass(const nsACString &input)
     // update positions and lengths
     mUsername.mLen = usernameLen;
     mPassword.mLen = passwordLen;
-    if (passwordLen)
+    if (passwordLen > 0) {
         mPassword.mPos = mUsername.mPos + mUsername.mLen + 1;
+    }
+
     return NS_OK;
 }
 
@@ -3092,20 +3102,26 @@ nsStandardURL::SetFile(nsIFile *file)
     rv = net_GetURLSpecFromFile(file, url);
     if (NS_FAILED(rv)) return rv;
 
-    SetSpec(url);
+    uint32_t oldURLType = mURLType;
+    uint32_t oldDefaultPort = mDefaultPort;
+    rv = Init(nsIStandardURL::URLTYPE_NO_AUTHORITY, -1, url, nullptr, nullptr);
 
-    rv = Init(mURLType, mDefaultPort, url, nullptr, nullptr);
+    if (NS_FAILED(rv)) {
+        // Restore the old url type and default port if the call to Init fails.
+        mURLType = oldURLType;
+        mDefaultPort = oldDefaultPort;
+        return rv;
+    }
 
     // must clone |file| since its value is not guaranteed to remain constant
-    if (NS_SUCCEEDED(rv)) {
-        InvalidateCache();
-        if (NS_FAILED(file->Clone(getter_AddRefs(mFile)))) {
-            NS_WARNING("nsIFile::Clone failed");
-            // failure to clone is not fatal (GetFile will generate mFile)
-            mFile = nullptr;
-        }
+    InvalidateCache();
+    if (NS_FAILED(file->Clone(getter_AddRefs(mFile)))) {
+        NS_WARNING("nsIFile::Clone failed");
+        // failure to clone is not fatal (GetFile will generate mFile)
+        mFile = nullptr;
     }
-    return rv;
+
+    return NS_OK;
 }
 
 //----------------------------------------------------------------------------
@@ -3425,10 +3441,31 @@ ToIPCSegment(const nsStandardURL::URLSegment& aSegment)
 }
 
 inline
-nsStandardURL::URLSegment
-FromIPCSegment(const ipc::StandardURLSegment& aSegment)
+MOZ_MUST_USE bool
+FromIPCSegment(const nsACString& aSpec, const ipc::StandardURLSegment& aSegment, nsStandardURL::URLSegment& aTarget)
 {
-    return nsStandardURL::URLSegment(aSegment.position(), aSegment.length());
+    // This seems to be just an empty segment.
+    if (aSegment.length() == -1) {
+        aTarget = nsStandardURL::URLSegment();
+        return true;
+    }
+
+    // A value of -1 means an empty segment, but < -1 is undefined.
+    if (NS_WARN_IF(aSegment.length() < -1)) {
+        return false;
+    }
+
+    CheckedInt<uint32_t> segmentLen = aSegment.position();
+    segmentLen += aSegment.length();
+    // Make sure the segment does not extend beyond the spec.
+    if (NS_WARN_IF(!segmentLen.isValid() || segmentLen.value() > aSpec.Length())) {
+        return false;
+    }
+
+    aTarget.mPos = aSegment.position();
+    aTarget.mLen = aSegment.length();
+
+    return true;
 }
 
 void
@@ -3503,22 +3540,37 @@ nsStandardURL::Deserialize(const URIParams& aParams)
     mPort = params.port();
     mDefaultPort = params.defaultPort();
     mSpec = params.spec();
-    mScheme = FromIPCSegment(params.scheme());
-    mAuthority = FromIPCSegment(params.authority());
-    mUsername = FromIPCSegment(params.username());
-    mPassword = FromIPCSegment(params.password());
-    mHost = FromIPCSegment(params.host());
-    mPath = FromIPCSegment(params.path());
-    mFilepath = FromIPCSegment(params.filePath());
-    mDirectory = FromIPCSegment(params.directory());
-    mBasename = FromIPCSegment(params.baseName());
-    mExtension = FromIPCSegment(params.extension());
-    mQuery = FromIPCSegment(params.query());
-    mRef = FromIPCSegment(params.ref());
+
+    NS_ENSURE_TRUE(mSpec.Length() <= (uint32_t) net_GetURLMaxLength(), false);
+    NS_ENSURE_TRUE(FromIPCSegment(mSpec, params.scheme(), mScheme), false);
+    NS_ENSURE_TRUE(FromIPCSegment(mSpec, params.authority(), mAuthority), false);
+    NS_ENSURE_TRUE(FromIPCSegment(mSpec, params.username(), mUsername), false);
+    NS_ENSURE_TRUE(FromIPCSegment(mSpec, params.password(), mPassword), false);
+    NS_ENSURE_TRUE(FromIPCSegment(mSpec, params.host(), mHost), false);
+    NS_ENSURE_TRUE(FromIPCSegment(mSpec, params.path(), mPath), false);
+    NS_ENSURE_TRUE(FromIPCSegment(mSpec, params.filePath(), mFilepath), false);
+    NS_ENSURE_TRUE(FromIPCSegment(mSpec, params.directory(), mDirectory), false);
+    NS_ENSURE_TRUE(FromIPCSegment(mSpec, params.baseName(), mBasename), false);
+    NS_ENSURE_TRUE(FromIPCSegment(mSpec, params.extension(), mExtension), false);
+    NS_ENSURE_TRUE(FromIPCSegment(mSpec, params.query(), mQuery), false);
+    NS_ENSURE_TRUE(FromIPCSegment(mSpec, params.ref(), mRef), false);
+
     mOriginCharset = params.originCharset();
     mMutable = params.isMutable();
     mSupportsFileURL = params.supportsFileURL();
     mHostEncoding = params.hostEncoding();
+
+    // Some sanity checks
+    NS_ENSURE_TRUE(mScheme.mPos == 0, false);
+    NS_ENSURE_TRUE(mScheme.mLen > 0, false);
+    // Make sure scheme is followed by :// (3 characters)
+    NS_ENSURE_TRUE(mScheme.mLen < INT32_MAX - 3, false); // avoid overflow
+    NS_ENSURE_TRUE(mSpec.Length() >= (uint32_t) mScheme.mLen + 3, false);
+    NS_ENSURE_TRUE(nsDependentCSubstring(mSpec, mScheme.mLen, 3).EqualsLiteral("://"), false);
+    NS_ENSURE_TRUE(mPath.mLen != -1 && mSpec.CharAt(mPath.mPos) == '/', false);
+    NS_ENSURE_TRUE(mPath.mPos == mFilepath.mPos, false);
+    NS_ENSURE_TRUE(mQuery.mLen == -1 || mSpec.CharAt(mQuery.mPos - 1) == '?', false);
+    NS_ENSURE_TRUE(mRef.mLen == -1 || mSpec.CharAt(mRef.mPos - 1) == '#', false);
 
     // mSpecEncoding and mHostA are just caches that can be recovered as needed.
     return true;

@@ -110,6 +110,20 @@ pref("image.mem.decode_bytes_at_a_time", 65536); //larger chunks
 
 // ============================================================================
 
+// ===| Sync |=================================================================
+
+// Pale Moon Sync server URLs
+pref("services.sync.serverURL","https://pmsync.palemoon.org/sync/index.php/");
+pref("services.sync.jpake.serverURL","https://keyserver.palemoon.org/");
+pref("services.sync.termsURL", "http://www.palemoon.org/sync/terms.shtml");
+pref("services.sync.privacyURL", "http://www.palemoon.org/sync/privacy.shtml");
+pref("services.sync.statusURL", "https://pmsync.palemoon.org/status/");
+pref("services.sync.syncKeyHelpURL", "http://www.palemoon.org/sync/help/recoverykey.shtml");
+
+pref("services.sync.APILevel", 1); // FSyncMS doesn't support 'info/configuration' requests
+
+// ============================================================================
+
 // ===| Misc. |================================================================
 
 // store sessions less frequently to prevent redundant mem usage by storing too much

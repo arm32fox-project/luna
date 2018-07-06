@@ -949,6 +949,10 @@ nsresult // static
 nsNavHistory::AsciiHostNameFromHostString(const nsACString& aHostName,
                                           nsACString& aAscii)
 {
+  aAscii.Truncate();
+  if (aHostName.IsEmpty()) {
+    return NS_OK;
+  }
   // To properly generate a uri we must provide a protocol.
   nsAutoCString fakeURL("http://");
   fakeURL.Append(aHostName);
@@ -2792,8 +2796,6 @@ nsNavHistory::MarkPageAsFollowedLink(nsIURI *aURI)
 NS_IMETHODIMP
 nsNavHistory::GetPageTitle(nsIURI* aURI, nsAString& aTitle)
 {
-  PLACES_WARN_DEPRECATED();
-
   NS_ASSERTION(NS_IsMainThread(), "This can only be called on the main thread");
   NS_ENSURE_ARG(aURI);
 

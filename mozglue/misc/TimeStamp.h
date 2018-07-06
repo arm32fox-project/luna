@@ -216,10 +216,7 @@ public:
   }
   double operator/(const BaseTimeDuration& aOther) const
   {
-#ifndef MOZ_B2G
-    // Bug 1066388 - This fails on B2G ICS Emulator
     MOZ_ASSERT(aOther.mValue != 0, "Division by zero");
-#endif
     return ValueCalculator::DivideDouble(mValue, aOther.mValue);
   }
   BaseTimeDuration operator%(const BaseTimeDuration& aOther) const
@@ -403,11 +400,11 @@ public:
    * retrieved by mozilla::TimeStamp. Since we need this for
    * vsync timestamps, we enable the creation of mozilla::TimeStamps
    * on platforms that support vsync aligned refresh drivers / compositors
-   * Verified true as of Jan 31, 2015: B2G and OS X
+   * Verified true as of Jan 31, 2015: OS X
    * False on Windows 7
    * UNTESTED ON OTHER PLATFORMS
    */
-#if defined(MOZ_WIDGET_GONK) || defined(XP_DARWIN)
+#if defined(XP_DARWIN)
   static TimeStamp FromSystemTime(int64_t aSystemTime)
   {
     static_assert(sizeof(aSystemTime) == sizeof(TimeStampValue),

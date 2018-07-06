@@ -10,8 +10,6 @@
 #include "nsDirectoryServiceDefs.h"
 #include "nsDataHashtable.h"
 #include "mozilla/ArrayUtils.h"
-#include "mozilla/dom/CrashReporterChild.h"
-#include "mozilla/ipc/CrashReporterClient.h"
 #include "mozilla/Services.h"
 #include "nsIObserverService.h"
 #include "mozilla/Unused.h"
@@ -115,9 +113,6 @@ using google_breakpad::FileID;
 using google_breakpad::PageAllocator;
 #endif
 using namespace mozilla;
-using mozilla::dom::CrashReporterChild;
-using mozilla::dom::PCrashReporterChild;
-using mozilla::ipc::CrashReporterClient;
 
 namespace CrashReporter {
 
@@ -1527,11 +1522,9 @@ nsresult SetExceptionHandler(nsIFile* aXREDirectory,
   if (gExceptionHandler)
     return NS_ERROR_ALREADY_INITIALIZED;
 
-#if !defined(DEBUG) || defined(MOZ_WIDGET_GONK)
+#if !defined(DEBUG)
   // In non-debug builds, enable the crash reporter by default, and allow
   // disabling it with the MOZ_CRASHREPORTER_DISABLE environment variable.
-  // Also enable it by default in debug gonk builds as it is difficult to
-  // set environment on startup.
   const char *envvar = PR_GetEnv("MOZ_CRASHREPORTER_DISABLE");
   if (envvar && *envvar && !force)
     return NS_OK;
@@ -1543,10 +1536,7 @@ nsresult SetExceptionHandler(nsIFile* aXREDirectory,
     return NS_OK;
 #endif
 
-#if defined(MOZ_WIDGET_GONK)
-  doReport = false;
-  headlessClient = true;
-#elif defined(XP_WIN)
+#if defined(XP_WIN)
   doReport = ShouldReport();
 #else
   // this environment variable prevents us from launching
@@ -2238,13 +2228,7 @@ nsresult AnnotateCrashReport(const nsACString& key, const nsACString& data)
     return rv;
 
   if (!XRE_IsParentProcess()) {
-    // The newer CrashReporterClient can be used from any thread.
-    if (RefPtr<CrashReporterClient> client = CrashReporterClient::GetSingleton()) {
-      client->AnnotateCrashReport(nsCString(key), escapedData);
-      return NS_OK;
-    }
-
-    // Otherwise, we have to handle this on the main thread since we will go
+    // We have to handle this on the main thread since we will go
     // through IPDL.
     if (!NS_IsMainThread()) {
       // Child process needs to handle this in the main thread:
@@ -2254,13 +2238,7 @@ nsresult AnnotateCrashReport(const nsACString& key, const nsACString& data)
     }
 
     MOZ_ASSERT(NS_IsMainThread());
-    PCrashReporterChild* reporter = CrashReporterChild::GetCrashReporter();
-    if (!reporter) {
-      EnqueueDelayedNote(new DelayedNote(key, data));
-      return NS_OK;
-    }
-    if (!reporter->SendAnnotateCrashReport(nsCString(key), escapedData))
-      return NS_ERROR_FAILURE;
+    EnqueueDelayedNote(new DelayedNote(key, data));
     return NS_OK;
   }
 
@@ -2326,11 +2304,6 @@ nsresult AppendAppNotesToCrashReport(const nsACString& data)
     if (NS_FAILED(rv))
       return rv;
 
-    if (RefPtr<CrashReporterClient> client = CrashReporterClient::GetSingleton()) {
-      client->AppendAppNotes(escapedData);
-      return NS_OK;
-    }
-
     if (!NS_IsMainThread()) {
       // Child process needs to handle this in the main thread:
       nsCOMPtr<nsIRunnable> r = new CrashReporterHelperRunnable(data);
@@ -2339,14 +2312,7 @@ nsresult AppendAppNotesToCrashReport(const nsACString& data)
     }
 
     MOZ_ASSERT(NS_IsMainThread());
-    PCrashReporterChild* reporter = CrashReporterChild::GetCrashReporter();
-    if (!reporter) {
-      EnqueueDelayedNote(new DelayedNote(data));
-      return NS_OK;
-    }
-
-    if (!reporter->SendAppendAppNotes(escapedData))
-      return NS_ERROR_FAILURE;
+    EnqueueDelayedNote(new DelayedNote(data));
     return NS_OK;
   }
 
@@ -3417,22 +3383,10 @@ OOPInit()
 
 #if (defined(XP_WIN) || defined(XP_MACOSX))
   nsCOMPtr<nsIFile> tmpDir;
-# if defined(MOZ_CONTENT_SANDBOX)
-  nsresult rv = NS_GetSpecialDirectory(NS_APP_CONTENT_PROCESS_TEMP_DIR,
-                                       getter_AddRefs(tmpDir));
-  if (NS_FAILED(rv) && PR_GetEnv("XPCSHELL_TEST_PROFILE_DIR")) {
-    // Temporary hack for xpcshell, will be fixed in bug 1257098
-    rv = NS_GetSpecialDirectory(NS_OS_TEMP_DIR, getter_AddRefs(tmpDir));
-  }
-  if (NS_SUCCEEDED(rv)) {
-    childProcessTmpDir = CreatePathFromFile(tmpDir);
-  }
-# else
   if (NS_SUCCEEDED(NS_GetSpecialDirectory(NS_OS_TEMP_DIR,
                                           getter_AddRefs(tmpDir)))) {
     childProcessTmpDir = CreatePathFromFile(tmpDir);
   }
-# endif // defined(MOZ_CONTENT_SANDBOX)
 #endif // (defined(XP_WIN) || defined(XP_MACOSX))
 
 #if defined(XP_WIN)

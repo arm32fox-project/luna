@@ -281,6 +281,7 @@ bool nsContentUtils::sIsCutCopyAllowed = true;
 bool nsContentUtils::sIsFrameTimingPrefEnabled = false;
 bool nsContentUtils::sIsPerformanceTimingEnabled = false;
 bool nsContentUtils::sIsResourceTimingEnabled = false;
+bool nsContentUtils::sIsPerformanceNavigationTimingEnabled = false;
 bool nsContentUtils::sIsUserTimingLoggingEnabled = false;
 bool nsContentUtils::sIsExperimentalAutocompleteEnabled = false;
 bool nsContentUtils::sEncodeDecodeURLHash = false;
@@ -570,6 +571,9 @@ nsContentUtils::Init()
 
   Preferences::AddBoolVarCache(&sIsResourceTimingEnabled,
                                "dom.enable_resource_timing", true);
+
+  Preferences::AddBoolVarCache(&sIsPerformanceNavigationTimingEnabled,
+                               "dom.enable_performance_navigation_timing", true);
 
   Preferences::AddBoolVarCache(&sIsUserTimingLoggingEnabled,
                                "dom.performance.enable_user_timing_logging", false);
@@ -5100,7 +5104,7 @@ nsContentUtils::TriggerLink(nsIContent *aContent, nsPresContext *aPresContext,
 
     handler->OnLinkClick(aContent, aLinkURI,
                          fileName.IsVoid() ? aTargetSpec.get() : EmptyString().get(),
-                         fileName, nullptr, nullptr, aIsTrusted);
+                         fileName, nullptr, nullptr, aIsTrusted, aContent->NodePrincipal());
   }
 }
 
@@ -9772,9 +9776,13 @@ nsContentUtils::AttemptLargeAllocationLoad(nsIHttpChannel* aChannel)
   rv = aChannel->GetReferrer(getter_AddRefs(referrer));
   NS_ENSURE_SUCCESS(rv, false);
 
+  nsCOMPtr<nsILoadInfo> loadInfo = aChannel->GetLoadInfo();
+  nsCOMPtr<nsIPrincipal> triggeringPrincipal = loadInfo->TriggeringPrincipal();
+
   // Actually perform the cross process load
   bool reloadSucceeded = false;
-  rv = wbc3->ReloadInFreshProcess(docShell, uri, referrer, &reloadSucceeded);
+  rv = wbc3->ReloadInFreshProcess(docShell, uri, referrer,
+                                  triggeringPrincipal, &reloadSucceeded);
   NS_ENSURE_SUCCESS(rv, false);
 
   return reloadSucceeded;

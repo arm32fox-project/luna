@@ -80,6 +80,8 @@ function Startup() {
   togglePasswordsButton.label = kSignonBundle.getString("showPasswords");
   togglePasswordsButton.accessKey = kSignonBundle.getString("showPasswordsAccessKey");
   signonsIntro.textContent = kSignonBundle.getString("loginsDescriptionAll");
+  removeAllButton.setAttribute("label", kSignonBundle.getString("removeAll.label"));
+  removeAllButton.setAttribute("accesskey", kSignonBundle.getString("removeAll.accesskey"));
   document.getElementsByTagName("treecols")[0].addEventListener("click", (event) => {
     let { target, button } = event;
     let sortField = target.getAttribute("data-field-name");
@@ -324,7 +326,7 @@ function LoadSignons() {
 function GetTreeSelections() {
   let selections = [];
   let select = signonsTree.view.selection;
-  if (select) {
+  if (select && signonsTree.view.rowCount > 0) {
     let count = select.getRangeCount();
     let min = {};
     let max = {};
@@ -555,6 +557,8 @@ function SignonClearFilter() {
   signonsTreeView._lastSelectedRanges = [];
 
   signonsIntro.textContent = kSignonBundle.getString("loginsDescriptionAll");
+  removeAllButton.setAttribute("label", kSignonBundle.getString("removeAll.label"));
+  removeAllButton.setAttribute("accesskey", kSignonBundle.getString("removeAll.accesskey"));
 }
 
 function FocusFilterBox() {
@@ -623,6 +627,8 @@ function FilterPasswords() {
     signonsTreeView.selection.select(0);
 
   signonsIntro.textContent = kSignonBundle.getString("loginsDescriptionFiltered");
+  removeAllButton.setAttribute("label", kSignonBundle.getString("removeAllShown.label"));
+  removeAllButton.setAttribute("accesskey", kSignonBundle.getString("removeAllShown.accesskey"));
 }
 
 function CopyPassword() {
@@ -721,10 +727,12 @@ function escapeKeyHandler() {
   window.close();
 }
 
-#if defined(MC_BASILISK) && defined(XP_WIN)
+#ifdef XP_WIN
+#if defined(MC_BASILISK) || defined(HYPE_ICEWEASEL)
 function OpenMigrator() {
   const { MigrationUtils } = Cu.import("resource:///modules/MigrationUtils.jsm", {});
   // We pass in the type of source we're using for use in telemetry:
   MigrationUtils.showMigrationWizard(window, [MigrationUtils.MIGRATION_ENTRYPOINT_PASSWORDS]);
 }
+#endif
 #endif

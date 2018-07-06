@@ -1197,11 +1197,14 @@ private:
   nsCSSShadowItem mArray[1]; // This MUST be the last item
 };
 
-// Border widths are rounded to the nearest-below integer number of pixels,
-// but values between zero and one device pixels are always rounded up to
-// one device pixel.
+// Border widths are rounded to the nearest integer number of pixels, but values
+// between zero and one device pixels are always rounded up to one device pixel.
 #define NS_ROUND_BORDER_TO_PIXELS(l,tpp) \
-  ((l) == 0) ? 0 : std::max((tpp), (l) / (tpp) * (tpp))
+  ((l) == 0) ? 0 : std::max((tpp), ((l) + ((tpp) / 2)) / (tpp) * (tpp))
+// Caret widths are rounded to the nearest-below integer number of pixels, but values
+// between zero and one device pixels are always rounded up to one device pixel.
+#define NS_ROUND_CARET_TO_PIXELS(l,tpp) \
+  ((l) == 0) ? 0 : std::max((tpp), (l) / (tpp) * (tpp)) 
 // Outline offset is rounded to the nearest integer number of pixels, but values
 // between zero and one device pixels are always rounded up to one device pixel.
 // Note that the offset can be negative.
@@ -2068,6 +2071,7 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleText
   uint8_t mTextAlignLast;               // [inherited] see nsStyleConsts.h
   bool mTextAlignTrue : 1;              // [inherited] see nsStyleConsts.h
   bool mTextAlignLastTrue : 1;          // [inherited] see nsStyleConsts.h
+  mozilla::StyleTextJustify mTextJustify;   // [inherited]
   uint8_t mTextTransform;               // [inherited] see nsStyleConsts.h
   uint8_t mWhiteSpace;                  // [inherited] see nsStyleConsts.h
   uint8_t mWordBreak;                   // [inherited] see nsStyleConsts.h

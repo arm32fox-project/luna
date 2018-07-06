@@ -24,7 +24,6 @@
 #include "nsICryptoHash.h"
 #include "nsINetworkInterceptController.h"
 #include "nsINSSErrorsService.h"
-#include "nsISecurityReporter.h"
 #include "nsIStringBundle.h"
 #include "nsIStreamListenerTee.h"
 #include "nsISeekableStream.h"
@@ -100,7 +99,6 @@
 #include "mozilla/net/Predictor.h"
 #include "CacheControlParser.h"
 #include "nsMixedContentBlocker.h"
-#include "HSTSPrimerListener.h"
 #include "CacheStorageService.h"
 
 namespace mozilla { namespace net {
@@ -465,50 +463,12 @@ nsHttpChannel::Connect()
         // otherwise, let's just proceed without using the cache.
     }
 
-    return TryHSTSPriming();
-}
-
-nsresult
-nsHttpChannel::TryHSTSPriming()
-{
-    if (mLoadInfo) {
-        // HSTS priming requires the LoadInfo provided with AsyncOpen2
-        bool requireHSTSPriming =
-            mLoadInfo->GetForceHSTSPriming();
-
-        if (requireHSTSPriming &&
-                nsMixedContentBlocker::sSendHSTSPriming &&
-                mInterceptCache == DO_NOT_INTERCEPT) {
-            bool isHttpsScheme;
-            nsresult rv = mURI->SchemeIs("https", &isHttpsScheme);
-            NS_ENSURE_SUCCESS(rv, rv);
-            if (!isHttpsScheme) {
-                rv = HSTSPrimingListener::StartHSTSPriming(this, this);
-
-                if (NS_FAILED(rv)) {
-                    CloseCacheEntry(false);
-                    return rv;
-                }
-
-                return NS_OK;
-            }
-
-            // The request was already upgraded, for example by
-            // upgrade-insecure-requests or a prior successful priming request
-            Telemetry::Accumulate(Telemetry::MIXED_CONTENT_HSTS_PRIMING_RESULT,
-                    HSTSPrimingResult::eHSTS_PRIMING_ALREADY_UPGRADED);
-            mLoadInfo->ClearHSTSPriming();
-        }
-    }
-
     return ContinueConnect();
 }
 
 nsresult
 nsHttpChannel::ContinueConnect()
 {
-    // If we have had HSTS priming, we need to reevaluate whether we need
-    // a CORS preflight. Bug: 1272440
     // If we need to start a CORS preflight, do it now!
     // Note that it is important to do this before the early returns below.
     if (!mIsCorsPreflightDone && mRequireCORSPreflight &&
@@ -1770,56 +1730,6 @@ nsHttpChannel::ProcessContentSignatureHeader(nsHttpResponseHead *aResponseHead)
     mListener = contentVerifyingMediator;
 
     return NS_OK;
-}
-
-/**
- * Decide whether or not to send a security report and, if so, give the
- * SecurityReporter the information required to send such a report.
- */
-void
-nsHttpChannel::ProcessSecurityReport(nsresult status) {
-    uint32_t errorClass;
-    nsCOMPtr<nsINSSErrorsService> errSvc =
-            do_GetService("@mozilla.org/nss_errors_service;1");
-    // getErrorClass will throw a generic NS_ERROR_FAILURE if the error code is
-    // not in the set of errors covered by the NSS errors service.
-    nsresult rv = errSvc->GetErrorClass(status, &errorClass);
-    if (!NS_SUCCEEDED(rv)) {
-        return;
-    }
-
-    // if the content was not loaded succesfully and we have security info,
-    // send a TLS error report - we must do this early as other parts of
-    // OnStopRequest can return early
-    bool reportingEnabled =
-            Preferences::GetBool("security.ssl.errorReporting.enabled");
-    bool reportingAutomatic =
-            Preferences::GetBool("security.ssl.errorReporting.automatic");
-    if (!mSecurityInfo || !reportingEnabled || !reportingAutomatic) {
-        return;
-    }
-
-    nsCOMPtr<nsITransportSecurityInfo> secInfo =
-            do_QueryInterface(mSecurityInfo);
-    nsCOMPtr<nsISecurityReporter> errorReporter =
-            do_GetService("@mozilla.org/securityreporter;1");
-
-    if (!secInfo || !mURI) {
-        return;
-    }
-
-    nsAutoCString hostStr;
-    int32_t port;
-    rv = mURI->GetHost(hostStr);
-    if (!NS_SUCCEEDED(rv)) {
-        return;
-    }
-
-    rv = mURI->GetPort(&port);
-
-    if (NS_SUCCEEDED(rv)) {
-        errorReporter->ReportTLSError(secInfo, hostStr, port);
-    }
 }
 
 bool
@@ -4283,7 +4193,7 @@ nsHttpChannel::OnCacheEntryAvailableInternal(nsICacheEntry *entry,
         return NS_OK;
     }
 
-    return TryHSTSPriming();
+    return ContinueConnect();
 }
 
 nsresult
@@ -5402,7 +5312,7 @@ nsHttpChannel::AsyncProcessRedirection(uint32_t redirectType)
     if (NS_EscapeURL(location.get(), -1, esc_OnlyNonASCII, locationBuf))
         location = locationBuf;
 
-    if (mRedirectionLimit == 0) {
+    if (mRedirectCount >= mRedirectionLimit || mInternalRedirectCount >= mRedirectionLimit) {
         LOG(("redirection limit reached!\n"));
         return NS_ERROR_REDIRECT_LOOP;
     }
@@ -5699,7 +5609,6 @@ NS_INTERFACE_MAP_BEGIN(nsHttpChannel)
     NS_INTERFACE_MAP_ENTRY(nsIDNSListener)
     NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
     NS_INTERFACE_MAP_ENTRY(nsICorsPreflightCallback)
-    NS_INTERFACE_MAP_ENTRY(nsIHstsPrimingCallback)
     NS_INTERFACE_MAP_ENTRY(nsIChannelWithDivertableParentListener)
     // we have no macro that covers this case.
     if (aIID.Equals(NS_GET_IID(nsHttpChannel)) ) {
@@ -6030,8 +5939,6 @@ nsHttpChannel::BeginConnect()
 
     // notify "http-on-modify-request" observers
     CallOnModifyRequestObservers();
-
-    SetLoadGroupUserAgentOverride();
 
     // Check if request was cancelled during on-modify-request or on-useragent.
     if (mCanceled) {
@@ -6728,10 +6635,6 @@ nsHttpChannel::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult st
 
     MOZ_ASSERT(NS_IsMainThread(),
                "OnStopRequest should only be called from the main thread");
-
-    if (NS_FAILED(status)) {
-        ProcessSecurityReport(status);
-    }
 
     // If this load failed because of a security error, it may be because we
     // are in a captive portal - trigger an async check to make sure.
@@ -8188,107 +8091,6 @@ nsHttpChannel::OnPreflightFailed(nsresult aError)
 }
 
 //-----------------------------------------------------------------------------
-// nsIHstsPrimingCallback functions
-//-----------------------------------------------------------------------------
-
-/*
- * May be invoked synchronously if HSTS priming has already been performed
- * for the host.
- */
-nsresult
-nsHttpChannel::OnHSTSPrimingSucceeded(bool aCached)
-{
-    if (nsMixedContentBlocker::sUseHSTS) {
-        // redirect the channel to HTTPS if the pref
-        // "security.mixed_content.use_hsts" is true
-        LOG(("HSTS Priming succeeded, redirecting to HTTPS [this=%p]", this));
-        Telemetry::Accumulate(Telemetry::MIXED_CONTENT_HSTS_PRIMING_RESULT,
-                (aCached) ? HSTSPrimingResult::eHSTS_PRIMING_CACHED_DO_UPGRADE :
-                            HSTSPrimingResult::eHSTS_PRIMING_SUCCEEDED);
-        return AsyncCall(&nsHttpChannel::HandleAsyncRedirectChannelToHttps);
-    }
-
-    // If "security.mixed_content.use_hsts" is false, record the result of
-    // HSTS priming and block or proceed with the load as required by
-    // mixed-content blocking
-    bool wouldBlock = mLoadInfo->GetMixedContentWouldBlock();
-
-    // preserve the mixed-content-before-hsts order and block if required
-    if (wouldBlock) {
-        LOG(("HSTS Priming succeeded, blocking for mixed-content [this=%p]",
-                    this));
-        Telemetry::Accumulate(Telemetry::MIXED_CONTENT_HSTS_PRIMING_RESULT,
-                              HSTSPrimingResult::eHSTS_PRIMING_SUCCEEDED_BLOCK);
-        CloseCacheEntry(false);
-        return AsyncAbort(NS_ERROR_CONTENT_BLOCKED);
-    }
-
-    LOG(("HSTS Priming succeeded, loading insecure: [this=%p]", this));
-    Telemetry::Accumulate(Telemetry::MIXED_CONTENT_HSTS_PRIMING_RESULT,
-                          HSTSPrimingResult::eHSTS_PRIMING_SUCCEEDED_HTTP);
-
-    nsresult rv = ContinueConnect();
-    if (NS_FAILED(rv)) {
-        CloseCacheEntry(false);
-        return AsyncAbort(rv);
-    }
-
-    return NS_OK;
-}
-
-/*
- * May be invoked synchronously if HSTS priming has already been performed
- * for the host.
- */
-nsresult
-nsHttpChannel::OnHSTSPrimingFailed(nsresult aError, bool aCached)
-{
-    bool wouldBlock = mLoadInfo->GetMixedContentWouldBlock();
-
-    LOG(("HSTS Priming Failed [this=%p], %s the load", this,
-                (wouldBlock) ? "blocking" : "allowing"));
-    if (aCached) {
-        // Between the time we marked for priming and started the priming request,
-        // the host was found to not allow the upgrade, probably from another
-        // priming request.
-        Telemetry::Accumulate(Telemetry::MIXED_CONTENT_HSTS_PRIMING_RESULT,
-                (wouldBlock) ?  HSTSPrimingResult::eHSTS_PRIMING_CACHED_BLOCK :
-                                HSTSPrimingResult::eHSTS_PRIMING_CACHED_NO_UPGRADE);
-    } else {
-        // A priming request was sent, and no HSTS header was found that allows
-        // the upgrade.
-        Telemetry::Accumulate(Telemetry::MIXED_CONTENT_HSTS_PRIMING_RESULT,
-                (wouldBlock) ?  HSTSPrimingResult::eHSTS_PRIMING_FAILED_BLOCK :
-                                HSTSPrimingResult::eHSTS_PRIMING_FAILED_ACCEPT);
-    }
-
-    // Don't visit again for at least
-    // security.mixed_content.hsts_priming_cache_timeout seconds.
-    nsISiteSecurityService* sss = gHttpHandler->GetSSService();
-    NS_ENSURE_TRUE(sss, NS_ERROR_OUT_OF_MEMORY);
-    nsresult rv = sss->CacheNegativeHSTSResult(mURI,
-            nsMixedContentBlocker::sHSTSPrimingCacheTimeout);
-    if (NS_FAILED(rv)) {
-        NS_ERROR("nsISiteSecurityService::CacheNegativeHSTSResult failed");
-    }
-
-    // If we would block, go ahead and abort with the error provided
-    if (wouldBlock) {
-        CloseCacheEntry(false);
-        return AsyncAbort(aError);
-    }
-
-    // we can continue the load and the UI has been updated as mixed content
-    rv = ContinueConnect();
-    if (NS_FAILED(rv)) {
-        CloseCacheEntry(false);
-        return AsyncAbort(rv);
-    }
-
-    return NS_OK;
-}
-
-//-----------------------------------------------------------------------------
 // AChannelHasDivertableParentChannelAsListener internal functions
 //-----------------------------------------------------------------------------
 
@@ -8396,50 +8198,6 @@ nsHttpChannel::MaybeWarnAboutAppCache()
     GetCallback(warner);
     if (warner) {
         warner->IssueWarning(nsIDocument::eAppCache, false);
-    }
-}
-
-void
-nsHttpChannel::SetLoadGroupUserAgentOverride()
-{
-    nsCOMPtr<nsIURI> uri;
-    GetURI(getter_AddRefs(uri));
-    nsAutoCString uriScheme;
-    if (uri) {
-        uri->GetScheme(uriScheme);
-    }
-
-    // We don't need a UA for file: protocols.
-    if (uriScheme.EqualsLiteral("file")) {
-        gHttpHandler->OnUserAgentRequest(this);
-        return;
-    }
-
-    nsIRequestContextService* rcsvc = gHttpHandler->GetRequestContextService();
-    nsCOMPtr<nsIRequestContext> rc;
-    if (rcsvc) {
-        rcsvc->GetRequestContext(mRequestContextID,
-                                    getter_AddRefs(rc));
-    }
-
-    nsAutoCString ua;
-    if (nsContentUtils::IsNonSubresourceRequest(this)) {
-        gHttpHandler->OnUserAgentRequest(this);
-        if (rc) {
-            GetRequestHeader(NS_LITERAL_CSTRING("User-Agent"), ua);
-            rc->SetUserAgentOverride(ua);
-        }
-    } else {
-        GetRequestHeader(NS_LITERAL_CSTRING("User-Agent"), ua);
-        // Don't overwrite the UA if it is already set (eg by an XHR with explicit UA).
-        if (ua.IsEmpty()) {
-            if (rc) {
-                rc->GetUserAgentOverride(ua);
-                SetRequestHeader(NS_LITERAL_CSTRING("User-Agent"), ua, false);
-            } else {
-                gHttpHandler->OnUserAgentRequest(this);
-            }
-        }
     }
 }
 

@@ -455,7 +455,7 @@ Sync11Service.prototype = {
     this.clientsEngine = new ClientEngine(this);
 
     for (let name of engines) {
-      if (!name in ENGINE_MODULES) {
+      if (!(name in ENGINE_MODULES)) {
         this._log.info("Do not know about engine: " + name);
         continue;
       }
@@ -1067,31 +1067,34 @@ Sync11Service.prototype = {
   // Note: returns false if we failed for a reason other than the server not yet
   // supporting the api.
   _fetchServerConfiguration() {
-    // This is similar to _fetchInfo, but with different error handling.
+    if (Svc.Prefs.get("APILevel") >= 2) {
+      // This is similar to _fetchInfo, but with different error handling.
+      // Only supported by later sync implementations.
 
-    let infoURL = this.userBaseURL + "info/configuration";
-    this._log.debug("Fetching server configuration", infoURL);
-    let configResponse;
-    try {
-      configResponse = this.resource(infoURL).get();
-    } catch (ex) {
-      // This is probably a network or similar error.
-      this._log.warn("Failed to fetch info/configuration", ex);
-      this.errorHandler.checkServerError(ex);
-      return false;
-    }
+      let infoURL = this.userBaseURL + "info/configuration";
+      this._log.debug("Fetching server configuration", infoURL);
+      let configResponse;
+      try {
+        configResponse = this.resource(infoURL).get();
+      } catch (ex) {
+        // This is probably a network or similar error.
+        this._log.warn("Failed to fetch info/configuration", ex);
+        this.errorHandler.checkServerError(ex);
+        return false;
+      }
 
-    if (configResponse.status == 404) {
-      // This server doesn't support the URL yet - that's OK.
-      this._log.debug("info/configuration returned 404 - using default upload semantics");
-    } else if (configResponse.status != 200) {
-      this._log.warn(`info/configuration returned ${configResponse.status} - using default configuration`);
-      this.errorHandler.checkServerError(configResponse);
-      return false;
-    } else {
-      this.serverConfiguration = configResponse.obj;
+      if (configResponse.status == 404) {
+        // This server doesn't support the URL yet - that's OK.
+        this._log.debug("info/configuration returned 404 - using default upload semantics");
+      } else if (configResponse.status != 200) {
+        this._log.warn(`info/configuration returned ${configResponse.status} - using default configuration`);
+        this.errorHandler.checkServerError(configResponse);
+        return false;
+      } else {
+        this.serverConfiguration = configResponse.obj;
+      }
+      this._log.trace("info/configuration for this server", this.serverConfiguration);
     }
-    this._log.trace("info/configuration for this server", this.serverConfiguration);
     return true;
   },
 

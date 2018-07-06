@@ -356,14 +356,6 @@ nsSiteSecurityService::SetHSTSState(uint32_t aType,
 }
 
 NS_IMETHODIMP
-nsSiteSecurityService::CacheNegativeHSTSResult(nsIURI* aSourceURI,
-                                               uint64_t aMaxAge)
-{
-  return SetHSTSState(nsISiteSecurityService::HEADER_HSTS, aSourceURI,
-                      aMaxAge, false, 0, SecurityPropertyNegative);
-}
-
-NS_IMETHODIMP
 nsSiteSecurityService::RemoveState(uint32_t aType, nsIURI* aURI,
                                    uint32_t aFlags)
 {
@@ -943,7 +935,7 @@ int STSPreloadCompare(const void *key, const void *entry)
 {
   const char *keyStr = (const char *)key;
   const nsSTSPreload *preloadEntry = (const nsSTSPreload *)entry;
-  return strcmp(keyStr, &kSTSHostTable[preloadEntry->mHostIndex]);
+  return strcmp(keyStr, preloadEntry->mHost);
 }
 
 // Returns the preload list entry for the given host, if it exists.

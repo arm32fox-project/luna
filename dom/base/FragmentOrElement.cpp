@@ -608,6 +608,7 @@ FragmentOrElement::nsDOMSlots::Unlink(bool aIsXUL)
   mLabelsList = nullptr;
   mCustomElementData = nullptr;
   mClassList = nullptr;
+  mRegisteredIntersectionObservers.Clear();
 }
 
 size_t
@@ -1359,6 +1360,13 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(FragmentOrElement)
   {
     nsDOMSlots *slots = tmp->GetExistingDOMSlots();
     if (slots) {
+      if (tmp->IsElement()) {
+        Element* elem = tmp->AsElement();
+        for (auto iter = slots->mRegisteredIntersectionObservers.Iter(); !iter.Done(); iter.Next()) {
+          DOMIntersectionObserver* observer = iter.Key();
+          observer->UnlinkTarget(*elem);
+        }
+      }
       slots->Unlink(tmp->IsXULElement());
     }
   }
@@ -1937,7 +1945,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_INTERFACE_MAP_BEGIN(FragmentOrElement)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
   NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(FragmentOrElement)
-  NS_INTERFACE_MAP_ENTRY(Element)
   NS_INTERFACE_MAP_ENTRY(nsIContent)
   NS_INTERFACE_MAP_ENTRY(nsINode)
   NS_INTERFACE_MAP_ENTRY(nsIDOMEventTarget)

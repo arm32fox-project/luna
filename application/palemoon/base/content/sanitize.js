@@ -11,7 +11,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "FormHistory",
 XPCOMUtils.defineLazyModuleGetter(this, "Downloads",
                                   "resource://gre/modules/Downloads.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Promise",
-                                  "resource:///modules/promise.js");
+                                  "resource://gre/modules/Promise.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Task",
                                   "resource://gre/modules/Task.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "console",
@@ -148,7 +148,8 @@ Sanitizer.prototype = {
 
             if (cookie.creationTime > this.range[0])
               // This cookie was created after our cutoff, clear it
-              cookieMgr.remove(cookie.host, cookie.name, cookie.path, false);
+              cookieMgr.remove(cookie.host, cookie.name, cookie.path,
+                               false, cookie.originAttributes);
           }
         }
         else {
@@ -213,10 +214,16 @@ Sanitizer.prototype = {
     history: {
       clear: function ()
       {
-        if (this.range)
-          PlacesUtils.history.removeVisitsByTimeframe(this.range[0], this.range[1]);
-        else
-          PlacesUtils.history.removeAllPages();
+        if (this.range) {
+          PlacesUtils.history.removeVisitsByFilter({
+            beginDate: new Date(this.range[0] / 1000),
+            endDate: new Date(this.range[1] / 1000)
+          }).catch(Components.utils.reportError);;
+        } else {
+          // Remove everything.
+          PlacesUtils.history.clear()
+          .catch(Components.utils.reportError);
+        }
 
         try {
           var os = Components.classes["@mozilla.org/observer-service;1"]
@@ -250,13 +257,18 @@ Sanitizer.prototype = {
                                       .getService(Components.interfaces.nsIWindowMediator);
         var windows = windowManager.getEnumerator("navigator:browser");
         while (windows.hasMoreElements()) {
-          let currentDocument = windows.getNext().document;
+          let currentWindow = windows.getNext();
+          let currentDocument = currentWindow.document;
           let searchBar = currentDocument.getElementById("searchbar");
           if (searchBar)
             searchBar.textbox.reset();
-          let findBar = currentDocument.getElementById("FindToolbar");
-          if (findBar)
-            findBar.clear();
+          let tabBrowser = currentWindow.gBrowser;
+          for (let tab of tabBrowser.tabs) {
+            if (tabBrowser.isFindBarInitialized(tab))
+              tabBrowser.getFindBar(tab).clear();
+          }
+          // Clear any saved find value
+          tabBrowser._lastFindValue = "";
         }
 
         let change = { op: "remove" };
@@ -272,7 +284,8 @@ Sanitizer.prototype = {
                                       .getService(Components.interfaces.nsIWindowMediator);
         var windows = windowManager.getEnumerator("navigator:browser");
         while (windows.hasMoreElements()) {
-          let currentDocument = windows.getNext().document;
+          let currentWindow = windows.getNext();
+          let currentDocument = currentWindow.document;
           let searchBar = currentDocument.getElementById("searchbar");
           if (searchBar) {
             let transactionMgr = searchBar.textbox.editor.transactionManager;
@@ -283,8 +296,12 @@ Sanitizer.prototype = {
               return false;
             }
           }
-          let findBar = currentDocument.getElementById("FindToolbar");
-          if (findBar && findBar.canClear) {
+          let tabBrowser = currentWindow.gBrowser;
+          let findBarCanClear = Array.some(tabBrowser.tabs, function (aTab) {
+            return tabBrowser.isFindBarInitialized(aTab) &&
+                   tabBrowser.getFindBar(aTab).canClear;
+          });
+          if (findBarCanClear) {
             aCallback("formdata", true, aArg);
             return false;
           }

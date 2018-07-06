@@ -280,12 +280,6 @@ public:
         NotifyObservers(chan, NS_HTTP_ON_MODIFY_REQUEST_TOPIC);
     }
 
-    // Called by the channel and cached in the loadGroup
-    void OnUserAgentRequest(nsIHttpChannel *chan)
-    {
-      NotifyObservers(chan, NS_HTTP_ON_USERAGENT_REQUEST_TOPIC);
-    }
-
     // Called by the channel once headers are available
     void OnExamineResponse(nsIHttpChannel *chan)
     {
@@ -489,8 +483,8 @@ private:
     nsCString      mCompatGecko;
     bool           mCompatGeckoEnabled;
     nsCString      mCompatFirefox;
-    nsCString      mCompatFirefoxVersion;
     bool           mCompatFirefoxEnabled;
+    nsCString      mCompatFirefoxVersion;
     nsXPIDLCString mCompatDevice;
     nsCString      mDeviceModelId;
 

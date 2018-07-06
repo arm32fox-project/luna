@@ -14,8 +14,9 @@ toolkit.jar:
    skin/classic/global/filepicker.css
    skin/classic/global/Filepicker.png                          (filepicker/Filepicker.png)
    skin/classic/global/findBar.css
-   skin/classic/global/global.css
+*  skin/classic/global/global.css
    skin/classic/global/groupbox.css
+   skin/classic/global/inContentUI.css
    skin/classic/global/listbox.css
    skin/classic/global/menu.css
    skin/classic/global/menulist.css
@@ -44,6 +45,8 @@ toolkit.jar:
    skin/classic/global/icons/blacklist_large.png               (icons/blacklist_large.png)
    skin/classic/global/icons/close.svg                         (icons/close.svg)
    skin/classic/global/icons/find.png                          (icons/find.png)
+   skin/classic/global/icons/loading_16.png                    (icons/loading_16.png)
+   skin/classic/global/icons/notloading_16.png                 (icons/notloading_16.png)
    skin/classic/global/icons/resizer.png                       (icons/resizer.png)
    skin/classic/global/icons/sslWarning.png                    (icons/sslWarning.png)
 

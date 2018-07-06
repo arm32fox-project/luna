@@ -12,20 +12,14 @@
 #include "mozilla/Sprintf.h"
 #include "nsUnicodeProperties.h"
 #include "nsUnicodeScriptCodes.h"
-#include "nsUnicodeNormalizer.h"
 
 #include "harfbuzz/hb.h"
 #include "harfbuzz/hb-ot.h"
 
-#if ENABLE_INTL_API // ICU is available: we'll use it for Unicode composition
-                    // and decomposition in preference to nsUnicodeNormalizer.
 #include "unicode/unorm.h"
 #include "unicode/utext.h"
-#define MOZ_HB_SHAPER_USE_ICU_NORMALIZATION 1
+
 static const UNormalizer2 * sNormalizer = nullptr;
-#else
-#undef MOZ_HB_SHAPER_USE_ICU_NORMALIZATION
-#endif
 
 #include <algorithm>
 
@@ -117,13 +111,15 @@ gfxHarfBuzzShaper::GetNominalGlyph(hb_codepoint_t unicode) const
         NS_ASSERTION(mCmapTable && (mCmapFormat > 0) && (mSubtableOffset > 0),
                      "cmap data not correctly set up, expect disaster");
 
+        uint32_t length;
         const uint8_t* data =
-            (const uint8_t*)hb_blob_get_data(mCmapTable, nullptr);
+            (const uint8_t*)hb_blob_get_data(mCmapTable, &length);
 
         switch (mCmapFormat) {
         case 4:
             gid = unicode < UNICODE_BMP_LIMIT ?
                 gfxFontUtils::MapCharToGlyphFormat4(data + mSubtableOffset,
+                                                    length - mSubtableOffset,
                                                     unicode) : 0;
             break;
         case 10:
@@ -163,8 +159,9 @@ gfxHarfBuzzShaper::GetVariationGlyph(hb_codepoint_t unicode,
     NS_ASSERTION(mCmapTable && (mCmapFormat > 0) && (mSubtableOffset > 0),
                  "cmap data not correctly set up, expect disaster");
 
+    uint32_t length;
     const uint8_t* data =
-        (const uint8_t*)hb_blob_get_data(mCmapTable, nullptr);
+        (const uint8_t*)hb_blob_get_data(mCmapTable, &length);
 
     if (mUVSTableOffset) {
         hb_codepoint_t gid =
@@ -182,6 +179,7 @@ gfxHarfBuzzShaper::GetVariationGlyph(hb_codepoint_t unicode,
         case 4:
             if (compat < UNICODE_BMP_LIMIT) {
                 return gfxFontUtils::MapCharToGlyphFormat4(data + mSubtableOffset,
+                                                           length - mSubtableOffset,
                                                            compat);
             }
             break;
@@ -1091,8 +1089,6 @@ HBUnicodeCompose(hb_unicode_funcs_t *ufuncs,
                  hb_codepoint_t     *ab,
                  void               *user_data)
 {
-#if MOZ_HB_SHAPER_USE_ICU_NORMALIZATION
-
     if (sNormalizer) {
         UChar32 ch = unorm2_composePair(sNormalizer, a, b);
         if (ch >= 0) {
@@ -1100,14 +1096,6 @@ HBUnicodeCompose(hb_unicode_funcs_t *ufuncs,
             return true;
         }
     }
-
-#else // no ICU available, use the old nsUnicodeNormalizer
-
-    if (nsUnicodeNormalizer::Compose(a, b, ab)) {
-        return true;
-    }
-
-#endif
 
     return false;
 }
@@ -1128,8 +1116,6 @@ HBUnicodeDecompose(hb_unicode_funcs_t *ufuncs,
         return true;
     }
 #endif
-
-#if MOZ_HB_SHAPER_USE_ICU_NORMALIZATION
 
     if (!sNormalizer) {
         return false;
@@ -1162,12 +1148,6 @@ HBUnicodeDecompose(hb_unicode_funcs_t *ufuncs,
     utext_close(&text);
 
     return *b != 0 || *a != ab;
-
-#else // no ICU available, use the old nsUnicodeNormalizer
-
-    return nsUnicodeNormalizer::DecomposeNonRecursively(ab, a, b);
-
-#endif
 }
 
 static void
@@ -1250,11 +1230,9 @@ gfxHarfBuzzShaper::Initialize()
                                             HBUnicodeDecompose,
                                             nullptr, nullptr);
 
-#if MOZ_HB_SHAPER_USE_ICU_NORMALIZATION
         UErrorCode error = U_ZERO_ERROR;
         sNormalizer = unorm2_getNFCInstance(&error);
-        NS_ASSERTION(U_SUCCESS(error), "failed to get ICU normalizer");
-#endif
+        MOZ_ASSERT(U_SUCCESS(error), "failed to get ICU normalizer");
     }
 
     gfxFontEntry *entry = mFont->GetFontEntry();

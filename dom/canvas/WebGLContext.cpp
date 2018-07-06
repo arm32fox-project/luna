@@ -9,7 +9,6 @@
 
 #include "AccessCheck.h"
 #include "gfxContext.h"
-#include "gfxCrashReporterUtils.h"
 #include "gfxPattern.h"
 #include "gfxPrefs.h"
 #include "gfxUtils.h"
@@ -50,10 +49,6 @@
 #include "ScopedGLHelpers.h"
 #include "VRManagerChild.h"
 #include "mozilla/layers/TextureClientSharedSurface.h"
-
-#ifdef MOZ_WIDGET_GONK
-#include "mozilla/layers/ShadowLayers.h"
-#endif
 
 // Local
 #include "CanvasUtils.h"
@@ -545,30 +540,6 @@ BaseCaps(const WebGLContextOptions& options, WebGLContext* webgl)
     // for now it's just behind a pref for testing/evaluation.
     baseCaps.bpp16 = gfxPrefs::WebGLPrefer16bpp();
 
-#ifdef MOZ_WIDGET_GONK
-    do {
-        auto canvasElement = webgl->GetCanvas();
-        if (!canvasElement)
-            break;
-
-        auto ownerDoc = canvasElement->OwnerDoc();
-        nsIWidget* docWidget = nsContentUtils::WidgetForDocument(ownerDoc);
-        if (!docWidget)
-            break;
-
-        layers::LayerManager* layerManager = docWidget->GetLayerManager();
-        if (!layerManager)
-            break;
-
-        // XXX we really want "AsSurfaceAllocator" here for generality
-        layers::ShadowLayerForwarder* forwarder = layerManager->AsShadowForwarder();
-        if (!forwarder)
-            break;
-
-        baseCaps.surfaceAllocator = forwarder->GetTextureForwarder();
-    } while (false);
-#endif
-
     // Done with baseCaps construction.
 
     if (!gfxPrefs::WebGLForceMSAA()) {
@@ -984,7 +955,6 @@ WebGLContext::SetDimensions(int32_t signedWidth, int32_t signedHeight)
 
     // Alright, now let's start trying.
     bool forceEnabled = gfxPrefs::WebGLForceEnabled();
-    ScopedGfxFeatureReporter reporter("WebGL", forceEnabled);
 
     MOZ_ASSERT(!gl);
     std::vector<FailureReason> failReasons;
@@ -1114,8 +1084,6 @@ WebGLContext::SetDimensions(int32_t signedWidth, int32_t signedHeight)
     mShouldPresent = true;
 
     //////
-
-    reporter.SetSuccessful();
 
     failureId = NS_LITERAL_CSTRING("SUCCESS");
     return NS_OK;

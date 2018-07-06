@@ -230,6 +230,10 @@ Animation::SetTimelineNoUpdate(AnimationTimeline* aTimeline)
     return;
   }
 
+  StickyTimeDuration activeTime = mEffect
+                                  ? mEffect->GetComputedTiming().mActiveTime
+                                  : StickyTimeDuration();
+
   RefPtr<AnimationTimeline> oldTimeline = mTimeline;
   if (oldTimeline) {
     oldTimeline->RemoveAnimation(this);
@@ -240,6 +244,9 @@ Animation::SetTimelineNoUpdate(AnimationTimeline* aTimeline)
     mHoldTime.SetNull();
   }
 
+  if (!aTimeline) {
+    MaybeQueueCancelEvent(activeTime);
+  }
   UpdateTiming(SeekFlag::NoSeek, SyncNotifyFlag::Async);
 }
 
@@ -582,8 +589,10 @@ Animation::Tick()
     // during the *previous* tick of the refresh driver, it can still be
     // ahead of the *current* timeline time when we are using the
     // vsync timer so we need to clamp it to the timeline time.
-    mPendingReadyTime.SetValue(std::min(mTimeline->GetCurrentTime().Value(),
-                                        mPendingReadyTime.Value()));
+    TimeDuration currentTime = mTimeline->GetCurrentTime().Value();
+    if (currentTime < mPendingReadyTime.Value()) {
+      mPendingReadyTime.SetValue(currentTime);
+    }
     FinishPendingAt(mPendingReadyTime.Value());
     mPendingReadyTime.SetNull();
   }
@@ -722,8 +731,10 @@ TimeStamp
 Animation::ElapsedTimeToTimeStamp(
   const StickyTimeDuration& aElapsedTime) const
 {
-  return AnimationTimeToTimeStamp(aElapsedTime +
-                                  mEffect->SpecifiedTiming().mDelay);
+  TimeDuration delay = mEffect
+                       ? mEffect->SpecifiedTiming().mDelay
+                       : TimeDuration();
+  return AnimationTimeToTimeStamp(aElapsedTime + delay);
 }
 
 
@@ -771,14 +782,28 @@ Animation::CancelNoUpdate()
 
   DispatchPlaybackEvent(NS_LITERAL_STRING("cancel"));
 
+  StickyTimeDuration activeTime = mEffect
+                                  ? mEffect->GetComputedTiming().mActiveTime
+                                  : StickyTimeDuration();
+
   mHoldTime.SetNull();
   mStartTime.SetNull();
-
-  UpdateTiming(SeekFlag::NoSeek, SyncNotifyFlag::Async);
 
   if (mTimeline) {
     mTimeline->RemoveAnimation(this);
   }
+  MaybeQueueCancelEvent(activeTime);
+
+  // When an animation is cancelled it no longer needs further ticks from the
+  // timeline. However, if we queued a cancel event and this was the last
+  // animation attached to the timeline, the timeline will stop observing the
+  // refresh driver and there may be no subsequent refresh driver tick for
+  // dispatching the queued event.
+  //
+  // By calling UpdateTiming *after* removing ourselves from our timeline, we
+  // ensure the timeline will register with the refresh driver for at least one
+  // more tick.
+  UpdateTiming(SeekFlag::NoSeek, SyncNotifyFlag::Async);
 }
 
 void
@@ -819,6 +844,17 @@ Animation::HasLowerCompositeOrderThan(const Animation& aOther) const
       return thisTransition->HasLowerCompositeOrderThan(*otherTransition);
     }
     if (thisTransition || otherTransition) {
+      // Cancelled transitions no longer have an owning element. To be strictly
+      // correct we should store a strong reference to the owning element
+      // so that if we arrive here while sorting cancel events, we can sort
+      // them in the correct order.
+      //
+      // However, given that cancel events are almost always queued
+      // synchronously in some deterministic manner, we can be fairly sure
+      // that cancel events will be dispatched in a deterministic order
+      // (which is our only hard requirement until specs say otherwise).
+      // Furthermore, we only reach here when we have events with equal
+      // timestamps so this is an edge case we can probably ignore for now.
       return thisTransition;
     }
   }

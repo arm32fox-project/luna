@@ -49,7 +49,7 @@ this.LightweightThemeImageOptimizer = {
 
 Object.freeze(LightweightThemeImageOptimizer);
 
-let ImageCropper = {
+var ImageCropper = {
   _inProgress: {},
 
   getCroppedImageURL:
@@ -59,10 +59,14 @@ let ImageCropper = {
       return aImageURL;
     }
 
-    if (Services.prefs.getBoolPref("lightweightThemes.animation.enabled")) {
-      //Don't crop if animated
-      return aImageURL;
-    }   
+    try {
+      if (Services.prefs.getBoolPref("lightweightThemes.animation.enabled")) {
+        //Don't crop if animated
+        return aImageURL;
+      }
+    } catch(e) { 
+      // Continue of pref doesn't exist.
+    }
 
     // Generate the cropped image's file name using its
     // base name and the current screen size.
@@ -119,23 +123,20 @@ let ImageCropper = {
   }
 };
 
-let ImageFile = {
-  read: function ImageFile_read(aURI, aCallback) {
-    this._netUtil.asyncFetch2(
-      aURI,
-      function read_asyncFetch(aInputStream, aStatus, aRequest) {
+var ImageFile = {
+  read: function(aURI, aCallback) {
+    this._netUtil.asyncFetch({
+      uri: aURI,
+      loadUsingSystemPrincipal: true,
+      contentPolicyType: Ci.nsIContentPolicy.TYPE_INTERNAL_IMAGE
+    }, function(aInputStream, aStatus, aRequest) {
         if (Components.isSuccessCode(aStatus) && aRequest instanceof Ci.nsIChannel) {
           let channel = aRequest.QueryInterface(Ci.nsIChannel);
           aCallback(aInputStream, channel.contentType);
         } else {
           aCallback();
         }
-      },
-      null,      // aLoadingNode
-      Services.scriptSecurityManager.getSystemPrincipal(),
-      null,      // aTriggeringPrincipal
-      Ci.nsILoadInfo.SEC_NORMAL,
-      Ci.nsIContentPolicy.TYPE_IMAGE);
+      });
   },
 
   write: function ImageFile_write(aFile, aInputStream, aCallback) {
@@ -158,7 +159,7 @@ let ImageFile = {
 XPCOMUtils.defineLazyModuleGetter(ImageFile, "_netUtil",
   "resource://gre/modules/NetUtil.jsm", "NetUtil");
 
-let ImageTools = {
+var ImageTools = {
   decode: function ImageTools_decode(aInputStream, aContentType) {
     let outParam = {value: null};
 
@@ -187,7 +188,7 @@ let ImageTools = {
 XPCOMUtils.defineLazyServiceGetter(ImageTools, "_imgTools",
   "@mozilla.org/image/tools;1", "imgITools");
 
-let Utils = {
+var Utils = {
   createCopy: function Utils_createCopy(aData) {
     let copy = {};
     for (let [k, v] in Iterator(aData)) {

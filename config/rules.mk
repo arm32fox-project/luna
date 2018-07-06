@@ -386,26 +386,6 @@ endif
 endif
 endif
 
-#
-# HP-UXBeOS specific section: for COMPONENTS only, add -Bsymbolic flag
-# which uses internal symbols first
-#
-ifeq ($(OS_ARCH),HP-UX)
-ifdef IS_COMPONENT
-ifeq ($(GNU_CC)$(GNU_CXX),)
-EXTRA_DSO_LDOPTS += -Wl,-Bsymbolic
-ifneq ($(HAS_EXTRAEXPORTS),1)
-MKSHLIB  += -Wl,+eNSGetModule -Wl,+eerrno
-MKCSHLIB += +eNSGetModule +eerrno
-ifneq ($(OS_TEST),ia64)
-MKSHLIB  += -Wl,+e_shlInit
-MKCSHLIB += +e_shlInit
-endif # !ia64
-endif # !HAS_EXTRAEXPORTS
-endif # non-gnu compilers
-endif # IS_COMPONENT
-endif # HP-UX
-
 ifeq ($(OS_ARCH),AIX)
 ifdef IS_COMPONENT
 ifneq ($(HAS_EXTRAEXPORTS),1)
@@ -1129,6 +1109,12 @@ ifneq (,$(JAR_MANIFEST))
 ifndef NO_DIST_INSTALL
 
 ifdef XPI_NAME
+# XXX: Figure out why Pale Moon's defs.mk is not being propigated
+ifndef XPI_ROOT_APPID
+ifdef MC_PALEMOON
+XPI_ROOT_APPID=$(MOZ_APP_ID)
+endif
+endif
 ifdef XPI_ROOT_APPID
 # For add-on packaging we may specify that an application
 # sub-dir should be added to the root chrome manifest with

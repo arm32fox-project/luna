@@ -13,7 +13,7 @@
 
 <?xml-stylesheet href="chrome://browser/content/places/places.css" type="text/css"?>
 #ifdef MOZ_DEVTOOLS
-<?xml-stylesheet href="chrome://global/skin/devtools/common.css" type="text/css"?>
+<?xml-stylesheet href="chrome://devtools/skin/devtools-browser.css" type="text/css"?>
 #endif
 <?xml-stylesheet href="chrome://browser/skin/" type="text/css"?>
 
@@ -128,9 +128,25 @@
 
     <!-- for search and content formfill/pw manager -->
     <panel type="autocomplete" id="PopupAutoComplete" noautofocus="true" hidden="true"/>
+    <panel type="private-autocomplete" id="PopupAutoComplete" noautofocus="true" hidden="true"/>
 
     <!-- for url bar autocomplete -->
     <panel type="autocomplete-richlistbox" id="PopupAutoCompleteRichResult" noautofocus="true" hidden="true"/>
+    <panel type="private-autocomplete-richlistbox" id="PopupAutoCompleteRichResult" noautofocus="true" hidden="true"/>
+
+    <!-- for date/time picker. consumeoutsideclicks is set to never, so that
+         clicks on the anchored input box are never consumed. -->
+    <panel id="DateTimePickerPanel"
+           type="arrow"
+           hidden="true"
+           orient="vertical"
+           noautofocus="true"
+           norolluponanchor="true"
+           consumeoutsideclicks="never"
+           level="parent"
+           tabspecific="true">
+      <iframe id="dateTimePopupFrame"/>
+    </panel>
 
     <!-- for invalid form error message -->
     <panel id="invalid-form-popup" type="arrow" orient="vertical" noautofocus="true" hidden="true" level="parent">
@@ -139,7 +155,6 @@
 
     <panel id="editBookmarkPanel"
            type="arrow"
-           footertype="promobox"
            orient="vertical"
            ignorekeys="true"
            consumeoutsideclicks="true"
@@ -414,7 +429,7 @@
                    title="&locationItem.title;" class="chromeclass-location" removable="true">
         <textbox id="urlbar" flex="1"
                  placeholder=""
-                 type="autocomplete"
+                 type="private-autocomplete"
                  autocompletesearch="urlinline history"
                  autocompletesearchparam="enable-actions"
                  autocompletepopup="PopupAutoCompleteRichResult"
@@ -437,7 +452,6 @@
             <image id="addons-notification-icon" class="notification-anchor-icon" role="button"/>
             <image id="indexedDB-notification-icon" class="notification-anchor-icon" role="button"/>
             <image id="password-notification-icon" class="notification-anchor-icon" role="button"/>
-            <image id="webapps-notification-icon" class="notification-anchor-icon" role="button"/>
             <image id="plugins-notification-icon" class="notification-anchor-icon" role="button"/>
             <image id="web-notifications-notification-icon" class="notification-anchor-icon" role="button"/>
             <image id="alert-plugins-notification-icon" class="notification-anchor-icon" role="button"/>
@@ -926,7 +940,7 @@
     </toolbarpalette>
   </toolbox>
 
-  <hbox id="fullscr-toggler" collapsed="true"/>
+  <hbox id="fullscr-toggler" hidden="true"/>
 
   <hbox flex="1" id="browser">
     <vbox id="browser-border-start" hidden="true" layer="true"/>
@@ -946,7 +960,8 @@
                   flex="1" contenttooltip="aHTMLTooltip"
                   tabcontainer="tabbrowser-tabs"
                   contentcontextmenu="contentAreaContextMenu"
-                  autocompletepopup="PopupAutoComplete"/>
+                  autocompletepopup="PopupAutoComplete"
+                  datetimepicker="DateTimePickerPanel"/>
       <chatbar id="pinnedchats" layer="true" mousethrough="always" hidden="true"/>
       <statuspanel id="statusbar-display" inactive="true"/>
     </vbox>
@@ -958,18 +973,6 @@
       <vbox id="full-screen-warning-message" align="center">
         <description id="full-screen-domain-text"/>
         <description class="full-screen-description" value="&fullscreenExitHint.value;"/>
-        <vbox id="full-screen-approval-pane" align="center">
-          <description class="full-screen-description" value="&fullscreenApproval.value;"/>
-          <hbox>
-            <button label="&fullscreenAllowButton.label;"
-                    oncommand="FullScreen.setFullscreenAllowed(true);"
-                    class="full-screen-approval-button"/>
-            <button label="&fullscreenExitButton.label;"
-                    oncommand="FullScreen.setFullscreenAllowed(false);"
-                    class="full-screen-approval-button"/>
-          </hbox>
-          <checkbox id="full-screen-remember-decision"/>
-        </vbox>
       </vbox>
     </hbox>
   </hbox>

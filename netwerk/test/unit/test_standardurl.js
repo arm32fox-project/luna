@@ -251,6 +251,17 @@ add_test(function test_escapeBrackets()
   run_next_test();
 });
 
+add_test(function test_escapeQuote()
+{
+  var url = stringToURL("http://example.com/#'");
+  do_check_eq(url.spec, "http://example.com/#'");
+  do_check_eq(url.ref, "'");
+  url.ref = "test'test";
+  do_check_eq(url.spec, "http://example.com/#test'test");
+  do_check_eq(url.ref, "test'test");
+  run_next_test();
+});
+
 add_test(function test_apostropheEncoding()
 {
   // For now, single quote is escaped everywhere _except_ the path.
@@ -331,6 +342,14 @@ add_test(function test_backslashReplacement()
   do_check_eq(url.spec, "http://test.com/example.org/path/to/file");
   do_check_eq(url.host, "test.com");
   do_check_eq(url.path, "/example.org/path/to/file");
+
+  run_next_test();
+});
+
+add_test(function test_authority_host()
+{
+  Assert.throws(() => { stringToURL("http:"); }, "TYPE_AUTHORITY should have host");
+  Assert.throws(() => { stringToURL("http:///"); }, "TYPE_AUTHORITY should have host");
 
   run_next_test();
 });
@@ -451,5 +470,25 @@ add_test(function test_invalidHostChars() {
 
   // It also can't contain /, \, #, ?, but we treat these characters as
   // hostname separators, so there is no way to set them and fail.
+  run_next_test();
+});
+
+add_test(function test_emptyPassword() {
+  var url = stringToURL("http://a:@example.com");
+  do_check_eq(url.spec, "http://a@example.com/");
+  url.password = "pp";
+  do_check_eq(url.spec, "http://a:pp@example.com/");
+  url.password = "";
+  do_check_eq(url.spec, "http://a@example.com/");
+  url.userPass = "xxx:";
+  do_check_eq(url.spec, "http://xxx@example.com/");
+  url.password = "zzzz";
+  do_check_eq(url.spec, "http://xxx:zzzz@example.com/");
+  url.userPass = "xxxxx:yyyyyy";
+  do_check_eq(url.spec, "http://xxxxx:yyyyyy@example.com/");
+  url.userPass = "z:";
+  do_check_eq(url.spec, "http://z@example.com/");
+  url.password = "ppppppppppp";
+  do_check_eq(url.spec, "http://z:ppppppppppp@example.com/");
   run_next_test();
 });

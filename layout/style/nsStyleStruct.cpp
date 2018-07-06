@@ -1629,23 +1629,11 @@ nsStylePosition::CalcDifference(const nsStylePosition& aNewData,
   if (aOldStyleVisibility) {
     bool isVertical = WritingMode(aOldStyleVisibility).IsVertical();
     if (isVertical ? widthChanged : heightChanged) {
-      // Block-size changes can affect descendant intrinsic sizes due to
-      // replaced elements with percentage bsizes in descendants which
-      // also have percentage bsizes. This is handled via
-      // nsChangeHint_UpdateComputedBSize which clears intrinsic sizes
-      // for frames that have such replaced elements.
-      hint |= nsChangeHint_NeedReflow |
-              nsChangeHint_UpdateComputedBSize |
-              nsChangeHint_ReflowChangesSizeOrPosition;
+      hint |= nsChangeHint_ReflowHintsForBSizeChange;
     }
 
     if (isVertical ? heightChanged : widthChanged) {
-      // None of our inline-size differences can affect descendant
-      // intrinsic sizes and none of them need to force children to
-      // reflow.
-      hint |= nsChangeHint_AllReflowHints &
-              ~(nsChangeHint_ClearDescendantIntrinsics |
-                nsChangeHint_NeedDirtyReflow);
+      hint |= nsChangeHint_ReflowHintsForISizeChange;
     }
   } else {
     if (widthChanged || heightChanged) {
@@ -3258,8 +3246,6 @@ nsStyleDisplay::CalcDifference(const nsStyleDisplay& aNewData) const
       || mDisplay != aNewData.mDisplay
       || mContain != aNewData.mContain
       || (mFloat == StyleFloat::None) != (aNewData.mFloat == StyleFloat::None)
-      || mOverflowX != aNewData.mOverflowX
-      || mOverflowY != aNewData.mOverflowY
       || mScrollBehavior != aNewData.mScrollBehavior
       || mScrollSnapTypeX != aNewData.mScrollSnapTypeX
       || mScrollSnapTypeY != aNewData.mScrollSnapTypeY
@@ -3269,6 +3255,11 @@ nsStyleDisplay::CalcDifference(const nsStyleDisplay& aNewData) const
       || mTopLayer != aNewData.mTopLayer
       || mResize != aNewData.mResize) {
     hint |= nsChangeHint_ReconstructFrame;
+  }
+
+  if (mOverflowX != aNewData.mOverflowX
+      || mOverflowY != aNewData.mOverflowY) {
+    hint |= nsChangeHint_CSSOverflowChange;
   }
 
   /* Note: When mScrollBehavior, mScrollSnapTypeX, mScrollSnapTypeY,
@@ -3797,6 +3788,7 @@ nsStyleText::nsStyleText(StyleStructContext aContext)
   , mTextAlignLast(NS_STYLE_TEXT_ALIGN_AUTO)
   , mTextAlignTrue(false)
   , mTextAlignLastTrue(false)
+  , mTextJustify(StyleTextJustify::Auto)
   , mTextTransform(NS_STYLE_TEXT_TRANSFORM_NONE)
   , mWhiteSpace(NS_STYLE_WHITESPACE_NORMAL)
   , mWordBreak(NS_STYLE_WORDBREAK_NORMAL)
@@ -3833,6 +3825,7 @@ nsStyleText::nsStyleText(const nsStyleText& aSource)
   , mTextAlignLast(aSource.mTextAlignLast)
   , mTextAlignTrue(false)
   , mTextAlignLastTrue(false)
+  , mTextJustify(aSource.mTextJustify)
   , mTextTransform(aSource.mTextTransform)
   , mWhiteSpace(aSource.mWhiteSpace)
   , mWordBreak(aSource.mWordBreak)
@@ -3894,6 +3887,7 @@ nsStyleText::CalcDifference(const nsStyleText& aNewData) const
       (mTextSizeAdjust != aNewData.mTextSizeAdjust) ||
       (mLetterSpacing != aNewData.mLetterSpacing) ||
       (mLineHeight != aNewData.mLineHeight) ||
+      (mTextJustify != aNewData.mTextJustify) ||
       (mTextIndent != aNewData.mTextIndent) ||
       (mWordSpacing != aNewData.mWordSpacing) ||
       (mTabSize != aNewData.mTabSize)) {

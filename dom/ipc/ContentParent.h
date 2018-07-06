@@ -42,14 +42,6 @@ class nsIWidget;
 
 namespace mozilla {
 class PRemoteSpellcheckEngineParent;
-#ifdef MOZ_ENABLE_PROFILER_SPS
-class ProfileGatherer;
-#endif
-
-#if defined(XP_LINUX) && defined(MOZ_CONTENT_SANDBOX)
-class SandboxBroker;
-class SandboxBrokerPolicyFactory;
-#endif
 
 namespace embedding {
 class PrintingParent;
@@ -376,15 +368,6 @@ public:
   void FriendlyName(nsAString& aName, bool aAnonymize = false);
 
   virtual void OnChannelError() override;
-
-  virtual PCrashReporterParent*
-  AllocPCrashReporterParent(const NativeThreadId& tid,
-                            const uint32_t& processType) override;
-
-  virtual bool
-  RecvPCrashReporterConstructor(PCrashReporterParent* actor,
-                                const NativeThreadId& tid,
-                                const uint32_t& processType) override;
 
   virtual PNeckoParent* AllocPNeckoParent() override;
 
@@ -740,9 +723,6 @@ private:
   RecvPBlobConstructor(PBlobParent* aActor,
                        const BlobConstructorParams& params) override;
 
-  virtual bool
-  DeallocPCrashReporterParent(PCrashReporterParent* crashreporter) override;
-
   virtual bool RecvNSSU2FTokenIsCompatibleVersion(const nsString& aVersion,
                                                   bool* aIsCompatible) override;
 
@@ -762,8 +742,7 @@ private:
                                const uint32_t& aFlags, bool* aIsSecureURI) override;
 
   virtual bool RecvAccumulateMixedContentHSTS(const URIParams& aURI,
-                                              const bool& aActive,
-                                              const bool& aHSTSPriming) override;
+                                              const bool& aActive) override;
 
   virtual bool DeallocPHalParent(PHalParent*) override;
 
@@ -1035,11 +1014,7 @@ private:
   virtual bool RecvUpdateDropEffect(const uint32_t& aDragAction,
                                     const uint32_t& aDropEffect) override;
 
-  virtual bool RecvProfile(const nsCString& aProfile) override;
-
   virtual bool RecvGetGraphicsDeviceInitData(ContentDeviceData* aOut) override;
-
-  void StartProfiler(nsIProfilerStartParams* aParams);
 
   virtual bool RecvGetAndroidSystemInfo(AndroidSystemInfo* aInfo) override;
 
@@ -1145,18 +1120,9 @@ private:
 
   PProcessHangMonitorParent* mHangMonitorActor;
 
-#ifdef MOZ_ENABLE_PROFILER_SPS
-  RefPtr<mozilla::ProfileGatherer> mGatherer;
-#endif
   nsCString mProfile;
 
   UniquePtr<gfx::DriverCrashGuard> mDriverCrashGuard;
-
-#if defined(XP_LINUX) && defined(MOZ_CONTENT_SANDBOX)
-  mozilla::UniquePtr<SandboxBroker> mSandboxBroker;
-  static mozilla::UniquePtr<SandboxBrokerPolicyFactory>
-      sSandboxBrokerPolicyFactory;
-#endif
 
 #ifdef NS_PRINTING
   RefPtr<embedding::PrintingParent> mPrintingParent;

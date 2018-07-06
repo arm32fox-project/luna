@@ -12,8 +12,6 @@ const IMAGE_DENY = 2;
 const COOKIE_DENY = 2;
 const COOKIE_SESSION = 2;
 
-const nsIQuotaManagerService = Components.interfaces.nsIQuotaManagerService;
-
 var gPermURI;
 var gPermPrincipal;
 var gPrefs;
@@ -65,30 +63,9 @@ var gPermObj = {
     }
     return ALLOW;
   },
-  indexedDB: function getIndexedDBDefaultPermissions()
-  {
-    if (!gPrefs.getBoolPref("dom.indexedDB.enabled")) {
-      return DENY;
-    }
-    return UNKNOWN;
-  },
   plugins: function getPluginsDefaultPermissions()
   {
     return UNKNOWN;
-  },
-  fullscreen: function getFullscreenDefaultPermissions()
-  {
-    if (!gPrefs.getBoolPref("full-screen-api.enabled")) {
-      return DENY;
-    }
-    return UNKNOWN;  
-  },
-  pointerLock: function getPointerLockPermissions()
-  {
-    if (!gPrefs.getBoolPref("full-screen-api.pointer-lock.enabled")) {
-      return DENY;
-    }
-    return ALLOW;
   },
 };
 
@@ -98,7 +75,7 @@ var permissionObserver = {
     if (aTopic == "perm-changed") {
       var permission = aSubject.QueryInterface(
                        Components.interfaces.nsIPermission);
-      if (permission.host == gPermURI.host) {
+      if (permission.matchesURI(gPermURI, true)) {
         if (permission.type in gPermObj)
           initRow(permission.type);
         else if (permission.type.startsWith("plugin"))
@@ -119,7 +96,7 @@ function onLoadPermission(principal)
     gPermURI = uri;
     gPermPrincipal = principal;
     var hostText = document.getElementById("hostText");
-    hostText.value = gPermURI.host;
+    hostText.value = gPermURI.prePath;
 
     for (var i in gPermObj)
       initRow(i);
@@ -175,10 +152,6 @@ function initRow(aPartId)
     perm = gPermObj[aPartId]();
   }
   setRadioState(aPartId, perm);
-
-  if (aPartId == "indexedDB") {
-    initIndexedDBRow();
-  }
 }
 
 function onCheckboxClick(aPartId)
@@ -223,65 +196,6 @@ function setRadioState(aPartId, aValue)
 {
   var radio = document.getElementById(aPartId + "#" + aValue);
   radio.radioGroup.selectedItem = radio;
-}
-
-function initIndexedDBRow()
-{
-  let row = document.getElementById("permIndexedDBRow");
-  let extras = document.getElementById("permIndexedDBExtras");
-
-  row.appendChild(extras);
-
-  var quotaManagerService =
-    Components.classes["@mozilla.org/dom/quota-manager-service;1"]
-              .getService(nsIQuotaManagerService);
-
-  gUsageRequest =
-    quotaManagerService.getUsageForPrincipal(gPermPrincipal,
-                                             onIndexedDBUsageCallback);
-
-  var status = document.getElementById("indexedDBStatus");
-  var button = document.getElementById("indexedDBClear");
-
-  status.value = "";
-  status.setAttribute("hidden", "true");
-  button.setAttribute("hidden", "true");
-}
-
-function onIndexedDBClear()
-{
-  Components.classes["@mozilla.org/dom/quota-manager-service;1"]
-            .getService(nsIQuotaManagerService)
-            .clearStoragesForPrincipal(gPermPrincipal);
-
-  var permissionManager = Components.classes[PERMISSION_CONTRACTID]
-                                    .getService(nsIPermissionManager);
-  permissionManager.remove(gPermURI, "indexedDB");
-  initIndexedDBRow();
-}
-
-function onIndexedDBUsageCallback(request)
-{
-  let uri = request.principal.URI;
-  if (!uri.equals(gPermURI)) {
-    throw new Error("Callback received for bad URI: " + uri.spec);
-  }
-
-  let usage = request.result.usage;
-  if (usage) {
-    if (!("DownloadUtils" in window)) {
-      Components.utils.import("resource://gre/modules/DownloadUtils.jsm");
-    }
-
-    var status = document.getElementById("indexedDBStatus");
-    var button = document.getElementById("indexedDBClear");
-
-    status.value =
-      gBundle.getFormattedString("indexedDBUsage",
-                                 DownloadUtils.convertByteUnits(usage));
-    status.removeAttribute("hidden");
-    button.removeAttribute("hidden");
-  }
 }
 
 // XXX copied this from browser-plugins.js - is there a way to share?

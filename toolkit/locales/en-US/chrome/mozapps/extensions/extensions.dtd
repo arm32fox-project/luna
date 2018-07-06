@@ -1,6 +1,7 @@
 <!-- This Source Code Form is subject to the terms of the Mozilla Public
    - License, v. 2.0. If a copy of the MPL was not distributed with this
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+
 <!ENTITY addons.windowTitle                   "Add-ons Manager">
 
 <!ENTITY search.placeholder                   "Search all add-ons">
@@ -22,6 +23,13 @@
 
 <!ENTITY cmd.back.tooltip                     "Go back one page">
 <!ENTITY cmd.forward.tooltip                  "Go forward one page">
+
+#ifdef MOZ_WEBEXTENSIONS
+<!ENTITY showUnsignedExtensions.button.label  "Some extensions could not be verified">
+<!ENTITY showAllExtensions.button.label       "Show all extensions">
+<!ENTITY debugAddons.label                    "Debug Add-ons">
+<!ENTITY debugAddons.accesskey                "B">
+#endif
 
 <!-- global warnings -->
 <!ENTITY warning.safemode.label                    "All add-ons have been disabled by safe mode.">
@@ -210,7 +218,7 @@
 <!ENTITY addon.loadingReleaseNotes.label      "Loading…">
 <!ENTITY addon.errorLoadingReleaseNotes.label "Sorry, but there was an error loading the release notes.">
 
-<!ENTITY addon.nativeAddon                    "This add-on directly targets Pale Moon">
+<!ENTITY addon.nativeAddon                    "This add-on directly targets &brandFullName;">
 <!ENTITY addon.compatAddon                    "This add-on targets Mozilla Firefox and runs in compatibility mode">
 
 <!ENTITY addon.createdBy.label                "By ">
@@ -234,3 +242,23 @@
 <!ENTITY experiment.info.changetelemetry.accesskey "T">
 
 <!ENTITY setting.learnmore "Learn More…">
+
+#ifdef MOZ_WEBEXTENSIONS
+<!ENTITY disabledUnsigned.heading "Some add-ons have been disabled">
+<!-- LOCALIZATION NOTE (disabledUnsigned.description.start, disabledUnsigned.description.findAddonsLink, disabledUnsigned.description.end):
+     These entities form a sentence, with
+     disabledUnsigned.description.findAddonsLink being a link to an external site. -->
+<!ENTITY disabledUnsigned.description.start "The following add-ons have not been verified for use in &brandShortName;. You can ">
+<!ENTITY disabledUnsigned.description.findAddonsLink "find replacements">
+<!ENTITY disabledUnsigned.description.end " or ask the developer to get them verified.">
+<!ENTITY disabledUnsigned.learnMore "Learn more about our efforts to help keep you safe online.">
+<!-- LOCALIZATION NOTE (disabledUnsigned.devInfo.start, disabledUnsigned.devInfo.linkToManual, disabledUnsigned.devInfo.end):
+     These entities form a sentence, with disabledUnsigned.devInfo.linkToManual
+     being a link to an external site. -->
+<!ENTITY disabledUnsigned.devInfo.start "Developers interested in getting their add-ons verified can continue by reading our ">
+<!ENTITY disabledUnsigned.devInfo.linkToManual "manual">
+<!ENTITY disabledUnsigned.devInfo.end ".">
+
+<!ENTITY pluginDeprecation.description "Missing something? Some plugins are no longer supported by &brandShortName;.">
+<!ENTITY pluginDeprecation.learnMore "Learn More.">
+#endif

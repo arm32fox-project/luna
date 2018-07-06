@@ -12,6 +12,7 @@ user_pref("dom.experimental_forms", true); // on for testing
 user_pref("dom.forms.number", true); // on for testing
 user_pref("dom.forms.color", true); // on for testing
 user_pref("dom.forms.datetime", true); // on for testing
+user_pref("dom.forms.datetime.others", true); // on for testing
 user_pref("dom.max_script_run_time", 0); // no slow script dialogs
 user_pref("hangmonitor.timeout", 0); // no hang monitor
 user_pref("dom.max_chrome_script_run_time", 0);
@@ -181,6 +182,9 @@ user_pref("layout.css.prefixes.device-pixel-ratio-webkit", true);
 // Enable CSS shape-outside for testing
 user_pref("layout.css.shape-outside.enabled", true);
 
+// Enable CSS text-justify for testing
+user_pref("layout.css.text-justify.enabled", true);
+
 // Disable spammy layout warnings because they pollute test logs
 user_pref("layout.spammy_warnings.enabled", false);
 
@@ -292,10 +296,6 @@ user_pref("browser.aboutHomeSnippets.updateUrl", "nonexistent://test");
 // Don't fetch or send directory tiles data from real servers
 user_pref("browser.newtabpage.directory.source", 'data:application/json,{"testing":1}');
 user_pref("browser.newtabpage.directory.ping", "");
-
-// Ensure UITour won't hit the network
-user_pref("browser.uitour.pinnedTabUrl", "http://%(server)s/uitour-dummy/pinnedTab");
-user_pref("browser.uitour.url", "http://%(server)s/uitour-dummy/tour");
 
 // Tell the search service we are running in the US.  This also has the desired
 // side-effect of preventing our geoip lookup.

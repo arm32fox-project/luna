@@ -4,10 +4,10 @@
 
 "use strict";
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
+var Cc = Components.classes;
+var Ci = Components.interfaces;
+var Cu = Components.utils;
+var Cr = Components.results;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
@@ -18,10 +18,12 @@ Cu.import("resource://gre/modules/addons/AddonRepository.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "PluralForm",
                                   "resource://gre/modules/PluralForm.jsm");
 
+#ifdef MOZ_DEVTOOLS
 XPCOMUtils.defineLazyGetter(this, "BrowserToolboxProcess", function () {
   return Cu.import("resource://devtools/client/framework/ToolboxProcess.jsm", {}).
          BrowserToolboxProcess;
 });
+#endif
 
 const PREF_DISCOVERURL = "extensions.webservice.discoverURL";
 const PREF_DISCOVER_ENABLED = "extensions.getAddons.showPane";
@@ -1002,6 +1004,7 @@ var gViewController = {
       }
     },
 
+#ifdef MOZ_DEVTOOLS
     cmd_debugItem: {
       doCommand: function cmd_debugItem_doCommand(aAddon) {
         BrowserToolboxProcess.init({ addonID: aAddon.id });
@@ -1015,6 +1018,7 @@ var gViewController = {
         return aAddon && aAddon.isDebuggable && debuggerEnabled && remoteEnabled;
       }
     },
+#endif
 
     cmd_showItemPreferences: {
       isEnabled: function cmd_showItemPreferences_isEnabled(aAddon) {
@@ -2456,7 +2460,7 @@ var gSearchView = {
     this._allResultsLink.setAttribute("href",
                                       AddonRepository.getSearchURL(this._lastQuery));
     this._allResultsLink.hidden = false;
- },
+  },
 
   updateListAttributes: function gSearchView_updateListAttributes() {
     var item = this._listBox.querySelector("richlistitem[remote='true'][first]");

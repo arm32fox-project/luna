@@ -32,7 +32,6 @@
 #include "mozilla/plugins/StreamNotifyChild.h"
 #include "mozilla/plugins/BrowserStreamChild.h"
 #include "mozilla/plugins/PluginStreamChild.h"
-#include "mozilla/dom/CrashReporterChild.h"
 #include "mozilla/Sprintf.h"
 #include "mozilla/Unused.h"
 
@@ -56,8 +55,6 @@ using namespace mozilla;
 using namespace mozilla::ipc;
 using namespace mozilla::plugins;
 using namespace mozilla::widget;
-using mozilla::dom::CrashReporterChild;
-using mozilla::dom::PCrashReporterChild;
 
 #if defined(XP_WIN)
 const wchar_t * kFlashFullscreenClass = L"ShockwaveFlashFullScreen";
@@ -731,29 +728,6 @@ PluginModuleChild::AllocPPluginModuleChild(mozilla::ipc::Transport* aTransport,
                                            base::ProcessId aOtherPid)
 {
     return PluginModuleChild::CreateForContentProcess(aTransport, aOtherPid);
-}
-
-PCrashReporterChild*
-PluginModuleChild::AllocPCrashReporterChild(mozilla::dom::NativeThreadId* id,
-                                            uint32_t* processType)
-{
-    return new CrashReporterChild();
-}
-
-bool
-PluginModuleChild::DeallocPCrashReporterChild(PCrashReporterChild* actor)
-{
-    delete actor;
-    return true;
-}
-
-bool
-PluginModuleChild::AnswerPCrashReporterConstructor(
-        PCrashReporterChild* actor,
-        mozilla::dom::NativeThreadId* id,
-        uint32_t* processType)
-{
-    return true;
 }
 
 void
@@ -2574,48 +2548,6 @@ PluginModuleChild::ProcessNativeEvents() {
     CallProcessSomeEvents();    
 }
 #endif
-
-bool
-PluginModuleChild::RecvStartProfiler(const ProfilerInitParams& params)
-{
-    nsTArray<const char*> featureArray;
-    for (size_t i = 0; i < params.features().Length(); ++i) {
-        featureArray.AppendElement(params.features()[i].get());
-    }
-
-    nsTArray<const char*> threadNameFilterArray;
-    for (size_t i = 0; i < params.threadFilters().Length(); ++i) {
-        threadNameFilterArray.AppendElement(params.threadFilters()[i].get());
-    }
-
-    profiler_start(params.entries(), params.interval(),
-                   featureArray.Elements(), featureArray.Length(),
-                   threadNameFilterArray.Elements(), threadNameFilterArray.Length());
-
-    return true;
-}
-
-bool
-PluginModuleChild::RecvStopProfiler()
-{
-    profiler_stop();
-    return true;
-}
-
-bool
-PluginModuleChild::RecvGatherProfile()
-{
-    nsCString profileCString;
-    UniquePtr<char[]> profile = profiler_get_profile();
-    if (profile != nullptr) {
-        profileCString = nsCString(profile.get(), strlen(profile.get()));
-    } else {
-        profileCString = nsCString("", 0);
-    }
-
-    Unused << SendProfile(profileCString);
-    return true;
-}
 
 NPError
 PluginModuleChild::PluginRequiresAudioDeviceChanges(

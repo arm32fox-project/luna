@@ -11,7 +11,6 @@ include protocol PCompositorBridge;
 include protocol PContentBridge;
 include protocol PContentPermissionRequest;
 include protocol PCycleCollectWithLogs;
-include protocol PCrashReporter;
 include protocol PPSMContentDownloader;
 include protocol PExternalHelperApp;
 include protocol PHandlerService;
@@ -243,7 +242,6 @@ nested(upto inside_cpow) sync protocol PContent
     manages PBlob;
     manages PBrowser;
     manages PContentPermissionRequest;
-    manages PCrashReporter;
     manages PCycleCollectWithLogs;
     manages PPSMContentDownloader;
     manages PExternalHelperApp;
@@ -466,15 +464,6 @@ child:
      */
     async LoadPluginResult(uint32_t aPluginId, bool aResult);
 
-    /**
-     * Control the Gecko Profiler in the child process.
-     */
-    async StartProfiler(ProfilerInitParams params);
-    async StopProfiler();
-    async PauseProfiler(bool aPause);
-
-    async GatherProfile();
-
     async InvokeDragSession(IPCDataTransfer[] transfers, uint32_t action);
 
     async EndDragSession(bool aDoneDrag, bool aUserCancelled,
@@ -625,8 +614,6 @@ parent:
 
     async PRemoteSpellcheckEngine();
 
-    sync PCrashReporter(NativeThreadId tid, uint32_t processType);
-
     /**
      * Is this token compatible with the provided version?
      *
@@ -674,7 +661,7 @@ parent:
     sync IsSecureURI(uint32_t type, URIParams uri, uint32_t flags)
         returns (bool isSecureURI);
 
-    async AccumulateMixedContentHSTS(URIParams uri, bool active, bool hasHSTSPriming);
+    async AccumulateMixedContentHSTS(URIParams uri, bool active);
 
     sync GetLookAndFeelCache()
         returns (LookAndFeelInt[] lookAndFeelIntCache);
@@ -961,8 +948,6 @@ parent:
      */
     async PContentPermissionRequest(PermissionRequest[] aRequests, Principal aPrincipal,
                                     TabId tabId);
-
-    async Profile(nsCString aProfile);
 
     /**
      * Request graphics initialization information from the parent.

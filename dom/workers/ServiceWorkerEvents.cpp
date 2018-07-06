@@ -12,6 +12,7 @@
 #include "nsINetworkInterceptController.h"
 #include "nsIOutputStream.h"
 #include "nsIScriptError.h"
+#include "nsITimedChannel.h"
 #include "nsIUnicodeDecoder.h"
 #include "nsIUnicodeEncoder.h"
 #include "nsContentPolicyUtils.h"
@@ -108,6 +109,12 @@ NS_IMETHODIMP
 CancelChannelRunnable::Run()
 {
   MOZ_ASSERT(NS_IsMainThread());
+
+  // TODO: When bug 1204254 is implemented, this time marker should be moved to
+  // the point where the body of the network request is complete.
+  mChannel->SetHandleFetchEventEnd(TimeStamp::Now());
+  mChannel->SaveTimeStampsToUnderlyingChannel();
+
   mChannel->Cancel(mStatus);
   mRegistration->MaybeScheduleUpdate();
   return NS_OK;
@@ -229,6 +236,9 @@ public:
       mChannel->Cancel(NS_ERROR_INTERCEPTION_FAILED);
       return NS_OK;
     }
+
+    mChannel->SetHandleFetchEventEnd(TimeStamp::Now());
+    mChannel->SaveTimeStampsToUnderlyingChannel();
 
     nsCOMPtr<nsIObserverService> obsService = services::GetObserverService();
     if (obsService) {
@@ -948,10 +958,8 @@ ExtendableEvent::GetPromise()
   }
   JSContext* cx = jsapi.cx();
 
-  GlobalObject global(cx, globalObj->GetGlobalJSObject());
-
   ErrorResult result;
-  RefPtr<Promise> p = Promise::All(global, Move(mPromises), result);
+  RefPtr<Promise> p = Promise::All(cx, Move(mPromises), result);
   if (NS_WARN_IF(result.MaybeSetPendingException(cx))) {
     return nullptr;
   }

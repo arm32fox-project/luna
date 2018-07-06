@@ -4,10 +4,10 @@
 
 "use strict";
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cr = Components.results;
-const Cu = Components.utils;
+var Cc = Components.classes;
+var Ci = Components.interfaces;
+var Cr = Components.results;
+var Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
@@ -29,7 +29,7 @@ const LOGGER_ID = "addons.xpi-utils";
 
 // Create a new logger for use by the Addons XPI Provider Utils
 // (Requires AddonManager.jsm)
-let logger = Log.repository.getLogger(LOGGER_ID);
+var logger = Log.repository.getLogger(LOGGER_ID);
 
 const KEY_PROFILEDIR                  = "ProfD";
 const FILE_DATABASE                   = "extensions.sqlite";
@@ -70,7 +70,11 @@ const PROP_JSON_FIELDS = ["id", "syncGUID", "location", "version", "type",
                           "skinnable", "size", "sourceURI", "releaseNotesURI",
                           "softDisabled", "foreignInstall", "hasBinaryComponents",
                           "strictCompatibility", "locales", "targetApplications",
-                          "targetPlatforms", "multiprocessCompatible", "native"];
+                          "targetPlatforms", "multiprocessCompatible",
+#ifdef MOZ_PHOENIX_EXTENSIONS
+                          "native"
+#endif
+                          ];
 
 // Time to wait before async save of XPI JSON database, in milliseconds
 const ASYNC_SAVE_DELAY_MS = 20;

@@ -4,9 +4,9 @@
 
 "use strict";
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
+var Cc = Components.classes;
+var Ci = Components.interfaces;
+var Cu = Components.utils;
 
 this.EXPORTED_SYMBOLS = [];
 
@@ -58,17 +58,18 @@ const GMP_PLUGINS = [
     optionsURL:      "chrome://mozapps/content/extensions/gmpPrefs.xul",
     isEME:           true
   }];
+XPCOMUtils.defineConstant(this, "GMP_PLUGINS", GMP_PLUGINS);
 
 XPCOMUtils.defineLazyGetter(this, "pluginsBundle",
   () => Services.strings.createBundle("chrome://global/locale/plugins.properties"));
 XPCOMUtils.defineLazyGetter(this, "gmpService",
   () => Cc["@mozilla.org/gecko-media-plugin-service;1"].getService(Ci.mozIGeckoMediaPluginChromeService));
 
-let messageManager = Cc["@mozilla.org/globalmessagemanager;1"]
+var messageManager = Cc["@mozilla.org/globalmessagemanager;1"]
                        .getService(Ci.nsIMessageListenerManager);
 
-let gLogger;
-let gLogAppenderDump = null;
+var gLogger;
+var gLogAppenderDump = null;
 
 function configureLogging() {
   if (!gLogger) {
@@ -443,7 +444,7 @@ GMPWrapper.prototype = {
   },
 };
 
-let GMPProvider = {
+var GMPProvider = {
   get name() { return "GMPProvider"; },
 
   _plugins: null,

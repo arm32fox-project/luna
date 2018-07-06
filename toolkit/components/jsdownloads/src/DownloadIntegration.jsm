@@ -300,12 +300,7 @@ this.DownloadIntegration = {
         aDownload.hasBlockedData) {
       return true;
     }
-#ifdef MOZ_B2G
-    // On B2G we keep a few days of history.
-    let maxTime = Date.now() -
-      Services.prefs.getIntPref("dom.downloads.max_retention_days") * 24 * 60 * 60 * 1000;
-    return aDownload.startTime > maxTime;
-#elif defined(MOZ_WIDGET_ANDROID)
+#if defined(MOZ_WIDGET_ANDROID)
     // On Android we store all history.
     return true;
 #else
@@ -415,8 +410,6 @@ this.DownloadIntegration = {
     directoryPath = yield this.getPreferredDownloadsDirectory();
 #elifdef MOZ_WIDGET_ANDROID
     directoryPath = yield this.getSystemDownloadsDirectory();
-#elifdef MOZ_WIDGET_GONK
-    directoryPath = yield this.getSystemDownloadsDirectory();
 #else
     directoryPath = this._getDirectory("TmpD");
 #endif
@@ -480,6 +473,12 @@ this.DownloadIntegration = {
    *           }
    */
   shouldBlockForReputationCheck(aDownload) {
+#ifndef MOZ_URL_CLASSIFIER
+    return Promise.resolve({
+      shouldBlock: false,
+      verdict: "",
+    });
+#else
     let hash;
     let sigInfo;
     let channelRedirects;
@@ -520,6 +519,7 @@ this.DownloadIntegration = {
         });
       });
     return deferred.promise;
+#endif
   },
 
 #ifdef XP_WIN
@@ -530,20 +530,34 @@ this.DownloadIntegration = {
    * @return true if files should be marked
    */
   _shouldSaveZoneInformation() {
-    let key = Cc["@mozilla.org/windows-registry-key;1"]
-                .createInstance(Ci.nsIWindowsRegKey);
+    let zonePref = 2;
     try {
-      key.open(Ci.nsIWindowsRegKey.ROOT_KEY_CURRENT_USER,
-               "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Attachments",
-               Ci.nsIWindowsRegKey.ACCESS_QUERY_VALUE);
-      try {
-        return key.readIntValue("SaveZoneInformation") != 1;
-      } finally {
-        key.close();
-      }
-    } catch (ex) {
-      // If the key is not present, files should be marked by default.
-      return true;
+      zonePref = Services.prefs.getIntPref("browser.download.saveZoneInformation");
+    } catch (ex) {}
+    
+    switch (zonePref) {
+      case 0: // Never
+              return false;
+      case 1: // Always
+              return true;
+      case 2: // System-defined
+              let key = Cc["@mozilla.org/windows-registry-key;1"]
+                       .createInstance(Ci.nsIWindowsRegKey);
+              try {
+                key.open(Ci.nsIWindowsRegKey.ROOT_KEY_CURRENT_USER,
+                         "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Attachments",
+                         Ci.nsIWindowsRegKey.ACCESS_QUERY_VALUE);
+                try {
+                  return key.readIntValue("SaveZoneInformation") != 1;
+                } finally {
+                  key.close();
+                }
+              } catch (ex) {
+                // If the key is not present, files should be marked by default.
+                return true;
+              }
+      default: // Invalid pref value defaults marking files.
+               return true;
     }
   },
 #endif

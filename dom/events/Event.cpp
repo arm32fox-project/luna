@@ -280,16 +280,10 @@ Event::GetType(nsAString& aType)
   return NS_OK;
 }
 
-static EventTarget*
-GetDOMEventTarget(nsIDOMEventTarget* aTarget)
-{
-  return aTarget ? aTarget->GetTargetForDOMEvent() : nullptr;
-}
-
 EventTarget*
 Event::GetTarget() const
 {
-  return GetDOMEventTarget(mEvent->mTarget);
+  return mEvent->GetDOMEventTarget();
 }
 
 NS_IMETHODIMP
@@ -302,7 +296,7 @@ Event::GetTarget(nsIDOMEventTarget** aTarget)
 EventTarget*
 Event::GetCurrentTarget() const
 {
-  return GetDOMEventTarget(mEvent->mCurrentTarget);
+  return mEvent->GetCurrentDOMEventTarget();
 }
 
 NS_IMETHODIMP
@@ -349,11 +343,7 @@ Event::GetExplicitOriginalTarget(nsIDOMEventTarget** aRealEventTarget)
 EventTarget*
 Event::GetOriginalTarget() const
 {
-  if (mEvent->mOriginalTarget) {
-    return GetDOMEventTarget(mEvent->mOriginalTarget);
-  }
-
-  return GetTarget();
+  return mEvent->GetOriginalDOMEventTarget();
 }
 
 NS_IMETHODIMP
@@ -855,6 +845,25 @@ Event::GetEventPopupControlState(WidgetEvent* aEvent, nsIDOMEvent* aDOMEvent)
       }
     }
     break;
+  case ePointerEventClass:
+    if (aEvent->IsTrusted() &&
+        aEvent->AsPointerEvent()->button == WidgetMouseEvent::eLeftButton) {
+      switch(aEvent->mMessage) {
+      case ePointerUp:
+        if (PopupAllowedForEvent("pointerup")) {
+          abuse = openControlled;
+        }
+        break;
+      case ePointerDown:
+        if (PopupAllowedForEvent("pointerdown")) {
+          abuse = openControlled;
+        }
+        break;
+      default:
+        break;
+      }
+    }
+    break;
   case eFormEventClass:
     // For these following events only allow popups if they're
     // triggered while handling user input. See
@@ -1127,16 +1136,11 @@ Event::TimeStampImpl() const
     return perf->GetDOMTiming()->TimeStampToDOMHighRes(mEvent->mTimeStamp);
   }
 
-  // For dedicated workers, we should make times relative to the navigation
-  // start of the document that created the worker, which is the same as the
-  // timebase for performance.now().
   workers::WorkerPrivate* workerPrivate =
     workers::GetCurrentThreadWorkerPrivate();
   MOZ_ASSERT(workerPrivate);
 
-  TimeDuration duration =
-    mEvent->mTimeStamp - workerPrivate->NowBaseTimeStamp();
-  return duration.ToMilliseconds();
+  return workerPrivate->TimeStampToDOMHighRes(mEvent->mTimeStamp);
 }
 
 bool

@@ -6,7 +6,7 @@ function testDefaultCtor() {
   is(req.context, "fetch", "Default context is fetch.");
   is(req.referrer, "about:client", "Default referrer is `client` which serializes to about:client.");
   is(req.mode, "cors", "Request mode for string input is cors");
-  is(req.credentials, "omit", "Default Request credentials is omit");
+  is(req.credentials, "same-origin", "Default Request credentials is same-origin");
   is(req.cache, "default", "Default Request cache is default");
 
   var req = new Request(req);
@@ -16,7 +16,7 @@ function testDefaultCtor() {
   is(req.context, "fetch", "Default context is fetch.");
   is(req.referrer, "about:client", "Default referrer is `client` which serializes to about:client.");
   is(req.mode, "cors", "Request mode string input is cors");
-  is(req.credentials, "omit", "Default Request credentials is omit");
+  is(req.credentials, "same-origin", "Default Request credentials is same-origin");
   is(req.cache, "default", "Default Request cache is default");
 }
 
@@ -152,12 +152,9 @@ function testHeaderGuard() {
 }
 
 function testMode() {
-  try {
-    var req = new Request("http://example.com", {mode: "navigate"});
-    ok(false, "Creating a Request with navigate RequestMode should throw a TypeError");
-  } catch(e) {
-    is(e.name, "TypeError", "Creating a Request with navigate RequestMode should throw a TypeError");
-  }
+  var req = new Request("http://example.com", {mode: "navigate"});
+  ok(true, "Creating a Request with navigate RequestMode should not throw.");
+  is(req.mode, "same-origin", "Request mode becomes same-origin");
 }
 
 function testMethod() {

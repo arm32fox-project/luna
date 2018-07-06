@@ -59,10 +59,8 @@
 #include "mozilla/dom/IDBTransactionBinding.h"
 #include "mozilla/dom/IDBVersionChangeEventBinding.h"
 
-#ifdef ENABLE_INTL_API
 #include "nsCharSeparatedTokenizer.h"
 #include "unicode/locid.h"
-#endif
 
 #define IDB_STR "indexedDB"
 
@@ -155,7 +153,7 @@ const char kPrefMaxSerilizedMsgSize[] = IDB_PREF_BRANCH_ROOT "maxSerializedMsgSi
 const char kPrefLoggingEnabled[] = IDB_PREF_LOGGING_BRANCH_ROOT "enabled";
 const char kPrefLoggingDetails[] = IDB_PREF_LOGGING_BRANCH_ROOT "details";
 
-#if defined(DEBUG) || defined(MOZ_ENABLE_PROFILER_SPS)
+#if defined(DEBUG)
 const char kPrefLoggingProfiler[] =
   IDB_PREF_LOGGING_BRANCH_ROOT "profiler-marks";
 #endif
@@ -417,10 +415,7 @@ IndexedDatabaseManager::Init()
 
   Preferences::RegisterCallback(LoggingModePrefChangedCallback,
                                 kPrefLoggingDetails);
-#ifdef MOZ_ENABLE_PROFILER_SPS
-  Preferences::RegisterCallback(LoggingModePrefChangedCallback,
-                                kPrefLoggingProfiler);
-#endif
+
   Preferences::RegisterCallbackAndCall(LoggingModePrefChangedCallback,
                                        kPrefLoggingEnabled);
 
@@ -430,7 +425,6 @@ IndexedDatabaseManager::Init()
   Preferences::RegisterCallbackAndCall(MaxSerializedMsgSizePrefChangeCallback,
                                        kPrefMaxSerilizedMsgSize);
 
-#ifdef ENABLE_INTL_API
   const nsAdoptingCString& acceptLang =
     Preferences::GetLocalizedCString("intl.accept_languages");
 
@@ -449,7 +443,6 @@ IndexedDatabaseManager::Init()
   if (mLocale.IsEmpty()) {
     mLocale.AssignLiteral("en_US");
   }
-#endif
 
   return NS_OK;
 }
@@ -483,10 +476,6 @@ IndexedDatabaseManager::Destroy()
 
   Preferences::UnregisterCallback(LoggingModePrefChangedCallback,
                                   kPrefLoggingDetails);
-#ifdef MOZ_ENABLE_PROFILER_SPS
-  Preferences::UnregisterCallback(LoggingModePrefChangedCallback,
-                                  kPrefLoggingProfiler);
-#endif
   Preferences::UnregisterCallback(LoggingModePrefChangedCallback,
                                   kPrefLoggingEnabled);
 
@@ -1064,15 +1053,13 @@ IndexedDatabaseManager::LoggingModePrefChangedCallback(
   }
 
   bool useProfiler =
-#if defined(DEBUG) || defined(MOZ_ENABLE_PROFILER_SPS)
+#if defined(DEBUG)
     Preferences::GetBool(kPrefLoggingProfiler);
-#if !defined(MOZ_ENABLE_PROFILER_SPS)
   if (useProfiler) {
     NS_WARNING("IndexedDB cannot create profiler marks because this build does "
                "not have profiler extensions enabled!");
     useProfiler = false;
   }
-#endif
 #else
     false;
 #endif
@@ -1088,7 +1075,6 @@ IndexedDatabaseManager::LoggingModePrefChangedCallback(
   }
 }
 
-#ifdef ENABLE_INTL_API
 // static
 const nsCString&
 IndexedDatabaseManager::GetLocale()
@@ -1098,7 +1084,6 @@ IndexedDatabaseManager::GetLocale()
 
   return idbManager->mLocale;
 }
-#endif
 
 NS_IMPL_ADDREF(IndexedDatabaseManager)
 NS_IMPL_RELEASE_WITH_DESTROY(IndexedDatabaseManager, Destroy())

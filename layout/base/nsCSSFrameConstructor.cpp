@@ -3658,13 +3658,13 @@ nsCSSFrameConstructor::FindInputData(Element* aElement,
                                  nsCSSAnonBoxes::buttonContent) },
     // TODO: this is temporary until a frame is written: bug 635240.
     SIMPLE_INT_CREATE(NS_FORM_INPUT_NUMBER, NS_NewNumberControlFrame),
-    // TODO: this is temporary until a frame is written: bug 888320.
-    SIMPLE_INT_CREATE(NS_FORM_INPUT_DATE, NS_NewTextControlFrame),
-#if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_WIDGET_GONK)
+#if defined(MOZ_WIDGET_ANDROID)
     // On Android/B2G, date/time input appears as a normal text box.
     SIMPLE_INT_CREATE(NS_FORM_INPUT_TIME, NS_NewTextControlFrame),
+    SIMPLE_INT_CREATE(NS_FORM_INPUT_DATE, NS_NewTextControlFrame),
 #else
     SIMPLE_INT_CREATE(NS_FORM_INPUT_TIME, NS_NewDateTimeControlFrame),
+    SIMPLE_INT_CREATE(NS_FORM_INPUT_DATE, NS_NewDateTimeControlFrame),
 #endif
     // TODO: this is temporary until a frame is written: bug 888320
     SIMPLE_INT_CREATE(NS_FORM_INPUT_MONTH, NS_NewTextControlFrame),
@@ -8246,11 +8246,19 @@ nsCSSFrameConstructor::ContentRemoved(nsIContent*  aContainer,
     *aDestroyedFramesFor = aChild;
   }
 
+  nsPresContext* presContext = mPresShell->GetPresContext();
+  MOZ_ASSERT(presContext, "Our presShell should have a valid presContext");
+
   if (aChild->IsHTMLElement(nsGkAtoms::body) ||
       (!aContainer && aChild->IsElement())) {
-    // This might be the element we propagated viewport scrollbar
-    // styles from.  Recompute those.
-    mPresShell->GetPresContext()->UpdateViewportScrollbarStylesOverride();
+    // We might be removing the element that we propagated viewport scrollbar
+    // styles from.  Recompute those. (This clause covers two of the three
+    // possible scrollbar-propagation sources: the <body> [as aChild or a
+    // descendant] and the root node. The other possible scrollbar-propagation
+    // source is a fullscreen element, and we have code elsewhere to update
+    // scrollbars after fullscreen elements are removed -- specifically, it's
+    // part of the fullscreen cleanup code called by Element::UnbindFromTree.)
+    presContext->UpdateViewportScrollbarStylesOverride();
   }
 
   // XXXldb Do we need to re-resolve style to handle the CSS2 + combinator and
@@ -8316,7 +8324,6 @@ nsCSSFrameConstructor::ContentRemoved(nsIContent*  aContainer,
     ClearDisplayContentsIn(aChild, aContainer);
   }
 
-  nsPresContext* presContext = mPresShell->GetPresContext();
 #ifdef MOZ_XUL
   if (NotifyListBoxBody(presContext, aContainer, aChild, aOldNextSibling,
                         childFrame, CONTENT_REMOVED)) {

@@ -50,6 +50,7 @@ static RedirEntry kRedirMap[] = {
     nsIAboutModule::ALLOW_SCRIPT
   },
   { "config", "chrome://global/content/config.xul", 0 },
+  { "console", "chrome://global/content/console.xul", 0 },
   {
     "credits", "http://www.palemoon.org/Contributors.shtml",
     nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
@@ -140,10 +141,12 @@ static RedirEntry kRedirMap[] = {
   {
     "telemetry", "chrome://global/content/aboutTelemetry.xhtml",
     nsIAboutModule::ALLOW_SCRIPT
+#ifdef MOZ_WEBRTC
   },
   {
     "webrtc", "chrome://global/content/aboutwebrtc/aboutWebrtc.html",
     nsIAboutModule::ALLOW_SCRIPT
+#endif
   }
 };
 static const int kRedirTotal = mozilla::ArrayLength(kRedirMap);

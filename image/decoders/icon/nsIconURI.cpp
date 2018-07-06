@@ -372,6 +372,32 @@ nsMozIconURI::SetPath(const nsACString& aPath)
 }
 
 NS_IMETHODIMP
+nsMozIconURI::GetFilePath(nsACString& aFilePath)
+{
+  aFilePath.Truncate();
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsMozIconURI::SetFilePath(const nsACString& aFilePath)
+{
+  return NS_ERROR_FAILURE;
+}
+
+NS_IMETHODIMP
+nsMozIconURI::GetQuery(nsACString& aQuery)
+{
+  aQuery.Truncate();
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsMozIconURI::SetQuery(const nsACString& aQuery)
+{
+  return NS_ERROR_FAILURE;
+}
+
+NS_IMETHODIMP
 nsMozIconURI::GetRef(nsACString& aRef)
 {
   aRef.Truncate();
@@ -662,7 +688,17 @@ nsMozIconURI::Deserialize(const URIParams& aParams)
   mContentType = params.contentType();
   mFileName = params.fileName();
   mStockIcon = params.stockIcon();
+
+  if (params.iconSize() < -1 ||
+      params.iconSize() >= (int32_t) ArrayLength(kSizeStrings)) {
+    return false;
+  }
   mIconSize = params.iconSize();
+
+  if (params.iconState() < -1 ||
+      params.iconState() >= (int32_t) ArrayLength(kStateStrings)) {
+    return false;
+  }
   mIconState = params.iconState();
 
   return true;

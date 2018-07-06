@@ -171,9 +171,7 @@ extern nsresult nsStringInputStreamConstructor(nsISupports*, REFNSIID, void**);
 
 #include "gfxPlatform.h"
 
-#if EXPOSE_INTL_API
 #include "unicode/putil.h"
-#endif
 
 using namespace mozilla;
 using base::AtExitManager;
@@ -689,7 +687,7 @@ NS_InitXPCOM2(nsIServiceManager** aResult,
                         memmove);
 #endif
 
-#if EXPOSE_INTL_API && defined(MOZ_ICU_DATA_ARCHIVE)
+#if defined(MOZ_ICU_DATA_ARCHIVE)
   nsCOMPtr<nsIFile> greDir;
   nsDirectoryService::gService->Get(NS_GRE_DIR,
                                     NS_GET_IID(nsIFile),
@@ -1039,20 +1037,6 @@ ShutdownXPCOM(nsIServiceManager* aServMgr)
     NS_WARNING("Component Manager was never created ...");
   }
 
-#ifdef MOZ_ENABLE_PROFILER_SPS
-  // In optimized builds we don't do shutdown collections by default, so
-  // uncollected (garbage) objects may keep the nsXPConnect singleton alive,
-  // and its XPCJSContext along with it. However, we still destroy various
-  // bits of state in JS_ShutDown(), so we need to make sure the profiler
-  // can't access them when it shuts down. This call nulls out the
-  // JS pseudo-stack's internal reference to the main thread JSContext,
-  // duplicating the call in XPCJSContext::~XPCJSContext() in case that
-  // never fired.
-  if (PseudoStack* stack = mozilla_get_pseudo_stack()) {
-    stack->sampleContext(nullptr);
-  }
-#endif
-
   if (sInitializedJS) {
     // Shut down the JS engine.
     JS_ShutDown();
@@ -1105,17 +1089,6 @@ ShutdownXPCOM(nsIServiceManager* aServMgr)
   profiler_shutdown();
 
   NS_LogTerm();
-
-#if defined(MOZ_WIDGET_GONK)
-  // This _exit(0) call is intended to be temporary, to get shutdown leak
-  // checking working on non-B2G platforms.
-  // On debug B2G, the child process crashes very late.  Instead, just
-  // give up so at least we exit cleanly. See bug 1071866.
-  if (XRE_IsContentProcess()) {
-      NS_WARNING("Exiting child process early!");
-      _exit(0);
-  }
-#endif
 
   return NS_OK;
 }
