@@ -647,6 +647,19 @@ nsScriptLoader::CheckContentPolicy(nsIDocument* aDocument,
 }
 
 bool
+nsScriptLoader::ModuleScriptsEnabled()
+{
+  static bool sEnabledForContent = false;
+  static bool sCachedPref = false;
+  if (!sCachedPref) {
+    sCachedPref = true;
+    Preferences::AddBoolVarCache(&sEnabledForContent, "dom.moduleScripts.enabled", false);
+  }
+
+  return nsContentUtils::IsChromeDoc(mDocument) || sEnabledForContent;
+}
+
+bool
 nsScriptLoader::ModuleMapContainsModule(nsModuleLoadRequest *aRequest) const
 {
   // Returns whether we have fetched, or are currently fetching, a module script
@@ -1223,15 +1236,27 @@ nsScriptLoader::StartLoad(nsScriptLoadRequest *aRequest, const nsAString &aType,
   nsCOMPtr<nsIInterfaceRequestor> prompter(do_QueryInterface(docshell));
 
   nsSecurityFlags securityFlags;
-  // TODO: the spec currently gives module scripts different CORS behaviour to
-  // classic scripts.
-  securityFlags = aRequest->mCORSMode == CORS_NONE
-    ? nsILoadInfo::SEC_ALLOW_CROSS_ORIGIN_DATA_IS_NULL
-    : nsILoadInfo::SEC_REQUIRE_CORS_DATA_INHERITS;
-  if (aRequest->mCORSMode == CORS_ANONYMOUS) {
-    securityFlags |= nsILoadInfo::SEC_COOKIES_SAME_ORIGIN;
-  } else if (aRequest->mCORSMode == CORS_USE_CREDENTIALS) {
-    securityFlags |= nsILoadInfo::SEC_COOKIES_INCLUDE;
+  if (aRequest->IsModuleRequest()) {
+    // According to the spec, module scripts have different behaviour to classic
+    // scripts and always use CORS.
+    securityFlags = nsILoadInfo::SEC_REQUIRE_CORS_DATA_INHERITS;
+    if (aRequest->mCORSMode == CORS_NONE) {
+      securityFlags |= nsILoadInfo::SEC_COOKIES_OMIT;
+    } else if (aRequest->mCORSMode == CORS_ANONYMOUS) {
+      securityFlags |= nsILoadInfo::SEC_COOKIES_SAME_ORIGIN;
+    } else {
+      MOZ_ASSERT(aRequest->mCORSMode == CORS_USE_CREDENTIALS);
+      securityFlags |= nsILoadInfo::SEC_COOKIES_INCLUDE;
+    }
+  } else {
+    securityFlags = aRequest->mCORSMode == CORS_NONE
+      ? nsILoadInfo::SEC_ALLOW_CROSS_ORIGIN_DATA_IS_NULL
+      : nsILoadInfo::SEC_REQUIRE_CORS_DATA_INHERITS;
+    if (aRequest->mCORSMode == CORS_ANONYMOUS) {
+      securityFlags |= nsILoadInfo::SEC_COOKIES_SAME_ORIGIN;
+    } else if (aRequest->mCORSMode == CORS_USE_CREDENTIALS) {
+      securityFlags |= nsILoadInfo::SEC_COOKIES_INCLUDE;
+    }
   }
   securityFlags |= nsILoadInfo::SEC_ALLOW_CHROME;
 
@@ -1441,8 +1466,7 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
 
   nsScriptKind scriptKind = nsScriptKind::Classic;
   if (!type.IsEmpty()) {
-    // Support type="module" only for chrome documents.
-    if (nsContentUtils::IsChromeDoc(mDocument) && type.LowerCaseEqualsASCII("module")) {
+    if (ModuleScriptsEnabled() && type.LowerCaseEqualsASCII("module")) {
       scriptKind = nsScriptKind::Module;
     } else {
       NS_ENSURE_TRUE(ParseTypeAttribute(type, &version), false);
@@ -2761,7 +2785,7 @@ nsScriptLoader::PreloadURI(nsIURI *aURI, const nsAString &aCharset,
   }
 
   // TODO: Preload module scripts.
-  if (nsContentUtils::IsChromeDoc(mDocument) && aType.LowerCaseEqualsASCII("module")) {
+  if (ModuleScriptsEnabled() && aType.LowerCaseEqualsASCII("module")) {
     return;
   }
 
