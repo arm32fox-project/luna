@@ -82,9 +82,9 @@ RenderbufferImpl *Context9::createRenderbuffer()
     return new RenderbufferD3D(mRenderer);
 }
 
-BufferImpl *Context9::createBuffer(const gl::BufferState &state)
+BufferImpl *Context9::createBuffer()
 {
-    return new Buffer9(state, mRenderer);
+    return new Buffer9(mRenderer);
 }
 
 VertexArrayImpl *Context9::createVertexArray(const gl::VertexArrayState &data)

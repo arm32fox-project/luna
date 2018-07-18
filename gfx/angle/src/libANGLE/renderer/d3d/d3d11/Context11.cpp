@@ -94,9 +94,9 @@ RenderbufferImpl *Context11::createRenderbuffer()
     return new RenderbufferD3D(mRenderer);
 }
 
-BufferImpl *Context11::createBuffer(const gl::BufferState &state)
+BufferImpl *Context11::createBuffer()
 {
-    Buffer11 *buffer = new Buffer11(state, mRenderer);
+    Buffer11 *buffer = new Buffer11(mRenderer);
     mRenderer->onBufferCreate(buffer);
     return buffer;
 }

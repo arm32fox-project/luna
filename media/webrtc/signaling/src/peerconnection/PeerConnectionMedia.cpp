@@ -1036,6 +1036,11 @@ PeerConnectionMedia::SelfDestruct_m()
   mLocalSourceStreams.Clear();
   mRemoteSourceStreams.Clear();
 
+  // Clean up our send and receive streams
+  for (auto i = mConduits.begin(); i != mConduits.end(); ++i) {
+    i->second.second->DeleteStreams();
+  }
+
   mMainThread = nullptr;
 
   // Final self-destruct.

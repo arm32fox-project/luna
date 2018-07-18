@@ -9,6 +9,9 @@ Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
 Components.utils.import("resource:///modules/RecentWindow.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this, "ShellService",
+                                  "resource:///modules/ShellService.jsm");
+
 XPCOMUtils.defineLazyGetter(this, "BROWSER_NEW_TAB_URL", function () {
   const PREF = "browser.newtab.url";
 
@@ -247,6 +250,10 @@ function openLinkIn(url, where, params) {
     aRelatedToCurrent = false;
   }
 
+  // We can only do this after we're sure of what |w| will be the rest of this function.
+  // Note that if |w| is null we might have no current browser (we'll open a new window).
+  var aCurrentBrowser = params.currentBrowser || (w && w.gBrowser.selectedBrowser);
+  
   if (!w || where == "window") {
     // This propagates to window.arguments.
     // Strip referrer data when opening a new private window, to prevent
@@ -325,6 +332,7 @@ function openLinkIn(url, where, params) {
   // result in a new frontmost window (e.g. "javascript:window.open('');").
   w.focus();
 
+  let browserUsedForLoad = null;
   switch (where) {
   case "current":
     let flags = Ci.nsIWebNavigation.LOAD_FLAGS_NONE;
@@ -343,27 +351,35 @@ function openLinkIn(url, where, params) {
                                 referrerPolicy: aReferrerPolicy,
                                 postData: aPostData,
                                 }); 
+    browserUsedForLoad = aCurrentBrowser;
     break;
   case "tabshifted":
     loadInBackground = !loadInBackground;
     // fall through
   case "tab":
     let browser = w.gBrowser;
-    browser.loadOneTab(url, {
-                       referrerURI: aReferrerURI,
-                       referrerPolicy: aReferrerPolicy,
-                       charset: aCharset,
-                       postData: aPostData,
-                       inBackground: loadInBackground,
-                       allowThirdPartyFixup: aAllowThirdPartyFixup,
-                       relatedToCurrent: aRelatedToCurrent});
+    let tabUsedForLoad = browser.loadOneTab(url, {
+                           referrerURI: aReferrerURI,
+                           referrerPolicy: aReferrerPolicy,
+                           charset: aCharset,
+                           postData: aPostData,
+                           inBackground: loadInBackground,
+                           allowThirdPartyFixup: aAllowThirdPartyFixup,
+                           relatedToCurrent: aRelatedToCurrent});
+    browserUsedForLoad = tabUsedForLoad.linkedBrowser;
     break;
   }
 
-  w.gBrowser.selectedBrowser.focus();
+  // Focus the content, but only if the browser used for the load is selected.
+  if (browserUsedForLoad &&
+      browserUsedForLoad == browserUsedForLoad.getTabBrowser().selectedBrowser) {
+    browserUsedForLoad.focus();
+  }
 
   if (!loadInBackground && w.isBlankPageURL(url))
-    w.focusAndSelectUrlBar();
+    if (!w.focusAndSelectUrlBar()) {
+      console.error("Unable to focus and select address bar.")
+    }
 }
 
 // Used as an onclick handler for UI elements with link-like behavior.
@@ -448,15 +464,10 @@ function gatherTextUnder ( root )
   return text;
 }
 
+// This function exists for legacy reasons.
 function getShellService()
 {
-  var shell = null;
-  try {
-    shell = Components.classes["@mozilla.org/browser/shell-service;1"]
-      .getService(Components.interfaces.nsIShellService);
-  } catch (e) {
-  }
-  return shell;
+  return ShellService;
 }
 
 function isBidiEnabled() {

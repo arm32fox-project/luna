@@ -4,10 +4,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-SPHINX_TREES['addon-manager'] = 'docs'
-
 DIRS += ['internal']
-TEST_DIRS += ['test']
 
 XPIDL_SOURCES += [
     '../extensions/amIAddonManager.idl',
@@ -19,8 +16,8 @@ XPIDL_SOURCES += [
 XPIDL_MODULE = 'extensions'
 
 EXTRA_COMPONENTS += [
+    '../extensions/amContentHandler.js',
     'addonManager.js',
-    'amContentHandler.js',
     'amInstallTrigger.js',
     'amWebAPI.js',
     'amWebInstallListener.js',
@@ -31,9 +28,9 @@ EXTRA_PP_COMPONENTS += [
 ]
 
 EXTRA_JS_MODULES += [
+    '../extensions/ChromeManifestParser.jsm',
+    '../extensions/DeferredSave.jsm',
     'AddonManager.jsm',
-    'ChromeManifestParser.jsm',
-    'DeferredSave.jsm',
     'LightweightThemeManager.jsm',
 ]
 
@@ -56,6 +53,3 @@ LOCAL_INCLUDES += [
 ]
 
 FINAL_LIBRARY = 'xul'
-
-with Files('**'):
-    BUG_COMPONENT = ('Toolkit', 'Add-ons Manager')

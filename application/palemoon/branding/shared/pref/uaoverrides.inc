@@ -43,11 +43,6 @@ pref("@GUAO_PREF@.players.brightcove.net","Mozilla/5.0 (Windows NT 6.1; Trident/
 pref("@GUAO_PREF@.facebook.com","Mozilla/5.0 (@OS_SLICE@ rv:99.9) @GK_SLICE@ Firefox/99.9 (Pale Moon)");
 pref("@GUAO_PREF@.fbcdn.net","Mozilla/5.0 (@OS_SLICE@ rv:99.9) @GK_SLICE@ Firefox/99.9 (Pale Moon)");
 
-#ifdef XP_UNIX
-// Google Fonts forces unicode ranges unless it is being told the browser is Firefox 43 or below.
-// They do NOT test for unicode-ranges CSS support.
-pref("@GUAO_PREF@.fonts.googleapis.com","Mozilla/5.0 (@OS_SLICE@ rv:43.0) @GK_SLICE@ Firefox/43.0");
-#endif
 
 // UA-Sniffing domains below are pending responses from their operators - temp workaround
 pref("@GUAO_PREF@.chase.com","Mozilla/5.0 (@OS_SLICE@ rv:@GK_VERSION@) @GK_SLICE@ @FX_SLICE@");
@@ -61,6 +56,8 @@ pref("@GUAO_PREF@.dailymotion.com","Mozilla/5.0 (@OS_SLICE@ rv:52.0) @GK_SLICE@ 
 // The following requires native mode. Or it blocks.. "too old firefox", breakage, etc.
 pref("@GUAO_PREF@.deviantart.com","Mozilla/5.0 (@OS_SLICE@ rv:@GRE_VERSION@) @GRE_DATE_SLICE@ @PM_SLICE@");
 pref("@GUAO_PREF@.deviantart.net","Mozilla/5.0 (@OS_SLICE@ rv:@GRE_VERSION@) @GRE_DATE_SLICE@ @PM_SLICE@");
+pref("@GUAO_PREF@.altibox.dk","Mozilla/5.0 (@OS_SLICE@ rv:@GRE_VERSION@) @GRE_DATE_SLICE@ @PM_SLICE@");
+pref("@GUAO_PREF@.altibox.no","Mozilla/5.0 (@OS_SLICE@ rv:@GRE_VERSION@) @GRE_DATE_SLICE@ @PM_SLICE@");
 
 // UA-Sniffing domains below have indicated no interest in supporting Pale Moon (BOO!)
 pref("@GUAO_PREF@.humblebundle.com","Mozilla/5.0 (@OS_SLICE@ rv:@GK_VERSION@) @GK_SLICE@ @FX_SLICE@ (Pale Moon)");

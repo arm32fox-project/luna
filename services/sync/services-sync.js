@@ -12,6 +12,7 @@ pref("services.sync.syncKeyHelpURL", "https://services.mozilla.com/help/synckey"
 
 pref("services.sync.lastversion", "firstrun");
 pref("services.sync.sendVersionInfo", true);
+pref("services.sync.APILevel", 2);
 
 pref("services.sync.scheduler.eolInterval",         604800); // 1 week
 pref("services.sync.scheduler.idleInterval",         3600);  // 1 hour
@@ -80,7 +81,7 @@ pref("services.sync.fxa.privacyURL", "https://accounts.firefox.com/legal/privacy
 pref("services.sync.telemetry.submissionInterval", 43200); // 12 hours in seconds
 pref("services.sync.telemetry.maxPayloadCount", 500);
 
-// Note that services.sync.validation.enabled is located in browser/app/profile/firefox.js
+// Note that services.sync.validation.enabled is located in application/[application name]/app/profile/[application name].js
 
 // We consider validation this frequently. After considering validation, even
 // if we don't end up validating, we won't try again unless this much time has passed.

@@ -686,6 +686,8 @@ public:
   void GetAttributeNS(const nsAString& aNamespaceURI,
                       const nsAString& aLocalName,
                       nsAString& aReturn);
+  bool ToggleAttribute(const nsAString& aName, const Optional<bool>& aForce,
+                       ErrorResult& aError);
   void SetAttribute(const nsAString& aName, const nsAString& aValue,
                     ErrorResult& aError);
   void SetAttributeNS(const nsAString& aNamespaceURI,
@@ -1380,7 +1382,7 @@ protected:
   nsDOMTokenList* GetTokenList(nsIAtom* aAtom,
                                const DOMTokenListSupportedTokenArray aSupportedTokens = nullptr);
 
-  nsTArray<nsDOMSlots::IntersectionObserverRegistration>* RegisteredIntersectionObservers();
+  nsDataHashtable<nsPtrHashKey<DOMIntersectionObserver>, int32_t>* RegisteredIntersectionObservers();
 
 private:
   /**

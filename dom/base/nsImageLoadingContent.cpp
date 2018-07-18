@@ -94,8 +94,7 @@ nsImageLoadingContent::nsImageLoadingContent()
     mNewRequestsWillNeedAnimationReset(false),
     mStateChangerDepth(0),
     mCurrentRequestRegistered(false),
-    mPendingRequestRegistered(false),
-    mFrameCreateCalled(false)
+    mPendingRequestRegistered(false)
 {
   if (!nsContentUtils::GetImgLoaderForChannel(nullptr, nullptr)) {
     mLoadingEnabled = false;
@@ -489,10 +488,8 @@ nsImageLoadingContent::FrameCreated(nsIFrame* aFrame)
 {
   NS_ASSERTION(aFrame, "aFrame is null");
 
-  mFrameCreateCalled = true;
-
-  TrackImage(mCurrentRequest);
-  TrackImage(mPendingRequest);
+  TrackImage(mCurrentRequest, aFrame);
+  TrackImage(mPendingRequest, aFrame);
 
   // We need to make sure that our image request is registered, if it should
   // be registered.
@@ -512,8 +509,6 @@ NS_IMETHODIMP_(void)
 nsImageLoadingContent::FrameDestroyed(nsIFrame* aFrame)
 {
   NS_ASSERTION(aFrame, "aFrame is null");
-
-  mFrameCreateCalled = false;
 
   // We need to make sure that our image request is deregistered.
   nsPresContext* presContext = GetFramePresContext();
@@ -1486,7 +1481,8 @@ nsImageLoadingContent::OnVisibilityChange(Visibility aNewVisibility,
 }
 
 void
-nsImageLoadingContent::TrackImage(imgIRequest* aImage)
+nsImageLoadingContent::TrackImage(imgIRequest* aImage,
+                                  nsIFrame* aFrame /*= nullptr */)
 {
   if (!aImage)
     return;
@@ -1499,13 +1495,21 @@ nsImageLoadingContent::TrackImage(imgIRequest* aImage)
     return;
   }
 
-  // We only want to track this request if we're visible. Ordinarily we check
-  // the visible count, but that requires a frame; in cases where
-  // GetOurPrimaryFrame() cannot obtain a frame (e.g. <feImage>), we assume
-  // we're visible if FrameCreated() was called.
-  nsIFrame* frame = GetOurPrimaryFrame();
-  if ((frame && frame->GetVisibility() == Visibility::APPROXIMATELY_NONVISIBLE) ||
-      (!frame && !mFrameCreateCalled)) {
+  if (!aFrame) {
+    aFrame = GetOurPrimaryFrame();
+  }
+
+  /* This line is deceptively simple. It hides a lot of subtlety. Before we
+   * create an nsImageFrame we call nsImageFrame::ShouldCreateImageFrameFor
+   * to determine if we should create an nsImageFrame or create a frame based
+   * on the display of the element (ie inline, block, etc). Inline, block, etc
+   * frames don't register for visibility tracking so they will return UNTRACKED
+   * from GetVisibility(). So this line is choosing to mark such images as
+   * visible. Once the image loads we will get an nsImageFrame and the proper
+   * visibility. This is a pitfall of tracking the visibility on the frames
+   * instead of the content node.
+   */
+  if (!aFrame || aFrame->GetVisibility() == Visibility::APPROXIMATELY_NONVISIBLE) {
     return;
   }
 

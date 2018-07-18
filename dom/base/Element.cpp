@@ -1230,6 +1230,42 @@ Element::GetAttribute(const nsAString& aName, DOMString& aReturn)
   }
 }
 
+bool
+Element::ToggleAttribute(const nsAString& aName,
+                         const Optional<bool>& aForce,
+                         ErrorResult& aError)
+{
+  aError = nsContentUtils::CheckQName(aName, false);
+  if (aError.Failed()) {
+    return false;
+  }
+
+  nsAutoString nameToUse;
+  const nsAttrName* name = InternalGetAttrNameFromQName(aName, &nameToUse);
+  if (!name) {
+    if (aForce.WasPassed() && !aForce.Value()) {
+      return false;
+    }
+    nsCOMPtr<nsIAtom> nameAtom = NS_Atomize(nameToUse);
+    if (!nameAtom) {
+      aError.Throw(NS_ERROR_OUT_OF_MEMORY);
+      return false;
+    }
+    aError = SetAttr(kNameSpaceID_None, nameAtom, EmptyString(), true);
+    return true;
+  }
+  if (aForce.WasPassed() && aForce.Value()) {
+    return true;
+  }
+  // Hold a strong reference here so that the atom or nodeinfo doesn't go
+  // away during UnsetAttr. If it did UnsetAttr would be left with a
+  // dangling pointer as argument without knowing it.
+  nsAttrName tmp(*name);
+
+  aError = UnsetAttr(name->NamespaceID(), name->LocalName(), true);
+  return false;
+}
+
 void
 Element::SetAttribute(const nsAString& aName,
                       const nsAString& aValue,
@@ -3912,44 +3948,55 @@ Element::ClearDataset()
   slots->mDataset = nullptr;
 }
 
-nsTArray<Element::nsDOMSlots::IntersectionObserverRegistration>*
+nsDataHashtable<nsPtrHashKey<DOMIntersectionObserver>, int32_t>*
 Element::RegisteredIntersectionObservers()
 {
   nsDOMSlots* slots = DOMSlots();
   return &slots->mRegisteredIntersectionObservers;
 }
 
+enum nsPreviousIntersectionThreshold {
+  eUninitialized = -2,
+  eNonIntersecting = -1
+};
+
 void
 Element::RegisterIntersectionObserver(DOMIntersectionObserver* aObserver)
 {
-  RegisteredIntersectionObservers()->AppendElement(
-    nsDOMSlots::IntersectionObserverRegistration { aObserver, -1 });
+  nsDataHashtable<nsPtrHashKey<DOMIntersectionObserver>, int32_t>* observers =
+    RegisteredIntersectionObservers();
+  if (observers->Contains(aObserver)) {
+    return;
+  }
+
+  // Value can be:
+  //   -2:   Makes sure next calculated threshold always differs, leading to a
+  //         notification task being scheduled.
+  //   -1:   Non-intersecting.
+  //   >= 0: Intersecting, valid index of aObserver->mThresholds.
+  RegisteredIntersectionObservers()->Put(aObserver, eUninitialized);
 }
 
 void
 Element::UnregisterIntersectionObserver(DOMIntersectionObserver* aObserver)
 {
-  nsTArray<nsDOMSlots::IntersectionObserverRegistration>* observers =
+  nsDataHashtable<nsPtrHashKey<DOMIntersectionObserver>, int32_t>* observers =
     RegisteredIntersectionObservers();
-  for (uint32_t i = 0; i < observers->Length(); ++i) {
-    nsDOMSlots::IntersectionObserverRegistration reg = observers->ElementAt(i);
-    if (reg.observer == aObserver) {
-      observers->RemoveElementAt(i);
-      break;
-    }
-  }
+  observers->Remove(aObserver);
 }
 
 bool
 Element::UpdateIntersectionObservation(DOMIntersectionObserver* aObserver, int32_t aThreshold)
 {
-  nsTArray<nsDOMSlots::IntersectionObserverRegistration>* observers =
+  nsDataHashtable<nsPtrHashKey<DOMIntersectionObserver>, int32_t>* observers =
     RegisteredIntersectionObservers();
-  for (auto& reg : *observers) {
-    if (reg.observer == aObserver && reg.previousThreshold != aThreshold) {
-      reg.previousThreshold = aThreshold;
-      return true;
-    }
+  if (!observers->Contains(aObserver)) {
+    return false;
+  }
+  int32_t previousThreshold = observers->Get(aObserver);
+  if (previousThreshold != aThreshold) {
+    observers->Put(aObserver, aThreshold);
+    return true;
   }
   return false;
 }

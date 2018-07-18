@@ -42,8 +42,7 @@ pref("browser.cache.auto_delete_cache_version", 0);
 // Preference for switching the cache backend, can be changed freely at runtime
 // 0 - use the old (Darin's) cache
 // 1 - use the new cache back-end (cache v2)
-pref("browser.cache.use_new_backend",       0);
-pref("browser.cache.use_new_backend_temp",  true);
+pref("browser.cache.backend", 1);
 
 pref("browser.cache.disk.enable",           true);
 // Is this the first-time smartsizing has been introduced?
@@ -156,6 +155,9 @@ pref("dom.select_events.textcontrols.enabled", true);
 pref("dom.select_events.textcontrols.enabled", false);
 #endif
 
+// Whether or not the document visbility API is enabled
+pref("dom.visibilityAPI.enabled", true);
+
 // Whether or not Web Workers are enabled.
 pref("dom.workers.enabled", true);
 
@@ -207,6 +209,10 @@ pref("dom.enable_performance_observer", false);
 
 // Enable requestIdleCallback API
 pref("dom.requestIdleCallback.enabled", true);
+
+// Enable Intersection Observers
+// See WD https://w3c.github.io/IntersectionObserver/
+pref("dom.IntersectionObserver.enabled", false);
 
 // Whether the Gamepad API is enabled
 pref("dom.gamepad.enabled", true);
@@ -1217,7 +1223,11 @@ pref("privacy.donottrackheader.enabled",    false);
 // Enforce tracking protection in all modes
 pref("privacy.trackingprotection.enabled",  false);
 // Enforce tracking protection in Private Browsing mode
+#ifdef MOZ_SAFE_BROWSING
 pref("privacy.trackingprotection.pbmode.enabled",  true);
+#else
+pref("privacy.trackingprotection.pbmode.enabled",  false);
+#endif
 
 pref("dom.event.contextmenu.enabled",       true);
 pref("dom.event.clipboardevents.enabled",   true);
@@ -3385,7 +3395,7 @@ pref("gfx.font_rendering.cleartype_params.force_gdi_classic_for_families",
      "Arial,Consolas,Courier New,Microsoft Sans Serif,Segoe UI,Tahoma,Trebuchet MS,Verdana");
 // The maximum size at which we will force GDI classic mode using
 // force_gdi_classic_for_families.
-pref("gfx.font_rendering.cleartype_params.force_gdi_classic_max_size", 15);
+pref("gfx.font_rendering.cleartype_params.force_gdi_classic_max_size", 17);
 
 pref("ui.key.menuAccessKeyFocuses", true);
 
@@ -4335,6 +4345,11 @@ pref("image.http.accept", "image/webp,image/png,image/*;q=0.8,*/*;q=0.5");
 // special "animation mode" which is designed to eliminate flicker. Set to 0 to
 // disable.
 pref("image.infer-src-animation.threshold-ms", 2000);
+
+// Whether to always optimize to image layers. Setting this to true will increase
+// performance of downscaled large images at the expense of visual quality,
+// because we can't use HQ downscaling in image layers.
+pref("image.layerize.always", false);
 
 //
 // Image memory management prefs

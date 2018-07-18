@@ -50,6 +50,8 @@ browser.jar:
         skin/classic/browser/Privacy-16.png
         skin/classic/browser/Privacy-32.png
         skin/classic/browser/Privacy-48.png
+  skin/classic/browser/privatebrowsing-mask.png
+  skin/classic/browser/privatebrowsing-mask@2x.png
         skin/classic/browser/privatebrowsing-light.png
         skin/classic/browser/privatebrowsing-dark.png
         skin/classic/browser/reload-stop-go.png
@@ -93,9 +95,10 @@ browser.jar:
         skin/classic/browser/feeds/videoFeedIcon16.png               (feeds/feedIcon16.png)
         skin/classic/browser/feeds/subscribe.css                     (feeds/subscribe.css)
         skin/classic/browser/feeds/subscribe-ui.css                  (feeds/subscribe-ui.css)
-        skin/classic/browser/newtab/newTab.css                       (newtab/newTab.css)
-        skin/classic/browser/newtab/controls.png                     (newtab/controls.png)
-        skin/classic/browser/newtab/noise.png                        (newtab/noise.png)
+*       skin/classic/browser/newtab/newTab.css                       (newtab/newTab.css)
+        skin/classic/browser/newtab/controls.png                     (../shared/newtab/controls.png)
+        skin/classic/browser/newtab/noise.png                        (../shared/newtab/noise.png)
+        skin/classic/browser/newtab/pinned.png                       (../shared/newtab/pinned.png)
         skin/classic/browser/places/places.css                       (places/places.css)
 *       skin/classic/browser/places/organizer.css                    (places/organizer.css)
         skin/classic/browser/places/editBookmark.png                 (places/editBookmark.png)
@@ -123,6 +126,7 @@ browser.jar:
         skin/classic/browser/places/livemark-item.png                (places/livemark-item.png)
         skin/classic/browser/places/expander-closed.png              (places/expander-closed.png)
         skin/classic/browser/places/expander-open.png                (places/expander-open.png)
+        skin/classic/browser/permissions/aboutPermissions.css        (permissions/aboutPermissions.css)
         skin/classic/browser/preferences/alwaysAsk.png               (preferences/alwaysAsk.png)
         skin/classic/browser/preferences/application.png             (preferences/application.png)
         skin/classic/browser/preferences/mail.png                    (preferences/mail.png)
@@ -133,7 +137,6 @@ browser.jar:
         skin/classic/browser/preferences/saveFile.png                (preferences/saveFile.png)
 *       skin/classic/browser/preferences/preferences.css             (preferences/preferences.css)
         skin/classic/browser/preferences/applications.css            (preferences/applications.css)
-        skin/classic/browser/preferences/aboutPermissions.css        (preferences/aboutPermissions.css)
 #ifdef MOZ_BROWSER_STATUSBAR
         skin/classic/browser/statusbar/dynamic.css                   (../shared/statusbar/dynamic.css)
 *       skin/classic/browser/statusbar/overlay.css                   (statusbar/overlay.css)

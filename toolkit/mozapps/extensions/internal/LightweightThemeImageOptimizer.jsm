@@ -59,10 +59,14 @@ var ImageCropper = {
       return aImageURL;
     }
 
-    if (Services.prefs.getBoolPref("lightweightThemes.animation.enabled")) {
-      //Don't crop if animated
-      return aImageURL;
-    }   
+    try {
+      if (Services.prefs.getBoolPref("lightweightThemes.animation.enabled")) {
+        //Don't crop if animated
+        return aImageURL;
+      }
+    } catch(e) { 
+      // Continue of pref doesn't exist.
+    }
 
     // Generate the cropped image's file name using its
     // base name and the current screen size.
@@ -120,22 +124,19 @@ var ImageCropper = {
 };
 
 var ImageFile = {
-  read: function ImageFile_read(aURI, aCallback) {
-    this._netUtil.asyncFetch2(
-      aURI,
-      function read_asyncFetch(aInputStream, aStatus, aRequest) {
+  read: function(aURI, aCallback) {
+    this._netUtil.asyncFetch({
+      uri: aURI,
+      loadUsingSystemPrincipal: true,
+      contentPolicyType: Ci.nsIContentPolicy.TYPE_INTERNAL_IMAGE
+    }, function(aInputStream, aStatus, aRequest) {
         if (Components.isSuccessCode(aStatus) && aRequest instanceof Ci.nsIChannel) {
           let channel = aRequest.QueryInterface(Ci.nsIChannel);
           aCallback(aInputStream, channel.contentType);
         } else {
           aCallback();
         }
-      },
-      null,      // aLoadingNode
-      Services.scriptSecurityManager.getSystemPrincipal(),
-      null,      // aTriggeringPrincipal
-      Ci.nsILoadInfo.SEC_NORMAL,
-      Ci.nsIContentPolicy.TYPE_IMAGE);
+      });
   },
 
   write: function ImageFile_write(aFile, aInputStream, aCallback) {

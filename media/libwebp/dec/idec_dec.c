@@ -15,9 +15,9 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "./alphai_dec.h"
-#include "./webpi_dec.h"
-#include "./vp8i_dec.h"
+#include "../dec/alphai_dec.h"
+#include "../dec/webpi_dec.h"
+#include "../dec/vp8i_dec.h"
 #include "../utils/utils.h"
 
 // In append mode, buffer allocations increase as multiples of this value.
@@ -283,10 +283,8 @@ static void RestoreContext(const MBContext* context, VP8Decoder* const dec,
 
 static VP8StatusCode IDecError(WebPIDecoder* const idec, VP8StatusCode error) {
   if (idec->state_ == STATE_VP8_DATA) {
-    VP8Io* const io = &idec->io_;
-    if (io->teardown != NULL) {
-      io->teardown(io);
-    }
+    // Synchronize the thread, clean-up and check for errors.
+    VP8ExitCritical((VP8Decoder*)idec->dec_, &idec->io_);
   }
   idec->state_ = STATE_ERROR;
   return error;
@@ -673,12 +671,12 @@ void WebPIDelete(WebPIDecoder* idec) {
 //------------------------------------------------------------------------------
 // Wrapper toward WebPINewDecoder
 
-WebPIDecoder* WebPINewRGB(WEBP_CSP_MODE mode, uint8_t* output_buffer,
+WebPIDecoder* WebPINewRGB(WEBP_CSP_MODE csp, uint8_t* output_buffer,
                           size_t output_buffer_size, int output_stride) {
   const int is_external_memory = (output_buffer != NULL) ? 1 : 0;
   WebPIDecoder* idec;
 
-  if (mode >= MODE_YUV) return NULL;
+  if (csp >= MODE_YUV) return NULL;
   if (is_external_memory == 0) {    // Overwrite parameters to sane values.
     output_buffer_size = 0;
     output_stride = 0;
@@ -689,7 +687,7 @@ WebPIDecoder* WebPINewRGB(WEBP_CSP_MODE mode, uint8_t* output_buffer,
   }
   idec = WebPINewDecoder(NULL);
   if (idec == NULL) return NULL;
-  idec->output_.colorspace = mode;
+  idec->output_.colorspace = csp;
   idec->output_.is_external_memory = is_external_memory;
   idec->output_.u.RGBA.rgba = output_buffer;
   idec->output_.u.RGBA.stride = output_stride;

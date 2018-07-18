@@ -303,7 +303,7 @@ DoContentSecurityChecks(nsIChannel* aChannel, nsILoadInfo* aLoadInfo)
 
     case nsIContentPolicy::TYPE_DOCUMENT: {
       mimeTypeGuess = EmptyCString();
-      requestingContext = aLoadInfo->LoadingNode();
+      requestingContext = aLoadInfo->ContextForTopLevelLoad();
       break;
     }
 
@@ -467,6 +467,12 @@ DoContentSecurityChecks(nsIChannel* aChannel, nsILoadInfo* aLoadInfo)
 
     case nsIContentPolicy::TYPE_WEB_MANIFEST: {
       mimeTypeGuess = NS_LITERAL_CSTRING("application/manifest+json");
+      requestingContext = aLoadInfo->LoadingNode();
+      break;
+    }
+
+    case nsIContentPolicy::TYPE_SAVEAS_DOWNLOAD: {
+      mimeTypeGuess = EmptyCString();
       requestingContext = aLoadInfo->LoadingNode();
       break;
     }

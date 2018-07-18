@@ -11,7 +11,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "FormHistory",
 XPCOMUtils.defineLazyModuleGetter(this, "Downloads",
                                   "resource://gre/modules/Downloads.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Promise",
-                                  "resource:///modules/promise.js");
+                                  "resource://gre/modules/Promise.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Task",
                                   "resource://gre/modules/Task.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "console",
@@ -257,13 +257,18 @@ Sanitizer.prototype = {
                                       .getService(Components.interfaces.nsIWindowMediator);
         var windows = windowManager.getEnumerator("navigator:browser");
         while (windows.hasMoreElements()) {
-          let currentDocument = windows.getNext().document;
+          let currentWindow = windows.getNext();
+          let currentDocument = currentWindow.document;
           let searchBar = currentDocument.getElementById("searchbar");
           if (searchBar)
             searchBar.textbox.reset();
-          let findBar = currentDocument.getElementById("FindToolbar");
-          if (findBar)
-            findBar.clear();
+          let tabBrowser = currentWindow.gBrowser;
+          for (let tab of tabBrowser.tabs) {
+            if (tabBrowser.isFindBarInitialized(tab))
+              tabBrowser.getFindBar(tab).clear();
+          }
+          // Clear any saved find value
+          tabBrowser._lastFindValue = "";
         }
 
         let change = { op: "remove" };
@@ -279,7 +284,8 @@ Sanitizer.prototype = {
                                       .getService(Components.interfaces.nsIWindowMediator);
         var windows = windowManager.getEnumerator("navigator:browser");
         while (windows.hasMoreElements()) {
-          let currentDocument = windows.getNext().document;
+          let currentWindow = windows.getNext();
+          let currentDocument = currentWindow.document;
           let searchBar = currentDocument.getElementById("searchbar");
           if (searchBar) {
             let transactionMgr = searchBar.textbox.editor.transactionManager;
@@ -290,8 +296,12 @@ Sanitizer.prototype = {
               return false;
             }
           }
-          let findBar = currentDocument.getElementById("FindToolbar");
-          if (findBar && findBar.canClear) {
+          let tabBrowser = currentWindow.gBrowser;
+          let findBarCanClear = Array.some(tabBrowser.tabs, function (aTab) {
+            return tabBrowser.isFindBarInitialized(aTab) &&
+                   tabBrowser.getFindBar(aTab).canClear;
+          });
+          if (findBarCanClear) {
             aCallback("formdata", true, aArg);
             return false;
           }

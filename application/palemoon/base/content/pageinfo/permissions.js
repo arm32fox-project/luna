@@ -12,8 +12,6 @@ const IMAGE_DENY = 2;
 const COOKIE_DENY = 2;
 const COOKIE_SESSION = 2;
 
-const nsIQuotaManagerService = Components.interfaces.nsIQuotaManagerService;
-
 var gPermURI;
 var gPermPrincipal;
 var gPrefs;
@@ -64,13 +62,6 @@ var gPermObj = {
       return DENY;
     }
     return ALLOW;
-  },
-  indexedDB: function getIndexedDBDefaultPermissions()
-  {
-    if (!gPrefs.getBoolPref("dom.indexedDB.enabled")) {
-      return DENY;
-    }
-    return UNKNOWN;
   },
   plugins: function getPluginsDefaultPermissions()
   {
@@ -161,10 +152,6 @@ function initRow(aPartId)
     perm = gPermObj[aPartId]();
   }
   setRadioState(aPartId, perm);
-
-  if (aPartId == "indexedDB") {
-    initIndexedDBRow();
-  }
 }
 
 function onCheckboxClick(aPartId)
@@ -211,65 +198,6 @@ function setRadioState(aPartId, aValue)
   radio.radioGroup.selectedItem = radio;
 }
 
-function initIndexedDBRow()
-{
-  let row = document.getElementById("permIndexedDBRow");
-  let extras = document.getElementById("permIndexedDBExtras");
-
-  row.appendChild(extras);
-
-  var quotaManagerService =
-    Components.classes["@mozilla.org/dom/quota-manager-service;1"]
-              .getService(nsIQuotaManagerService);
-
-  gUsageRequest =
-    quotaManagerService.getUsageForPrincipal(gPermPrincipal,
-                                             onIndexedDBUsageCallback);
-
-  var status = document.getElementById("indexedDBStatus");
-  var button = document.getElementById("indexedDBClear");
-
-  status.value = "";
-  status.setAttribute("hidden", "true");
-  button.setAttribute("hidden", "true");
-}
-
-function onIndexedDBClear()
-{
-  Components.classes["@mozilla.org/dom/quota-manager-service;1"]
-            .getService(nsIQuotaManagerService)
-            .clearStoragesForPrincipal(gPermPrincipal);
-
-  var permissionManager = Components.classes[PERMISSION_CONTRACTID]
-                                    .getService(nsIPermissionManager);
-  permissionManager.remove(gPermURI, "indexedDB");
-  initIndexedDBRow();
-}
-
-function onIndexedDBUsageCallback(request)
-{
-  let uri = request.principal.URI;
-  if (!uri.equals(gPermURI)) {
-    throw new Error("Callback received for bad URI: " + uri.spec);
-  }
-
-  let usage = request.result.usage;
-  if (usage) {
-    if (!("DownloadUtils" in window)) {
-      Components.utils.import("resource://gre/modules/DownloadUtils.jsm");
-    }
-
-    var status = document.getElementById("indexedDBStatus");
-    var button = document.getElementById("indexedDBClear");
-
-    status.value =
-      gBundle.getFormattedString("indexedDBUsage",
-                                 DownloadUtils.convertByteUnits(usage));
-    status.removeAttribute("hidden");
-    button.removeAttribute("hidden");
-  }
-}
-
 // XXX copied this from browser-plugins.js - is there a way to share?
 function makeNicePluginName(aName) {
   if (aName == "Shockwave Flash")
@@ -289,14 +217,20 @@ function fillInPluginPermissionTemplate(aPermissionString, aPluginObject) {
                            .cloneNode(true);
   permPluginTemplate.setAttribute("permString", aPermissionString);
   permPluginTemplate.setAttribute("tooltiptext", aPluginObject.description);
-  let attrs = [
-    [ ".permPluginTemplateLabel", "value", aPluginObject.name ],
-    [ ".permPluginTemplateRadioGroup", "id", aPermissionString + "RadioGroup" ],
-    [ ".permPluginTemplateRadioDefault", "id", aPermissionString + "#0" ],
-    [ ".permPluginTemplateRadioAsk", "id", aPermissionString + "#3" ],
-    [ ".permPluginTemplateRadioAllow", "id", aPermissionString + "#1" ],
-    [ ".permPluginTemplateRadioBlock", "id", aPermissionString + "#2" ]
-  ];
+  let attrs = [];
+  attrs.push([".permPluginTemplateLabel", "value", aPluginObject.name]);
+  attrs.push([".permPluginTemplateRadioGroup", "id", aPermissionString + "RadioGroup"]);
+  attrs.push([".permPluginTemplateRadioDefault", "id", aPermissionString + "#0"]);
+  let permPluginTemplateRadioAsk = ".permPluginTemplateRadioAsk";
+  if (Services.prefs.getBoolPref("plugins.click_to_play") ||
+      aPluginObject.vulnerable) {
+    attrs.push([permPluginTemplateRadioAsk, "id", aPermissionString + "#3"]);
+  } else {
+    permPluginTemplate.querySelector(permPluginTemplateRadioAsk)
+        .setAttribute("disabled", "true");
+  }
+  attrs.push([".permPluginTemplateRadioAllow", "id", aPermissionString + "#1"]);
+  attrs.push([".permPluginTemplateRadioBlock", "id", aPermissionString + "#2"]);
 
   for (let attr of attrs) {
     permPluginTemplate.querySelector(attr[0]).setAttribute(attr[1], attr[2]);
@@ -336,13 +270,16 @@ function initPluginsRow() {
       }
       let permString = pluginHost.getPermissionStringForType(mimeType);
       if (!permissionMap.has(permString)) {
-        var name = makeNicePluginName(plugin.name) + " " + plugin.version;
+        let name = makeNicePluginName(plugin.name) + " " + plugin.version;
+        let vulnerable = false;
         if (permString.startsWith("plugin-vulnerable:")) {
           name += " \u2014 " + vulnerableLabel;
+          vulnerable = true;
         }
         permissionMap.set(permString, {
           "name": name,
           "description": plugin.description,
+          "vulnerable": vulnerable 
         });
       }
     }

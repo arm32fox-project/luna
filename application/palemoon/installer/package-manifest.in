@@ -56,7 +56,7 @@
 @RESPATH@/hyphenation/*
 @RESPATH@/browser/@PREF_DIR@/palemoon-l10n.js
 @RESPATH@/browser/searchplugins/*
-#ifdef HAVE_MAKENSISU
+#ifdef XP_WIN32
 @BINPATH@/uninstall/helper.exe
 #endif
 #ifdef MOZ_UPDATER
@@ -117,7 +117,7 @@
 @BINPATH@/browser/VisualElements/VisualElements_150.png
 @BINPATH@/browser/VisualElements/VisualElements_70.png
 #else
-@BINPATH@/@MOZ_APP_NAME@-bin
+@RESPATH@/@MOZ_APP_NAME@-bin
 @BINPATH@/@MOZ_APP_NAME@
 #endif
 @RESPATH@/application.ini
@@ -212,6 +212,7 @@
 @RESPATH@/browser/chrome/icons/default/default48.png
 #endif
 
+#ifdef MOZ_DEVTOOLS
 ; [Webide Files]
 @RESPATH@/browser/chrome/webide@JAREXT@
 @RESPATH@/browser/chrome/webide.manifest
@@ -221,6 +222,7 @@
 @RESPATH@/browser/chrome/devtools@JAREXT@
 @RESPATH@/browser/chrome/devtools.manifest
 @RESPATH@/browser/@PREF_DIR@/devtools.js
+#endif
 
 ; shell icons
 #ifdef XP_UNIX

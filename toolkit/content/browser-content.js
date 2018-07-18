@@ -841,6 +841,7 @@ var FindBar = {
         fakeEvent[k] = event[k];
       }
     }
+
     // sendSyncMessage returns an array of the responses from all listeners
     let rv = sendSyncMessage("Findbar:Keypress", {
       fakeEvent: fakeEvent,

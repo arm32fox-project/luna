@@ -14,8 +14,8 @@
 
 #include <stdlib.h>
 
-#include "./alphai_dec.h"
-#include "./vp8li_dec.h"
+#include "../dec/alphai_dec.h"
+#include "../dec/vp8li_dec.h"
 #include "../dsp/dsp.h"
 #include "../dsp/lossless.h"
 #include "../dsp/lossless_common.h"
@@ -28,8 +28,8 @@
 
 static const int kCodeLengthLiterals = 16;
 static const int kCodeLengthRepeatCode = 16;
-static const int kCodeLengthExtraBits[3] = { 2, 3, 7 };
-static const int kCodeLengthRepeatOffsets[3] = { 3, 3, 11 };
+static const uint8_t kCodeLengthExtraBits[3] = { 2, 3, 7 };
+static const uint8_t kCodeLengthRepeatOffsets[3] = { 3, 3, 11 };
 
 // -----------------------------------------------------------------------------
 //  Five Huffman codes are used at each meta code:
@@ -86,7 +86,7 @@ static const uint8_t kCodeToPlane[CODE_TO_PLANE_CODES] = {
 // All values computed for 8-bit first level lookup with Mark Adler's tool:
 // http://www.hdfgroup.org/ftp/lib-external/zlib/zlib-1.2.5/examples/enough.c
 #define FIXED_TABLE_SIZE (630 * 3 + 410)
-static const int kTableSize[12] = {
+static const uint16_t kTableSize[12] = {
   FIXED_TABLE_SIZE + 654,
   FIXED_TABLE_SIZE + 656,
   FIXED_TABLE_SIZE + 658,
@@ -359,12 +359,14 @@ static int ReadHuffmanCodes(VP8LDecoder* const dec, int xsize, int ysize,
                             int color_cache_bits, int allow_recursion) {
   int i, j;
   VP8LBitReader* const br = &dec->br_;
+  VP8LBitReader br_tmp;
   VP8LMetadata* const hdr = &dec->hdr_;
   uint32_t* huffman_image = NULL;
   HTreeGroup* htree_groups = NULL;
   HuffmanCode* huffman_tables = NULL;
   HuffmanCode* next = NULL;
   int num_htree_groups = 1;
+  int num_htree_groups_limit = 1;
   int max_alphabet_size = 0;
   int* code_lengths = NULL;
   const int table_size = kTableSize[color_cache_bits];
@@ -388,6 +390,18 @@ static int ReadHuffmanCodes(VP8LDecoder* const dec, int xsize, int ysize,
         num_htree_groups = group + 1;
       }
     }
+    // Check the validity of num_htree_groups. If it seems too big, use a
+    // smaller value for later. This will prevent big memory allocations to end
+    // up with a bad bitstream anyway.
+    // The value of 1000 is totally arbitrary. We know that num_htree_groups
+    // is smaller than (1 << 16) and should be smaller than the number of pixels
+    // (though the format allows it to be bigger).
+    if (num_htree_groups > 1000 || num_htree_groups > xsize * ysize) {
+      num_htree_groups_limit = (xsize * ysize > 1000) ? 1000 : xsize * ysize;
+      br_tmp = dec->br_;
+    } else {
+      num_htree_groups_limit = num_htree_groups;
+    }
   }
 
   if (br->eos_) goto Error;
@@ -403,68 +417,86 @@ static int ReadHuffmanCodes(VP8LDecoder* const dec, int xsize, int ysize,
     }
   }
 
-  huffman_tables = (HuffmanCode*)WebPSafeMalloc(num_htree_groups * table_size,
-                                                sizeof(*huffman_tables));
-  htree_groups = VP8LHtreeGroupsNew(num_htree_groups);
   code_lengths = (int*)WebPSafeCalloc((uint64_t)max_alphabet_size,
                                       sizeof(*code_lengths));
+  // If num_htree_groups_tmp == num_htree_groups, the following loop is executed
+  // once.
+  // If num_htree_groups_tmp != num_htree_groups, we execute the loop the first
+  // time with little memory allocation in the hope that there is a bitstream
+  // error. If after num_htree_groups_tmp iterations, no error appears,
+  // num_htree_groups is probably the right value so try it out.
+  do {
+    huffman_tables = (HuffmanCode*)WebPSafeMalloc(
+        num_htree_groups_limit * table_size, sizeof(*huffman_tables));
+    htree_groups = VP8LHtreeGroupsNew(num_htree_groups_limit);
 
-  if (htree_groups == NULL || code_lengths == NULL || huffman_tables == NULL) {
-    dec->status_ = VP8_STATUS_OUT_OF_MEMORY;
-    goto Error;
-  }
+    if (htree_groups == NULL || code_lengths == NULL ||
+        huffman_tables == NULL) {
+      dec->status_ = VP8_STATUS_OUT_OF_MEMORY;
+      goto Error;
+    }
 
-  next = huffman_tables;
-  for (i = 0; i < num_htree_groups; ++i) {
-    HTreeGroup* const htree_group = &htree_groups[i];
-    HuffmanCode** const htrees = htree_group->htrees;
-    int size;
-    int total_size = 0;
-    int is_trivial_literal = 1;
-    int max_bits = 0;
-    for (j = 0; j < HUFFMAN_CODES_PER_META_CODE; ++j) {
-      int alphabet_size = kAlphabetSize[j];
-      htrees[j] = next;
-      if (j == 0 && color_cache_bits > 0) {
-        alphabet_size += 1 << color_cache_bits;
-      }
-      size = ReadHuffmanCode(alphabet_size, dec, code_lengths, next);
-      if (size == 0) {
-        goto Error;
-      }
-      if (is_trivial_literal && kLiteralMap[j] == 1) {
-        is_trivial_literal = (next->bits == 0);
-      }
-      total_size += next->bits;
-      next += size;
-      if (j <= ALPHA) {
-        int local_max_bits = code_lengths[0];
-        int k;
-        for (k = 1; k < alphabet_size; ++k) {
-          if (code_lengths[k] > local_max_bits) {
-            local_max_bits = code_lengths[k];
-          }
+    next = huffman_tables;
+    for (i = 0; i < num_htree_groups_limit; ++i) {
+      HTreeGroup* const htree_group = &htree_groups[i];
+      HuffmanCode** const htrees = htree_group->htrees;
+      int size;
+      int total_size = 0;
+      int is_trivial_literal = 1;
+      int max_bits = 0;
+      for (j = 0; j < HUFFMAN_CODES_PER_META_CODE; ++j) {
+        int alphabet_size = kAlphabetSize[j];
+        htrees[j] = next;
+        if (j == 0 && color_cache_bits > 0) {
+          alphabet_size += 1 << color_cache_bits;
         }
-        max_bits += local_max_bits;
+        size = ReadHuffmanCode(alphabet_size, dec, code_lengths, next);
+        if (size == 0) {
+          goto Error;
+        }
+        if (is_trivial_literal && kLiteralMap[j] == 1) {
+          is_trivial_literal = (next->bits == 0);
+        }
+        total_size += next->bits;
+        next += size;
+        if (j <= ALPHA) {
+          int local_max_bits = code_lengths[0];
+          int k;
+          for (k = 1; k < alphabet_size; ++k) {
+            if (code_lengths[k] > local_max_bits) {
+              local_max_bits = code_lengths[k];
+            }
+          }
+          max_bits += local_max_bits;
+        }
       }
-    }
-    htree_group->is_trivial_literal = is_trivial_literal;
-    htree_group->is_trivial_code = 0;
-    if (is_trivial_literal) {
-      const int red = htrees[RED][0].value;
-      const int blue = htrees[BLUE][0].value;
-      const int alpha = htrees[ALPHA][0].value;
-      htree_group->literal_arb =
-          ((uint32_t)alpha << 24) | (red << 16) | blue;
-      if (total_size == 0 && htrees[GREEN][0].value < NUM_LITERAL_CODES) {
-        htree_group->is_trivial_code = 1;
-        htree_group->literal_arb |= htrees[GREEN][0].value << 8;
+      htree_group->is_trivial_literal = is_trivial_literal;
+      htree_group->is_trivial_code = 0;
+      if (is_trivial_literal) {
+        const int red = htrees[RED][0].value;
+        const int blue = htrees[BLUE][0].value;
+        const int alpha = htrees[ALPHA][0].value;
+        htree_group->literal_arb = ((uint32_t)alpha << 24) | (red << 16) | blue;
+        if (total_size == 0 && htrees[GREEN][0].value < NUM_LITERAL_CODES) {
+          htree_group->is_trivial_code = 1;
+          htree_group->literal_arb |= htrees[GREEN][0].value << 8;
+        }
       }
+      htree_group->use_packed_table =
+          !htree_group->is_trivial_code && (max_bits < HUFFMAN_PACKED_BITS);
+      if (htree_group->use_packed_table) BuildPackedTable(htree_group);
     }
-    htree_group->use_packed_table = !htree_group->is_trivial_code &&
-                                    (max_bits < HUFFMAN_PACKED_BITS);
-    if (htree_group->use_packed_table) BuildPackedTable(htree_group);
-  }
+    // If we have survived up to here, num_htree_groups might actually be
+    // that big so restart with a proper allocation.
+    if (num_htree_groups != num_htree_groups_limit) {
+      num_htree_groups_limit = num_htree_groups;
+      WebPSafeFree(huffman_tables);
+      VP8LHtreeGroupsFree(htree_groups);
+      huffman_tables = NULL;
+      htree_groups = NULL;
+      dec->br_ = br_tmp;
+    }
+  } while (i != num_htree_groups);
   WebPSafeFree(code_lengths);
 
   // All OK. Finalize pointers and return.
@@ -485,6 +517,7 @@ static int ReadHuffmanCodes(VP8LDecoder* const dec, int xsize, int ysize,
 //------------------------------------------------------------------------------
 // Scaling.
 
+#if !defined(WEBP_REDUCE_SIZE)
 static int AllocateAndInitRescaler(VP8LDecoder* const dec, VP8Io* const io) {
   const int num_channels = 4;
   const int in_width = io->mb_w;
@@ -516,9 +549,12 @@ static int AllocateAndInitRescaler(VP8LDecoder* const dec, VP8Io* const io) {
                    out_width, out_height, 0, num_channels, work);
   return 1;
 }
+#endif   // WEBP_REDUCE_SIZE
 
 //------------------------------------------------------------------------------
 // Export to ARGB
+
+#if !defined(WEBP_REDUCE_SIZE)
 
 // We have special "export" function since we need to convert from BGRA
 static int Export(WebPRescaler* const rescaler, WEBP_CSP_MODE colorspace,
@@ -560,6 +596,8 @@ static int EmitRescaledRowsRGBA(const VP8LDecoder* const dec,
   }
   return num_lines_out;
 }
+
+#endif   // WEBP_REDUCE_SIZE
 
 // Emit rows without any scaling.
 static int EmitRows(WEBP_CSP_MODE colorspace,
@@ -746,9 +784,12 @@ static void ProcessRows(VP8LDecoder* const dec, int row) {
       if (WebPIsRGBMode(output->colorspace)) {  // convert to RGBA
         const WebPRGBABuffer* const buf = &output->u.RGBA;
         uint8_t* const rgba = buf->rgba + dec->last_out_row_ * buf->stride;
-        const int num_rows_out = io->use_scaling ?
+        const int num_rows_out =
+#if !defined(WEBP_REDUCE_SIZE)
+         io->use_scaling ?
             EmitRescaledRowsRGBA(dec, rows_data, in_stride, io->mb_h,
                                  rgba, buf->stride) :
+#endif  // WEBP_REDUCE_SIZE
             EmitRows(output->colorspace, rows_data, in_stride,
                      io->mb_w, io->mb_h, rgba, buf->stride);
         // Update 'last_out_row_'.
@@ -1012,12 +1053,13 @@ static int DecodeAlphaData(VP8LDecoder* const dec, uint8_t* const data,
       ok = 0;
       goto End;
     }
-    assert(br->eos_ == VP8LIsEndOfStream(br));
+    br->eos_ = VP8LIsEndOfStream(br);
   }
   // Process the remaining rows corresponding to last row-block.
   ExtractPalettedAlphaRows(dec, row > last_row ? last_row : row);
 
  End:
+  br->eos_ = VP8LIsEndOfStream(br);
   if (!ok || (br->eos_ && pos < end)) {
     ok = 0;
     dec->status_ = br->eos_ ? VP8_STATUS_SUSPENDED
@@ -1090,11 +1132,12 @@ static int DecodeImageData(VP8LDecoder* const dec, uint32_t* const data,
     VP8LFillBitWindow(br);
     if (htree_group->use_packed_table) {
       code = ReadPackedSymbols(htree_group, br, src);
+      if (VP8LIsEndOfStream(br)) break;
       if (code == PACKED_NON_LITERAL_CODE) goto AdvanceByOne;
     } else {
       code = ReadSymbol(htree_group->htrees[GREEN], br);
     }
-    if (br->eos_) break;  // early out
+    if (VP8LIsEndOfStream(br)) break;
     if (code < NUM_LITERAL_CODES) {  // Literal
       if (htree_group->is_trivial_literal) {
         *src = htree_group->literal_arb | (code << 8);
@@ -1104,7 +1147,7 @@ static int DecodeImageData(VP8LDecoder* const dec, uint32_t* const data,
         VP8LFillBitWindow(br);
         blue = ReadSymbol(htree_group->htrees[BLUE], br);
         alpha = ReadSymbol(htree_group->htrees[ALPHA], br);
-        if (br->eos_) break;
+        if (VP8LIsEndOfStream(br)) break;
         *src = ((uint32_t)alpha << 24) | (red << 16) | (code << 8) | blue;
       }
     AdvanceByOne:
@@ -1132,7 +1175,7 @@ static int DecodeImageData(VP8LDecoder* const dec, uint32_t* const data,
       VP8LFillBitWindow(br);
       dist_code = GetCopyDistance(dist_symbol, br);
       dist = PlaneCodeToDistance(width, dist_code);
-      if (br->eos_) break;
+      if (VP8LIsEndOfStream(br)) break;
       if (src - data < (ptrdiff_t)dist || src_end - src < (ptrdiff_t)length) {
         goto Error;
       } else {
@@ -1169,9 +1212,9 @@ static int DecodeImageData(VP8LDecoder* const dec, uint32_t* const data,
     } else {  // Not reached
       goto Error;
     }
-    assert(br->eos_ == VP8LIsEndOfStream(br));
   }
 
+  br->eos_ = VP8LIsEndOfStream(br);
   if (dec->incremental_ && br->eos_ && src < src_end) {
     RestoreState(dec);
   } else if (!br->eos_) {
@@ -1630,12 +1673,19 @@ int VP8LDecodeImage(VP8LDecoder* const dec) {
 
     if (!AllocateInternalBuffers32b(dec, io->width)) goto Err;
 
+#if !defined(WEBP_REDUCE_SIZE)
     if (io->use_scaling && !AllocateAndInitRescaler(dec, io)) goto Err;
-
+#else
+    if (io->use_scaling) {
+      dec->status_ = VP8_STATUS_INVALID_PARAM;
+      goto Err;
+    }
+#endif
     if (io->use_scaling || WebPIsPremultipliedMode(dec->output_->colorspace)) {
       // need the alpha-multiply functions for premultiplied output or rescaling
       WebPInitAlphaProcessing();
     }
+
     if (!WebPIsRGBMode(dec->output_->colorspace)) {
       WebPInitConvertARGBToYUV();
       if (dec->output_->u.YUVA.a != NULL) WebPInitAlphaProcessing();

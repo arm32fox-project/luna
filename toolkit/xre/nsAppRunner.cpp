@@ -9,6 +9,7 @@
 
 #include "mozilla/ArrayUtils.h"
 #include "mozilla/Attributes.h"
+#include "mozilla/FilePreferences.h"
 #include "mozilla/ChaosMode.h"
 #include "mozilla/IOInterposer.h"
 #include "mozilla/Likely.h"
@@ -3739,6 +3740,10 @@ XREMain::XRE_mainRun()
   }
 
   mDirProvider.DoStartup();
+
+  // As FilePreferences need the profile directory, we must initialize right here.
+  mozilla::FilePreferences::InitDirectoriesWhitelist();
+  mozilla::FilePreferences::InitPrefs();
 
   OverrideDefaultLocaleIfNeeded();
 

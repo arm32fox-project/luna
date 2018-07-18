@@ -53,16 +53,16 @@ static RedirEntry kRedirMap[] = {
     nsIAboutModule::ALLOW_SCRIPT
   },
   {
-    "newtab", "chrome://browser/content/newtab/newTab.xul",
+    "newtab", "chrome://browser/content/newtab/newTab.xhtml",
     nsIAboutModule::ALLOW_SCRIPT
   },
   {
-    "palemoon", "chrome://global/content/memoriam.xhtml",
+    "palemoon", "chrome://browser/content/palemoon.xhtml",
     nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
     nsIAboutModule::HIDE_FROM_ABOUTABOUT
   },
   {
-    "permissions", "chrome://browser/content/preferences/aboutPermissions.xul",
+    "permissions", "chrome://browser/content/permissions/aboutPermissions.xul",
     nsIAboutModule::ALLOW_SCRIPT
   },
   {
@@ -70,12 +70,7 @@ static RedirEntry kRedirMap[] = {
     nsIAboutModule::ALLOW_SCRIPT
   },
   {
-    "rights",
-#ifdef MOZ_OFFICIAL_BRANDING
-    "chrome://global/content/aboutRights.xhtml",
-#else
-    "chrome://global/content/aboutRights-unbranded.xhtml",
-#endif
+    "rights", "chrome://global/content/aboutRights.xhtml",
     nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
     nsIAboutModule::MAKE_LINKABLE |
     nsIAboutModule::ALLOW_SCRIPT
