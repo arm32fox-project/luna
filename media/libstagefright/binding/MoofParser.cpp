@@ -27,6 +27,8 @@ namespace mp4_demuxer
 using namespace stagefright;
 using namespace mozilla;
 
+const uint32_t kKeyIdSize = 16;
+
 bool
 MoofParser::RebuildFragmentedIndex(const MediaByteRangeSet& aByteRanges)
 {
@@ -330,6 +332,18 @@ MoofParser::ParseStbl(Box& aBox)
   for (Box box = aBox.FirstChild(); box.IsAvailable(); box = box.Next()) {
     if (box.IsType("stsd")) {
       ParseStsd(box);
+      } else if (box.IsType("sgpd")) {
+      Sgpd sgpd(box);
+      if (sgpd.IsValid() && sgpd.mGroupingType == "seig") {
+        mTrackSampleEncryptionInfoEntries.Clear();
+        mTrackSampleEncryptionInfoEntries.AppendElements(sgpd.mEntries);
+      }
+    } else if (box.IsType("sbgp")) {
+      Sbgp sbgp(box);
+      if (sbgp.IsValid() && sbgp.mGroupingType == "seig") {
+        mTrackSampleToGroupEntries.Clear();
+        mTrackSampleToGroupEntries.AppendElements(sbgp.mEntries);
+      }
     }
   }
 }
@@ -495,12 +509,25 @@ Moof::ParseTraf(Box& aBox, Trex& aTrex, Mvhd& aMvhd, Mdhd& aMdhd, Edts& aEdts, S
   MOZ_ASSERT(aDecodeTime);
   Tfhd tfhd(aTrex);
   Tfdt tfdt;
+
   for (Box box = aBox.FirstChild(); box.IsAvailable(); box = box.Next()) {
     if (box.IsType("tfhd")) {
       tfhd = Tfhd(box, aTrex);
     } else if (!aTrex.mTrackId || tfhd.mTrackId == aTrex.mTrackId) {
       if (box.IsType("tfdt")) {
         tfdt = Tfdt(box);
+      } else if (box.IsType("sgpd")) {
+        Sgpd sgpd(box);
+        if (sgpd.IsValid() && sgpd.mGroupingType == "seig") {
+          mFragmentSampleEncryptionInfoEntries.Clear();
+          mFragmentSampleEncryptionInfoEntries.AppendElements(sgpd.mEntries);
+        }
+      } else if (box.IsType("sbgp")) {
+        Sbgp sbgp(box);
+        if (sbgp.IsValid() && sbgp.mGroupingType == "seig") {
+          mFragmentSampleToGroupEntries.Clear();
+          mFragmentSampleToGroupEntries.AppendElements(sbgp.mEntries);
+        }
       } else if (box.IsType("saiz")) {
         mSaizs.AppendElement(Saiz(box, aSinf.mDefaultEncryptionType));
       } else if (box.IsType("saio")) {
@@ -1048,6 +1075,185 @@ Saio::Saio(Box& aBox, AtomType aDefaultType)
     }
   }
   mValid = true;
+}
+
+Sbgp::Sbgp(Box& aBox)
+{
+  BoxReader reader(aBox);
+
+  if (!reader->CanReadType<uint32_t>()) {
+    LOG(Sbgp, "Incomplete Box (missing flags)");
+    return;
+  }
+
+  uint32_t flags;
+  if (!reader->ReadU32(flags)) {
+    return;
+  }
+  const uint8_t version = flags >> 24;
+  flags = flags & 0xffffff;
+
+  // Make sure we have enough bytes to read as far as the count.
+  uint32_t need = (version == 1 ? sizeof(uint32_t) : 0) + sizeof(uint32_t) * 2;
+  if (reader->Remaining() < need) {
+    LOG(Sbgp, "Incomplete Box (have:%lld, need:%lld)",
+        (uint64_t)reader->Remaining(), (uint64_t)need);
+    return;
+  }
+
+  uint32_t groupType;
+  if (!reader->ReadU32(groupType)) {
+    return;
+  }
+  mGroupingType = groupType;
+
+  if (version == 1) {
+    if (reader->ReadU32(mGroupingTypeParam)) {
+      false;
+    }
+  }
+
+  uint32_t count;
+  if (!reader->ReadU32(count)) {
+    return;
+  }
+
+  // Make sure we can read all the entries.
+  need = sizeof(uint32_t) * 2 * count;
+  if (reader->Remaining() < need) {
+    LOG(Sbgp, "Incomplete Box (have:%lld, need:%lld). Failed to read entries",
+        (uint64_t)reader->Remaining(), (uint64_t)need);
+    return;
+  }
+
+  for (uint32_t i = 0; i < count; i++) {
+    uint32_t sampleCount;
+    uint32_t groupDescriptionIndex;
+    if (!reader->ReadU32(sampleCount) ||
+        !reader->ReadU32(groupDescriptionIndex)) {
+      return;
+    }
+
+    SampleToGroupEntry entry(sampleCount, groupDescriptionIndex);
+    mEntries.AppendElement(entry);
+  }
+
+  mValid = true;
+}
+
+Sgpd::Sgpd(Box& aBox)
+{
+  BoxReader reader(aBox);
+
+  if (!reader->CanReadType<uint32_t>()) {
+    LOG(Sgpd, "Incomplete Box (missing flags)");
+    return;
+  }
+
+  uint32_t flags;
+  if (!reader->ReadU32(flags)) {
+    return;
+  }
+  const uint8_t version = flags >> 24;
+  flags = flags & 0xffffff;
+
+  uint32_t need = ((flags & 1) ? sizeof(uint32_t) : 0) + sizeof(uint32_t) * 2;
+  if (reader->Remaining() < need) {
+    LOG(Sgpd, "Incomplete Box (have:%lld need:%lld)",
+        (uint64_t)reader->Remaining(), (uint64_t)need);
+    return;
+  }
+
+  uint32_t groupType;
+  if (!reader->ReadU32(groupType)) {
+    return;
+  }
+  mGroupingType = groupType;
+
+  const uint32_t entrySize = sizeof(uint32_t) + kKeyIdSize;
+  uint32_t defaultLength = 0;
+
+  if (version == 1) {
+    if (!reader->ReadU32(defaultLength)) {
+      return;
+    }
+    if (defaultLength < entrySize && defaultLength != 0) {
+      return;
+    }
+  }
+
+  uint32_t count;
+  if (!reader->ReadU32(count)) {
+    return;
+  }
+
+  // Make sure we have sufficient remaining bytes to read the entries.
+  need =
+    count * (sizeof(uint32_t) * (version == 1 && defaultLength == 0 ? 2 : 1) +
+             kKeyIdSize * sizeof(uint8_t));
+  if (reader->Remaining() < need) {
+    LOG(Sgpd, "Incomplete Box (have:%lld need:%lld). Failed to read entries",
+        (uint64_t)reader->Remaining(), (uint64_t)need);
+    return;
+  }
+  for (uint32_t i = 0; i < count; ++i) {
+    if (version == 1 && defaultLength == 0) {
+      uint32_t descriptionLength;
+      if (!reader->ReadU32(descriptionLength)) {
+        return;
+      }
+      if (descriptionLength < entrySize) {
+        return;
+      }
+    }
+
+    CencSampleEncryptionInfoEntry entry;
+    bool valid = entry.Init(reader);
+    if (!valid) {
+      return;
+    }
+    mEntries.AppendElement(entry);
+  }
+
+  mValid = true;
+}
+
+bool CencSampleEncryptionInfoEntry::Init(BoxReader& aReader)
+{
+  // Skip a reserved byte.
+  uint8_t skip;
+  if (!aReader->ReadU8(skip)) {
+    return false;
+  }
+
+  uint8_t possiblePatternInfo;
+  uint8_t flag;
+  if (!aReader->ReadU8(possiblePatternInfo) ||
+      !aReader->ReadU8(flag) ||
+      !aReader->ReadU8(mIVSize)) {
+    return false;
+  }
+
+  // Read the key id.
+  uint8_t key;
+  for (uint32_t i = 0; i < kKeyIdSize; ++i) {
+    if (!aReader->ReadU8(key)) {
+      return false;
+    }
+    mKeyId.AppendElement(key);
+  }
+
+  mIsEncrypted = flag != 0;
+
+  if (mIsEncrypted) {
+    if (mIVSize != 8 && mIVSize != 16) {
+      return false;
+    }
+  } else if (mIVSize != 0) {
+    return false;
+  }
+
+  return true;
 }
 
 #undef LOG
