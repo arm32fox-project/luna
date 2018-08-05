@@ -28,20 +28,39 @@ IdentifierHashFunc(const char* name, size_t len)
     return hash[0];
 }
 
-static ShCompileOptions
+static int
 ChooseValidatorCompileOptions(const ShBuiltInResources& resources,
                               const mozilla::gl::GLContext* gl)
 {
-    ShCompileOptions options = SH_VARIABLES |
-                               SH_ENFORCE_PACKING_RESTRICTIONS |
-                               SH_OBJECT_CODE |
-                               SH_INIT_GL_POSITION;
+    int options = SH_VARIABLES |
+                  SH_ENFORCE_PACKING_RESTRICTIONS |
+                  SH_INIT_VARYINGS_WITHOUT_STATIC_USE |
+                  SH_OBJECT_CODE |
+                  SH_INIT_GL_POSITION;
 
+    if (resources.MaxExpressionComplexity > 0) {
+        options |= SH_LIMIT_EXPRESSION_COMPLEXITY;
+    }
     // Sampler arrays indexed with non-constant expressions are forbidden in
     // GLSL 1.30 and later.
     // ESSL 3 requires constant-integral-expressions for this as well.
     // Just do it universally.
     options |= SH_UNROLL_FOR_LOOP_WITH_SAMPLER_ARRAY_INDEX;
+    
+    // Needed for driver bug detection
+    options |= SH_EMULATE_BUILT_IN_FUNCTIONS;
+
+    if (gfxPrefs::WebGLAllANGLEOptions()) {
+        return options |
+               SH_VALIDATE_LOOP_INDEXING |
+               SH_UNROLL_FOR_LOOP_WITH_INTEGER_INDEX |
+               SH_UNROLL_FOR_LOOP_WITH_SAMPLER_ARRAY_INDEX |
+               SH_CLAMP_INDIRECT_ARRAY_BOUNDS |
+               SH_UNFOLD_SHORT_CIRCUIT |
+               SH_SCALARIZE_VEC_AND_MAT_CONSTRUCTOR_ARGS |
+               SH_INIT_OUTPUT_VARIABLES |
+               SH_REGENERATE_STRUCT_NAMES;
+    }
 
 #ifndef XP_MACOSX
     // We want to do this everywhere, but to do this on Mac, we need
@@ -55,29 +74,22 @@ ChooseValidatorCompileOptions(const ShBuiltInResources& resources,
         // Work around https://bugs.webkit.org/show_bug.cgi?id=124684,
         // https://chromium.googlesource.com/angle/angle/+/5e70cf9d0b1bb
         options |= SH_UNFOLD_SHORT_CIRCUIT;
+        
+        // OS X 10.7/10.8 specific:
+        
+        // Work around bug 665578 and bug 769810
+        if (gl->Vendor() == gl::GLVendor::ATI) {
+            options |= SH_EMULATE_BUILT_IN_FUNCTIONS;
+        }
+        // Work around bug 735560
+        if (gl->Vendor() == gl::GLVendor::Intel) {
+            options |= SH_EMULATE_BUILT_IN_FUNCTIONS;
+        }
 
         // Work around that Mac drivers handle struct scopes incorrectly.
         options |= SH_REGENERATE_STRUCT_NAMES;
-        options |= SH_INIT_OUTPUT_VARIABLES;
     }
 #endif
-
-    if (gfxPrefs::WebGLAllANGLEOptions()) {
-        options = -1;
-
-        options ^= SH_INTERMEDIATE_TREE;
-        options ^= SH_LINE_DIRECTIVES;
-        options ^= SH_SOURCE_PATH;
-
-        options ^= SH_LIMIT_EXPRESSION_COMPLEXITY;
-        options ^= SH_LIMIT_CALL_STACK_DEPTH;
-
-        options ^= SH_EXPAND_SELECT_HLSL_INTEGER_POW_EXPRESSIONS;
-        options ^= SH_HLSL_GET_DIMENSIONS_IGNORES_BASE_LEVEL;
-
-        options ^= SH_DONT_REMOVE_INVARIANT_FOR_FRAGMENT_INPUT;
-        options ^= SH_REMOVE_INVARIANT_AND_CENTROID_FOR_ESSL3;
-    }
 
     if (resources.MaxExpressionComplexity > 0) {
         options |= SH_LIMIT_EXPRESSION_COMPLEXITY;
@@ -173,7 +185,7 @@ WebGLContext::CreateShaderValidator(GLenum shaderType) const
 #endif
     }
 
-    const auto compileOptions = webgl::ChooseValidatorCompileOptions(resources, gl);
+    int compileOptions = webgl::ChooseValidatorCompileOptions(resources, gl);
     return webgl::ShaderValidator::Create(shaderType, spec, outputLanguage, resources,
                                           compileOptions);
 }
@@ -186,7 +198,7 @@ namespace webgl {
 ShaderValidator::Create(GLenum shaderType, ShShaderSpec spec,
                         ShShaderOutput outputLanguage,
                         const ShBuiltInResources& resources,
-                        ShCompileOptions compileOptions)
+                        int compileOptions)
 {
     ShHandle handle = ShConstructCompiler(shaderType, spec, outputLanguage, &resources);
     if (!handle)
@@ -283,8 +295,8 @@ ShaderValidator::CanLinkTo(const ShaderValidator* prev, nsCString* const out_log
         }
     }
     {
-        const auto vertVars = sh::GetInterfaceBlocks(prev->mHandle);
-        const auto fragVars = sh::GetInterfaceBlocks(mHandle);
+        const auto vertVars = ShGetInterfaceBlocks(prev->mHandle);
+        const auto fragVars = ShGetInterfaceBlocks(mHandle);
         if (!vertVars || !fragVars) {
             nsPrintfCString error("Could not create uniform block list.");
             *out_log = error;

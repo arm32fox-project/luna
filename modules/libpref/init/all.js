@@ -1435,11 +1435,7 @@ pref("network.http.response.timeout", 300);
 // Limit the absolute number of http connections.
 // Note: the socket transport service will clamp the number below this if the OS
 // cannot allocate that many FDs
-#ifdef ANDROID
 pref("network.http.max-connections", 256);
-#else
-pref("network.http.max-connections", 900);
-#endif
 
 // If NOT connecting via a proxy, then
 // a new connection will only be attempted if the number of active persistent
@@ -1487,13 +1483,13 @@ pref("network.http.redirection-limit", 20);
 pref("network.http.accept-encoding", "gzip, deflate");
 pref("network.http.accept-encoding.secure", "gzip, deflate, br");
 
-pref("network.http.pipelining"      , false);
+pref("network.http.pipelining"      , true);
 pref("network.http.pipelining.ssl"  , false); // disable pipelining over SSL
 pref("network.http.pipelining.abtest", false);
 pref("network.http.proxy.pipelining", false);
 
 // Max number of requests in the pipeline
-pref("network.http.pipelining.maxrequests" , 32);
+pref("network.http.pipelining.maxrequests" , 16);
 
 // An optimistic request is one pipelined when policy might allow a new
 // connection instead
@@ -2837,12 +2833,7 @@ pref("dom.ipc.plugins.unloadTimeoutSecs", 30);
 // Asynchronous plugin initialization is on hold.
 pref("dom.ipc.plugins.asyncInit.enabled", false);
 
-#ifdef RELEASE_OR_BETA
-pref("dom.ipc.plugins.asyncdrawing.enabled", false);
-#else
-// Allow the AsyncDrawing mode to be used for plugins in dev channels.
 pref("dom.ipc.plugins.asyncdrawing.enabled", true);
-#endif
 
 pref("dom.ipc.processCount", 1);
 
@@ -4346,6 +4337,11 @@ pref("image.http.accept", "image/webp,image/png,image/*;q=0.8,*/*;q=0.5");
 // disable.
 pref("image.infer-src-animation.threshold-ms", 2000);
 
+// Whether to always optimize to image layers. Setting this to true will increase
+// performance of downscaled large images at the expense of visual quality,
+// because we can't use HQ downscaling in image layers.
+pref("image.layerize.always", false);
+
 //
 // Image memory management prefs
 //
@@ -4596,8 +4592,8 @@ pref("gfx.direct2d.force-enabled", false);
 
 pref("layers.prefer-opengl", false);
 pref("layers.prefer-d3d9", false);
-// Disable for now due to bug 1304360
-pref("layers.allow-d3d9-fallback", false);
+// Enable fallback if d3d11 can't be used. See bug #1262187
+pref("layers.allow-d3d9-fallback", true);
 #endif
 
 // Copy-on-write canvas
@@ -4718,7 +4714,8 @@ pref("dom.vibrator.max_vibrate_ms", 10000);
 pref("dom.vibrator.max_vibrate_list_len", 128);
 
 // Battery API
-pref("dom.battery.enabled", true);
+// Disabled by default to reduce private data exposure.
+pref("dom.battery.enabled", false);
 
 // Push
 

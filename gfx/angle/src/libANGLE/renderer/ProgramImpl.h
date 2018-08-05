@@ -24,7 +24,14 @@ struct BlockMemberInfo;
 
 namespace rx
 {
-using LinkResult = gl::ErrorOrResult<bool>;
+
+struct LinkResult
+{
+    LinkResult(bool linkSuccess, const gl::Error &error) : linkSuccess(linkSuccess), error(error) {}
+
+    bool linkSuccess;
+    gl::Error error;
+};
 
 class ProgramImpl : angle::NonCopyable
 {
@@ -78,6 +85,10 @@ class ProgramImpl : angle::NonCopyable
                                          GLenum genMode,
                                          GLint components,
                                          const GLfloat *coeffs) = 0;
+
+    virtual void assignUniformBlockRegisters()
+    {
+    }
 
   protected:
     const gl::ProgramState &mState;
