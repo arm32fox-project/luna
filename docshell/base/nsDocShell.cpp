@@ -12281,7 +12281,9 @@ nsDocShell::ShouldAddToSessionHistory(nsIURI* aURI)
       return false;
     }
 
-    if (buf.EqualsLiteral("blank") || buf.EqualsLiteral("newtab")) {
+    if (buf.EqualsLiteral("blank") || buf.EqualsLiteral("logopage") ||
+        (buf.EqualsLiteral("newtab") &&
+         !Preferences::GetBool("browser.newtabpage.add_to_session_history", false))) {
       return false;
     }
   }
