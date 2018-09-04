@@ -754,7 +754,9 @@ nsContextMenu.prototype = {
     openLinkIn(this.linkURL, "window",
                { charset: doc.characterSet,
                  referrerURI: doc.documentURIObject,
-                 referrerPolicy: doc.referrerPolicy });
+                 referrerPolicy: doc.referrerPolicy,
+                 originPrincipal: doc.nodePrincipal,
+                 triggeringPrincipal: doc.nodePrincipal });
   },
 
   // Open linked-to URL in a new private window.
@@ -765,6 +767,8 @@ nsContextMenu.prototype = {
                { charset: doc.characterSet,
                  referrerURI: doc.documentURIObject,
                  referrerPolicy: doc.referrerPolicy,
+                 originPrincipal: doc.nodePrincipal,
+                 triggeringPrincipal: doc.nodePrincipal,
                  private: true });
   },
 
@@ -775,7 +779,9 @@ nsContextMenu.prototype = {
     openLinkIn(this.linkURL, "tab",
                { charset: doc.characterSet,
                  referrerURI: doc.documentURIObject,
-                 referrerPolicy: doc.referrerPolicy });
+                 referrerPolicy: doc.referrerPolicy,
+                 originPrincipal: doc.nodePrincipal,
+                 triggeringPrincipal: doc.nodePrincipal });
   },
 
   // open URL in current tab
@@ -784,7 +790,9 @@ nsContextMenu.prototype = {
     urlSecurityCheck(this.linkURL, doc.nodePrincipal);
     openLinkIn(this.linkURL, "current",
                { charset: doc.characterSet,
-                 referrerURI: doc.documentURIObject });
+                 referrerURI: doc.documentURIObject,
+                 originPrincipal: doc.nodePrincipal,
+                 triggeringPrincipal: doc.nodePrincipal });
   },
 
   // Open frame in a new tab.
@@ -830,30 +838,8 @@ nsContextMenu.prototype = {
 
   // View Partial Source
   viewPartialSource: function(aContext) {
-    var focusedWindow = document.commandDispatcher.focusedWindow;
-    if (focusedWindow == window)
-      focusedWindow = content;
-
-    var docCharset = null;
-    if (focusedWindow)
-      docCharset = "charset=" + focusedWindow.document.characterSet;
-
-    // "View Selection Source" and others such as "View MathML Source"
-    // are mutually exclusive, with the precedence given to the selection
-    // when there is one
-    var reference = null;
-    if (aContext == "selection")
-      reference = focusedWindow.getSelection();
-    else if (aContext == "mathml")
-      reference = this.target;
-    else
-      throw "not reached";
-
-    // unused (and play nice for fragments generated via XSLT too)
-    var docUrl = null;
-    window.openDialog("chrome://global/content/viewPartialSource.xul",
-                      "_blank", "scrollbars,resizable,chrome,dialog=no",
-                      docUrl, docCharset, reference, aContext);
+    let target = aContext == "mathml" ? this.target : null;
+    top.gViewSourceUtils.viewPartialSourceInBrowser(gBrowser.selectedBrowser, target);
   },
 
   // Open new "view source" window with the frame's URL.

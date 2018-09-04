@@ -21,7 +21,6 @@
 #include "nsIObserverService.h"
 #include "nsICacheStorageVisitor.h"
 #include "nsISizeOf.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/Services.h"
 #include "nsDirectoryServiceUtils.h"
@@ -1173,8 +1172,6 @@ CacheFileIOManager::Shutdown()
     return NS_ERROR_NOT_INITIALIZED;
   }
 
-  Telemetry::AutoTimer<Telemetry::NETWORK_DISK_CACHE_SHUTDOWN_V2> shutdownTimer;
-
   CacheIndex::PreShutdown();
 
   ShutdownMetadataWriteScheduling();
@@ -1192,7 +1189,6 @@ CacheFileIOManager::Shutdown()
   CacheIndex::Shutdown();
 
   if (CacheObserver::ClearCacheOnShutdown()) {
-    Telemetry::AutoTimer<Telemetry::NETWORK_DISK_CACHE2_SHUTDOWN_CLEAR_PRIVATE> totalTimer;
     gInstance->SyncRemoveAllCacheFiles();
   }
 
@@ -3861,7 +3857,6 @@ CacheFileIOManager::CreateCacheTree()
     }
 #endif
 
-    Telemetry::Accumulate(Telemetry::NETWORK_CACHE_FS_TYPE, fsType);
     CacheObserver::SetCacheFSReported();
   }
 
@@ -3917,8 +3912,6 @@ CacheFileIOManager::OpenNSPRHandle(CacheFileHandle *aHandle, bool aCreate)
           uint32_t cacheUsage;
           if (NS_SUCCEEDED(CacheIndex::GetCacheSize(&cacheUsage))) {
             cacheUsage >>= 10;
-            Telemetry::Accumulate(Telemetry::NETWORK_CACHE_SIZE_FULL_FAT,
-                                  cacheUsage);
             sSizeReported = true;
           }
         }

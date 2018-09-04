@@ -9,7 +9,6 @@
 
 #include "mozilla/BasicEvents.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/Telemetry.h"
 #include "PluginInstanceParent.h"
 #include "BrowserStreamParent.h"
 #include "PluginAsyncSurrogate.h"
@@ -206,12 +205,8 @@ NPError
 PluginInstanceParent::Destroy()
 {
     NPError retval;
-    {   // Scope for timer
-        Telemetry::AutoTimer<Telemetry::BLOCKED_ON_PLUGIN_INSTANCE_DESTROY_MS>
-            timer(Module()->GetHistogramKey());
-        if (!CallNPP_Destroy(&retval)) {
-            retval = NPERR_GENERIC_ERROR;
-        }
+    if (!CallNPP_Destroy(&retval)) {
+        retval = NPERR_GENERIC_ERROR;
     }
 
 #if defined(OS_WIN)
@@ -1786,9 +1781,6 @@ PluginInstanceParent::NPP_NewStream(NPMIMEType type, NPStream* stream,
         return NPERR_GENERIC_ERROR;
     }
 
-    Telemetry::AutoTimer<Telemetry::BLOCKED_ON_PLUGIN_STREAM_INIT_MS>
-        timer(Module()->GetHistogramKey());
-
     NPError err = NPERR_NO_ERROR;
     if (mParent->IsStartingAsync()) {
         MOZ_ASSERT(mSurrogate);
@@ -2504,6 +2496,5 @@ PluginInstanceParent::RecordDrawingModel()
     }
     MOZ_ASSERT(mode >= 0);
 
-    Telemetry::Accumulate(Telemetry::PLUGIN_DRAWING_MODEL, mode);
     mLastRecordedDrawingModel = mode;
 }

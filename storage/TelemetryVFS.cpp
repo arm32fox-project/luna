@@ -101,12 +101,6 @@ public:
 
   ~IOThreadAutoTimer()
   {
-    TimeStamp end(TimeStamp::Now());
-    uint32_t mainThread = NS_IsMainThread() ? 1 : 0;
-    if (id != Telemetry::HistogramCount) {
-      Telemetry::AccumulateTimeDelta(static_cast<Telemetry::ID>(id + mainThread),
-                                     start, end);
-    }
     // We don't report SQLite I/O on Windows because we have a comprehensive
     // mechanism for intercepting I/O on that platform that captures a superset
     // of the data captured here.
@@ -361,8 +355,6 @@ xRead(sqlite3_file *pFile, void *zBuf, int iAmt, sqlite_int64 iOfst)
   int rc;
   rc = p->pReal->pMethods->xRead(p->pReal, zBuf, iAmt, iOfst);
   // sqlite likes to read from empty files, this is normal, ignore it.
-  if (rc != SQLITE_IOERR_SHORT_READ)
-    Telemetry::Accumulate(p->histograms->readB, rc == SQLITE_OK ? iAmt : 0);
   return rc;
 }
 
@@ -395,7 +387,6 @@ xWrite(sqlite3_file *pFile, const void *zBuf, int iAmt, sqlite_int64 iOfst)
     }
   }
   rc = p->pReal->pMethods->xWrite(p->pReal, zBuf, iAmt, iOfst);
-  Telemetry::Accumulate(p->histograms->writeB, rc == SQLITE_OK ? iAmt : 0);
   if (p->quotaObject && rc != SQLITE_OK) {
     NS_WARNING("xWrite failed on a quota-controlled file, attempting to "
                "update its current size...");
@@ -416,7 +407,6 @@ xTruncate(sqlite3_file *pFile, sqlite_int64 size)
   IOThreadAutoTimer ioTimer(Telemetry::MOZ_SQLITE_TRUNCATE_MS);
   telemetry_file *p = (telemetry_file *)pFile;
   int rc;
-  Telemetry::AutoTimer<Telemetry::MOZ_SQLITE_TRUNCATE_MS> timer;
   if (p->quotaObject) {
     if (p->fileChunkSize > 0) {
       // Round up to the smallest multiple of the chunk size that will hold all
@@ -618,7 +608,6 @@ xOpen(sqlite3_vfs* vfs, const char *zName, sqlite3_file* pFile,
 {
   IOThreadAutoTimer ioTimer(Telemetry::MOZ_SQLITE_OPEN_MS,
                             IOInterposeObserver::OpCreateOrOpen);
-  Telemetry::AutoTimer<Telemetry::MOZ_SQLITE_OPEN_MS> timer;
   sqlite3_vfs *orig_vfs = static_cast<sqlite3_vfs*>(vfs->pAppData);
   int rc;
   telemetry_file *p = (telemetry_file *)pFile;

@@ -2044,7 +2044,7 @@ MOZ_ARG_WITH_BOOL(system-nss,
     _USE_SYSTEM_NSS=1 )
 
 if test -n "$_USE_SYSTEM_NSS"; then
-    AM_PATH_NSS(3.36.4, [MOZ_SYSTEM_NSS=1], [AC_MSG_ERROR([you don't have NSS installed or your version is too old])])
+    AM_PATH_NSS(3.38, [MOZ_SYSTEM_NSS=1], [AC_MSG_ERROR([you don't have NSS installed or your version is too old])])
 fi
 
 if test -z "$MOZ_SYSTEM_NSS"; then
@@ -3542,11 +3542,15 @@ dnl = FFmpeg's ffvpx configuration
 dnl ========================================================
 
 MOZ_FFVPX=
-case "$CPU_ARCH" in
-  x86)
+
+dnl Build ffvpx on 32-bit Windows and all supported 64-bit platforms.
+dnl 32-bit *nix has performance issues due to not supporting assembly decoder.
+
+case "$OS_ARCH:$CPU_ARCH" in
+  WINNT:x86)
       MOZ_FFVPX=1
   ;;
-  x86_64)
+  *:x86_64)
       MOZ_FFVPX=1
   ;;
 esac
@@ -4568,10 +4572,10 @@ AC_SUBST(MOZ_DEVTOOLS_SERVER)
 dnl ========================================================
 dnl = Disable Mozilla Developer Tools (client)
 dnl ========================================================
-MOZ_ARG_DISABLE_BOOL(devtools,
-[  --disable-devtools           Disable Mozilla Developer Tools (client)],
-    MOZ_DEVTOOLS=,
-    MOZ_DEVTOOLS=1)
+MOZ_ARG_ENABLE_BOOL(devtools,
+[  --enable-devtools           Enable Mozilla Developer Tools (client)],
+    MOZ_DEVTOOLS=1,
+    MOZ_DEVTOOLS=)
 
 if test -n "$MOZ_DEVTOOLS"; then
     if test ! -n "$MOZ_DEVTOOLS_SERVER"; then

@@ -80,7 +80,6 @@ GLXLibrary::EnsureInitialized()
 
     if (!mOGLLibrary) {
         const char* libGLfilename = nullptr;
-        bool forceFeatureReport = false;
 
         // see e.g. bug 608526: it is intrinsically interesting to know whether we have dynamically linked to libGL.so.1
         // because at least the NVIDIA implementation requires an executable stack, which causes mprotect calls,
@@ -992,6 +991,27 @@ GLContextGLX::SwapBuffers()
         return false;
     mGLX->xSwapBuffers(mDisplay, mDrawable);
     return true;
+}
+
+void
+GLContextGLX::GetWSIInfo(nsCString* const out) const
+{
+    Display* display = DefaultXDisplay();
+    int screen = DefaultScreen(display);
+
+    int majorVersion, minorVersion;
+    sGLXLibrary.xQueryVersion(display, &majorVersion, &minorVersion);
+
+    out->Append(nsPrintfCString("GLX %u.%u", majorVersion, minorVersion));
+
+    out->AppendLiteral("\nGLX_VENDOR(client): ");
+    out->Append(sGLXLibrary.xGetClientString(display, LOCAL_GLX_VENDOR));
+
+    out->AppendLiteral("\nGLX_VENDOR(server): ");
+    out->Append(sGLXLibrary.xQueryServerString(display, screen, LOCAL_GLX_VENDOR));
+
+    out->AppendLiteral("\nExtensions: ");
+    out->Append(sGLXLibrary.xQueryExtensionsString(display, screen));
 }
 
 bool

@@ -247,6 +247,10 @@ pref("dom.compartment_per_addon", true);
 // of content viewers to cache based on the amount of available memory.
 pref("browser.sessionhistory.max_total_viewers", -1);
 
+// Whether to store 'about:newtab' in the session history, disabled by default.
+// See https://github.com/MoonchildProductions/UXP/issues/719
+pref("browser.newtabpage.add_to_session_history", false);
+
 pref("ui.use_native_colors", true);
 pref("ui.click_hold_context_menus", false);
 // Duration of timeout of incremental search in menus (ms).  0 means infinite.
@@ -273,6 +277,9 @@ pref("browser.display.show_image_placeholders", true);
 pref("browser.display.show_loading_image_placeholder", false);
 // min font device pixel size at which to turn on high quality
 pref("browser.display.auto_quality_min_font_size", 20);
+// Background color for standalone images; leave empty to use default
+// all CSS colors available: named colors, rgb(..), #rrggbb, ...
+pref("browser.display.standalone_images.background_color", "");
 pref("browser.anchor_color",                "#0000EE");
 pref("browser.active_color",                "#EE0000");
 pref("browser.visited_color",               "#551A8B");
@@ -919,16 +926,16 @@ pref("toolkit.scrollbox.clickToScroll.scrollDelay", 150);
 
 // Telemetry settings.
 // Server to submit telemetry pings to.
-pref("toolkit.telemetry.server", "https://incoming.telemetry.mozilla.org");
+pref("toolkit.telemetry.server", "");
 // Telemetry server owner. Please change if you set toolkit.telemetry.server to a different server
-pref("toolkit.telemetry.server_owner", "Mozilla");
+pref("toolkit.telemetry.server_owner", "");
 // Information page about telemetry (temporary ; will be about:telemetry in the end)
-pref("toolkit.telemetry.infoURL", "https://www.mozilla.org/legal/privacy/firefox.html#telemetry");
+pref("toolkit.telemetry.infoURL", "");
 // Determines whether full SQL strings are returned when they might contain sensitive info
 // i.e. dynamically constructed SQL strings or SQL executed by addons against addon DBs
 pref("toolkit.telemetry.debugSlowSql", false);
 // Whether to use the unified telemetry behavior, requires a restart.
-pref("toolkit.telemetry.unified", true);
+pref("toolkit.telemetry.unified", false);
 
 // Identity module
 pref("toolkit.identity.enabled", false);
@@ -1435,11 +1442,7 @@ pref("network.http.response.timeout", 300);
 // Limit the absolute number of http connections.
 // Note: the socket transport service will clamp the number below this if the OS
 // cannot allocate that many FDs
-#ifdef ANDROID
 pref("network.http.max-connections", 256);
-#else
-pref("network.http.max-connections", 900);
-#endif
 
 // If NOT connecting via a proxy, then
 // a new connection will only be attempted if the number of active persistent
@@ -1487,13 +1490,13 @@ pref("network.http.redirection-limit", 20);
 pref("network.http.accept-encoding", "gzip, deflate");
 pref("network.http.accept-encoding.secure", "gzip, deflate, br");
 
-pref("network.http.pipelining"      , false);
+pref("network.http.pipelining"      , true);
 pref("network.http.pipelining.ssl"  , false); // disable pipelining over SSL
 pref("network.http.pipelining.abtest", false);
 pref("network.http.proxy.pipelining", false);
 
 // Max number of requests in the pipeline
-pref("network.http.pipelining.maxrequests" , 32);
+pref("network.http.pipelining.maxrequests" , 16);
 
 // An optimistic request is one pipelined when policy might allow a new
 // connection instead
@@ -2206,6 +2209,10 @@ pref("ui.key.contentAccess", 5);
 pref("ui.key.menuAccessKeyFocuses", false); // overridden below
 pref("ui.key.saveLink.shift", true); // true = shift, false = meta
 
+// When true, overrides OS convention to lock content scrolling
+// if a contextual menu is open.
+pref("ui.menu.allow_content_scroll", false);
+
 // Disable page loading activity cursor by default.
 pref("ui.use_activity_cursor", false);
 
@@ -2837,12 +2844,7 @@ pref("dom.ipc.plugins.unloadTimeoutSecs", 30);
 // Asynchronous plugin initialization is on hold.
 pref("dom.ipc.plugins.asyncInit.enabled", false);
 
-#ifdef RELEASE_OR_BETA
-pref("dom.ipc.plugins.asyncdrawing.enabled", false);
-#else
-// Allow the AsyncDrawing mode to be used for plugins in dev channels.
 pref("dom.ipc.plugins.asyncdrawing.enabled", true);
-#endif
 
 pref("dom.ipc.processCount", 1);
 
@@ -4601,8 +4603,8 @@ pref("gfx.direct2d.force-enabled", false);
 
 pref("layers.prefer-opengl", false);
 pref("layers.prefer-d3d9", false);
-// Disable for now due to bug 1304360
-pref("layers.allow-d3d9-fallback", false);
+// Enable fallback if d3d11 can't be used. See bug #1262187
+pref("layers.allow-d3d9-fallback", true);
 #endif
 
 // Copy-on-write canvas
@@ -4723,7 +4725,8 @@ pref("dom.vibrator.max_vibrate_ms", 10000);
 pref("dom.vibrator.max_vibrate_list_len", 128);
 
 // Battery API
-pref("dom.battery.enabled", true);
+// Disabled by default to reduce private data exposure.
+pref("dom.battery.enabled", false);
 
 // Push
 

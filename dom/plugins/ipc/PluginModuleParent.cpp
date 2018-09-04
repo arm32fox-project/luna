@@ -20,7 +20,6 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/ProcessHangMonitor.h"
 #include "mozilla/Services.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/Unused.h"
 #include "nsAutoPtr.h"
 #include "nsCRT.h"
@@ -1172,11 +1171,6 @@ PluginModuleParent::GetRunID(uint32_t* aRunID)
 void
 PluginModuleChromeParent::ActorDestroy(ActorDestroyReason why)
 {
-    if (why == AbnormalShutdown) {
-        Telemetry::Accumulate(Telemetry::SUBPROCESS_ABNORMAL_ABORT,
-                              NS_LITERAL_CSTRING("plugin"), 1);
-    }
-
     // We can't broadcast settings changes anymore.
     UnregisterSettingsCallbacks();
 
@@ -2203,12 +2197,8 @@ public:
 void
 PluginModuleParent::AccumulateModuleInitBlockedTime()
 {
-    if (mPluginName.IsEmpty()) {
-        GetPluginDetails();
-    }
-    Telemetry::Accumulate(Telemetry::BLOCKED_ON_PLUGIN_MODULE_INIT_MS,
-                          GetHistogramKey(),
-                          static_cast<uint32_t>(mTimeBlocked.ToMilliseconds()));
+    // XXX: mTimeBlocked can probably go if not used for anything besides
+    // telemetry.
     mTimeBlocked = TimeDuration();
 }
 
@@ -2294,27 +2284,23 @@ PluginModuleParent::NPP_NewInternal(NPMIMEType pluginType, NPP instance,
         return NS_ERROR_FAILURE;
     }
 
-    {   // Scope for timer
-        Telemetry::AutoTimer<Telemetry::BLOCKED_ON_PLUGIN_INSTANCE_INIT_MS>
-            timer(GetHistogramKey());
-        if (mIsStartingAsync) {
-            MOZ_ASSERT(surrogate);
-            surrogate->AsyncCallDeparting();
-            if (!SendAsyncNPP_New(parentInstance)) {
+    if (mIsStartingAsync) {
+        MOZ_ASSERT(surrogate);
+        surrogate->AsyncCallDeparting();
+        if (!SendAsyncNPP_New(parentInstance)) {
+            *error = NPERR_GENERIC_ERROR;
+            return NS_ERROR_FAILURE;
+        }
+        *error = NPERR_NO_ERROR;
+    } else {
+        if (!CallSyncNPP_New(parentInstance, error)) {
+            // if IPC is down, we'll get an immediate "failed" return, but
+            // without *error being set.  So make sure that the error
+            // condition is signaled to nsNPAPIPluginInstance
+            if (NPERR_NO_ERROR == *error) {
                 *error = NPERR_GENERIC_ERROR;
-                return NS_ERROR_FAILURE;
             }
-            *error = NPERR_NO_ERROR;
-        } else {
-            if (!CallSyncNPP_New(parentInstance, error)) {
-                // if IPC is down, we'll get an immediate "failed" return, but
-                // without *error being set.  So make sure that the error
-                // condition is signaled to nsNPAPIPluginInstance
-                if (NPERR_NO_ERROR == *error) {
-                    *error = NPERR_GENERIC_ERROR;
-                }
-                return NS_ERROR_FAILURE;
-            }
+            return NS_ERROR_FAILURE;
         }
     }
 

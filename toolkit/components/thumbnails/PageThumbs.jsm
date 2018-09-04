@@ -28,6 +28,9 @@ const MAX_THUMBNAIL_AGE_SECS = 172800; // 2 days == 60*60*24*2 == 172800 secs.
  */
 const THUMBNAIL_DIRECTORY = "thumbnails";
 
+// contains base64 version of a placeholder thumbnail
+#include blankthumb.inc
+
 Cu.import("resource://gre/modules/XPCOMUtils.jsm", this);
 Cu.import("resource://gre/modules/PromiseWorker.jsm", this);
 Cu.import("resource://gre/modules/Promise.jsm", this);
@@ -609,7 +612,15 @@ this.PageThumbsStorage = {
   writeData: function Storage_writeData(aURL, aData, aNoOverwrite) {
     let path = this.getFilePathForURL(aURL);
     this.ensurePath();
-    aData = new Uint8Array(aData);
+    
+    // XXX: We try/catch here since 'null' isn't accepted until we implement
+    // ES2017's new Uint8Array(); allowance.
+    try {
+      aData = new Uint8Array(aData);
+    } catch(e) { 
+      aData = new Uint8Array(0);
+    }
+    
     let msg = [
       path,
       aData,
