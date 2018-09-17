@@ -11,7 +11,6 @@
 // at your own risk.
 
 #include "mozilla/MemoryReporting.h"
-#include "mozilla/PodOperations.h"
 #include "mozilla/TypeTraits.h"
 
 #include <string.h>
@@ -37,7 +36,13 @@ struct TabSizes
         Other
     };
 
-    TabSizes() { mozilla::PodZero(this); }
+    TabSizes()
+      : objects(0)
+      , strings(0)
+      , private_(0)
+      , other(0)
+    {
+    }
 
     void add(Kind kind, size_t n) {
         switch (kind) {
@@ -68,7 +73,7 @@ struct ServoSizes
         Ignore
     };
 
-    ServoSizes() { mozilla::PodZero(this); }
+    ServoSizes() = default;
 
     void add(Kind kind, size_t n) {
         switch (kind) {
@@ -83,12 +88,12 @@ struct ServoSizes
         }
     }
 
-    size_t gcHeapUsed;
-    size_t gcHeapUnused;
-    size_t gcHeapAdmin;
-    size_t gcHeapDecommitted;
-    size_t mallocHeap;
-    size_t nonHeap;
+    size_t gcHeapUsed = 0;
+    size_t gcHeapUnused = 0;
+    size_t gcHeapAdmin = 0;
+    size_t gcHeapDecommitted = 0;
+    size_t mallocHeap = 0;
+    size_t nonHeap = 0;
 };
 
 } // namespace JS

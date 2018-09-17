@@ -366,6 +366,9 @@ static const int32_t kResizableBorderMinSize = 3;
 // Cached pointer events enabler value, True if pointer events are enabled.
 static bool gIsPointerEventsEnabled = false;
 
+// Cached scroll outside menu enabler value, True if scrolling is allowed.
+static bool gIsScrollingOutsideEnabled = false;
+
 // We should never really try to accelerate windows bigger than this. In some
 // cases this might lead to no D3D9 acceleration where we could have had it
 // but D3D9 does not reliably report when it supports bigger windows. 8192
@@ -665,6 +668,10 @@ nsWindow::nsWindow()
     Preferences::AddBoolVarCache(&gIsPointerEventsEnabled,
                                  "dom.w3c_pointer_events.enabled",
                                  gIsPointerEventsEnabled);
+    Preferences::AddBoolVarCache(&gIsScrollingOutsideEnabled,
+                                 "ui.menu.allow_content_scroll",
+                                 gIsScrollingOutsideEnabled);
+                                 
   } // !sInstanceCount
 
   mIdleService = nullptr;
@@ -4225,10 +4232,6 @@ nsWindow::DispatchMouseEvent(EventMessage aEventMessage, WPARAM wParam,
   }
 
   if (WinUtils::GetIsMouseFromTouch(aEventMessage)) {
-    if (aEventMessage == eMouseDown) {
-      Telemetry::Accumulate(Telemetry::FX_TOUCH_USED, 1);
-    }
-
     if (mTouchWindow) {
       // If mTouchWindow is true, then we must have APZ enabled and be
       // feeding it raw touch events. In that case we don't need to
@@ -6743,8 +6746,6 @@ bool nsWindow::OnGesture(WPARAM wParam, LPARAM lParam)
     bool endFeedback = true;
 
     if (mGesture.PanDeltaToPixelScroll(wheelEvent)) {
-      mozilla::Telemetry::Accumulate(mozilla::Telemetry::SCROLL_INPUT_METHODS,
-          (uint32_t) ScrollInputMethod::MainThreadTouch);
       DispatchEvent(&wheelEvent, status);
     }
 
@@ -7703,7 +7704,8 @@ nsWindow::DealWithPopups(HWND aWnd, UINT aMessage,
           break;
         }
       }
-      return consumeRollupEvent;
+      // Consume event if appropriate unless overridden.
+      return consumeRollupEvent && !gIsScrollingOutsideEnabled;
 
     case WM_ACTIVATEAPP:
       break;

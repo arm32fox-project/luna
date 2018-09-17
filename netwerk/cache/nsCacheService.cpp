@@ -1184,7 +1184,6 @@ nsCacheService::Shutdown()
     }
 
     nsCOMPtr<nsIThread> cacheIOThread;
-    Telemetry::AutoTimer<Telemetry::NETWORK_DISK_CACHE_SHUTDOWN> totalTimer;
 
     bool shouldSanitize = false;
     nsCOMPtr<nsIFile> parentDir;
@@ -1261,10 +1260,8 @@ nsCacheService::Shutdown()
             if (NS_SUCCEEDED(parentDir->Exists(&exists)) && exists)
                 nsDeleteDir::DeleteDir(parentDir, false);
         }
-        Telemetry::AutoTimer<Telemetry::NETWORK_DISK_CACHE_SHUTDOWN_CLEAR_PRIVATE> timer;
         nsDeleteDir::Shutdown(shouldSanitize);
     } else {
-        Telemetry::AutoTimer<Telemetry::NETWORK_DISK_CACHE_DELETEDIR_SHUTDOWN> timer;
         nsDeleteDir::Shutdown(shouldSanitize);
     }
 }
@@ -2175,7 +2172,6 @@ nsCacheService::ActivateEntry(nsCacheRequest * request,
 nsCacheEntry *
 nsCacheService::SearchCacheDevices(nsCString * key, nsCacheStoragePolicy policy, bool *collision)
 {
-    Telemetry::AutoTimer<Telemetry::CACHE_DEVICE_SEARCH_2> timer;
     nsCacheEntry * entry = nullptr;
 
     CACHE_LOG_DEBUG(("mMemoryDevice: 0x%p\n", mMemoryDevice));
@@ -2655,18 +2651,7 @@ nsCacheService::Lock(mozilla::Telemetry::ID mainThreadLockerID)
         generalID = mozilla::Telemetry::CACHE_SERVICE_LOCK_WAIT_2;
     }
 
-    TimeStamp start(TimeStamp::Now());
-
     nsCacheService::Lock();
-
-    TimeStamp stop(TimeStamp::Now());
-
-    // Telemetry isn't thread safe on its own, but this is OK because we're
-    // protecting it with the cache lock. 
-    if (lockerID != mozilla::Telemetry::HistogramCount) {
-        mozilla::Telemetry::AccumulateTimeDelta(lockerID, start, stop);
-    }
-    mozilla::Telemetry::AccumulateTimeDelta(generalID, start, stop);
 }
 
 void

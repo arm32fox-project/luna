@@ -65,7 +65,6 @@
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Sprintf.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/gfx/2D.h"
 
 #include <unistd.h>
@@ -738,8 +737,6 @@ gfxMacPlatformFontList::InitFontListForPlatform()
 {
     nsAutoreleasePool localPool;
 
-    Telemetry::AutoTimer<Telemetry::MAC_INITFONTLIST_TOTAL> timer;
-
     // reset system font list
     mSystemFontFamilies.Clear();
     
@@ -1041,10 +1038,6 @@ gfxMacPlatformFontList::PlatformGlobalFontFallback(const uint32_t aCh,
         if (familyNameRef) {
             ::CFRelease(familyNameRef);
         }
-    }
-
-    if (cantUseFallbackFont) {
-        Telemetry::Accumulate(Telemetry::BAD_FALLBACK_FONT, cantUseFallbackFont);
     }
 
     ::CFRelease(str);
