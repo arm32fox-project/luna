@@ -53,13 +53,20 @@ var gEditUIVisible = true;
 
 // Smart getter for the findbar.  If you don't wish to force the creation of
 // the findbar, check gFindBarInitialized first.
+var gFindBarInitialized = false;
+XPCOMUtils.defineLazyGetter(window, "gFindBar", function() {
+  let XULNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
+  let findbar = document.createElementNS(XULNS, "findbar");
+  findbar.id = "FindToolbar";
 
-this.__defineGetter__("gFindBar", function() {
-  return window.gBrowser.getFindBar();
-});
+  let browserBottomBox = document.getElementById("browser-bottombox");
+  browserBottomBox.insertBefore(findbar, browserBottomBox.firstChild);
 
-this.__defineGetter__("gFindBarInitialized", function() {
-  return window.gBrowser.isFindBarInitialized();
+  // Force a style flush to ensure that our binding is attached.
+  findbar.clientTop;
+  findbar.browser = gBrowser.mCurrentBrowser;
+  window.gFindBarInitialized = true;
+  return findbar;
 });
 
 XPCOMUtils.defineLazyModuleGetter(this, "BrowserUtils",
@@ -2414,11 +2421,18 @@ function BrowserOnAboutPageLoad(doc) {
   /* === about:home === */
 
   if (doc.documentURI.toLowerCase() == "about:home") {
-    let ss = Components.classes["@mozilla.org/browser/sessionstore;1"].
-             getService(Components.interfaces.nsISessionStore);
-    if (ss.canRestoreLastSession &&
-        !PrivateBrowsingUtils.isWindowPrivate(window))
-      doc.getElementById("launcher").setAttribute("session", "true");
+    if (!PrivateBrowsingUtils.isWindowPrivate(window)) {
+      let wrapper = {};
+      Cu.import("resource:///modules/sessionstore/SessionStore.jsm", wrapper);
+      let ss = wrapper.SessionStore;
+      ss.promiseInitialized.then(function() {
+        if (ss.canRestoreLastSession) {
+          doc.getElementById("launcher").setAttribute("session", "true");
+        }
+      }).then(null, function onError(x) {
+        Cu.reportError("Error in SessionStore init while processing 'about:home': " + x);
+      });
+    }
 
     // Inject search engine and snippets URL.
     let docElt = doc.documentElement;
