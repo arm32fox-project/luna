@@ -12,6 +12,7 @@ if CONFIG['FFVPX_ASFLAGS']:
 SharedLibrary('mozavcodec')
 SOURCES += [
     'allcodecs.c',
+    'audioconvert.c',
     'avpacket.c',
     'avpicture.c',
     'bitstream.c',
@@ -40,6 +41,8 @@ SOURCES += [
     'pthread_slice.c',
     'qsv_api.c',
     'raw.c',
+    'resample.c',
+    'resample2.c',
     'reverse.c',
     'utils.c',
     'videodsp.c',
@@ -50,7 +53,6 @@ SOURCES += [
     'vp8dsp.c',
     'vp9.c',
     'vp9_parser.c',
-    'vp9_superframe_split_bsf.c',
     'vp9block.c',
     'vp9data.c',
     'vp9dsp.c',
