@@ -2950,19 +2950,6 @@
                 onget="return this.mCurrentBrowser.docShell"
                 readonly="true"/>
 
-      <property name="messageManager"
-                readonly="true">
-        <getter>
-          <![CDATA[
-            let frameLoader = this.mCurrentBrowser.frameLoader;
-            if (!frameLoader) {
-              return null;
-            }
-            return frameLoader.messageManager;
-          ]]>
-        </getter>
-      </property>
-
       <property name="webNavigation"
                 onget="return this.mCurrentBrowser.webNavigation"
                 readonly="true"/>
@@ -4297,11 +4284,9 @@
           return;
 
         // See comments in the "mousedown" and "click" event handlers of the
-        // "tabbrowser-tabs" binding.
+        // tabbrowser-tabs binding.
         if (!this._blockDblClick)
           BrowserOpenTab();
-        else
-          this.flagBlockedOpenTabAfterDblClick = true;
 
         event.preventDefault();
       ]]></handler>
@@ -4340,43 +4325,27 @@
 
         // Reset flags at the beginning of a series of clicks:
         if (event.detail == 1) {
-          this.flagBlockedOpenTabAfterDblClick = false;
-          this.flagClickNotOnCloseButton = false;
           this.flagClickOnCloseButton = false;
+          this.flagActivateTabOrClickOnTabbar = false;
         }
 
-        if (this.flagClickNotOnCloseButton) {
-          this.flagClickNotOnCloseButton = false;
-          this.blockCloseButtonAfterDblclick = true;
-        } else
-          this.blockCloseButtonAfterDblclick = false;
-
-        if (this.flagClickOnCloseButton) {
-          this.flagClickOnCloseButton = false;
-          this._blockDblClick = true;
-        } else
-          this._blockDblClick = false;
+        this.blockCloseButtonOnDblclick = this.flagActivateTabOrClickOnTabbar;
+        this._blockDblClick = this.flagClickOnCloseButton;
 
         // Set flags:
-        if (event.originalTarget.classList.contains("tab-close-button"))
-          this.flagClickOnCloseButton = true;
-        else
-          this.flagClickNotOnCloseButton = true;
+        let eventTargetIsCloseButton =
+            event.originalTarget.classList.contains("tab-close-button");
+        this.flagClickOnCloseButton = eventTargetIsCloseButton;
+        this.flagActivateTabOrClickOnTabbar =
+            ((!eventTargetIsCloseButton && event.detail == 1) ||
+             event.originalTarget.localName == "box");
       ]]></handler>
 
       <handler event="click" button="0"><![CDATA[
-        // When closing a tab and then immediately double-clicking on the
-        // tab bar to open a new one, actually a triple-click is dispatched,
-        // which must be dealt with separately.
-        if (event.detail == 3 && this.flagBlockedOpenTabAfterDblClick) {
-          this.flagBlockedOpenTabAfterDblClick = false;
-          BrowserOpenTab();
-        }
-
         // See comment in the "mousedown" event handler of the
-        // "tabbrowser-tabs" binding.
+        // tabbrowser-tabs binding.
         if (event.originalTarget.classList.contains("tab-close-button") &&
-            !this.blockCloseButtonAfterDblclick) {
+            !this.blockCloseButtonOnDblclick) {
           gBrowser.removeTab(document.getBindingParent(event.originalTarget),
                              {animate: true, byMouse: true,});
           this._blockDblClick = true;
