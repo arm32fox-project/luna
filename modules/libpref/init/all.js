@@ -117,6 +117,9 @@ pref("browser.cache.compression_level", 0);
 // Don't show "Open with" option on download dialog if true.
 pref("browser.download.forbid_open_with", false);
 
+// Save download locations as a content preference
+pref("browser.download.lastDir.savePerSite", true);
+
 #ifdef XP_WIN
 // Save internet zone information on downloaded files:
 // 0 => Never
@@ -128,8 +131,6 @@ pref("browser.download.saveZoneInformation", 2);
 // Whether or not testing features are enabled.
 pref("dom.quotaManager.testing", false);
 
-// Whether or not indexedDB is enabled.
-pref("dom.indexedDB.enabled", true);
 // Whether or not indexedDB experimental features are enabled.
 pref("dom.indexedDB.experimental", false);
 // Enable indexedDB logging.
@@ -583,6 +584,10 @@ pref("media.mediasource.webm.enabled", false);
 pref("media.mediasource.webm.enabled", true);
 #endif
 pref("media.mediasource.webm.audio.enabled", true);
+
+#ifdef MOZ_AV1
+pref("media.av1.enabled", false);
+#endif
 
 // Use new MediaFormatReader architecture for plain ogg.
 pref("media.flac.enabled", true);
@@ -2214,9 +2219,10 @@ pref("ui.key.contentAccess", 5);
 pref("ui.key.menuAccessKeyFocuses", false); // overridden below
 pref("ui.key.saveLink.shift", true); // true = shift, false = meta
 
-// When true, overrides OS convention to lock content scrolling
+// When true, overrides Windows OS convention to lock content scrolling
 // if a contextual menu is open.
-pref("ui.menu.allow_content_scroll", false);
+// XXX: Only effective on Windows for now!
+pref("ui.menu.allow_content_scroll", true);
 
 // Disable page loading activity cursor by default.
 pref("ui.use_activity_cursor", false);
@@ -2432,7 +2438,7 @@ pref("layout.word_select.stop_at_punctuation", true);
 pref("layout.selection.caret_style", 0);
 
 // pref to report CSS errors to the error console
-pref("layout.css.report_errors", true);
+pref("layout.css.report_errors", false);
 
 // Should the :visited selector ever match (otherwise :link matches instead)?
 pref("layout.css.visited_links_enabled", true);
@@ -5399,6 +5405,9 @@ pref("plugins.navigator_hide_disabled_flash", false);
 
 // Disable browser frames by default
 pref("dom.mozBrowserFramesEnabled", false);
+
+// Thick caret when behind CJK characters
+pref("layout.cjkthickcaret", true); 
 
 // Is support for 'color-adjust' CSS property enabled?
 pref("layout.css.color-adjust.enabled", true);

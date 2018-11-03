@@ -23,6 +23,7 @@
 #include "mozilla/AppProcessChecker.h"
 #include "mozilla/AutoRestore.h"
 #include "mozilla/Casting.h"
+#include "mozilla/CheckedInt.h"
 #include "mozilla/EndianUtils.h"
 #include "mozilla/ErrorNames.h"
 #include "mozilla/LazyIdleThread.h"
@@ -248,8 +249,6 @@ const char kFileManagerDirectoryNameSuffix[] = ".files";
 const char kSQLiteJournalSuffix[] = ".sqlite-journal";
 const char kSQLiteSHMSuffix[] = ".sqlite-shm";
 const char kSQLiteWALSuffix[] = ".sqlite-wal";
-
-const char kPrefIndexedDBEnabled[] = "dom.indexedDB.enabled";
 
 const char kPrefFileHandleEnabled[] = "dom.fileHandle.enabled";
 
@@ -784,29 +783,25 @@ MakeCompressedIndexDataValues(
 
     MOZ_ASSERT(!keyBuffer.IsEmpty());
 
-    // Don't let |infoLength| overflow.
-    if (NS_WARN_IF(UINT32_MAX - keyBuffer.Length() <
-                   CompressedByteCountForIndexId(info.mIndexId) +
-                   CompressedByteCountForNumber(keyBufferLength) +
-                   CompressedByteCountForNumber(sortKeyBufferLength))) {
-      IDB_REPORT_INTERNAL_ERR();
-      return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
-    }
-
-    const uint32_t infoLength =
-      CompressedByteCountForIndexId(info.mIndexId) +
+    const CheckedUint32 infoLength =
+      CheckedUint32(CompressedByteCountForIndexId(info.mIndexId)) +
       CompressedByteCountForNumber(keyBufferLength) +
       CompressedByteCountForNumber(sortKeyBufferLength) +
       keyBufferLength +
       sortKeyBufferLength;
-
-    // Don't let |blobDataLength| overflow.
-    if (NS_WARN_IF(UINT32_MAX - infoLength < blobDataLength)) {
+    // Don't let |infoLength| overflow.
+    if (NS_WARN_IF(!infoLength.isValid())) {
       IDB_REPORT_INTERNAL_ERR();
       return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
     }
 
-    blobDataLength += infoLength;
+    // Don't let |blobDataLength| overflow.
+    if (NS_WARN_IF(UINT32_MAX - infoLength.value() < blobDataLength)) {
+      IDB_REPORT_INTERNAL_ERR();
+      return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+    }
+
+    blobDataLength += infoLength.value();
   }
 
   UniqueFreePtr<uint8_t> blobData(
@@ -21167,16 +21162,6 @@ FactoryOp::CheckPermission(ContentParent* aContentParent,
       if (aContentParent) {
         // We just want ContentPrincipalInfo or SystemPrincipalInfo.
         aContentParent->KillHard("IndexedDB CheckPermission 0");
-      }
-
-      return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
-    }
-
-    if (NS_WARN_IF(!Preferences::GetBool(kPrefIndexedDBEnabled, false))) {
-      if (aContentParent) {
-        // The DOM in the other process should have kept us from receiving any
-        // indexedDB messages so assume that the child is misbehaving.
-        aContentParent->KillHard("IndexedDB CheckPermission 1");
       }
 
       return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
