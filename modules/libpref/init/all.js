@@ -23,7 +23,7 @@ pref("keyword.enabled", false);
 pref("general.useragent.locale", "chrome://global/locale/intl.properties");
 pref("general.useragent.compatMode.gecko", false);
 pref("general.useragent.compatMode.firefox", false);
-pref("general.useragent.compatMode.version", "52.9");
+pref("general.useragent.compatMode.version", "60.9");
 pref("general.useragent.appVersionIsBuildID", false);
 
 // This pref exists only for testing purposes. In order to disable all
@@ -117,6 +117,9 @@ pref("browser.cache.compression_level", 0);
 // Don't show "Open with" option on download dialog if true.
 pref("browser.download.forbid_open_with", false);
 
+// Save download locations as a content preference
+pref("browser.download.lastDir.savePerSite", true);
+
 #ifdef XP_WIN
 // Save internet zone information on downloaded files:
 // 0 => Never
@@ -128,8 +131,6 @@ pref("browser.download.saveZoneInformation", 2);
 // Whether or not testing features are enabled.
 pref("dom.quotaManager.testing", false);
 
-// Whether or not indexedDB is enabled.
-pref("dom.indexedDB.enabled", true);
 // Whether or not indexedDB experimental features are enabled.
 pref("dom.indexedDB.experimental", false);
 // Enable indexedDB logging.
@@ -584,6 +585,10 @@ pref("media.mediasource.webm.enabled", true);
 #endif
 pref("media.mediasource.webm.audio.enabled", true);
 
+#ifdef MOZ_AV1
+pref("media.av1.enabled", false);
+#endif
+
 // Use new MediaFormatReader architecture for plain ogg.
 pref("media.flac.enabled", true);
 pref("media.ogg.flac.enabled", true);
@@ -705,6 +710,10 @@ pref("apz.y_skate_size_multiplier", "1.5");
 pref("apz.y_stationary_size_multiplier", "1.5");
 #endif
 
+#if !defined(MOZ_WIDGET_ANDROID) && !defined(MOZ_WIDGET_UIKIT)
+pref("apz.desktop.enabled", false);
+#endif
+
 #ifdef XP_MACOSX
 // Whether to run in native HiDPI mode on machines with "Retina"/HiDPI display;
 //   <= 0 : hidpi mode disabled, display will just use pixel-based upscaling
@@ -731,7 +740,7 @@ pref("gfx.perf-warnings.enabled", false);
 pref("gfx.color_management.mode", 2);
 pref("gfx.color_management.display_profile", "");
 pref("gfx.color_management.rendering_intent", 0);
-pref("gfx.color_management.enablev4", false);
+pref("gfx.color_management.enablev4", true);
 
 pref("gfx.downloadable_fonts.enabled", true);
 pref("gfx.downloadable_fonts.fallback_delay", 3000);
@@ -1584,7 +1593,10 @@ pref("network.http.spdy.default-hpack-buffer", 65536); // 64k
 // alt-svc allows separation of transport routing from
 // the origin host without using a proxy.
 pref("network.http.altsvc.enabled", true);
-pref("network.http.altsvc.oe", true);
+// Opportunistic encryption use of alt-svc
+pref("network.http.altsvc.oe", false);
+// Send upgrade-insecure-requests HTTP header?
+pref("network.http.upgrade-insecure-requests", false);
 
 pref("network.http.diagnostics", false);
 
@@ -2210,9 +2222,10 @@ pref("ui.key.contentAccess", 5);
 pref("ui.key.menuAccessKeyFocuses", false); // overridden below
 pref("ui.key.saveLink.shift", true); // true = shift, false = meta
 
-// When true, overrides OS convention to lock content scrolling
+// When true, overrides Windows OS convention to lock content scrolling
 // if a contextual menu is open.
-pref("ui.menu.allow_content_scroll", false);
+// XXX: Only effective on Windows for now!
+pref("ui.menu.allow_content_scroll", true);
 
 // Disable page loading activity cursor by default.
 pref("ui.use_activity_cursor", false);
@@ -2428,7 +2441,7 @@ pref("layout.word_select.stop_at_punctuation", true);
 pref("layout.selection.caret_style", 0);
 
 // pref to report CSS errors to the error console
-pref("layout.css.report_errors", true);
+pref("layout.css.report_errors", false);
 
 // Should the :visited selector ever match (otherwise :link matches instead)?
 pref("layout.css.visited_links_enabled", true);
@@ -4967,7 +4980,7 @@ pref("network.captive-portal-service.maxInterval", 1500000); // 25 minutes
 pref("network.captive-portal-service.backoffFactor", "5.0");
 pref("network.captive-portal-service.enabled", false);
 
-pref("captivedetect.canonicalURL", "http://detectportal.firefox.com/success.txt");
+pref("captivedetect.canonicalURL", "http://detectportal.palemoon.org/success.txt");
 pref("captivedetect.canonicalContent", "success\n");
 pref("captivedetect.maxWaitingTime", 5000);
 pref("captivedetect.pollingTime", 3000);
@@ -5395,6 +5408,9 @@ pref("plugins.navigator_hide_disabled_flash", false);
 
 // Disable browser frames by default
 pref("dom.mozBrowserFramesEnabled", false);
+
+// Thick caret when behind CJK characters
+pref("layout.cjkthickcaret", true); 
 
 // Is support for 'color-adjust' CSS property enabled?
 pref("layout.css.color-adjust.enabled", true);

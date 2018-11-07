@@ -580,6 +580,10 @@ pref("network.captive-portal-service.enabled", true);
 // If true, network link events will change the value of navigator.onLine
 pref("network.manage-offline-status", true);
 
+// Enable opportunistic encryption by default
+pref("network.http.altsvc.oe", true);
+pref("network.http.upgrade-insecure-requests", true);
+
 // We want to make sure mail URLs are handled externally...
 pref("network.protocol-handler.external.mailto", true); // for mail
 pref("network.protocol-handler.external.news", true);   // for news
@@ -1265,13 +1269,6 @@ pref("media.gmp-widevinecdm.enabled", true);
 // 0 means to randomize (and persist) the experiment value in users' profiles,
 // -1 means no experiment is run and we use the preferred value for frecency (6h)
 pref("browser.cache.frecency_experiment", 0);
-
-pref("browser.translation.detectLanguage", false);
-pref("browser.translation.neverForLanguages", "");
-// Show the translation UI bits, like the info bar, notification icon and preferences.
-pref("browser.translation.ui.show", false);
-// Allows to define the translation engine. Bing is default, Yandex may optionally switched on.
-pref("browser.translation.engine", "bing");
 
 // Telemetry settings.
 // Determines if Telemetry pings can be archived locally.

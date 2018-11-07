@@ -2240,7 +2240,6 @@ MOZ_INSTALL_TRACKING=
 ACCESSIBILITY=1
 MOZ_TIME_MANAGER=
 MOZ_AUDIO_CHANNEL_MANAGER=
-MOZ_BINARY_EXTENSIONS=
 MOZ_JETPACK=1
 MOZ_DEVTOOLS_SERVER=1
 MOZ_DEVTOOLS=
@@ -2248,6 +2247,7 @@ MOZ_PLACES=1
 MOZ_SERVICES_HEALTHREPORT=1
 MOZ_SERVICES_SYNC=1
 MOZ_SERVICES_CLOUDSYNC=1
+MOZ_USERINFO=1
 
 case "$target_os" in
     mingw*)
@@ -4588,6 +4588,20 @@ fi
 AC_SUBST(MOZ_DEVTOOLS)
 
 dnl ========================================================
+dnl = Disable nsUserInfo
+dnl ========================================================
+MOZ_ARG_DISABLE_BOOL(userinfo,
+[  --disable-userinfo         Disable nsUserInfo (default=enabled)],
+    MOZ_USERINFO=,
+    MOZ_USERINFO=1)
+
+if test -n "$MOZ_USERINFO"; then
+    AC_DEFINE(MOZ_USERINFO)
+fi
+
+AC_SUBST(MOZ_USERINFO)
+
+dnl ========================================================
 dnl = Define default location for MOZILLA_FIVE_HOME
 dnl ========================================================
 MOZ_ARG_WITH_STRING(default-mozilla-five-home,
@@ -5138,10 +5152,6 @@ AC_SUBST(MOZ_FIX_LINK_PATHS)
 
 AC_SUBST(MOZ_POST_PROGRAM_COMMAND)
 AC_SUBST(MOZ_LINKER_EXTRACT)
-
-if test -n "$MOZ_BINARY_EXTENSIONS"; then
-  AC_DEFINE(MOZ_BINARY_EXTENSIONS)
-fi
 
 AC_SUBST(MOZ_ADDON_SIGNING)
 if test "$MOZ_ADDON_SIGNING" = 1; then

@@ -2560,78 +2560,6 @@
     "kind": "boolean",
     "description": "Rate of page load from offline cache"
   },
-  "HTTP_CACHE_IO_QUEUE_2_OPEN_PRIORITY": {
-    "alert_emails": ["hbambas@mozilla.com"],
-    "bug_numbers": [1294183],
-    "expires_in_version": "55",
-    "kind": "enumerated",
-    "n_values": 10,
-    "description": "HTTP Cache IO queue length"
-  },
-  "HTTP_CACHE_IO_QUEUE_2_READ_PRIORITY": {
-    "alert_emails": ["hbambas@mozilla.com"],
-    "bug_numbers": [1294183],
-    "expires_in_version": "55",
-    "kind": "enumerated",
-    "n_values": 10,
-    "description": "HTTP Cache IO queue length"
-  },
-  "HTTP_CACHE_IO_QUEUE_2_MANAGEMENT": {
-    "alert_emails": ["hbambas@mozilla.com"],
-    "bug_numbers": [1294183],
-    "expires_in_version": "55",
-    "kind": "enumerated",
-    "n_values": 10,
-    "description": "HTTP Cache IO queue length"
-  },
-  "HTTP_CACHE_IO_QUEUE_2_OPEN": {
-    "alert_emails": ["hbambas@mozilla.com"],
-    "bug_numbers": [1294183],
-    "expires_in_version": "55",
-    "kind": "enumerated",
-    "n_values": 10,
-    "description": "HTTP Cache IO queue length"
-  },
-  "HTTP_CACHE_IO_QUEUE_2_READ": {
-    "alert_emails": ["hbambas@mozilla.com"],
-    "bug_numbers": [1294183],
-    "expires_in_version": "55",
-    "kind": "enumerated",
-    "n_values": 10,
-    "description": "HTTP Cache IO queue length"
-  },
-  "HTTP_CACHE_IO_QUEUE_2_WRITE": {
-    "alert_emails": ["hbambas@mozilla.com"],
-    "bug_numbers": [1294183],
-    "expires_in_version": "55",
-    "kind": "enumerated",
-    "n_values": 10,
-    "description": "HTTP Cache IO queue length"
-  },
-  "HTTP_CACHE_IO_QUEUE_2_WRITE_PRIORITY": {
-    "alert_emails": ["hbambas@mozilla.com"],
-    "bug_numbers": [1294183],
-    "expires_in_version": "55",
-    "kind": "enumerated",
-    "n_values": 10,
-    "description": "HTTP Cache IO queue length"
-  },
-  "HTTP_CACHE_IO_QUEUE_2_INDEX": {
-    "alert_emails": ["hbambas@mozilla.com"],
-    "bug_numbers": [1294183],
-    "expires_in_version": "55",
-    "kind": "enumerated",
-    "n_values": 10,
-    "description": "HTTP Cache IO queue length"
-  },
-  "HTTP_CACHE_IO_QUEUE_2_EVICT": {
-    "alert_emails": ["hbambas@mozilla.com"],
-    "bug_numbers": [1294183],
-    "expires_in_version": "55",
-    "kind": "enumerated",
-    "n_values": 10,
-    "description": "HTTP Cache IO queue length"
-  },
   "CACHE_DEVICE_SEARCH_2": {
     "expires_in_version": "never",
     "kind": "exponential",
@@ -8426,31 +8354,6 @@
     "n_values": 7,
     "description": "Final status of the CacheFileInputStream (0=ok, 1=other error, 2=out of memory, 3=disk full, 4=file corrupted, 5=file not found, 6=binding aborted)"
   },
-  "NETWORK_CACHE_FS_TYPE": {
-    "expires_in_version": "42",
-    "kind": "enumerated",
-    "n_values": 5,
-    "description": "Type of FS that the cache is stored on (0=NTFS (Win), 1=FAT32 (Win), 2=FAT (Win), 3=other FS (Win), 4=other OS)"
-  },
-  "NETWORK_CACHE_SIZE_FULL_FAT": {
-    "expires_in_version": "42",
-    "kind": "linear",
-    "high": 500,
-    "n_buckets": 50,
-    "description": "Size (in MB) of a cache that reached a file count limit"
-  },
-  "NETWORK_CACHE_HIT_MISS_STAT_PER_CACHE_SIZE": {
-    "expires_in_version": "never",
-    "kind": "enumerated",
-    "n_values": 40,
-    "description": "Hit/Miss count split by cache size in file count (0=Hit 0-5000, 1=Miss 0-5000, 2=Hit 5001-10000, ...)"
-  },
-  "NETWORK_CACHE_HIT_RATE_PER_CACHE_SIZE": {
-    "expires_in_version": "never",
-    "kind": "enumerated",
-    "n_values": 400,
-    "description": "Hit rate for a specific cache size in file count. The hit rate is split into 20 buckets, the lower limit of the range in percents is 5*n/20. The cache size is divided into 20 ranges of length 5000, the lower limit of the range is 5000*(n%20)"
-  },
   "NETWORK_CACHE_METADATA_FIRST_READ_TIME_MS": {
     "expires_in_version": "never",
     "kind": "exponential",
@@ -8478,12 +8381,6 @@
     "high": 5119,
     "n_buckets": 256,
     "description": "Actual size of the metadata parsed from the disk."
-  },
-  "NETWORK_CACHE_HASH_STATS": {
-    "expires_in_version": "46",
-    "kind": "enumerated",
-    "n_values": 160,
-    "description": "The longest hash match between a newly added entry and all the existing entries."
   },
   "DATABASE_LOCKED_EXCEPTION": {
     "expires_in_version": "42",
