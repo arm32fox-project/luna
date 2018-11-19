@@ -976,6 +976,7 @@ var gBrowserInit = {
     CombinedStopReload.init();
     allTabs.readPref();
     TabsOnTop.init();
+    AudioIndicator.init();
     gPrivateBrowsingUI.init();
     TabsInTitlebar.init();
     retrieveToolbarIconsizesFromTheme();
@@ -1364,6 +1365,8 @@ var gBrowserInit = {
     BookmarkingUI.uninit();
 
     TabsOnTop.uninit();
+    
+    AudioIndicator.uninit();
 
     TabsInTitlebar.uninit();
     
@@ -4597,6 +4600,42 @@ function setToolbarVisibility(toolbar, isVisible) {
     ToolbarIconColor.inferFromText();
 }
 
+var AudioIndicator = {
+  init: function () {
+    Services.prefs.addObserver(this._prefName, this, false);
+    this.syncUI();
+  },
+
+  uninit: function () {
+    Services.prefs.removeObserver(this._prefName, this);
+  },
+
+  toggle: function () {
+    this.enabled = !Services.prefs.getBoolPref(this._prefName);
+  },
+
+  syncUI: function () {
+    document.getElementById("context_toggleMuteTab").setAttribute("hidden", this.enabled);
+    document.getElementById("key_toggleMute").setAttribute("disabled", this.enabled);
+  },
+
+  get enabled () {
+    return !Services.prefs.getBoolPref(this._prefName);
+  },
+
+  set enabled (val) {
+    Services.prefs.setBoolPref(this._prefName, !!val);
+    return val;
+  },
+
+  observe: function (subject, topic, data) {
+    if (topic == "nsPref:changed")
+      this.syncUI();
+  },
+
+  _prefName: "browser.tabs.showAudioPlayingIcon"
+}
+
 var TabsOnTop = {
   init: function TabsOnTop_init() {
     Services.prefs.addObserver(this._prefName, this, false);
@@ -7021,6 +7060,17 @@ function restoreLastSession() {
 
 var TabContextMenu = {
   contextTab: null,
+  _updateToggleMuteMenuItem(aTab, aConditionFn) {
+    ["muted", "soundplaying"].forEach(attr => {
+      if (!aConditionFn || aConditionFn(attr)) {
+        if (aTab.hasAttribute(attr)) {
+          aTab.toggleMuteMenuItem.setAttribute(attr, "true");
+        } else {
+          aTab.toggleMuteMenuItem.removeAttribute(attr);
+        }
+      }
+    });
+  },
   updateContextMenu: function updateContextMenu(aPopupMenu) {
     this.contextTab = aPopupMenu.triggerNode.localName == "tab" ?
                       aPopupMenu.triggerNode : gBrowser.selectedTab;
@@ -7067,6 +7117,35 @@ var TabContextMenu = {
     bookmarkAllTabs.hidden = this.contextTab.pinned;
     if (!bookmarkAllTabs.hidden)
       PlacesCommandHook.updateBookmarkAllTabsCommand();
+
+    // Adjust the state of the toggle mute menu item.
+    let toggleMute = document.getElementById("context_toggleMuteTab");
+    if (this.contextTab.hasAttribute("muted")) {
+      toggleMute.label = gNavigatorBundle.getString("unmuteTab.label");
+      toggleMute.accessKey = gNavigatorBundle.getString("unmuteTab.accesskey");
+    } else {
+      toggleMute.label = gNavigatorBundle.getString("muteTab.label");
+      toggleMute.accessKey = gNavigatorBundle.getString("muteTab.accesskey");
+    }
+    
+    this.contextTab.toggleMuteMenuItem = toggleMute;
+    this._updateToggleMuteMenuItem(this.contextTab);
+
+    this.contextTab.addEventListener("TabAttrModified", this, false);
+    aPopupMenu.addEventListener("popuphiding", this, false);
+  },
+  handleEvent(aEvent) {
+    switch (aEvent.type) {
+      case "popuphiding":
+        gBrowser.removeEventListener("TabAttrModified", this);
+        aEvent.target.removeEventListener("popuphiding", this);
+        break;
+      case "TabAttrModified":
+        let tab = aEvent.target;
+        this._updateToggleMuteMenuItem(tab,
+          attr => aEvent.detail.changed.indexOf(attr) >= 0);
+        break;
+    }
   }
 };
 
