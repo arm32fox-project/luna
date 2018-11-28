@@ -23,7 +23,7 @@ pref("keyword.enabled", false);
 pref("general.useragent.locale", "chrome://global/locale/intl.properties");
 pref("general.useragent.compatMode.gecko", false);
 pref("general.useragent.compatMode.firefox", false);
-pref("general.useragent.compatMode.version", "52.9");
+pref("general.useragent.compatMode.version", "60.9");
 pref("general.useragent.appVersionIsBuildID", false);
 
 // This pref exists only for testing purposes. In order to disable all
@@ -1593,7 +1593,10 @@ pref("network.http.spdy.default-hpack-buffer", 65536); // 64k
 // alt-svc allows separation of transport routing from
 // the origin host without using a proxy.
 pref("network.http.altsvc.enabled", true);
-pref("network.http.altsvc.oe", true);
+// Opportunistic encryption use of alt-svc
+pref("network.http.altsvc.oe", false);
+// Send upgrade-insecure-requests HTTP header?
+pref("network.http.upgrade-insecure-requests", false);
 
 pref("network.http.diagnostics", false);
 
@@ -2438,7 +2441,7 @@ pref("layout.word_select.stop_at_punctuation", true);
 pref("layout.selection.caret_style", 0);
 
 // pref to report CSS errors to the error console
-pref("layout.css.report_errors", true);
+pref("layout.css.report_errors", false);
 
 // Should the :visited selector ever match (otherwise :link matches instead)?
 pref("layout.css.visited_links_enabled", true);
@@ -4895,30 +4898,6 @@ pref("dom.browserElement.maxScreenshotDelayMS", 2000);
 // Whether we should show the placeholder when the element is focused but empty.
 pref("dom.placeholder.show_on_focus", true);
 
-// VR is disabled by default in release and enabled for nightly and aurora
-#ifdef RELEASE_OR_BETA
-pref("dom.vr.enabled", false);
-#else
-pref("dom.vr.enabled", true);
-#endif
-pref("dom.vr.oculus.enabled", true);
-// OSVR device
-pref("dom.vr.osvr.enabled", false);
-// OpenVR device
-pref("dom.vr.openvr.enabled", false);
-// Pose prediction reduces latency effects by returning future predicted HMD
-// poses to callers of the WebVR API.  This currently only has an effect for
-// Oculus Rift on SDK 0.8 or greater.  It is disabled by default for now due to
-// frame uniformity issues with e10s.
-pref("dom.vr.poseprediction.enabled", false);
-// path to openvr DLL
-pref("gfx.vr.openvr-runtime", "");
-// path to OSVR DLLs
-pref("gfx.vr.osvr.utilLibPath", "");
-pref("gfx.vr.osvr.commonLibPath", "");
-pref("gfx.vr.osvr.clientLibPath", "");
-pref("gfx.vr.osvr.clientKitLibPath", "");
-
 // MMS UA Profile settings
 pref("wap.UAProf.url", "");
 pref("wap.UAProf.tagname", "x-wap-profile");
@@ -4977,7 +4956,7 @@ pref("network.captive-portal-service.maxInterval", 1500000); // 25 minutes
 pref("network.captive-portal-service.backoffFactor", "5.0");
 pref("network.captive-portal-service.enabled", false);
 
-pref("captivedetect.canonicalURL", "http://detectportal.firefox.com/success.txt");
+pref("captivedetect.canonicalURL", "http://detectportal.palemoon.org/success.txt");
 pref("captivedetect.canonicalContent", "success\n");
 pref("captivedetect.maxWaitingTime", 5000);
 pref("captivedetect.pollingTime", 3000);
