@@ -30,6 +30,7 @@ DIRS += [
     'ipc',
     'mediasink',
     'mediasource',
+    'mp3',
     'ogg',
     'platforms',
     'systemservices',
@@ -41,9 +42,6 @@ DIRS += [
     'webvtt',
     'standalone',
 ]
-
-if CONFIG['MOZ_DIRECTSHOW']:
-    DIRS += ['directshow']
 
 if CONFIG['MOZ_ANDROID_OMX']:
     DIRS += ['android']
@@ -128,9 +126,6 @@ EXPORTS += [
     'MediaTimer.h',
     'MediaTrack.h',
     'MediaTrackList.h',
-    'MP3Decoder.h',
-    'MP3Demuxer.h',
-    'MP3FrameParser.h',
     'NextFrameSeekTask.h',
     'nsIDocumentActivity.h',
     'PrincipalChangeObserver.h',
@@ -237,9 +232,6 @@ UNIFIED_SOURCES += [
     'MediaTimer.cpp',
     'MediaTrack.cpp',
     'MediaTrackList.cpp',
-    'MP3Decoder.cpp',
-    'MP3Demuxer.cpp',
-    'MP3FrameParser.cpp',
     'NextFrameSeekTask.cpp',
     'QueueObject.cpp',
     'SeekJob.cpp',
@@ -293,11 +285,6 @@ LOCAL_INCLUDES += [
     '/layout/xul',
     '/netwerk/base',
 ]
-
-if CONFIG['MOZ_DIRECTSHOW']:
-    LOCAL_INCLUDES += [
-        '/media/webrtc/trunk/webrtc/modules/video_capture/windows',
-    ]
 
 if CONFIG['MOZ_WEBRTC']:
     LOCAL_INCLUDES += [
