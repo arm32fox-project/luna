@@ -434,8 +434,7 @@ AddonsReconciler.prototype = {
         modified: now,
         type: addon.type,
         scope: addon.scope,
-        foreignInstall: addon.foreignInstall,
-        isSyncable: addon.isSyncable,
+        foreignInstall: addon.foreignInstall
       };
       this._addons[id] = record;
       this._log.debug("Adding change because add-on not present locally: " +
@@ -445,7 +444,6 @@ AddonsReconciler.prototype = {
     }
 
     let record = this._addons[id];
-    record.isSyncable = addon.isSyncable;
 
     if (!record.installed) {
       // It is possible the record is marked as uninstalled because an
@@ -490,7 +488,7 @@ AddonsReconciler.prototype = {
       try {
         listener.changeListener.call(listener, date, change, state);
       } catch (ex) {
-        this._log.warn("Exception calling change listener", ex);
+        this._log.warn("Exception calling change listener: ", ex);
       }
     }
   },
@@ -636,7 +634,7 @@ AddonsReconciler.prototype = {
       }
     }
     catch (ex) {
-      this._log.warn("Exception", ex);
+      this._log.warn("Exception: ", ex);
     }
   },
 
