@@ -48,7 +48,7 @@ dnl ========================================================
 MOZJPEG=62
 MOZPNG=10625
 NSPR_VERSION=4
-NSPR_MINVER=4.19
+NSPR_MINVER=4.20
 NSS_VERSION=3
 
 dnl Set the minimum version of toolkit libs used by mozilla
@@ -2044,7 +2044,7 @@ MOZ_ARG_WITH_BOOL(system-nss,
     _USE_SYSTEM_NSS=1 )
 
 if test -n "$_USE_SYSTEM_NSS"; then
-    AM_PATH_NSS(3.38, [MOZ_SYSTEM_NSS=1], [AC_MSG_ERROR([you don't have NSS installed or your version is too old])])
+    AM_PATH_NSS(3.41, [MOZ_SYSTEM_NSS=1], [AC_MSG_ERROR([you don't have NSS installed or your version is too old])])
 fi
 
 if test -z "$MOZ_SYSTEM_NSS"; then
@@ -2211,8 +2211,6 @@ MOZ_WEBRTC_SIGNALING=
 MOZ_WEBRTC_ASSERT_ALWAYS=1
 MOZ_WEBRTC_HARDWARE_AEC_NS=
 MOZ_SCTP=
-MOZ_ANDROID_OMX=
-MOZ_OMX_PLUGIN=
 MOZ_VPX_ERROR_CONCEALMENT=
 VPX_USE_YASM=
 VPX_ASFLAGS=
@@ -2923,45 +2921,6 @@ if test -n "$MOZ_EME"; then
 fi
 
 dnl ========================================================
-dnl = Enable media plugin support
-dnl ========================================================
-if test "$OS_TARGET" = "Android"; then
-  dnl Enable support on android by default
-  MOZ_ANDROID_OMX=1
-fi
-
-MOZ_ARG_ENABLE_BOOL(android-omx,
-[  --enable-android-omx  Enable support for Android OMX media backend],
-    MOZ_ANDROID_OMX=1,
-    MOZ_ANDROID_OMX=)
-
-if test -n "$MOZ_ANDROID_OMX"; then
-  AC_DEFINE(MOZ_ANDROID_OMX)
-fi
-
-dnl ========================================================
-dnl = Enable building OMX media plugin (B2G or Android)
-dnl ========================================================
-if test "$OS_TARGET" = "Android"; then
-  dnl Enable support on android by default
-  MOZ_OMX_PLUGIN=1
-fi
-
-MOZ_ARG_ENABLE_BOOL(omx-plugin,
-[  --enable-omx-plugin      Enable building OMX plugin (B2G)],
-    MOZ_OMX_PLUGIN=1,
-    MOZ_OMX_PLUGIN=)
-
-if test -n "$MOZ_OMX_PLUGIN"; then
-    if test "$OS_TARGET" = "Android"; then
-        dnl Only allow building OMX plugin on Android
-        AC_DEFINE(MOZ_OMX_PLUGIN)
-    else
-        dnl fail if we're not building on Android
-        AC_MSG_ERROR([OMX media plugin can only be built on Android])
-    fi
-fi
-
 dnl system libvpx Support
 dnl ========================================================
 MOZ_ARG_WITH_BOOL(system-libvpx,
@@ -5466,8 +5425,6 @@ AC_SUBST(MOZ_TREMOR)
 AC_SUBST(MOZ_FFVPX)
 AC_SUBST_LIST(FFVPX_ASFLAGS)
 AC_SUBST(MOZ_EME)
-AC_SUBST(MOZ_ANDROID_OMX)
-AC_SUBST(MOZ_OMX_PLUGIN)
 AC_SUBST(MOZ_VPX_ERROR_CONCEALMENT)
 AC_SUBST(VPX_USE_YASM)
 AC_SUBST_LIST(VPX_ASFLAGS)
