@@ -48,7 +48,7 @@ dnl ========================================================
 MOZJPEG=62
 MOZPNG=10625
 NSPR_VERSION=4
-NSPR_MINVER=4.19
+NSPR_MINVER=4.20
 NSS_VERSION=3
 
 dnl Set the minimum version of toolkit libs used by mozilla
@@ -68,7 +68,7 @@ GNOMEUI_VERSION=2.2.0
 GCONF_VERSION=1.2.1
 STARTUP_NOTIFICATION_VERSION=0.8
 DBUS_VERSION=0.60
-SQLITE_VERSION=3.21.0
+SQLITE_VERSION=3.26.0
 
 dnl Set various checks
 dnl ========================================================
@@ -2044,7 +2044,7 @@ MOZ_ARG_WITH_BOOL(system-nss,
     _USE_SYSTEM_NSS=1 )
 
 if test -n "$_USE_SYSTEM_NSS"; then
-    AM_PATH_NSS(3.38, [MOZ_SYSTEM_NSS=1], [AC_MSG_ERROR([you don't have NSS installed or your version is too old])])
+    AM_PATH_NSS(3.41, [MOZ_SYSTEM_NSS=1], [AC_MSG_ERROR([you don't have NSS installed or your version is too old])])
 fi
 
 if test -z "$MOZ_SYSTEM_NSS"; then
@@ -2204,7 +2204,6 @@ MOZ_VORBIS=
 MOZ_TREMOR=
 MOZ_SAMPLE_TYPE_FLOAT32=
 MOZ_SAMPLE_TYPE_S16=
-MOZ_DIRECTSHOW=
 MOZ_WEBRTC=
 MOZ_PEERCONNECTION=
 MOZ_SRTP=
@@ -2212,8 +2211,6 @@ MOZ_WEBRTC_SIGNALING=
 MOZ_WEBRTC_ASSERT_ALWAYS=1
 MOZ_WEBRTC_HARDWARE_AEC_NS=
 MOZ_SCTP=
-MOZ_ANDROID_OMX=
-MOZ_OMX_PLUGIN=
 MOZ_VPX_ERROR_CONCEALMENT=
 VPX_USE_YASM=
 VPX_ASFLAGS=
@@ -2222,6 +2219,7 @@ VPX_X86_ASM=
 VPX_ARM_ASM=
 LIBJPEG_TURBO_AS=
 LIBJPEG_TURBO_ASFLAGS=
+MOZ_GAMEPAD=
 MOZ_PREF_EXTENSIONS=1
 MOZ_REFLOW_PERF=
 MOZ_SAFE_BROWSING=
@@ -2233,6 +2231,7 @@ MOZ_URL_CLASSIFIER=
 MOZ_XUL=1
 MOZ_ZIPWRITER=1
 MOZ_NO_SMART_CARDS=
+MOZ_NECKO_WIFI=1
 NECKO_COOKIES=1
 MOZ_USE_NATIVE_POPUP_WINDOWS=
 MOZ_EXCLUDE_HYPHENATION_DICTIONARIES=
@@ -2892,23 +2891,6 @@ fi
 fi # COMPILE_ENVIRONMENT
 
 dnl ========================================================
-dnl = DirectShow support
-dnl ========================================================
-if test "$OS_ARCH" = "WINNT"; then
-    dnl Enable DirectShow support by default.
-    MOZ_DIRECTSHOW=1
-fi
-
-MOZ_ARG_DISABLE_BOOL(directshow,
-[  --disable-directshow  Disable support for DirectShow],
-    MOZ_DIRECTSHOW=,
-    MOZ_DIRECTSHOW=1)
-
-if test -n "$MOZ_DIRECTSHOW"; then
-    AC_DEFINE(MOZ_DIRECTSHOW)
-fi;
-
-dnl ========================================================
 dnl = EME support
 dnl ========================================================
 
@@ -2939,45 +2921,6 @@ if test -n "$MOZ_EME"; then
 fi
 
 dnl ========================================================
-dnl = Enable media plugin support
-dnl ========================================================
-if test "$OS_TARGET" = "Android"; then
-  dnl Enable support on android by default
-  MOZ_ANDROID_OMX=1
-fi
-
-MOZ_ARG_ENABLE_BOOL(android-omx,
-[  --enable-android-omx  Enable support for Android OMX media backend],
-    MOZ_ANDROID_OMX=1,
-    MOZ_ANDROID_OMX=)
-
-if test -n "$MOZ_ANDROID_OMX"; then
-  AC_DEFINE(MOZ_ANDROID_OMX)
-fi
-
-dnl ========================================================
-dnl = Enable building OMX media plugin (B2G or Android)
-dnl ========================================================
-if test "$OS_TARGET" = "Android"; then
-  dnl Enable support on android by default
-  MOZ_OMX_PLUGIN=1
-fi
-
-MOZ_ARG_ENABLE_BOOL(omx-plugin,
-[  --enable-omx-plugin      Enable building OMX plugin (B2G)],
-    MOZ_OMX_PLUGIN=1,
-    MOZ_OMX_PLUGIN=)
-
-if test -n "$MOZ_OMX_PLUGIN"; then
-    if test "$OS_TARGET" = "Android"; then
-        dnl Only allow building OMX plugin on Android
-        AC_DEFINE(MOZ_OMX_PLUGIN)
-    else
-        dnl fail if we're not building on Android
-        AC_MSG_ERROR([OMX media plugin can only be built on Android])
-    fi
-fi
-
 dnl system libvpx Support
 dnl ========================================================
 MOZ_ARG_WITH_BOOL(system-libvpx,
@@ -3345,13 +3288,12 @@ fi # COMPILE_ENVIRONMENT
 dnl ========================================================
 dnl Gamepad support
 dnl ========================================================
-MOZ_GAMEPAD=1
 MOZ_GAMEPAD_BACKEND=stub
 
-MOZ_ARG_DISABLE_BOOL(gamepad,
-[  --disable-gamepad   Disable gamepad support],
-    MOZ_GAMEPAD=,
-    MOZ_GAMEPAD=1)
+MOZ_ARG_ENABLE_BOOL(gamepad,
+[  --enable-gamepad   Enable gamepad support],
+    MOZ_GAMEPAD=1,
+    MOZ_GAMEPAD=)
 
 if test "$MOZ_GAMEPAD"; then
     case "$OS_TARGET" in
@@ -3694,10 +3636,10 @@ if test "$MOZ_IOS"; then
   MOZ_UPDATER=
 fi
 
-MOZ_ARG_DISABLE_BOOL(updater,
-[  --disable-updater       Disable building of updater],
-    MOZ_UPDATER=,
-    MOZ_UPDATER=1 )
+MOZ_ARG_ENABLE_BOOL(updater,
+[  --enable-updater       Enable building of internal updater],
+    MOZ_UPDATER=1,
+    MOZ_UPDATER= )
 
 if test -n "$MOZ_UPDATER"; then
     AC_DEFINE(MOZ_UPDATER)
@@ -4998,27 +4940,29 @@ dnl
 dnl option to disable necko's wifi scanner
 dnl
 
-case "$OS_TARGET" in
-  Android)
-    ;;
-  Darwin)
-    if test -z "$MOZ_IOS"; then
-      NECKO_WIFI=1
-    fi
-    ;;
-  DragonFly|FreeBSD|WINNT)
-    NECKO_WIFI=1
-    ;;
-  Linux)
-    NECKO_WIFI=1
-    NECKO_WIFI_DBUS=1
-    ;;
-esac
-
 MOZ_ARG_DISABLE_BOOL(necko-wifi,
 [  --disable-necko-wifi    Disable necko wifi scanner],
-    NECKO_WIFI=,
-    NECKO_WIFI=1)
+    MOZ_NECKO_WIFI=,
+    MOZ_NECKO_WIFI=1)
+
+if test "$MOZ_NECKO_WIFI"; then
+  case "$OS_TARGET" in
+    Android)
+      ;;
+    Darwin)
+      if test -z "$MOZ_IOS"; then
+        NECKO_WIFI=1
+      fi
+      ;;
+    DragonFly|FreeBSD|WINNT)
+      NECKO_WIFI=1
+      ;;
+    Linux)
+      NECKO_WIFI=1
+      NECKO_WIFI_DBUS=1
+      ;;
+  esac
+fi
 
 if test "$NECKO_WIFI"; then
   if test -z "$MOZ_ENABLE_DBUS" -a -n "$NECKO_WIFI_DBUS"; then
@@ -5481,9 +5425,6 @@ AC_SUBST(MOZ_TREMOR)
 AC_SUBST(MOZ_FFVPX)
 AC_SUBST_LIST(FFVPX_ASFLAGS)
 AC_SUBST(MOZ_EME)
-AC_SUBST(MOZ_DIRECTSHOW)
-AC_SUBST(MOZ_ANDROID_OMX)
-AC_SUBST(MOZ_OMX_PLUGIN)
 AC_SUBST(MOZ_VPX_ERROR_CONCEALMENT)
 AC_SUBST(VPX_USE_YASM)
 AC_SUBST_LIST(VPX_ASFLAGS)

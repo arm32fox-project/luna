@@ -264,6 +264,9 @@ pref("browser.slowStartup.maxSamples", 5);
 pref("browser.enable_automatic_image_resizing", true);
 pref("browser.chrome.site_icons", true);
 pref("browser.chrome.favicons", true);
+// If enabled, will process favicons by drawing them on a canvas,
+// optimizing display size for the UI. This also strips animations.
+pref("browser.chrome.favicons.process", false);
 // browser.warnOnQuit == false will override all other possible prompts when quitting or restarting
 pref("browser.warnOnQuit", true);
 // browser.showQuitWarning specifically controls the quit warning dialog. We
@@ -462,6 +465,10 @@ pref("browser.tabs.closeButtons", 1);
 // true   return to the tab that opened this tab (its owner)
 // false  return to the adjacent tab (old default)
 pref("browser.tabs.selectOwnerOnClose", true);
+
+pref("browser.tabs.showAudioPlayingIcon", true);
+// This should match Chromium's audio indicator delay.
+pref("browser.tabs.delayHidingAudioPlayingIconMS", 3000);
 
 pref("browser.allTabs.previews", true);
 pref("browser.ctrlTab.previews", true);
@@ -1074,6 +1081,9 @@ pref("browser.newtabpage.enabled", true);
 // XXX: Remove this when "enhanced" tiles are dead
 pref("browser.newtabpage.enhanced", false);
 
+// Disables capturing of page thumbnails
+pref("browser.pagethumbnails.capturing_disabled", false);
+
 // enables showing basic placeholders for missing thumbnails
 pref("browser.newtabpage.thumbnailPlaceholder", false);
 
@@ -1146,19 +1156,6 @@ pref("toolkit.pageThumbs.minHeight", 180);
 // On GTK, we now default to showing the menubar only when alt is pressed:
 #ifdef MOZ_WIDGET_GTK
 pref("ui.key.menuAccessKeyFocuses", true);
-#endif
-
-// ****************** domain-specific UAs ******************
-
-// AMO needs "Firefox", obviously - pass on the OS (determined at build time)
-#ifdef XP_UNIX
-#ifdef XP_MACOSX
-pref("general.useragent.override.addons.mozilla.org","Mozilla/5.0 (Macintosh; Intel Mac OS X 10.8; rv:27.0) Gecko/20100101 Firefox/27.0");
-#else
-pref("general.useragent.override.addons.mozilla.org","Mozilla/5.0 (Linux; X11; rv:27.0) Gecko/20100101 Firefox/27.0");
-#endif
-#else
-pref("general.useragent.override.addons.mozilla.org","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:27.0) Gecko/20100101 Firefox/27.0");
 #endif
 
 // ****************** s4e prefs ******************
