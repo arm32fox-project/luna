@@ -2033,7 +2033,6 @@ MediaManager::GetUserMedia(nsPIDOMWindowInner* aWindow,
   }
 
   // Determine permissions early (while we still have a stack).
-
   nsIURI* docURI = aWindow->GetDocumentURI();
   if (!docURI) {
     return NS_ERROR_UNEXPECTED;
@@ -2043,22 +2042,9 @@ MediaManager::GetUserMedia(nsPIDOMWindowInner* aWindow,
       Preferences::GetBool("media.navigator.permission.disabled", false);
   bool isHTTPS = false;
   docURI->SchemeIs("https", &isHTTPS);
-  nsCString host;
-  nsresult rv = docURI->GetHost(host);
-  // Test for some other schemes that ServiceWorker recognizes
-  bool isFile;
-  docURI->SchemeIs("file", &isFile);
-  bool isApp;
-  docURI->SchemeIs("app", &isApp);
-  // Same localhost check as ServiceWorkers uses
-  // (see IsOriginPotentiallyTrustworthy())
-  bool isLocalhost = NS_SUCCEEDED(rv) &&
-                     (host.LowerCaseEqualsLiteral("localhost") ||
-                      host.LowerCaseEqualsLiteral("127.0.0.1") ||
-                      host.LowerCaseEqualsLiteral("::1"));
 
   nsCString origin;
-  rv = nsPrincipal::GetOriginForURI(docURI, origin);
+  nsresult rv = nsPrincipal::GetOriginForURI(docURI, origin);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
   }
