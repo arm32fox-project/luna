@@ -1781,9 +1781,9 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   list-style-image: url("chrome://browser/skin/tabbrowser/tab-audio.svg#tab-audio-blocked");
 }
 
-#TabsToolbar[brighttext] .tab-icon-sound[soundplaying],
-#TabsToolbar[brighttext] .tab-icon-sound[blocked],
-#TabsToolbar[brighttext] .tab-icon-sound[muted] {
+#TabsToolbar:-moz-lwtheme-brighttext .tab-icon-sound[soundplaying],
+#TabsToolbar:-moz-lwtheme-brighttext .tab-icon-sound[blocked],
+#TabsToolbar:-moz-lwtheme-brighttext .tab-icon-sound[muted] {
   filter: invert(1);
 }
 
@@ -1827,17 +1827,17 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   list-style-image: url("chrome://browser/skin/tabbrowser/tab-audio-small.svg#tab-audio-blocked");
 }
 
-#TabsToolbar[brighttext] .tab-icon-overlay[soundplaying]:not([selected]):not(:hover),
+#TabsToolbar:-moz-lwtheme-brighttext .tab-icon-overlay[soundplaying]:not([selected]):not(:hover),
 .tab-icon-overlay[soundplaying][selected]:-moz-lwtheme-brighttext:not(:hover) {
   list-style-image: url("chrome://browser/skin/tabbrowser/tab-audio-small.svg#tab-audio-white");
 }
 
-#TabsToolbar[brighttext] .tab-icon-overlay[muted]:not([crashed]):not([selected]):not(:hover),
+#TabsToolbar:-moz-lwtheme-brighttext .tab-icon-overlay[muted]:not([crashed]):not([selected]):not(:hover),
 .tab-icon-overlay[muted][selected]:-moz-lwtheme-brighttext:not(:hover) {
   list-style-image: url("chrome://browser/skin/tabbrowser/tab-audio-small.svg#tab-audio-white-muted");
 }
 
-#TabsToolbar[brighttext] .tab-icon-overlay[blocked]:not([crashed]):not([selected]):not(:hover),
+#TabsToolbar:-moz-lwtheme-brighttext .tab-icon-overlay[blocked]:not([crashed]):not([selected]):not(:hover),
 .tab-icon-overlay[blocked][selected]:-moz-lwtheme-brighttext:not(:hover) {
   list-style-image: url("chrome://browser/skin/tabbrowser/tab-audio-small.svg#tab-audio-white-blocked");
 }
