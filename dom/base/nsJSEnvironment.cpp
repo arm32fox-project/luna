@@ -126,13 +126,13 @@ static const uint32_t kMaxICCDuration = 2000; // ms
 // Force a CC after this long if there's more than NS_CC_FORCED_PURPLE_LIMIT
 // objects in the purple buffer.
 #define NS_CC_FORCED                (2 * 60 * PR_USEC_PER_SEC) // 2 min
-#define NS_CC_FORCED_PURPLE_LIMIT   10
+#define NS_CC_FORCED_PURPLE_LIMIT   100
 
 // Don't allow an incremental GC to lock out the CC for too long.
 #define NS_MAX_CC_LOCKEDOUT_TIME    (30 * PR_USEC_PER_SEC) // 30 seconds
 
 // Trigger a CC if the purple buffer exceeds this size when we check it.
-#define NS_CC_PURPLE_LIMIT          200
+#define NS_CC_PURPLE_LIMIT          2000
 
 // Large value used to specify that a script should run essentially forever
 #define NS_UNLIMITED_SCRIPT_RUNTIME (0x40000000LL << 32)
@@ -625,7 +625,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsJSContext)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsJSContext)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mGlobalObjectRef)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsJSContext)
@@ -1356,9 +1355,20 @@ nsJSContext::RunCycleCollectorSlice()
       TimeStamp now = TimeStamp::Now();
 
       // Only run a limited slice if we're within the max running time.
-      if (TimeBetween(gCCStats.mBeginTime, now) < kMaxICCDuration) {
-        float sliceMultiplier = std::max(TimeBetween(gCCStats.mEndSliceTime, now) / (float)kICCIntersliceDelay, 1.0f);
-        budget = js::SliceBudget(js::TimeBudget(kICCSliceBudget * sliceMultiplier));
+      uint32_t runningTime = TimeBetween(gCCStats.mBeginTime, now);
+      if (runningTime < kMaxICCDuration) {
+        // Try to make up for a delay in running this slice.
+        float sliceDelayMultiplier = TimeBetween(gCCStats.mEndSliceTime, now) / (float)kICCIntersliceDelay;
+        float delaySliceBudget = kICCSliceBudget * sliceDelayMultiplier;
+
+        // Increase slice budgets up to |maxLaterSlice| as we approach
+        // half way through the ICC, to avoid large sync CCs.
+        float percentToHalfDone = std::min(2.0f * runningTime / kMaxICCDuration, 1.0f);
+        const float maxLaterSlice = 40.0f;
+        float laterSliceBudget = maxLaterSlice * percentToHalfDone;
+
+        budget = js::SliceBudget(js::TimeBudget(std::max({delaySliceBudget,
+                  laterSliceBudget, (float)kICCSliceBudget})));
       }
     }
   }
@@ -2618,7 +2628,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsJSArgArray)
   tmp->ReleaseJSObjects();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsJSArgArray)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsJSArgArray)
