@@ -2456,7 +2456,7 @@ function BrowserOnAboutPageLoad(doc) {
       docElt.setAttribute("searchEnginePostData", engine.postDataString || "");
       docElt.setAttribute("searchEngineURL", engine.searchURL);
     }
-    updateSearchEngine();
+    Services.search.init(updateSearchEngine);
 
     // Listen for the event that's triggered when the user changes search engine.
     // At this point we simply reload about:home to reflect the change.
@@ -2481,7 +2481,7 @@ function BrowserOnAboutPageLoad(doc) {
       docElt.setAttribute("searchEnginePostData", engine.postDataString || "");
       docElt.setAttribute("searchEngineURL", engine.searchURL);
     }
-    updateSearchEngine();
+    Services.search.init(updateSearchEngine);
 
     // Listen for the event that's triggered when the user changes search engine.
     // At this point we simply reload about:newtab to reflect the change.
@@ -3046,7 +3046,9 @@ const DOMLinkHandler = {
                 /^(?:https?|ftp):/i.test(link.href) &&
                 !PrivateBrowsingUtils.isWindowPrivate(window)) {
               var engine = { title: link.title, href: link.href };
-              BrowserSearch.addEngine(engine, link.ownerDocument);
+              Services.search.init(function () {
+                BrowserSearch.addEngine(engine, link.ownerDocument);
+              });
               searchAdded = true;
             }
           }

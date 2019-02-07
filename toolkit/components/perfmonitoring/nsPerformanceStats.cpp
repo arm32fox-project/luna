@@ -662,9 +662,6 @@ nsPerformanceStatsService::nsPerformanceStatsService()
                                        nsPerformanceGroup::GroupScope::RUNTIME // scope
                                      ))
   , mIsHandlingUserInput(false)
-  , mProcessStayed(0)
-  , mProcessMoved(0)
-  , mProcessUpdateCounter(0)
   , mIsMonitoringPerCompartment(false)
   , mJankAlertThreshold(mozilla::MaxValue<uint64_t>::value) // By default, no alerts
   , mJankAlertBufferingDelay(1000 /* ms */)
@@ -953,13 +950,6 @@ nsPerformanceStatsService::SetJankAlertBufferingDelay(uint32_t value) {
   return NS_OK;
 }
 
-nsresult
-nsPerformanceStatsService::UpdateTelemetry()
-{
-  /* STUB */
-  return NS_OK;
-}
-
 
 /* static */ nsIPerformanceStats*
 nsPerformanceStatsService::GetStatsForGroup(const js::PerformanceGroup* group)
@@ -990,12 +980,6 @@ nsPerformanceStatsService::GetSnapshot(JSContext* cx, nsIPerformanceSnapshot * *
     if (group->isActive()) {
       snapshot->AppendComponentsStats(GetStatsForGroup(group));
     }
-  }
-
-  js::GetPerfMonitoringTestCpuRescheduling(cx, &mProcessStayed, &mProcessMoved);
-
-  if (++mProcessUpdateCounter % 10 == 0) {
-    mozilla::Unused << UpdateTelemetry();
   }
 
   snapshot.forget(aSnapshot);
@@ -1098,6 +1082,9 @@ nsPerformanceStatsService::GetPerformanceGroups(JSContext* cx,
     return false;
   }
 
+  // Returning a vector that is too large would cause allocations all over the
+  // place in the JS engine. We want to be sure that all data is stored inline.
+  MOZ_ASSERT(out.length() <= out.sMaxInlineStorage);
   return true;
 }
 
@@ -1326,8 +1313,12 @@ nsPerformanceStatsService::GetResources(uint64_t* userTime,
 
 void
 nsPerformanceStatsService::NotifyJankObservers(const mozilla::Vector<uint64_t>& aPreviousJankLevels) {
-  GroupVector alerts;
-  mPendingAlerts.swap(alerts);
+
+  // The move operation is generally constant time, unless
+  // `mPendingAlerts.length()` is very small, in which case it's fast anyway.
+  GroupVector alerts(Move(mPendingAlerts));
+  mPendingAlerts = GroupVector(); // Reconstruct after `Move`.
+
   if (!mPendingAlertsCollector) {
     // We are shutting down.
     return;

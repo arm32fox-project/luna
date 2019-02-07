@@ -185,7 +185,6 @@
 #include "mozilla/AutoGlobalTimelineMarker.h"
 #include "mozilla/Likely.h"
 #include "mozilla/PoisonIOInterposer.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/ThreadLocal.h"
 
 using namespace mozilla;
@@ -2266,7 +2265,7 @@ CCGraphBuilder::BuildGraph(SliceBudget& aBudget)
     SetFirstChild();
 
     if (pi->mParticipant) {
-      nsresult rv = pi->mParticipant->Traverse(pi->mPointer, *this);
+      nsresult rv = pi->mParticipant->TraverseNativeAndJS(pi->mPointer, *this);
       MOZ_RELEASE_ASSERT(!NS_FAILED(rv), "Cycle collector Traverse method failed");
     }
 
@@ -2540,7 +2539,7 @@ static bool
 MayHaveChild(void* aObj, nsCycleCollectionParticipant* aCp)
 {
   ChildFinder cf;
-  aCp->Traverse(aObj, cf);
+  aCp->TraverseNativeAndJS(aObj, cf);
   return cf.MayHaveChild();
 }
 
@@ -2597,7 +2596,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(JSPurpleBuffer)
   CycleCollectionNoteChild(cb, tmp, "self");
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 #define NS_TRACE_SEGMENTED_ARRAY(_field, _type)                               \
@@ -3488,7 +3486,6 @@ nsCycleCollector::FixGrayBits(bool aForceGC, TimeLog& aTimeLog)
     aTimeLog.Checkpoint("FixWeakMappingGrayBits");
 
     bool needGC = !mJSContext->AreGCGrayBitsValid();
-    // Only do a telemetry ping for non-shutdown CCs.
     if (!needGC) {
       return;
     }
@@ -3539,8 +3536,6 @@ nsCycleCollector::CleanupAfterCollection()
   }
   printf(".\ncc: \n");
 #endif
-
-  timeLog.Checkpoint("CleanupAfterCollection::telemetry");
 
   if (mJSContext) {
     mJSContext->FinalizeDeferredThings(mResults.mAnyManual
