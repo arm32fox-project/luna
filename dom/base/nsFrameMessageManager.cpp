@@ -132,7 +132,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsFrameMessageManager)
   }
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mChildManagers)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mParentManager)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsFrameMessageManager)
@@ -706,12 +705,6 @@ nsFrameMessageManager::SendRpcMessage(const nsAString& aMessageName,
 static bool
 AllowMessage(size_t aDataLength, const nsAString& aMessageName)
 {
-  static const size_t kMinTelemetryMessageSize = 8192;
-
-  if (aDataLength < kMinTelemetryMessageSize) {
-    return true;
-  }
-
   NS_ConvertUTF16toUTF8 messageName(aMessageName);
   messageName.StripChars("0123456789");
 

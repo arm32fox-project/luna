@@ -2713,6 +2713,8 @@ private:
  */
 class nsDisplayBackgroundImage : public nsDisplayImageContainer {
 public:
+  typedef mozilla::StyleGeometryBox StyleGeometryBox;
+
   /**
    * aLayer signifies which background layer this item represents.
    * aIsThemed should be the value of aFrame->IsThemed.
@@ -2790,8 +2792,10 @@ public:
   virtual already_AddRefed<imgIContainer> GetImage() override;
   virtual nsRect GetDestRect() override;
 
-  static nsRegion GetInsideClipRegion(nsDisplayItem* aItem, uint8_t aClip,
-                                      const nsRect& aRect, const nsRect& aBackgroundRect);
+  static nsRegion GetInsideClipRegion(nsDisplayItem* aItem,
+                                      StyleGeometryBox aClip,
+                                      const nsRect& aRect,
+                                      const nsRect& aBackgroundRect);
 
   virtual bool ShouldFixToViewport(nsDisplayListBuilder* aBuilder) override;
 
@@ -4507,44 +4511,5 @@ public:
   // Cached result of mFrame->IsSelected().  Only initialized when needed.
   mutable mozilla::Maybe<bool> mIsFrameSelected;
 };
-
-namespace mozilla {
-
-class PaintTelemetry
-{
- public:
-  enum class Metric {
-    DisplayList,
-    Layerization,
-    Rasterization,
-    COUNT,
-  };
-
-  class AutoRecord
-  {
-   public:
-    explicit AutoRecord(Metric aMetric);
-    ~AutoRecord();
-   private:
-    Metric mMetric;
-    mozilla::TimeStamp mStart;
-  };
-
-  class AutoRecordPaint
-  {
-   public:
-    AutoRecordPaint();
-    ~AutoRecordPaint();
-   private:
-    mozilla::TimeStamp mStart;
-  };
-
- private:
-  static uint32_t sPaintLevel;
-  static uint32_t sMetricLevel;
-  static mozilla::EnumeratedArray<Metric, Metric::COUNT, double> sMetrics;
-};
-
-} // namespace mozilla
 
 #endif /*NSDISPLAYLIST_H_*/

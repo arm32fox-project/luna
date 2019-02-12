@@ -26,7 +26,6 @@
 #include "nsReadableUtils.h"
 #include "nsUnicharUtils.h"
 #include "nsPrimitiveHelpers.h"
-#include "nsImageClipboard.h"
 #include "nsIWidget.h"
 #include "nsIComponentManager.h"
 #include "nsWidgetsCID.h"
@@ -36,6 +35,8 @@
 #include "nsIOutputStream.h"
 #include "nsEscape.h"
 #include "nsIObserverService.h"
+#include "nsMimeTypes.h"
+#include "imgITools.h"
 
 using mozilla::LogLevel;
 
@@ -283,16 +284,19 @@ nsresult nsClipboard::GetGlobalData(HGLOBAL aHGBL, void ** aData, uint32_t * aLe
 {
   // Allocate a new memory buffer and copy the data from global memory.
   // Recall that win98 allocates to nearest DWORD boundary. As a safety
-  // precaution, allocate an extra 2 bytes (but don't report them!) and
-  // null them out to ensure that all of our strlen calls will succeed.
+  // precaution, allocate an extra 3 bytes (but don't report them in |aLen|!)
+  // and null them out to ensure that all of our NS_strlen calls will succeed.
+  // NS_strlen operates on char16_t, so we need 3 NUL bytes to ensure it finds
+  // a full NUL char16_t when |*aLen| is odd.
   nsresult  result = NS_ERROR_FAILURE;
   if (aHGBL != nullptr) {
     LPSTR lpStr = (LPSTR) GlobalLock(aHGBL);
     DWORD allocSize = GlobalSize(aHGBL);
-    char* data = static_cast<char*>(malloc(allocSize + sizeof(char16_t)));
+    char* data = static_cast<char*>(malloc(allocSize + 3));
     if ( data ) {    
       memcpy ( data, lpStr, allocSize );
-      data[allocSize] = data[allocSize + 1] = '\0';     // null terminate for safety
+      data[allocSize] = data[allocSize + 1] = data[allocSize + 2] =
+          '\0'; // null terminate for safety
 
       GlobalUnlock(aHGBL);
       *aData = data;
@@ -471,17 +475,45 @@ nsresult nsClipboard::GetNativeDataOffClipboard(IDataObject * aDataObject, UINT 
               if (aMIMEImageFormat)
               {
                 uint32_t allocLen = 0;
-                unsigned char * clipboardData;
+                const char * clipboardData;
                 if (NS_SUCCEEDED(GetGlobalData(stm.hGlobal, (void **)&clipboardData, &allocLen)))
                 {
-                  nsImageFromClipboard converter;
-                  nsIInputStream * inputStream;
-                  converter.GetEncodedImageStream(clipboardData, aMIMEImageFormat, &inputStream);   // addrefs for us, don't release
-                  if ( inputStream ) {
-                    *aData = inputStream;
-                    *aLen = sizeof(nsIInputStream*);
-                    result = NS_OK;
+                  nsCOMPtr<imgIContainer> container;
+                  nsCOMPtr<imgITools> imgTools = do_CreateInstance("@mozilla.org/image/tools;1");
+                  nsCOMPtr<nsIInputStream> inputStream;
+                  nsresult rv = NS_NewByteInputStream(getter_AddRefs(inputStream),
+                                                      clipboardData,
+                                                      allocLen,
+                                                      NS_ASSIGNMENT_DEPEND);
+                  NS_ENSURE_SUCCESS(rv, rv);
+                  
+                  result = imgTools->DecodeImage(inputStream,
+                                                 NS_LITERAL_CSTRING(IMAGE_BMP_MS_CLIPBOARD),
+                                                 getter_AddRefs(container));
+                  if (NS_FAILED(result)) {
+                    break;
                   }
+
+                  nsAutoCString mimeType;
+                  if (strcmp(aMIMEImageFormat, kJPGImageMime) == 0) {
+                    mimeType.Assign(IMAGE_JPEG);
+                  } else {
+                    mimeType.Assign(aMIMEImageFormat);
+                  }
+
+                  result = imgTools->EncodeImage(container, mimeType, EmptyString(),
+                                                 getter_AddRefs(inputStream));
+                  if (NS_FAILED(result)) {
+                    break;
+                  }
+
+                  if (!inputStream) {
+                    result = NS_ERROR_FAILURE;
+                    break;
+                  }
+
+                  *aData = inputStream.forget().take();
+                  *aLen = sizeof(nsIInputStream*);
                 }
               } break;
 

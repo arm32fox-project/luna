@@ -213,8 +213,7 @@ pref("dom.requestIdleCallback.enabled", true);
 
 // Enable Intersection Observers
 // See WD https://www.w3.org/TR/intersection-observer/
-// Disabled for now, see issue #935
-pref("dom.IntersectionObserver.enabled", false);
+pref("dom.intersectionObserver.enabled", true);
 
 // Whether the Gamepad API is enabled
 pref("dom.gamepad.enabled", true);
@@ -1292,7 +1291,7 @@ pref("javascript.options.mem.high_water_mark", 128);
 pref("javascript.options.mem.max", -1);
 pref("javascript.options.mem.gc_per_zone", true);
 pref("javascript.options.mem.gc_incremental", true);
-pref("javascript.options.mem.gc_incremental_slice_ms", 10);
+pref("javascript.options.mem.gc_incremental_slice_ms", 20);
 pref("javascript.options.mem.gc_generational", true);
 pref("javascript.options.mem.gc_compacting", true);
 pref("javascript.options.mem.log", false);
@@ -2039,6 +2038,8 @@ pref("network.proxy.autoconfig_url.include_path", false);
 pref("network.proxy.autoconfig_retry_interval_min", 5);    // 5 seconds
 pref("network.proxy.autoconfig_retry_interval_max", 300);  // 5 minutes
 
+// Master switch for HSTS usage (security <-> privacy tradeoff)
+pref("network.stricttransportsecurity.enabled", true);
 // Use the HSTS preload list by default
 pref("network.stricttransportsecurity.preloadlist", true);
 

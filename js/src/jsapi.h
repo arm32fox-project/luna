@@ -2154,6 +2154,13 @@ namespace JS {
 extern JS_PUBLIC_API(bool)
 OrdinaryHasInstance(JSContext* cx, HandleObject objArg, HandleValue v, bool* bp);
 
+// Implementation of
+// https://www.ecma-international.org/ecma-262/6.0/#sec-instanceofoperator
+// This is almost identical to JS_HasInstance, except the latter may call a
+// custom hasInstance class op instead of InstanceofOperator.
+extern JS_PUBLIC_API(bool)
+InstanceofOperator(JSContext* cx, HandleObject obj, HandleValue v, bool* bp);
+
 } // namespace JS
 
 extern JS_PUBLIC_API(void*)
@@ -6566,7 +6573,7 @@ struct JS_PUBLIC_API(PerformanceGroup) {
     uint64_t refCount_;
 };
 
-using PerformanceGroupVector = mozilla::Vector<RefPtr<js::PerformanceGroup>, 0, SystemAllocPolicy>;
+using PerformanceGroupVector = mozilla::Vector<RefPtr<js::PerformanceGroup>, 8, SystemAllocPolicy>;
 
 /**
  * Commit any Performance Monitoring data.
@@ -6604,10 +6611,6 @@ extern JS_PUBLIC_API(bool)
 SetStopwatchIsMonitoringJank(JSContext*, bool);
 extern JS_PUBLIC_API(bool)
 GetStopwatchIsMonitoringJank(JSContext*);
-
-// Extract the CPU rescheduling data.
-extern JS_PUBLIC_API(void)
-GetPerfMonitoringTestCpuRescheduling(JSContext*, uint64_t* stayed, uint64_t* moved);
 
 
 /**
