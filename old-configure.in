@@ -215,6 +215,12 @@ case "$target" in
 
             # -Zc:sizedDealloc- disables C++14 global sized deallocation (see bug 1160146)
             CXXFLAGS="$CXXFLAGS -Zc:sizedDealloc-"
+            
+            # C4752: We explicitly use AVX instructions in only some libs, not global
+            # This is a pointless "helpful warning" to use /arch:AVX which we don't want.
+            CFLAGS="$CFLAGS -wd4752"
+            CXXFLAGS="$CXXFLAGS -wd4752"
+            
             # https://connect.microsoft.com/VisualStudio/feedback/details/888527/warnings-on-dbghelp-h
             # for dbghelp.h, imagehlp.h, and shobj.h
             # C4091: 'typedef ': ignored on left of '' when no variable is declared
