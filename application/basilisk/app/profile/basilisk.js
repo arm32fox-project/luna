@@ -78,6 +78,9 @@ pref("xpinstall.signatures.devInfoURL", "https://wiki.mozilla.org/Addons/Extensi
 // Dictionary download preference
 pref("browser.dictionaries.download.url", "http://@AM_DOMAIN@/dictionaries/");
 
+// Get More Tools link URL
+pref("browser.getdevtools.url","https://@AM_DOMAIN@/?component=integration&type=external&request=devtools");
+
 // At startup, should we check to see if the installation
 // date is older than some threshold
 pref("app.update.checkInstallTime", true);
@@ -141,16 +144,14 @@ pref("app.update.url", "https://aus5.mozilla.org/update/6/%PRODUCT%/%VERSION%/%B
 // app.update.url.manual is in branding section
 // app.update.url.details is in branding section
 
+// User-settable override to app.update.url for testing purposes.
+//pref("app.update.url.override", "");
+
 // app.update.interval is in branding section
 // app.update.promptWaitTime is in branding section
 
 // Show the Update Checking/Ready UI when the user was idle for x seconds
 pref("app.update.idletime", 60);
-
-// Whether or not to attempt using the service for updates.
-#ifdef MOZ_MAINTENANCE_SERVICE
-pref("app.update.service.enabled", true);
-#endif
 
 // Symmetric (can be overridden by individual extensions) update preferences.
 // e.g.
@@ -335,7 +336,7 @@ pref("browser.helperApps.deleteTempFileOnExit", true);
 #endif
 
 // search engines URL
-pref("browser.search.searchEnginesURL",      "https://addons.mozilla.org/%LOCALE%/firefox/search-engines/");
+pref("browser.search.searchEnginesURL",      "https://@AM_DOMAIN@/search-plugins/");
 
 // pointer to the default engine name
 pref("browser.search.defaultenginename",      "chrome://browser-region/locale/region.properties");
@@ -1437,3 +1438,11 @@ pref("browser.crashReports.unsubmittedCheck.autoSubmit2", false);
 // controlling validation are located in /services/sync/services-sync.js
 pref("services.sync.validation.enabled", true);
 #endif
+
+// When a user cancels this number of authentication dialogs coming from
+// a single web page (eTLD+1) in a row, all following authentication dialogs
+// will be blocked (automatically canceled) for that page.
+// This counter is per-tab and per-domain to minimize false positives.
+// The counter resets when the page is reloaded from the UI
+// (content-reloads do NOT clear this to mitigate reloading tricks).
+pref("prompts.authentication_dialog_abuse_limit", 3);

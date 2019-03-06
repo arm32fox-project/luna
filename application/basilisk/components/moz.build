@@ -24,9 +24,6 @@ DIRS += [
     'translation',
 ]
 
-if CONFIG['MOZ_WEBEXTENSIONS']:
-    DIRS += ['webextensions']
-
 DIRS += ['build']
 
 XPIDL_SOURCES += [
