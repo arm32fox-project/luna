@@ -15,6 +15,7 @@
 #include "nsCOMPtr.h"
 #include "nsWeakReference.h"
 
+#include "nsIContentPolicy.h"
 #include "nsIHttpProtocolHandler.h"
 #include "nsIObserver.h"
 #include "nsISpeculativeConnect.h"
@@ -50,6 +51,14 @@ enum FrameCheckLevel {
     FRAMECHECK_STRICT
 };
 
+// Fetch spec different http Accept types
+enum AcceptType {
+    ACCEPT_NAVIGATION,
+    ACCEPT_IMAGE,
+    ACCEPT_STYLE,
+    ACCEPT_DEFAULT,
+};
+
 //-----------------------------------------------------------------------------
 // nsHttpHandler - protocol handler for HTTP and HTTPS
 //-----------------------------------------------------------------------------
@@ -70,7 +79,7 @@ public:
     nsHttpHandler();
 
     nsresult Init();
-    nsresult AddStandardRequestHeaders(nsHttpRequestHead *, bool isSecure);
+    nsresult AddStandardRequestHeaders(nsHttpRequestHead *, bool isSecure, nsContentPolicyType aContentPolicyType);
     nsresult AddConnectionHeader(nsHttpRequestHead *,
                                  uint32_t capabilities);
     bool     IsAcceptableEncoding(const char *encoding, bool isSecure);
@@ -105,8 +114,10 @@ public:
     bool           EnforceAssocReq()         { return mEnforceAssocReq; }
 
     bool           IsPersistentHttpsCachingEnabled() { return mEnablePersistentHttpsCaching; }
-    bool           IsTelemetryEnabled() { return mTelemetryEnabled; }
-    bool           AllowExperiments() { return mTelemetryEnabled && mAllowExperiments; }
+
+    // Since telemetry has been removed, experiments should also not be allowed.
+    // Making this function return `false` for now, it will be cleaned up later.
+    bool           AllowExperiments() { return false; }
 
     bool           IsSpdyEnabled() { return mEnableSpdy; }
     bool           IsHttp2Enabled() { return mHttp2Enabled; }
@@ -383,7 +394,7 @@ private:
     void     InitUserAgentComponents();
     void     PrefsChanged(nsIPrefBranch *prefs, const char *pref);
 
-    nsresult SetAccept(const char *);
+    nsresult SetAccept(const char *, AcceptType aType);
     nsresult SetAcceptLanguages();
     nsresult SetAcceptEncodings(const char *, bool mIsSecure);
 
@@ -392,8 +403,8 @@ private:
     void     NotifyObservers(nsIHttpChannel *chan, const char *event);
 
     static void TimerCallback(nsITimer * aTimer, void * aClosure);
+    
 private:
-
     // cached services
     nsMainThreadPtrHandle<nsIIOService>              mIOService;
     nsMainThreadPtrHandle<nsIStreamConverterService> mStreamConvSvc;
@@ -458,7 +469,10 @@ private:
     bool mPipeliningOverSSL;
     bool mEnforceAssocReq;
 
-    nsCString mAccept;
+    nsCString mAcceptNavigation;
+    nsCString mAcceptImage;
+    nsCString mAcceptStyle;
+    nsCString mAcceptDefault;
     nsCString mAcceptLanguages;
     nsCString mHttpAcceptEncodings;
     nsCString mHttpsAcceptEncodings;
@@ -508,9 +522,6 @@ private:
 
     // true in between init and shutdown states
     Atomic<bool, Relaxed> mHandlerActive;
-
-    // Whether telemetry is reported or not
-    uint32_t           mTelemetryEnabled : 1;
 
     // The value of network.allow-experiments
     uint32_t           mAllowExperiments : 1;

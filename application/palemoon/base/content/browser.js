@@ -2456,7 +2456,7 @@ function BrowserOnAboutPageLoad(doc) {
       docElt.setAttribute("searchEnginePostData", engine.postDataString || "");
       docElt.setAttribute("searchEngineURL", engine.searchURL);
     }
-    updateSearchEngine();
+    Services.search.init(updateSearchEngine);
 
     // Listen for the event that's triggered when the user changes search engine.
     // At this point we simply reload about:home to reflect the change.
@@ -2481,7 +2481,7 @@ function BrowserOnAboutPageLoad(doc) {
       docElt.setAttribute("searchEnginePostData", engine.postDataString || "");
       docElt.setAttribute("searchEngineURL", engine.searchURL);
     }
-    updateSearchEngine();
+    Services.search.init(updateSearchEngine);
 
     // Listen for the event that's triggered when the user changes search engine.
     // At this point we simply reload about:newtab to reflect the change.
@@ -2661,6 +2661,11 @@ function getWebNavigation()
 }
 
 function BrowserReloadWithFlags(reloadFlags) {
+  
+  // Reset DOS mitigation for auth prompts when user initiates a reload.
+  let browser = gBrowser.selectedBrowser;
+  delete browser.authPromptCounter;
+  
   /* First, we'll try to use the session history object to reload so
    * that framesets are handled properly. If we're in a special
    * window (such as view-source) that has no session history, fall
@@ -3046,7 +3051,9 @@ const DOMLinkHandler = {
                 /^(?:https?|ftp):/i.test(link.href) &&
                 !PrivateBrowsingUtils.isWindowPrivate(window)) {
               var engine = { title: link.title, href: link.href };
-              BrowserSearch.addEngine(engine, link.ownerDocument);
+              Services.search.init(function () {
+                BrowserSearch.addEngine(engine, link.ownerDocument);
+              });
               searchAdded = true;
             }
           }
@@ -4406,7 +4413,13 @@ nsBrowserAccess.prototype = {
 
   openURI: function (aURI, aOpener, aWhere, aContext) {
     var newWindow = null;
-    var isExternal = (aContext == Ci.nsIBrowserDOMWindow.OPEN_EXTERNAL);
+    var isExternal = !!(aContext & Ci.nsIBrowserDOMWindow.OPEN_EXTERNAL);
+
+    if (aOpener && isExternal) {
+      Cu.reportError("nsBrowserAccess.openURI did not expect an opener to be " +
+                     "passed if the context is OPEN_EXTERNAL.");
+      throw Cr.NS_ERROR_FAILURE;
+    }
 
     if (isExternal && aURI && aURI.schemeIs("chrome")) {
       dump("use -chrome command-line option to load external chrome urls\n");

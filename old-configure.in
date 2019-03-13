@@ -68,7 +68,7 @@ GNOMEUI_VERSION=2.2.0
 GCONF_VERSION=1.2.1
 STARTUP_NOTIFICATION_VERSION=0.8
 DBUS_VERSION=0.60
-SQLITE_VERSION=3.21.0
+SQLITE_VERSION=3.26.0
 
 dnl Set various checks
 dnl ========================================================
@@ -215,11 +215,12 @@ case "$target" in
 
             # -Zc:sizedDealloc- disables C++14 global sized deallocation (see bug 1160146)
             CXXFLAGS="$CXXFLAGS -Zc:sizedDealloc-"
-
-            # Disable C++11 thread-safe statics due to crashes on XP (bug 1204752)
-            # See https://connect.microsoft.com/VisualStudio/feedback/details/1789709/visual-c-2015-runtime-broken-on-windows-server-2003-c-11-magic-statics
-            CXXFLAGS="$CXXFLAGS -Zc:threadSafeInit-"
-
+            
+            # C4752: We explicitly use AVX instructions in only some libs, not global
+            # This is a pointless "helpful warning" to use /arch:AVX which we don't want.
+            CFLAGS="$CFLAGS -wd4752"
+            CXXFLAGS="$CXXFLAGS -wd4752"
+            
             # https://connect.microsoft.com/VisualStudio/feedback/details/888527/warnings-on-dbghelp-h
             # for dbghelp.h, imagehlp.h, and shobj.h
             # C4091: 'typedef ': ignored on left of '' when no variable is declared
@@ -3564,23 +3565,6 @@ AC_CHECK_PROGS(WGET, wget, "")
 AC_SUBST(WGET)
 
 dnl ========================================================
-dnl Maintenance Service
-dnl ========================================================
-
-MOZ_ARG_ENABLE_BOOL(maintenance-service,
-[  --enable-maintenance-service       Enable building of maintenanceservice],
-    MOZ_MAINTENANCE_SERVICE=1,
-    MOZ_MAINTENANCE_SERVICE= )
-
-if test -n "$MOZ_MAINTENANCE_SERVICE"; then
-  if test "$OS_ARCH" = "WINNT"; then
-    AC_DEFINE(MOZ_MAINTENANCE_SERVICE)
-  else
-    AC_MSG_ERROR([Can only build with --enable-maintenance-service with a Windows target])
-  fi
-fi
-
-dnl ========================================================
 dnl Bundled fonts on desktop platforms
 dnl ========================================================
 
@@ -5069,7 +5053,6 @@ AC_SUBST(MOZ_UNIVERSALCHARDET)
 AC_SUBST(ACCESSIBILITY)
 AC_SUBST(MOZ_SPELLCHECK)
 AC_SUBST(MOZ_ANDROID_ANR_REPORTER)
-AC_SUBST(MOZ_MAINTENANCE_SERVICE)
 AC_SUBST(MOZ_VERIFY_MAR_SIGNATURE)
 AC_SUBST(MOZ_ENABLE_SIGNMAR)
 AC_SUBST(MOZ_UPDATER)
@@ -5593,22 +5576,6 @@ else
 fi
 
 AC_SUBST(PREPROCESS_OPTION)
-
-dnl ========================================================
-dnl mask as shorthand property
-dnl ========================================================
-
-# The control structure code will be removed as soon as the feature is stable
-# Refer to bug 1281101 for more details.
-
-# Enable mask-as-shorthand property by default for nightly and aurora channels
-if test -z "$RELEASE_OR_BETA"; then
-  dnl mask as shorthand property enabled
-  MOZ_ENABLE_MASK_AS_SHORTHAND=1
-  AC_DEFINE(MOZ_ENABLE_MASK_AS_SHORTHAND)
-fi
-
-AC_SUBST(MOZ_ENABLE_MASK_AS_SHORTHAND)
 
 # Avoid using obsolete NSPR features
 AC_DEFINE(NO_NSPR_10_SUPPORT)

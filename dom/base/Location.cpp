@@ -80,7 +80,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(Location)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mInnerWindow)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_WRAPPERCACHE(Location)
@@ -790,10 +789,6 @@ Location::GetSearch(nsAString& aSearch)
 NS_IMETHODIMP
 Location::SetSearch(const nsAString& aSearch)
 {
-  if (aSearch.IsEmpty()) {
-    return NS_OK; // Ignore empty string
-  }
-
   nsresult rv = SetSearchInternal(aSearch);
   if (NS_FAILED(rv)) {
     return rv;

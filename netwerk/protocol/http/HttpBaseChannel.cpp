@@ -151,7 +151,8 @@ HttpBaseChannel::Init(nsIURI *aURI,
                       nsProxyInfo *aProxyInfo,
                       uint32_t aProxyResolveFlags,
                       nsIURI *aProxyURI,
-                      const nsID& aChannelId)
+                      const nsID& aChannelId,
+                      nsContentPolicyType aContentPolicyType)
 {
   LOG(("HttpBaseChannel::Init [this=%p]\n", this));
 
@@ -200,7 +201,7 @@ HttpBaseChannel::Init(nsIURI *aURI,
   rv = mRequestHead.SetHeader(nsHttp::Host, hostLine);
   if (NS_FAILED(rv)) return rv;
 
-  rv = gHttpHandler->AddStandardRequestHeaders(&mRequestHead, isHTTPS);
+  rv = gHttpHandler->AddStandardRequestHeaders(&mRequestHead, isHTTPS, aContentPolicyType);
   if (NS_FAILED(rv)) return rv;
 
   nsAutoCString type;
@@ -996,16 +997,6 @@ HttpBaseChannel::DoApplyContentConversions(nsIStreamListener* aNextListener,
       }
 
       LOG(("converter removed '%s' content-encoding\n", val));
-      if (gHttpHandler->IsTelemetryEnabled()) {
-        int mode = 0;
-        if (from.Equals("gzip") || from.Equals("x-gzip")) {
-          mode = 1;
-        } else if (from.Equals("deflate") || from.Equals("x-deflate")) {
-          mode = 2;
-        } else if (from.Equals("br")) {
-          mode = 3;
-        }
-      }
       nextListener = converter;
     }
     else {

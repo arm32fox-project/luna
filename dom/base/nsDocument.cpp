@@ -1395,63 +1395,6 @@ nsDocument::~nsDocument()
 
   NS_ASSERTION(!mIsShowing, "Destroying a currently-showing document");
 
-  if (IsTopLevelContentDocument()) {
-    //don't report for about: pages
-    if (!IsAboutPage()) {
-      // Record the page load
-      uint32_t pageLoaded = 1;
-      Accumulate(Telemetry::MIXED_CONTENT_UNBLOCK_COUNTER, pageLoaded);
-      // Record the mixed content status of the docshell in Telemetry
-      enum {
-        NO_MIXED_CONTENT = 0, // There is no Mixed Content on the page
-        MIXED_DISPLAY_CONTENT = 1, // The page attempted to load Mixed Display Content
-        MIXED_ACTIVE_CONTENT = 2, // The page attempted to load Mixed Active Content
-        MIXED_DISPLAY_AND_ACTIVE_CONTENT = 3 // The page attempted to load Mixed Display & Mixed Active Content
-      };
-
-      bool mixedActiveLoaded = GetHasMixedActiveContentLoaded();
-      bool mixedActiveBlocked = GetHasMixedActiveContentBlocked();
-
-      bool mixedDisplayLoaded = GetHasMixedDisplayContentLoaded();
-      bool mixedDisplayBlocked = GetHasMixedDisplayContentBlocked();
-
-      bool hasMixedDisplay = (mixedDisplayBlocked || mixedDisplayLoaded);
-      bool hasMixedActive = (mixedActiveBlocked || mixedActiveLoaded);
-
-      uint32_t mixedContentLevel = NO_MIXED_CONTENT;
-      if (hasMixedDisplay && hasMixedActive) {
-        mixedContentLevel = MIXED_DISPLAY_AND_ACTIVE_CONTENT;
-      } else if (hasMixedActive){
-        mixedContentLevel = MIXED_ACTIVE_CONTENT;
-      } else if (hasMixedDisplay) {
-        mixedContentLevel = MIXED_DISPLAY_CONTENT;
-      }
-      Accumulate(Telemetry::MIXED_CONTENT_PAGE_LOAD, mixedContentLevel);
-
-      // record mixed object subrequest telemetry
-      if (mHasMixedContentObjectSubrequest) {
-        /* mixed object subrequest loaded on page*/
-        Accumulate(Telemetry::MIXED_CONTENT_OBJECT_SUBREQUEST, 1);
-      } else {
-        /* no mixed object subrequests loaded on page*/
-        Accumulate(Telemetry::MIXED_CONTENT_OBJECT_SUBREQUEST, 0);
-      }
-
-      // record CSP telemetry on this document
-      if (mHasCSP) {
-        Accumulate(Telemetry::CSP_DOCUMENTS_COUNT, 1);
-      }
-      if (mHasUnsafeInlineCSP) {
-        Accumulate(Telemetry::CSP_UNSAFE_INLINE_DOCUMENTS_COUNT, 1);
-      }
-      if (mHasUnsafeEvalCSP) {
-        Accumulate(Telemetry::CSP_UNSAFE_EVAL_DOCUMENTS_COUNT, 1);
-      }
-    }
-  }
-
-  ReportUseCounters();
-
   mInDestructor = true;
   mInUnlinkOrDeletion = true;
 
@@ -1647,10 +1590,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsDocument)
     NS_IMPL_CYCLE_COLLECTION_DESCRIBE(nsDocument, tmp->mRefCnt.get())
   }
 
-  // Always need to traverse script objects, so do that before we check
-  // if we're uncollectable.
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
-
   if (!nsINode::Traverse(tmp, cb)) {
     return NS_SUCCESS_INTERRUPTED_TRAVERSE;
   }
@@ -1735,8 +1674,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsDocument)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mStyleSheets)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mOnDemandBuiltInUASheets)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPreloadingImages)
-
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mIntersectionObservers)
 
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mSubImportLinks)
 
@@ -12355,40 +12292,27 @@ nsIDocument::InlineScriptAllowedByCSP()
   return allowsInlineScript;
 }
 
-static bool
-MightBeAboutOrChromeScheme(nsIURI* aURI)
-{
-  MOZ_ASSERT(aURI);
-  bool isAbout = true;
-  bool isChrome = true;
-  aURI->SchemeIs("about", &isAbout);
-  aURI->SchemeIs("chrome", &isChrome);
-  return isAbout || isChrome;
-}
-
-void
-nsDocument::ReportUseCounters()
-{
-/* STUB */
-}
-
 void
 nsDocument::AddIntersectionObserver(DOMIntersectionObserver* aObserver)
 {
-  NS_ASSERTION(mIntersectionObservers.IndexOf(aObserver) == nsTArray<int>::NoIndex,
-               "Intersection observer already in the list");
-  mIntersectionObservers.AppendElement(aObserver);
+  MOZ_ASSERT(!mIntersectionObservers.Contains(aObserver),
+             "Intersection observer already in the list");
+  mIntersectionObservers.PutEntry(aObserver);
 }
 
 void
 nsDocument::RemoveIntersectionObserver(DOMIntersectionObserver* aObserver)
 {
-  mIntersectionObservers.RemoveElement(aObserver);
+  mIntersectionObservers.RemoveEntry(aObserver);
 }
 
 void
 nsDocument::UpdateIntersectionObservations()
 {
+  if (mIntersectionObservers.IsEmpty()) {
+    return;
+  }
+
   DOMHighResTimeStamp time = 0;
   if (nsPIDOMWindowInner* window = GetInnerWindow()) {
     Performance* perf = window->GetPerformance();
@@ -12396,25 +12320,42 @@ nsDocument::UpdateIntersectionObservations()
       time = perf->Now();
     }
   }
-  for (const auto& observer : mIntersectionObservers) {
-    observer->Update(this, time);
+  nsTArray<RefPtr<DOMIntersectionObserver>> observers(mIntersectionObservers.Count());
+  for (auto iter = mIntersectionObservers.Iter(); !iter.Done(); iter.Next()) {
+    DOMIntersectionObserver* observer = iter.Get()->GetKey();
+    observers.AppendElement(observer);
+  }
+  for (const auto& observer : observers) {
+    if (observer) {
+      observer->Update(this, time);
+    }
   }
 }
 
 void
 nsDocument::ScheduleIntersectionObserverNotification()
 {
+  if (mIntersectionObservers.IsEmpty()) {
+    return;
+  }
+
   nsCOMPtr<nsIRunnable> notification = NewRunnableMethod(this,
     &nsDocument::NotifyIntersectionObservers);
-  NS_DispatchToCurrentThread(notification);
+  NS_DispatchToCurrentThread(notification.forget());
 }
 
 void
 nsDocument::NotifyIntersectionObservers()
 {
-  nsTArray<RefPtr<DOMIntersectionObserver>> observers(mIntersectionObservers);
+  nsTArray<RefPtr<DOMIntersectionObserver>> observers(mIntersectionObservers.Count());
+  for (auto iter = mIntersectionObservers.Iter(); !iter.Done(); iter.Next()) {
+    DOMIntersectionObserver* observer = iter.Get()->GetKey();
+    observers.AppendElement(observer);
+  }
   for (const auto& observer : observers) {
-    observer->Notify();
+    if (observer) {
+      observer->Notify();
+    }
   }
 }
 
