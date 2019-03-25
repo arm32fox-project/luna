@@ -814,10 +814,8 @@
                 }
 
                 let unifiedComplete = this.mTabBrowser._unifiedComplete;
-                let userContextId = this.mBrowser.getAttribute("usercontextid") || 0;
                 if (this.mBrowser.registeredOpenURI) {
-                  unifiedComplete.unregisterOpenPage(this.mBrowser.registeredOpenURI,
-                                                     userContextId);
+                  unifiedComplete.unregisterOpenPage(this.mBrowser.registeredOpenURI);
                   delete this.mBrowser.registeredOpenURI;
                 }
                 // Tabs in private windows aren't registered as "Open" so
@@ -825,7 +823,7 @@
                 if (!isBlankPageURL(aLocation.spec) &&
                     (!PrivateBrowsingUtils.isWindowPrivate(window) ||
                     PrivateBrowsingUtils.permanentPrivateBrowsing)) {
-                  unifiedComplete.registerOpenPage(aLocation, userContextId);
+                  unifiedComplete.registerOpenPage(aLocation);
                   this.mBrowser.registeredOpenURI = aLocation;
                 }
               }
@@ -1230,7 +1228,6 @@
                 this._adjustFocusAfterTabSwitch(this.mCurrentTab);
             }
 
-            updateUserContextUIIndicator();
             gIdentityHandler.updateSharingIndicator();
 
             this.tabContainer._setPositionalAttributes();
@@ -1486,7 +1483,6 @@
             var aSkipAnimation;
             var aForceNotRemote;
             var aNoReferrer;
-            var aUserContextId;
             var aRelatedBrowser;
             var aOriginPrincipal;
             var aOpener;
@@ -1507,7 +1503,6 @@
               aSkipAnimation        = params.skipAnimation;
               aForceNotRemote       = params.forceNotRemote;
               aNoReferrer           = params.noReferrer;
-              aUserContextId        = params.userContextId;
               aRelatedBrowser       = params.relatedBrowser;
               aOriginPrincipal      = params.originPrincipal;
               aOpener               = params.opener;
@@ -1530,7 +1525,6 @@
                                   allowMixedContent: aAllowMixedContent,
                                   forceNotRemote: aForceNotRemote,
                                   noReferrer: aNoReferrer,
-                                  userContextId: aUserContextId,
                                   originPrincipal: aOriginPrincipal,
                                   relatedBrowser: aRelatedBrowser,
                                   opener: aOpener });
@@ -1551,7 +1545,6 @@
           let aTargetTab;
           let aNewIndex = -1;
           let aPostDatas = [];
-          let aUserContextId;
           if (arguments.length == 2 &&
               typeof arguments[1] == "object") {
             let params = arguments[1];
@@ -1562,7 +1555,6 @@
             aNewIndex             = typeof params.newIndex === "number" ?
                                     params.newIndex : aNewIndex;
             aPostDatas            = params.postDatas || aPostDatas;
-            aUserContextId        = params.userContextId;
           }
 
           if (!aURIs.length)
@@ -1611,8 +1603,7 @@
               ownerTab: owner,
               skipAnimation: multiple,
               allowThirdPartyFixup: aAllowThirdPartyFixup,
-              postData: aPostDatas[0],
-              userContextId: aUserContextId
+              postData: aPostDatas[0]
             });
             if (aNewIndex !== -1) {
               this.moveTabTo(firstTabAdded, aNewIndex);
@@ -1625,8 +1616,7 @@
             let tab = this.addTab(aURIs[i], {
               skipAnimation: true,
               allowThirdPartyFixup: aAllowThirdPartyFixup,
-              postData: aPostDatas[i],
-              userContextId: aUserContextId
+              postData: aPostDatas[i]
             });
             if (targetTabIndex !== -1)
               this.moveTabTo(tab, ++tabNum);
@@ -1899,7 +1889,7 @@
         <body>
           <![CDATA[
             // Supported parameters:
-            // userContextId, remote, isPreloadBrowser, uriIsAboutBlank, permanentKey
+            // remote, isPreloadBrowser, uriIsAboutBlank, permanentKey
 
             const NS_XUL = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 
@@ -1910,10 +1900,6 @@
             b.setAttribute("messagemanagergroup", "browsers");
             b.setAttribute("contextmenu", this.getAttribute("contentcontextmenu"));
             b.setAttribute("tooltip", this.getAttribute("contenttooltip"));
-
-            if (aParams.userContextId) {
-              b.setAttribute("usercontextid", aParams.userContextId);
-            }
 
             if (aParams.remote) {
               b.setAttribute("remote", "true");
@@ -1993,7 +1979,7 @@
             "use strict";
 
             // Supported parameters:
-            // forceNotRemote, userContextId
+            // forceNotRemote
 
             let uriIsAboutBlank = !aURI || aURI == "about:blank";
 
@@ -2011,7 +1997,6 @@
             // Private windows are not included because both the label and the
             // icon for the tab would be set incorrectly (see bug 1195981).
             if (aURI == BROWSER_NEW_TAB_URL &&
-                !aParams.userContextId &&
                 !PrivateBrowsingUtils.isWindowPrivate(window)) {
               browser = this._getPreloadedBrowser();
               if (browser) {
@@ -2025,7 +2010,6 @@
               browser = this._createBrowser({permanentKey: aTab.permanentKey,
                                              remote: remote,
                                              uriIsAboutBlank: uriIsAboutBlank,
-                                             userContextId: aParams.userContextId,
                                              relatedBrowser: aParams.relatedBrowser,
                                              opener: aParams.opener});
             }
@@ -2100,7 +2084,6 @@
             var aAllowMixedContent;
             var aForceNotRemote;
             var aNoReferrer;
-            var aUserContextId;
             var aEventDetail;
             var aRelatedBrowser;
             var aOriginPrincipal;
@@ -2123,7 +2106,6 @@
               aAllowMixedContent    = params.allowMixedContent;
               aForceNotRemote       = params.forceNotRemote;
               aNoReferrer           = params.noReferrer;
-              aUserContextId        = params.userContextId;
               aEventDetail          = params.eventDetail;
               aRelatedBrowser       = params.relatedBrowser;
               aOriginPrincipal      = params.originPrincipal;
@@ -2148,11 +2130,6 @@
             } else if (aURI.toLowerCase().startsWith("javascript:")) {
               // This can go away when bug 672618 or bug 55696 are fixed.
               t.setAttribute("label", aURI);
-            }
-
-            if (aUserContextId) {
-              t.setAttribute("usercontextid", aUserContextId);
-              ContextualIdentityService.setTabStyle(t);
             }
 
             t.setAttribute("crop", "end");
@@ -2204,7 +2181,6 @@
             // of tab.linkedBrowser.
             let browserParams = {
               forceNotRemote: aForceNotRemote,
-              userContextId:  aUserContextId,
               relatedBrowser: aRelatedBrowser,
               opener: aOpener,
             };
@@ -2583,8 +2559,7 @@
             listener.destroy();
 
             if (browser.registeredOpenURI && !aAdoptedByTab) {
-              this._unifiedComplete.unregisterOpenPage(browser.registeredOpenURI,
-                                                       browser.getAttribute("usercontextid") || 0);
+              this._unifiedComplete.unregisterOpenPage(browser.registeredOpenURI);
               delete browser.registeredOpenURI;
             }
 
@@ -2783,11 +2758,6 @@
             if (ourBrowser.isRemoteBrowser != otherBrowser.isRemoteBrowser)
               return;
 
-            // Keep the userContextId if set on other browser
-            if (otherBrowser.hasAttribute("usercontextid")) {
-              ourBrowser.setAttribute("usercontextid", otherBrowser.getAttribute("usercontextid"));
-            }
-
             // That's gBrowser for the other window, not the tab's browser!
             var remoteBrowser = aOtherTab.ownerDocument.defaultView.gBrowser;
             var isPending = aOtherTab.hasAttribute("pending");
@@ -2819,10 +2789,6 @@
             if (aOtherTab.hasAttribute("soundplaying")) {
               aOurTab.setAttribute("soundplaying", "true");
               modifiedAttrs.push("soundplaying");
-            }
-            if (aOtherTab.hasAttribute("usercontextid")) {
-              aOurTab.setUserContextId(aOtherTab.getAttribute("usercontextid"));
-              modifiedAttrs.push("usercontextid");
             }
             if (aOtherTab.hasAttribute("sharing")) {
               aOurTab.setAttribute("sharing", aOtherTab.getAttribute("sharing"));
@@ -2961,8 +2927,7 @@
           <![CDATA[
             // If the current URI is registered as open remove it from the list.
             if (aOurBrowser.registeredOpenURI) {
-              this._unifiedComplete.unregisterOpenPage(aOurBrowser.registeredOpenURI,
-                                                       aOurBrowser.getAttribute("usercontextid") || 0);
+              this._unifiedComplete.unregisterOpenPage(aOurBrowser.registeredOpenURI);
               delete aOurBrowser.registeredOpenURI;
             }
 
@@ -3302,10 +3267,6 @@
           // it in the other window (making it seem to have moved between
           // windows).
           let params = { eventDetail: { adoptedTab: aTab } };
-          if (aTab.hasAttribute("usercontextid")) {
-            // new tab must have the same usercontextid as the old one
-            params.userContextId = aTab.getAttribute("usercontextid");
-          }
           let newTab = this.addTab("about:blank", params);
           let newBrowser = this.getBrowserForTab(newTab);
           let newURL = aTab.linkedBrowser.currentURI.spec;
@@ -4625,7 +4586,6 @@
                                           disableSetDesktopBackground: data.disableSetDesktopBg,
                                           loginFillInfo: data.loginFillInfo,
                                           parentAllowsMixedContent: data.parentAllowsMixedContent,
-                                          userContextId: data.userContextId,
                                         };
               let popup = browser.ownerDocument.getElementById("contentAreaContextMenu");
               let event = gContextMenuContentData.event;
@@ -4652,17 +4612,6 @@
             }
             case "Browser:WindowCreated": {
               let tab = this.getTabForBrowser(browser);
-              if (tab && data.userContextId) {
-                ContextualIdentityService.telemetry(data.userContextId);
-                tab.setUserContextId(data.userContextId);
-              }
-
-	      // We don't want to update the container icon and identifier if
-	      // this is not the selected browser.
-              if (browser == gBrowser.selectedBrowser) {
-                updateUserContextUIIndicator();
-              }
-
               break;
             }
             case "Findbar:Keypress": {
@@ -4845,8 +4794,7 @@
           for (let tab of this.tabs) {
             let browser = tab.linkedBrowser;
             if (browser.registeredOpenURI) {
-              this._unifiedComplete.unregisterOpenPage(browser.registeredOpenURI,
-                                                       browser.getAttribute("usercontextid") || 0);
+              this._unifiedComplete.unregisterOpenPage(browser.registeredOpenURI);
               delete browser.registeredOpenURI;
             }
             let filter = this._tabFilters.get(tab);
@@ -5247,7 +5195,7 @@
       </xul:arrowscrollbox>
     </content>
 
-    <implementation implements="nsIDOMEventListener, nsIObserver">
+    <implementation implements="nsIDOMEventListener">
       <constructor>
         <![CDATA[
           this.mTabClipWidth = Services.prefs.getIntPref("browser.tabs.tabClipWidth");
@@ -5266,16 +5214,8 @@
             this._tabAnimationLoggingEnabled = false;
           }
           this._browserNewtabpageEnabled = Services.prefs.getBoolPref("browser.newtabpage.enabled");
-          this.observe(null, "nsPref:changed", "privacy.userContext.enabled");
-          Services.prefs.addObserver("privacy.userContext.enabled", this, false);
         ]]>
       </constructor>
-
-      <destructor>
-        <![CDATA[
-          Services.prefs.removeObserver("privacy.userContext.enabled", this);
-        ]]>
-      </destructor>
 
       <field name="tabbrowser" readonly="true">
         document.getElementById(this.getAttribute("tabbrowser"));
@@ -5301,55 +5241,6 @@
       <field name="_beforeHoveredTab">null</field>
       <field name="_afterHoveredTab">null</field>
       <field name="_hoveredTab">null</field>
-
-      <method name="observe">
-        <parameter name="aSubject"/>
-        <parameter name="aTopic"/>
-        <parameter name="aData"/>
-        <body><![CDATA[
-          switch (aTopic) {
-            case "nsPref:changed":
-              // This is the only pref observed.
-              let containersEnabled = Services.prefs.getBoolPref("privacy.userContext.enabled");
-
-              const newTab = document.getElementById("new-tab-button");
-              const newTab2 = document.getAnonymousElementByAttribute(this, "anonid", "tabs-newtab-button")
-
-              if (containersEnabled) {
-                for (let parent of [newTab, newTab2]) {
-                  if (!parent)
-                    continue;
-                  let popup = document.createElementNS(
-                                "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul",
-                                "menupopup");
-                  if (parent.id) {
-                    popup.id = "newtab-popup";
-                  } else {
-                    popup.setAttribute("anonid", "newtab-popup");
-                  }
-                  popup.className = "new-tab-popup";
-                  popup.setAttribute("position", "after_end");
-                  parent.appendChild(popup);
-
-                  gClickAndHoldListenersOnElement.add(parent);
-                  parent.setAttribute("type", "menu");
-                }
-              } else {
-                for (let parent of [newTab, newTab2]) {
-                  if (!parent)
-                    continue;
-                  gClickAndHoldListenersOnElement.remove(parent);
-                  parent.removeAttribute("type");
-                  if (!parent.firstChild)
-                    continue;
-                  parent.firstChild.remove();
-                }
-              }
-
-              break;
-          }
-        ]]></body>
-      </method>
 
       <property name="_isCustomizing" readonly="true">
         <getter>
@@ -6451,7 +6342,6 @@
             inBackground = !inBackground;
 
           let targetTab = this._getDragTargetTab(event, true);
-          let userContextId = this.selectedItem.getAttribute("usercontextid");
           let replace = !!targetTab;
           let newIndex = this._getDropIndex(event, true);
           let urls = links.map(link => link.url);
@@ -6461,7 +6351,6 @@
             allowThirdPartyFixup: true,
             targetTab,
             newIndex,
-            userContextId,
           });
         }
 
@@ -6722,14 +6611,6 @@
       -->
       <field name="muteReason">undefined</field>
 
-      <property name="userContextId" readonly="true">
-        <getter>
-          return this.hasAttribute("usercontextid")
-                   ? parseInt(this.getAttribute("usercontextid"))
-                   : 0;
-        </getter>
-      </property>
-
       <property name="soundPlaying" readonly="true">
         <getter>
           return this.getAttribute("soundplaying") == "true";
@@ -6854,27 +6735,6 @@
             modifiedAttrs.push("muted");
           }
           tabContainer.tabbrowser._tabAttrModified(this, modifiedAttrs);
-        ]]>
-        </body>
-      </method>
-
-      <method name="setUserContextId">
-        <parameter name="aUserContextId"/>
-        <body>
-        <![CDATA[
-          if (aUserContextId) {
-            if (this.linkedBrowser) {
-              this.linkedBrowser.setAttribute("usercontextid", aUserContextId);
-            }
-            this.setAttribute("usercontextid", aUserContextId);
-          } else {
-            if (this.linkedBrowser) {
-              this.linkedBrowser.removeAttribute("usercontextid");
-            }
-            this.removeAttribute("usercontextid");
-          }
-
-          ContextualIdentityService.setTabStyle(this);
         ]]>
         </body>
       </method>
@@ -7054,29 +6914,8 @@
     <handlers>
       <handler event="popupshowing">
       <![CDATA[
-        if (event.target.getAttribute("id") == "alltabs_containersMenuTab") {
-          createUserContextMenu(event);
-          return;
-        }
-
-        let containersEnabled = Services.prefs.getBoolPref("privacy.userContext.enabled");
-
-        if (event.target.getAttribute("anonid") == "newtab-popup" ||
-            event.target.id == "newtab-popup") {
-          createUserContextMenu(event);
-        } else {
-          document.getElementById("alltabs-popup-separator-1").hidden = !containersEnabled;
-          let containersTab = document.getElementById("alltabs_containersTab");
-
-          containersTab.hidden = !containersEnabled;
-          if (PrivateBrowsingUtils.isWindowPrivate(window)) {
-            containersTab.setAttribute("disabled", "true");
-          }
-
           document.getElementById("alltabs_undoCloseTab").disabled =
             SessionStore.getClosedTabCount(window) == 0;
-
-          var tabcontainer = gBrowser.tabContainer;
 
           // Listen for changes in the tab bar.
           tabcontainer.addEventListener("TabAttrModified", this, false);
@@ -7094,18 +6933,12 @@
 
       <handler event="popuphidden">
       <![CDATA[
-        if (event.target.getAttribute("id") == "alltabs_containersMenuTab") {
-          return;
-        }
 
         // clear out the menu popup and remove the listeners
         for (let i = this.childNodes.length - 1; i > 0; i--) {
           let menuItem = this.childNodes[i];
           if (menuItem.tab) {
             menuItem.tab.mCorrespondingMenuitem = null;
-            this.removeChild(menuItem);
-          }
-          if (menuItem.hasAttribute("usercontextid")) {
             this.removeChild(menuItem);
           }
         }
