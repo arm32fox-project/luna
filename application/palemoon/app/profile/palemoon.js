@@ -1089,8 +1089,6 @@ pref("browser.pagethumbnails.capturing_disabled", false);
 // enables showing basic placeholders for missing thumbnails
 pref("browser.newtabpage.thumbnailPlaceholder", false);
 
-pref("privacy.usercontext.about_newtab_segregation.enabled", false);
-
 // number of columns of newtab grid
 pref("browser.newtabpage.columns", 4);
 
@@ -1120,6 +1118,9 @@ pref("security.csp.speccompliant", true);
 
 // Block insecure active content on https pages
 pref("security.mixed_content.block_active_content", true);
+
+// Disable Microsoft Family Safety MitM support
+pref("security.family_safety.mode", 0);
 
 // Override the Gecko-default value of false for Pale Moon.
 pref("plain_text.wrap_long_lines", true);
