@@ -716,9 +716,11 @@ void SkPath::setConvexity(Convexity c) {
         fFirstDirection = SkPathPriv::kUnknown_FirstDirection;  \
     } while (0)
 
-void SkPath::incReserve(U16CPU inc) {
+void SkPath::incReserve(int inc) {
     SkDEBUGCODE(this->validate();)
-    SkPathRef::Editor(&fPathRef, inc, inc);
+    if (inc > 0) {
+        SkPathRef::Editor(&fPathRef, inc, inc);
+    }
     SkDEBUGCODE(this->validate();)
 }
 
@@ -1742,7 +1744,7 @@ void SkPath::transform(const SkMatrix& matrix, SkPath* dst) const {
 
         if (this != dst) {
             dst->fFillType = fFillType;
-            dst->fConvexity = fConvexity;
+            dst->fConvexity = kUnknown_Convexity;
             dst->fIsVolatile = fIsVolatile;
         }
 

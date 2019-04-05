@@ -288,6 +288,12 @@ CallerGetterImpl(JSContext* cx, const CallArgs& args)
             return true;
         }
 
+        if (JS_IsDeadWrapper(callerObj)) {
+            JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr,
+                                      JSMSG_DEAD_OBJECT);
+            return false;
+        }
+
         JSFunction* callerFun = &callerObj->as<JSFunction>();
         MOZ_ASSERT(!callerFun->isBuiltin(), "non-builtin iterator returned a builtin?");
 
@@ -314,54 +320,14 @@ CallerSetterImpl(JSContext* cx, const CallArgs& args)
 {
     MOZ_ASSERT(IsFunction(args.thisv()));
 
-    // Beware!  This function can be invoked on *any* function!  It can't
-    // assume it'll never be invoked on natives, strict mode functions, bound
-    // functions, or anything else that ordinarily has immutable .caller
-    // defined with [[ThrowTypeError]].
-    RootedFunction fun(cx, &args.thisv().toObject().as<JSFunction>());
-    if (!CallerRestrictions(cx, fun))
-        return false;
+    // We just have to return |undefined|, but first we call CallerGetterImpl
+    // because we need the same strict-mode and security checks.
 
-    // Return |undefined| unless an error must be thrown.
+    if (!CallerGetterImpl(cx, args)) {
+        return false;
+    }
+
     args.rval().setUndefined();
-
-    // We can almost just return |undefined| here -- but if the caller function
-    // was strict mode code, we still have to throw a TypeError.  This requires
-    // computing the caller, checking that no security boundaries are crossed,
-    // and throwing a TypeError if the resulting caller is strict.
-
-    NonBuiltinScriptFrameIter iter(cx);
-    if (!AdvanceToActiveCallLinear(cx, iter, fun))
-        return true;
-
-    ++iter;
-    while (!iter.done() && iter.isEvalFrame())
-        ++iter;
-
-    if (iter.done() || !iter.isFunctionFrame())
-        return true;
-
-    RootedObject caller(cx, iter.callee(cx));
-    if (!cx->compartment()->wrap(cx, &caller)) {
-        cx->clearPendingException();
-        return true;
-    }
-
-    // If we don't have full access to the caller, or the caller is not strict,
-    // return undefined.  Otherwise throw a TypeError.
-    JSObject* callerObj = CheckedUnwrap(caller);
-    if (!callerObj)
-        return true;
-
-    JSFunction* callerFun = &callerObj->as<JSFunction>();
-    MOZ_ASSERT(!callerFun->isBuiltin(), "non-builtin iterator returned a builtin?");
-
-    if (callerFun->strict()) {
-        JS_ReportErrorFlagsAndNumberASCII(cx, JSREPORT_ERROR, GetErrorMessage, nullptr,
-                                          JSMSG_CALLER_IS_STRICT);
-        return false;
-    }
-
     return true;
 }
 
@@ -690,7 +656,7 @@ js::fun_symbolHasInstance(JSContext* cx, unsigned argc, Value* vp)
 }
 
 /*
- * ES6 (4-25-16) 7.3.19 OrdinaryHasInstance
+ * ES6 7.3.19 OrdinaryHasInstance
  */
 bool
 JS::OrdinaryHasInstance(JSContext* cx, HandleObject objArg, HandleValue v, bool* bp)
@@ -707,7 +673,7 @@ JS::OrdinaryHasInstance(JSContext* cx, HandleObject objArg, HandleValue v, bool*
     if (obj->is<JSFunction>() && obj->isBoundFunction()) {
         /* Steps 2a-b. */
         obj = obj->as<JSFunction>().getBoundFunctionTarget();
-        return InstanceOfOperator(cx, obj, v, bp);
+        return InstanceofOperator(cx, obj, v, bp);
     }
 
     /* Step 3. */
@@ -716,12 +682,12 @@ JS::OrdinaryHasInstance(JSContext* cx, HandleObject objArg, HandleValue v, bool*
         return true;
     }
 
-    /* Step 4. */
+    /* Step 4-5. */
     RootedValue pval(cx);
     if (!GetProperty(cx, obj, obj, cx->names().prototype, &pval))
         return false;
 
-    /* Step 5. */
+    /* Step 6. */
     if (pval.isPrimitive()) {
         /*
          * Throw a runtime error if instanceof is called on a function that
@@ -732,7 +698,7 @@ JS::OrdinaryHasInstance(JSContext* cx, HandleObject objArg, HandleValue v, bool*
         return false;
     }
 
-    /* Step 6. */
+    /* Step 7. */
     RootedObject pobj(cx, &pval.toObject());
     bool isDelegate;
     if (!IsDelegate(cx, pobj, v, &isDelegate))

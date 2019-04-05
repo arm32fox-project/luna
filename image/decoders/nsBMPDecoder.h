@@ -164,14 +164,14 @@ private:
     RLE_ABSOLUTE
   };
 
-  // This is the constructor used for normal BMP images.
-  explicit nsBMPDecoder(RasterImage* aImage);
+  // This is the constructor used for normal and clipboard BMP images.
+  explicit nsBMPDecoder(RasterImage* aImage, bool aForClipboard = false);
 
   // This is the constructor used for BMP resources in ICO images.
   nsBMPDecoder(RasterImage* aImage, uint32_t aDataOffset);
 
   // Helper constructor called by the other two.
-  nsBMPDecoder(RasterImage* aImage, State aState, size_t aLength);
+  nsBMPDecoder(RasterImage* aImage, State aState, size_t aLength, bool aForClipboard);
 
   int32_t AbsoluteHeight() const { return abs(mH.mHeight); }
 
@@ -197,6 +197,9 @@ private:
 
   // If the BMP is within an ICO file our treatment of it differs slightly.
   bool mIsWithinICO;
+
+  // If the BMP is decoded from the clipboard, we start with a data offset.
+  bool mIsForClipboard;
 
   bmp::BitFields mBitFields;
 

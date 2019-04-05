@@ -1047,7 +1047,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(CanvasRenderingContext2D)
       ImplCycleCollectionTraverse(cb, info.mElement, "Hit region fallback element");
     }
   }
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_WRAPPERCACHE(CanvasRenderingContext2D)
@@ -1106,6 +1105,7 @@ CanvasRenderingContext2D::CanvasRenderingContext2D(layers::LayersBackend aCompos
   , mIsCapturedFrameInvalid(false)
   , mPathTransformWillUpdate(false)
   , mInvalidateCount(0)
+  , mWriteOnly(false) // == !origin-clean
 {
   sNumLivingContexts++;
 
@@ -2563,7 +2563,8 @@ CanvasRenderingContext2D::CreatePattern(const CanvasImageSource& aSource,
     // nullptr and set CORSUsed to true for passing the security check in
     // CanvasUtils::DoDrawImageSecurityCheck().
     RefPtr<CanvasPattern> pat =
-      new CanvasPattern(this, srcSurf, repeatMode, nullptr, false, true);
+      new CanvasPattern(this, srcSurf, repeatMode, nullptr,
+                        imgBitmap.IsWriteOnly(), true);
 
     return pat.forget();
   }
@@ -4953,12 +4954,20 @@ CanvasRenderingContext2D::DrawImage(const CanvasImageSource& aImage,
       aError.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
       return;
     }
+
+    if (canvas->IsWriteOnly()) {
+      SetWriteOnly();
+    }
   } else if (aImage.IsImageBitmap()) {
     ImageBitmap& imageBitmap = aImage.GetAsImageBitmap();
     srcSurf = imageBitmap.PrepareForDrawTarget(mTarget);
 
     if (!srcSurf) {
       return;
+    }
+
+    if (imageBitmap.IsWriteOnly()) {
+      SetWriteOnly();
     }
 
     imgSize = gfx::IntSize(imageBitmap.Width(), imageBitmap.Height());
@@ -5675,9 +5684,8 @@ CanvasRenderingContext2D::GetImageData(JSContext* aCx, double aSx,
 
   // Check only if we have a canvas element; if we were created with a docshell,
   // then it's special internal use.
-  if (mCanvasElement && mCanvasElement->IsWriteOnly() &&
-      !nsContentUtils::IsCallerChrome())
-  {
+  if (IsWriteOnly() ||
+      (mCanvasElement && mCanvasElement->IsWriteOnly() && !nsContentUtils::IsCallerChrome())) {
     // XXX ERRMSG we need to report an error to developers here! (bug 329026)
     aError.Throw(NS_ERROR_DOM_SECURITY_ERR);
     return nullptr;
@@ -6319,6 +6327,13 @@ bool
 CanvasRenderingContext2D::ShouldForceInactiveLayer(LayerManager* aManager)
 {
   return !aManager->CanUseCanvasLayerForSize(GetSize());
+}
+
+void CanvasRenderingContext2D::SetWriteOnly() {
+  mWriteOnly = true;
+  if (mCanvasElement) {
+    mCanvasElement->SetWriteOnly();
+  }
 }
 
 NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(CanvasPath, AddRef)

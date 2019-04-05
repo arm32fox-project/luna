@@ -6,7 +6,6 @@
 
 DIRS += [
     'about',
-    'contextualidentity',
     'customizableui',
     'dirprovider',
     'downloads',
@@ -23,9 +22,6 @@ DIRS += [
     'syncedtabs',
     'translation',
 ]
-
-if CONFIG['MOZ_WEBEXTENSIONS']:
-    DIRS += ['webextensions']
 
 DIRS += ['build']
 

@@ -24,13 +24,8 @@ try {
 
 XPCOMUtils.defineLazyModuleGetter(this, "FileUtils",
                                   "resource://gre/modules/FileUtils.jsm");
-#ifdef MOZ_WEBEXTENSIONS
-XPCOMUtils.defineLazyModuleGetter(this, "UpdateUtils",
-                                  "resource://gre/modules/UpdateUtils.jsm");
-#else
 XPCOMUtils.defineLazyModuleGetter(this, "UpdateChannel",
                                   "resource://gre/modules/UpdateChannel.jsm");
-#endif
 XPCOMUtils.defineLazyModuleGetter(this, "OS",
                                   "resource://gre/modules/osfile.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "ServiceRequest",
@@ -174,27 +169,6 @@ function LOG(string) {
 }
 
 /**
- * Gets a preference value, handling the case where there is no default.
- * @param   func
- *          The name of the preference function to call, on nsIPrefBranch
- * @param   preference
- *          The name of the preference
- * @param   defaultValue
- *          The default value to return in the event the preference has
- *          no setting
- * @returns The value of the preference, or undefined if there was no
- *          user or default value.
- */
-function getPref(func, preference, defaultValue) {
-  try {
-    return gPref[func](preference);
-  }
-  catch (e) {
-  }
-  return defaultValue;
-}
-
-/**
  * Constructs a URI to a spec.
  * @param   spec
  *          The spec to construct a URI to
@@ -302,9 +276,9 @@ function parseRegExp(aStr) {
 function Blocklist() {
   Services.obs.addObserver(this, "xpcom-shutdown", false);
   Services.obs.addObserver(this, "sessionstore-windows-restored", false);
-  gLoggingEnabled = getPref("getBoolPref", PREF_EM_LOGGING_ENABLED, false);
-  gBlocklistEnabled = getPref("getBoolPref", PREF_BLOCKLIST_ENABLED, true);
-  gBlocklistLevel = Math.min(getPref("getIntPref", PREF_BLOCKLIST_LEVEL, DEFAULT_LEVEL),
+  gLoggingEnabled = Services.prefs.getBoolPref(PREF_EM_LOGGING_ENABLED, false);
+  gBlocklistEnabled = Services.prefs.getBoolPref(PREF_BLOCKLIST_ENABLED, true);
+  gBlocklistLevel = Math.min(Services.prefs.getIntPref(PREF_BLOCKLIST_LEVEL, DEFAULT_LEVEL),
                                      MAX_BLOCK_LEVEL);
   gPref.addObserver("extensions.blocklist.", this, false);
   gPref.addObserver(PREF_EM_LOGGING_ENABLED, this, false);
@@ -350,15 +324,15 @@ Blocklist.prototype = {
     case "nsPref:changed":
       switch (aData) {
         case PREF_EM_LOGGING_ENABLED:
-          gLoggingEnabled = getPref("getBoolPref", PREF_EM_LOGGING_ENABLED, false);
+          gLoggingEnabled = Services.prefs.getBoolPref(PREF_EM_LOGGING_ENABLED, false);
           break;
         case PREF_BLOCKLIST_ENABLED:
-          gBlocklistEnabled = getPref("getBoolPref", PREF_BLOCKLIST_ENABLED, true);
+          gBlocklistEnabled = Services.prefs.getBoolPref(PREF_BLOCKLIST_ENABLED, true);
           this._loadBlocklist();
           this._blocklistUpdated(null, null);
           break;
         case PREF_BLOCKLIST_LEVEL:
-          gBlocklistLevel = Math.min(getPref("getIntPref", PREF_BLOCKLIST_LEVEL, DEFAULT_LEVEL),
+          gBlocklistLevel = Math.min(Services.prefs.getIntPref(PREF_BLOCKLIST_LEVEL, DEFAULT_LEVEL),
                                      MAX_BLOCK_LEVEL);
           this._blocklistUpdated(null, null);
           break;
@@ -530,8 +504,8 @@ Blocklist.prototype = {
       return;
     }
 
-    var pingCountVersion = getPref("getIntPref", PREF_BLOCKLIST_PINGCOUNTVERSION, 0);
-    var pingCountTotal = getPref("getIntPref", PREF_BLOCKLIST_PINGCOUNTTOTAL, 1);
+    var pingCountVersion = Services.prefs.getIntPref(PREF_BLOCKLIST_PINGCOUNTVERSION, 0);
+    var pingCountTotal = Services.prefs.getIntPref(PREF_BLOCKLIST_PINGCOUNTTOTAL, 1);
     var daysSinceLastPing = 0;
     if (pingCountVersion == 0) {
       daysSinceLastPing = "new";
@@ -540,7 +514,7 @@ Blocklist.prototype = {
       // Seconds in one day is used because nsIUpdateTimerManager stores the
       // last update time in seconds.
       let secondsInDay = 60 * 60 * 24;
-      let lastUpdateTime = getPref("getIntPref", PREF_BLOCKLIST_LASTUPDATETIME, 0);
+      let lastUpdateTime = Services.prefs.getIntPref(PREF_BLOCKLIST_LASTUPDATETIME, 0);
       if (lastUpdateTime == 0) {
         daysSinceLastPing = "invalid";
       }
@@ -571,11 +545,7 @@ Blocklist.prototype = {
     dsURI = dsURI.replace(/%BUILD_TARGET%/g, gApp.OS + "_" + gABI);
     dsURI = dsURI.replace(/%OS_VERSION%/g, gOSVersion);
     dsURI = dsURI.replace(/%LOCALE%/g, getLocale());
-#ifdef MOZ_WEBEXTENSIONS
-    dsURI = dsURI.replace(/%CHANNEL%/g, UpdateUtils.UpdateChannel);
-#else
     dsURI = dsURI.replace(/%CHANNEL%/g, UpdateChannel.get());
-#endif
     dsURI = dsURI.replace(/%PLATFORM_VERSION%/g, gApp.platformVersion);
     dsURI = dsURI.replace(/%DISTRIBUTION%/g,
                       getDistributionPrefValue(PREF_APP_DISTRIBUTION));
@@ -903,7 +873,7 @@ Blocklist.prototype = {
         return;
       }
 
-      var populateCertBlocklist = getPref("getBoolPref", PREF_ONECRL_VIA_AMO, true);
+      var populateCertBlocklist = Services.prefs.getBoolPref(PREF_ONECRL_VIA_AMO, true);
 
       var childNodes = doc.documentElement.childNodes;
       for (let element of childNodes) {
@@ -1475,7 +1445,7 @@ Blocklist.prototype = {
 
       Services.obs.addObserver(applyBlocklistChanges, "addon-blocklist-closed", false);
 
-      if (getPref("getBoolPref", PREF_BLOCKLIST_SUPPRESSUI, false)) {
+      if (Services.prefs.getBoolPref(PREF_BLOCKLIST_SUPPRESSUI, false)) {
         applyBlocklistChanges();
         return;
       }

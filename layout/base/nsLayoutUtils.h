@@ -30,6 +30,7 @@
 #include "mozilla/ReflowOutput.h"
 #include "ImageContainer.h"
 #include "gfx2DGlue.h"
+#include "nsStyleConsts.h"
 
 #include <limits>
 #include <algorithm>
@@ -152,6 +153,7 @@ public:
   typedef mozilla::CSSRect CSSRect;
   typedef mozilla::ScreenMargin ScreenMargin;
   typedef mozilla::LayoutDeviceIntSize LayoutDeviceIntSize;
+  typedef mozilla::StyleGeometryBox StyleGeometryBox;
 
   /**
    * Finds previously assigned ViewID for the given content element, if any.
@@ -1437,13 +1439,14 @@ public:
   /**
    * This function increases an initial intrinsic size, 'aCurrent', according
    * to the given 'aPercent', such that the size-increase makes up exactly
-   * 'aPercent' percent of the returned value.  If 'aPercent' is less than
-   * or equal to zero the original 'aCurrent' value is returned. If 'aPercent'
-   * is greater than or equal to 1.0 the value nscoord_MAX is returned.
+   * 'aPercent' percent of the returned value.  If 'aPercent' or 'aCurrent' are
+   * less than or equal to zero the original 'aCurrent' value is returned.
+   * If 'aPercent' is greater than or equal to 1.0 the value nscoord_MAX is
+   * returned.
    */
   static nscoord AddPercents(nscoord aCurrent, float aPercent)
   {
-    if (aPercent > 0.0f) {
+    if (aPercent > 0.0f && aCurrent > 0) {
       return MOZ_UNLIKELY(aPercent >= 1.0f) ? nscoord_MAX
         : NSToCoordRound(float(aCurrent) / (1.0f - aPercent));
     }
@@ -2869,6 +2872,9 @@ public:
    *                          next line exists, null otherwise.
    */
   static bool IsInvisibleBreak(nsINode* aNode, nsIFrame** aNextLineFrame = nullptr);
+
+  static nsRect ComputeGeometryBox(nsIFrame* aFrame,
+                                   StyleGeometryBox aGeometryBox);
 
 private:
   static uint32_t sFontSizeInflationEmPerLine;

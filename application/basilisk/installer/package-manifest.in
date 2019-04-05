@@ -397,15 +397,9 @@
 @RESPATH@/components/addonManager.js
 @RESPATH@/components/amContentHandler.js
 @RESPATH@/components/amInstallTrigger.js
-#ifdef MOZ_WEBEXTENSIONS
-@RESPATH@/components/amWebAPI.js
-#endif
 @RESPATH@/components/amWebInstallListener.js
 @RESPATH@/components/nsBlocklistService.js
 @RESPATH@/components/blocklist.manifest
-#ifdef MOZ_WEBEXTENSIONS
-@RESPATH@/components/nsBlocklistServiceContent.js
-#endif
 #ifdef MOZ_UPDATER
 @RESPATH@/components/nsUpdateService.manifest
 @RESPATH@/components/nsUpdateService.js
@@ -552,12 +546,6 @@
 @RESPATH@/components/TestInterfaceJS.js
 @RESPATH@/components/TestInterfaceJS.manifest
 @RESPATH@/components/TestInterfaceJSMaplike.js
-#endif
-
-#ifdef MOZ_WEBEXTENSIONS
-; [Extensions]
-@RESPATH@/components/extensions-toolkit.manifest
-@RESPATH@/browser/components/extensions-browser.manifest
 #endif
 
 ; Modules
@@ -721,13 +709,6 @@
 @RESPATH@/components/pipnss.xpt
 @RESPATH@/components/pippki.xpt
 
-; for Solaris SPARC
-#ifdef SOLARIS
-bin/libfreebl_32fpu_3.so
-bin/libfreebl_32int_3.so
-bin/libfreebl_32int64_3.so
-#endif
-
 ; [Updater]
 ;
 #ifdef MOZ_UPDATER
@@ -736,13 +717,6 @@ bin/libfreebl_32int64_3.so
 #else
 @BINPATH@/updater@BIN_SUFFIX@
 #endif
-#endif
-
-; [MaintenanceService]
-;
-#ifdef MOZ_MAINTENANCE_SERVICE
-@BINPATH@/maintenanceservice.exe
-@BINPATH@/maintenanceservice_installer.exe
 #endif
 
 @RESPATH@/components/dom_audiochannel.xpt

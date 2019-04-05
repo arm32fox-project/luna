@@ -6,7 +6,6 @@
 
 EXTRA_COMPONENTS += [
     'blocklist.manifest',
-    'nsBlocklistServiceContent.js',
 ]
 
 EXTRA_PP_COMPONENTS += [

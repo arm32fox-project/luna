@@ -11,7 +11,6 @@
     locale/browser/aboutDialog.dtd                 (%chrome/browser/aboutDialog.dtd)
     locale/browser/aboutPrivateBrowsing.dtd        (%chrome/browser/aboutPrivateBrowsing.dtd)
     locale/browser/aboutPrivateBrowsing.properties (%chrome/browser/aboutPrivateBrowsing.properties)
-    locale/browser/aboutRobots.dtd                 (%chrome/browser/aboutRobots.dtd)
     locale/browser/aboutHome.dtd                   (%chrome/browser/aboutHome.dtd)
     locale/browser/accounts.properties             (%chrome/browser/accounts.properties)
 #ifdef MOZ_SERVICES_HEALTHREPORT
@@ -79,10 +78,8 @@
     locale/browser/preferences/permissions.dtd        (%chrome/browser/preferences/permissions.dtd)
     locale/browser/preferences/preferences.dtd        (%chrome/browser/preferences/preferences.dtd)
     locale/browser/preferences/preferences.properties (%chrome/browser/preferences/preferences.properties)
-    locale/browser/preferences/containers.properties  (%chrome/browser/preferences/containers.properties)
 *   locale/browser/preferences/privacy.dtd            (%chrome/browser/preferences/privacy.dtd)
     locale/browser/preferences/security.dtd           (%chrome/browser/preferences/security.dtd)
-    locale/browser/preferences/containers.dtd         (%chrome/browser/preferences/containers.dtd)
     locale/browser/preferences/sync.dtd               (%chrome/browser/preferences/sync.dtd)
     locale/browser/preferences/tabs.dtd               (%chrome/browser/preferences/tabs.dtd)
     locale/browser/preferences/search.dtd             (%chrome/browser/preferences/search.dtd)
