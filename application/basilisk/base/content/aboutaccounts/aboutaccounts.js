@@ -450,14 +450,9 @@ function migrateToDevEdition(urlParams) {
   try {
     defaultProfilePath = window.getDefaultProfilePath();
   } catch (e) {} // no default profile.
-  let migrateSyncCreds = false;
-  if (defaultProfilePath) {
-    try {
-      migrateSyncCreds = Services.prefs.getBoolPref("identity.fxaccounts.migrateToDevEdition");
-    } catch (e) {}
-  }
+  let migrateSyncCreds = Services.prefs.getBoolPref("identity.fxaccounts.migrateToDevEdition", false);
 
-  if (!migrateSyncCreds) {
+  if (!defaultProfilePath || !migrateSyncCreds) {
     return Promise.resolve(false);
   }
 

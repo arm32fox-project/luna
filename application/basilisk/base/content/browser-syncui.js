@@ -106,10 +106,7 @@ var gSyncUI = {
       });
     }
     // We are using legacy sync - check that.
-    let firstSync = "";
-    try {
-      firstSync = Services.prefs.getCharPref("services.sync.firstSync");
-    } catch (e) { }
+    let firstSync = Services.prefs.getCharPref("services.sync.firstSync", "");
 
     return Promise.resolve(Weave.Status.checkSetup() == Weave.CLIENT_NOT_CONFIGURED ||
                            firstSync == "notReady");
@@ -349,10 +346,7 @@ var gSyncUI = {
   */
   maybeMoveSyncedTabsButton() {
     const prefName = "browser.migrated-sync-button";
-    let migrated = false;
-    try {
-      migrated = Services.prefs.getBoolPref(prefName);
-    } catch (_) {}
+    let migrated = Services.prefs.getBoolPref(prefName, false);
     if (migrated) {
       return;
     }

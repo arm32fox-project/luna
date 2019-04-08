@@ -86,21 +86,12 @@ var gSyncPane = {
   },
 
   _showLoadPage: function (xps) {
-    let username;
-    try {
-      username = Services.prefs.getCharPref("services.sync.username");
-    } catch (e) {}
+    let username = Services.prefs.getCharPref("services.sync.username", "");
     if (!username) {
       this.page = FXA_PAGE_LOGGED_OUT;
     } else if (xps.fxAccountsEnabled) {
       // Use cached values while we wait for the up-to-date values
-      let cachedComputerName;
-      try {
-        cachedComputerName = Services.prefs.getCharPref("services.sync.client.name");
-      }
-      catch (e) {
-        cachedComputerName = "";
-      }
+      let cachedComputerName = Services.prefs.getCharPref("services.sync.client.name", "");
       document.getElementById("fxaEmailAddress1").textContent = username;
       this._populateComputerName(cachedComputerName);
       this.page = FXA_PAGE_LOGGED_IN;
