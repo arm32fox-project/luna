@@ -48,8 +48,6 @@ browser.jar:
         content/browser/abouthealthreport/abouthealth.js      (content/abouthealthreport/abouthealth.js)
         content/browser/abouthealthreport/abouthealth.css     (content/abouthealthreport/abouthealth.css)
 #endif
-        content/browser/aboutRobots-icon.png          (content/aboutRobots-icon.png)
-        content/browser/aboutRobots-widget-left.png   (content/aboutRobots-widget-left.png)
         content/browser/aboutTabCrashed.css           (content/aboutTabCrashed.css)
         content/browser/aboutTabCrashed.js            (content/aboutTabCrashed.js)
         content/browser/aboutTabCrashed.xhtml         (content/aboutTabCrashed.xhtml)
