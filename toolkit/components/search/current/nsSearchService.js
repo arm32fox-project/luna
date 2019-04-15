@@ -21,8 +21,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "OS",
   "resource://gre/modules/osfile.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Task",
   "resource://gre/modules/Task.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "TelemetryStopwatch",
-  "resource://gre/modules/TelemetryStopwatch.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "Deprecated",
+  "resource://gre/modules/Deprecated.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "SearchStaticData",
   "resource://gre/modules/SearchStaticData.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "setTimeout",
@@ -234,7 +234,7 @@ var LOG = function() {};
 
 if (AppConstants.DEBUG) {
   LOG = function (aText) {
-    if (getBoolPref(BROWSER_SEARCH_PREF + "log", false)) {
+    if (Services.prefs.getBoolPref(BROWSER_SEARCH_PREF + "log", false)) {
       DO_LOG(aText);
     }
   };
@@ -908,18 +908,6 @@ function getLocalizedPref(aPrefName, aDefault) {
 }
 
 /**
- * Wrapper for nsIPrefBranch::getBoolPref.
- * @param aPrefName
- *        The name of the pref to get.
- * @returns aDefault if the requested pref doesn't exist.
- */
-function getBoolPref(aName, aDefault) {
-  if (Services.prefs.getPrefType(aName) != Ci.nsIPrefBranch.PREF_BOOL)
-    return aDefault;
-  return Services.prefs.getBoolPref(aName);
-}
-
-/**
  * @return a sanitized name to be used as a filename, or a random name
  *         if a sanitized name cannot be obtained (if aName contains
  *         no valid characters).
@@ -1534,7 +1522,7 @@ Engine.prototype = {
         stringBundle.formatStringFromName("addEngineConfirmation",
                                           [this._name, this._uri.host], 2);
     var checkboxMessage = null;
-    if (!getBoolPref(BROWSER_SEARCH_PREF + "noCurrentEngine", false))
+    if (!Services.prefs.getBoolPref(BROWSER_SEARCH_PREF + "noCurrentEngine", false))
       checkboxMessage = stringBundle.GetStringFromName("addEngineAsCurrentText");
 
     var addButtonLabel =
@@ -2658,7 +2646,7 @@ function checkForSyncCompletion(aPromise) {
 // nsIBrowserSearchService
 function SearchService() {
   // Replace empty LOG function with the useful one if the log pref is set.
-  if (getBoolPref(BROWSER_SEARCH_PREF + "log", false))
+  if (Services.prefs.getBoolPref(BROWSER_SEARCH_PREF + "log", false))
     LOG = DO_LOG;
 
   this._initObservers = Promise.defer();
@@ -2692,6 +2680,13 @@ SearchService.prototype = {
       }
       return;
     }
+
+    let performanceWarning =
+      "Search service falling back to synchronous initialization. " +
+      "This is generally the consequence of an add-on using a deprecated " +
+      "search service API.";
+    Deprecated.perfWarning(performanceWarning, "https://developer.mozilla.org/en-US/docs/XPCOM_Interface_Reference/nsIBrowserSearchService#async_warning");
+    LOG(performanceWarning);
 
     this._syncInit();
     if (!Components.isSuccessCode(this._initRV)) {
@@ -3763,7 +3758,7 @@ SearchService.prototype = {
 
     // If the user has specified a custom engine order, read the order
     // information from the metadata instead of the default prefs.
-    if (getBoolPref(BROWSER_SEARCH_PREF + "useDBForOrder", false)) {
+    if (Services.prefs.getBoolPref(BROWSER_SEARCH_PREF + "useDBForOrder", false)) {
       LOG("_buildSortedEngineList: using db for order");
 
       // Flag to keep track of whether or not we need to call _saveSortedEngineList.
@@ -3873,21 +3868,17 @@ SearchService.prototype = {
     LOG("SearchService.init");
     let self = this;
     if (!this._initStarted) {
-      TelemetryStopwatch.start("SEARCH_SERVICE_INIT_MS");
       this._initStarted = true;
       Task.spawn(function* task() {
         try {
           // Complete initialization by calling asynchronous initializer.
           yield self._asyncInit();
-          TelemetryStopwatch.finish("SEARCH_SERVICE_INIT_MS");
         } catch (ex) {
           if (ex.result == Cr.NS_ERROR_ALREADY_INITIALIZED) {
             // No need to pursue asynchronous because synchronous fallback was
             // called and has finished.
-            TelemetryStopwatch.finish("SEARCH_SERVICE_INIT_MS");
           } else {
             self._initObservers.reject(ex);
-            TelemetryStopwatch.cancel("SEARCH_SERVICE_INIT_MS");
           }
         }
       });
@@ -4621,7 +4612,7 @@ SearchService.prototype = {
   notify: function SRCH_SVC_notify(aTimer) {
     LOG("_notify: checking for updates");
 
-    if (!getBoolPref(BROWSER_SEARCH_PREF + "update", true))
+    if (!Services.prefs.getBoolPref(BROWSER_SEARCH_PREF + "update", true))
       return;
 
     // Our timer has expired, but unfortunately, we can't get any data from it.
@@ -4732,7 +4723,7 @@ const SEARCH_UPDATE_LOG_PREFIX = "*** Search update: ";
  * logging pref (browser.search.update.log) is set to true.
  */
 function ULOG(aText) {
-  if (getBoolPref(BROWSER_SEARCH_PREF + "update.log", false)) {
+  if (Services.prefs.getBoolPref(BROWSER_SEARCH_PREF + "update.log", false)) {
     dump(SEARCH_UPDATE_LOG_PREFIX + aText + "\n");
     Services.console.logStringMessage(aText);
   }
@@ -4748,7 +4739,7 @@ var engineUpdateService = {
   update: function eus_Update(aEngine) {
     let engine = aEngine.wrappedJSObject;
     ULOG("update called for " + aEngine._name);
-    if (!getBoolPref(BROWSER_SEARCH_PREF + "update", true) || !engine._hasUpdates)
+    if (!Services.prefs.getBoolPref(BROWSER_SEARCH_PREF + "update", true) || !engine._hasUpdates)
       return;
 
     let testEngine = null;

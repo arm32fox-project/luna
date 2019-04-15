@@ -152,6 +152,9 @@ BrowserGlue.prototype = {
   // nsIObserver implementation 
   observe: function BG_observe(subject, topic, data) {
     switch (topic) {
+      case "notifications-open-settings":
+        this._openPermissions(subject);
+        break;
       case "prefservice:after-app-defaults":
         this._onAppDefaults();
         break;
@@ -322,6 +325,7 @@ BrowserGlue.prototype = {
   // initialization (called on application startup) 
   _init: function BG__init() {
     let os = Services.obs;
+    os.addObserver(this, "notifications-open-settings", false);
     os.addObserver(this, "prefservice:after-app-defaults", false);
     os.addObserver(this, "final-ui-startup", false);
     os.addObserver(this, "browser-delayed-startup-finished", false);
@@ -354,6 +358,7 @@ BrowserGlue.prototype = {
   // cleanup (called on application shutdown)
   _dispose: function BG__dispose() {
     let os = Services.obs;
+    os.removeObserver(this, "notifications-open-settings");
     os.removeObserver(this, "prefservice:after-app-defaults");
     os.removeObserver(this, "final-ui-startup");
     os.removeObserver(this, "sessionstore-windows-restored");
@@ -546,14 +551,6 @@ BrowserGlue.prototype = {
     if (this._isPlacesDatabaseLocked) {
       this._showPlacesLockedNotificationBox();
     }
-
-    // If there are plugins installed that are outdated, and the user hasn't
-    // been warned about them yet, open the plugins update page.
-    // Pale Moon: disable this functionality, people are already notified
-    // if they visit a page with an outdated plugin, and they can check
-    // properly from the plugins page as well.
-//    if (Services.prefs.getBoolPref(PREF_PLUGINS_NOTIFYUSER))
-//      this._showPluginUpdatePage();
 
     // For any add-ons that were installed disabled and can be enabled offer
     // them to the user.
@@ -1482,6 +1479,16 @@ BrowserGlue.prototype = {
     catch (e) {
       Cu.reportError(e);
     }
+  },
+
+  _openPermissions: function(aPrincipal) {
+    var win = this.getMostRecentBrowserWindow();
+    var url = "about:permissions";
+    try {
+      url = url + "?filter=" + aPrincipal.URI.host;
+    }
+    catch (e) {}
+    win.openUILinkIn(url, "tab");
   },
 
   _hasSystemAlertsService: function() {

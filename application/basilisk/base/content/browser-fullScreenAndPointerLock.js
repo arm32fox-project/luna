@@ -322,15 +322,9 @@ var FullScreen = {
       document.addEventListener("popuphidden", this._setPopupOpen, false);
       // If it is not safe to collapse, add the mouse position tracker or
       // else it won't be possible to hide the navigation toolbox again
-      if (!this._safeToCollapse()) {
-        let rect = gBrowser.mPanelContainer.getBoundingClientRect();
-        this._mouseTargetRect = {
-          top: rect.top + 50,
-          bottom: rect.bottom,
-          left: rect.left,
-          right: rect.right
-        };
-        MousePosTracker.addListener(this);
+      if (gPrefService.getBoolPref("browser.fullscreen.autohide")) {
+        gBrowser.mPanelContainer.addEventListener("mousemove",
+                                                  this._collapseCallback, false);
       }
       // In DOM fullscreen mode, we hide toolbars with CSS
       if (!document.fullscreenElement)
@@ -379,12 +373,10 @@ var FullScreen = {
           let topWin = event.target.ownerGlobal.top;
           browser = gBrowser.getBrowserForContentWindow(topWin);
         }
-        TelemetryStopwatch.start("FULLSCREEN_CHANGE_MS");
         this.enterDomFullscreen(browser);
         break;
       }
       case "MozDOMFullscreen:Exited":
-        TelemetryStopwatch.start("FULLSCREEN_CHANGE_MS");
         this.cleanupDomFullscreen();
         break;
     }
@@ -410,7 +402,6 @@ var FullScreen = {
       }
       case "DOMFullscreen:Painted": {
         Services.obs.notifyObservers(window, "fullscreen-painted", "");
-        TelemetryStopwatch.finish("FULLSCREEN_CHANGE_MS");
         break;
       }
     }
@@ -471,7 +462,8 @@ var FullScreen = {
 
   cleanup: function () {
     if (!window.fullScreen) {
-      MousePosTracker.removeListener(this);
+      gBrowser.mPanelContainer.removeEventListener("mousemove",
+                                                   this._collapseCallback, false);
       document.removeEventListener("keypress", this._keyToggleCallback, false);
       document.removeEventListener("popupshown", this._setPopupOpen, false);
       document.removeEventListener("popuphidden", this._setPopupOpen, false);
@@ -500,17 +492,12 @@ var FullScreen = {
                  .getInterface(Ci.nsIDOMWindowUtils);
   },
 
-  getMouseTargetRect: function()
-  {
-    return this._mouseTargetRect;
-  },
-
   // Event callbacks
   _expandCallback: function()
   {
     FullScreen.showNavToolbox();
   },
-  onMouseEnter: function()
+  _collapseCallback: function()
   {
     FullScreen.hideNavToolbox();
   },
@@ -591,14 +578,8 @@ var FullScreen = {
 
     // Track whether mouse is near the toolbox
     if (trackMouse && !this.useLionFullScreen) {
-      let rect = gBrowser.mPanelContainer.getBoundingClientRect();
-      this._mouseTargetRect = {
-        top: rect.top + 50,
-        bottom: rect.bottom,
-        left: rect.left,
-        right: rect.right
-      };
-      MousePosTracker.addListener(this);
+      gBrowser.mPanelContainer.addEventListener("mousemove",
+                                                this._collapseCallback, false);
     }
 
     this._isChromeCollapsed = false;
@@ -625,7 +606,8 @@ var FullScreen = {
     gNavToolbox.style.marginTop =
       -gNavToolbox.getBoundingClientRect().height + "px";
     this._isChromeCollapsed = true;
-    MousePosTracker.removeListener(this);
+    gBrowser.mPanelContainer.removeEventListener("mousemove",
+                                                 this._collapseCallback, false);
   },
 
   _updateToolbars: function (aEnterFS) {

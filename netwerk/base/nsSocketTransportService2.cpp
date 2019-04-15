@@ -22,7 +22,6 @@
 #include "mozilla/PublicSSL.h"
 #include "mozilla/ChaosMode.h"
 #include "mozilla/PodOperations.h"
-#include "mozilla/Telemetry.h"
 #include "nsThreadUtils.h"
 #include "nsIFile.h"
 #include "nsIWidget.h"
@@ -47,7 +46,6 @@ Atomic<PRThread*, Relaxed> gSocketThread;
 #define SOCKET_LIMIT_MIN      50U
 #define BLIP_INTERVAL_PREF "network.activity.blipIntervalMilliseconds"
 #define MAX_TIME_BETWEEN_TWO_POLLS "network.sts.max_time_for_events_between_two_polls"
-#define TELEMETRY_PREF "toolkit.telemetry.enabled"
 #define MAX_TIME_FOR_PR_CLOSE_DURING_SHUTDOWN "network.sts.max_time_for_pr_close_during_shutdown"
 
 #define REPAIR_POLLABLE_EVENT_TIME 10
@@ -79,9 +77,7 @@ nsSocketTransportService::nsSocketTransportService()
     , mKeepaliveEnabledPref(false)
     , mServingPendingQueue(false)
     , mMaxTimePerPollIter(100)
-    , mTelemetryEnabledPref(false)
     , mMaxTimeForPrClosePref(PR_SecondsToInterval(5))
-    , mSleepPhase(false)
     , mProbedMaxCount(false)
 #if defined(XP_WIN)
     , mPolling(false)
@@ -211,16 +207,8 @@ nsSocketTransportService::AttachSocket(PRFileDesc *fd, nsASocketHandler *handler
 bool
 nsSocketTransportService::CanAttachSocket()
 {
-    static bool reported900FDLimit = false;
-
     uint32_t total = mActiveCount + mIdleCount;
     bool rv = total < gMaxCount;
-
-    if (mTelemetryEnabledPref &&
-        (((total >= 900) || !rv) && !reported900FDLimit)) {
-        reported900FDLimit = true;
-        Telemetry::Accumulate(Telemetry::NETWORK_SESSION_AT_900FD, true);
-    }
 
     return rv;
 }
@@ -439,13 +427,11 @@ nsSocketTransportService::PollTimeout()
 }
 
 int32_t
-nsSocketTransportService::Poll(uint32_t *interval,
-                               TimeDuration *pollDuration)
+nsSocketTransportService::Poll(uint32_t *interval)
 {
     PRPollDesc *pollList;
     uint32_t pollCount;
     PRIntervalTime pollTimeout;
-    *pollDuration = 0;
 
     // If there are pending events for this thread then
     // DoPollIteration() should service the network without blocking.
@@ -471,20 +457,11 @@ nsSocketTransportService::Poll(uint32_t *interval,
 
     PRIntervalTime ts = PR_IntervalNow();
 
-    TimeStamp pollStart;
-    if (mTelemetryEnabledPref) {
-        pollStart = TimeStamp::NowLoRes();
-    }
-
     SOCKET_LOG(("    timeout = %i milliseconds\n",
          PR_IntervalToMilliseconds(pollTimeout)));
     int32_t rv = PR_Poll(pollList, pollCount, pollTimeout);
 
     PRIntervalTime passedInterval = PR_IntervalNow() - ts;
-
-    if (mTelemetryEnabledPref && !pollStart.IsNull()) {
-        *pollDuration = TimeStamp::NowLoRes() - pollStart;
-    }
 
     SOCKET_LOG(("    ...returned after %i milliseconds\n",
          PR_IntervalToMilliseconds(passedInterval))); 
@@ -538,7 +515,6 @@ nsSocketTransportService::Init()
         tmpPrefService->AddObserver(KEEPALIVE_RETRY_INTERVAL_PREF, this, false);
         tmpPrefService->AddObserver(KEEPALIVE_PROBE_COUNT_PREF, this, false);
         tmpPrefService->AddObserver(MAX_TIME_BETWEEN_TWO_POLLS, this, false);
-        tmpPrefService->AddObserver(TELEMETRY_PREF, this, false);
         tmpPrefService->AddObserver(MAX_TIME_FOR_PR_CLOSE_DURING_SHUTDOWN, this, false);
     }
     UpdatePrefs();
@@ -547,8 +523,6 @@ nsSocketTransportService::Init()
     if (obsSvc) {
         obsSvc->AddObserver(this, "profile-initial-state", false);
         obsSvc->AddObserver(this, "last-pb-context-exited", false);
-        obsSvc->AddObserver(this, NS_WIDGET_SLEEP_OBSERVER_TOPIC, true);
-        obsSvc->AddObserver(this, NS_WIDGET_WAKE_OBSERVER_TOPIC, true);
         obsSvc->AddObserver(this, "xpcom-shutdown-threads", false);
     }
 
@@ -615,14 +589,7 @@ nsSocketTransportService::ShutdownThread()
     if (obsSvc) {
         obsSvc->RemoveObserver(this, "profile-initial-state");
         obsSvc->RemoveObserver(this, "last-pb-context-exited");
-        obsSvc->RemoveObserver(this, NS_WIDGET_SLEEP_OBSERVER_TOPIC);
-        obsSvc->RemoveObserver(this, NS_WIDGET_WAKE_OBSERVER_TOPIC);
         obsSvc->RemoveObserver(this, "xpcom-shutdown-threads");
-    }
-
-    if (mAfterWakeUpTimer) {
-        mAfterWakeUpTimer->Cancel();
-        mAfterWakeUpTimer = nullptr;
     }
 
     NetworkActivityMonitor::Shutdown();
@@ -859,54 +826,16 @@ nsSocketTransportService::Run()
     // make sure the pseudo random number generator is seeded on this thread
     srand(static_cast<unsigned>(PR_Now()));
 
-    // For the calculation of the duration of the last cycle (i.e. the last for-loop
-    // iteration before shutdown).
-    TimeStamp startOfCycleForLastCycleCalc;
-    int numberOfPendingEventsLastCycle;
-
-    // For measuring of the poll iteration duration without time spent blocked
-    // in poll().
-    TimeStamp pollCycleStart;
-    // Time blocked in poll().
-    TimeDuration singlePollDuration;
-
-    // For calculating the time needed for a new element to run.
-    TimeStamp startOfIteration;
-    TimeStamp startOfNextIteration;
     int numberOfPendingEvents;
 
     // If there is too many pending events queued, we will run some poll()
-    // between them and the following variable is cumulative time spent
-    // blocking in poll().
-    TimeDuration pollDuration;
-
+    // between them.
     for (;;) {
         bool pendingEvents = false;
-
         numberOfPendingEvents = 0;
-        numberOfPendingEventsLastCycle = 0;
-        if (mTelemetryEnabledPref) {
-            startOfCycleForLastCycleCalc = TimeStamp::NowLoRes();
-            startOfNextIteration = TimeStamp::NowLoRes();
-        }
-        pollDuration = 0;
 
         do {
-            if (mTelemetryEnabledPref) {
-                pollCycleStart = TimeStamp::NowLoRes();
-            }
-
-            DoPollIteration(&singlePollDuration);
-
-            if (mTelemetryEnabledPref && !pollCycleStart.IsNull()) {
-                Telemetry::Accumulate(Telemetry::STS_POLL_BLOCK_TIME,
-                                      singlePollDuration.ToMilliseconds());
-                Telemetry::AccumulateTimeDelta(
-                    Telemetry::STS_POLL_CYCLE,
-                    pollCycleStart + singlePollDuration,
-                    TimeStamp::NowLoRes());
-                pollDuration += singlePollDuration;
-            }
+            DoPollIteration();
 
             mRawThread->HasPendingEvents(&pendingEvents);
             if (pendingEvents) {
@@ -920,15 +849,6 @@ nsSocketTransportService::Run()
                     } else {
                         mServingPendingQueue = true;
                     }
-
-                    if (mTelemetryEnabledPref) {
-                        startOfIteration = startOfNextIteration;
-                        // Everything that comes after this point will
-                        // be served in the next iteration. If no even
-                        // arrives, startOfNextIteration will be reset at the
-                        // beginning of each for-loop.
-                        startOfNextIteration = TimeStamp::NowLoRes();
-                    }
                 }
                 TimeStamp eventQueueStart = TimeStamp::NowLoRes();
                 do {
@@ -940,22 +860,6 @@ nsSocketTransportService::Run()
                          ((TimeStamp::NowLoRes() -
                            eventQueueStart).ToMilliseconds() <
                           mMaxTimePerPollIter));
-
-                if (mTelemetryEnabledPref && !mServingPendingQueue &&
-                    !startOfIteration.IsNull()) {
-                    Telemetry::AccumulateTimeDelta(
-                        Telemetry::STS_POLL_AND_EVENTS_CYCLE,
-                        startOfIteration + pollDuration,
-                        TimeStamp::NowLoRes());
-
-                    Telemetry::Accumulate(
-                        Telemetry::STS_NUMBER_OF_PENDING_EVENTS,
-                        numberOfPendingEvents);
-
-                    numberOfPendingEventsLastCycle += numberOfPendingEvents;
-                    numberOfPendingEvents = 0;
-                    pollDuration = 0;
-                }
             }
         } while (pendingEvents);
 
@@ -964,16 +868,6 @@ nsSocketTransportService::Run()
         {
             MutexAutoLock lock(mLock);
             if (mShuttingDown) {
-                if (mTelemetryEnabledPref &&
-                    !startOfCycleForLastCycleCalc.IsNull()) {
-                    Telemetry::Accumulate(
-                        Telemetry::STS_NUMBER_OF_PENDING_EVENTS_IN_THE_LAST_CYCLE,
-                        numberOfPendingEventsLastCycle);
-                    Telemetry::AccumulateTimeDelta(
-                        Telemetry::STS_POLL_AND_EVENT_THE_LAST_CYCLE,
-                        startOfCycleForLastCycleCalc,
-                        TimeStamp::NowLoRes());
-                }
                 break;
             }
             if (mGoingOffline) {
@@ -1032,7 +926,7 @@ nsSocketTransportService::Reset(bool aGuardLocals)
 }
 
 nsresult
-nsSocketTransportService::DoPollIteration(TimeDuration *pollDuration)
+nsSocketTransportService::DoPollIteration()
 {
     SOCKET_LOG(("STS poll iter\n"));
 
@@ -1092,13 +986,12 @@ nsSocketTransportService::DoPollIteration(TimeDuration *pollDuration)
     // Measures seconds spent while blocked on PR_Poll
     uint32_t pollInterval = 0;
     int32_t n = 0;
-    *pollDuration = 0;
     if (!gIOService->IsNetTearingDown()) {
         // Let's not do polling during shutdown.
 #if defined(XP_WIN)
         StartPolling();
 #endif
-        n = Poll(&pollInterval, pollDuration);
+        n = Poll(&pollInterval);
 #if defined(XP_WIN)
         EndPolling();
 #endif
@@ -1141,11 +1034,6 @@ nsSocketTransportService::DoPollIteration(TimeDuration *pollDuration)
                     numberOfOnSocketReadyCalls++;
                 }
             }
-        }
-        if (mTelemetryEnabledPref) {
-            Telemetry::Accumulate(
-                Telemetry::STS_NUMBER_OF_ONSOCKETREADY_CALLS,
-                numberOfOnSocketReadyCalls);
         }
 
         //
@@ -1249,13 +1137,6 @@ nsSocketTransportService::UpdatePrefs()
             mMaxTimePerPollIter = maxTimePref;
         }
 
-        bool telemetryPref = false;
-        rv = tmpPrefService->GetBoolPref(TELEMETRY_PREF,
-                                         &telemetryPref);
-        if (NS_SUCCEEDED(rv)) {
-            mTelemetryEnabledPref = telemetryPref;
-        }
-
         int32_t maxTimeForPrClosePref;
         rv = tmpPrefService->GetIntPref(MAX_TIME_FOR_PR_CLOSE_DURING_SHUTDOWN,
                                         &maxTimeForPrClosePref);
@@ -1333,10 +1214,6 @@ nsSocketTransportService::Observe(nsISupports *subject,
 
     if (!strcmp(topic, NS_TIMER_CALLBACK_TOPIC)) {
         nsCOMPtr<nsITimer> timer = do_QueryInterface(subject);
-        if (timer == mAfterWakeUpTimer) {
-            mAfterWakeUpTimer = nullptr;
-            mSleepPhase = false;
-        }
 
 #if defined(XP_WIN)
         if (timer == mPollRepairTimer) {
@@ -1344,19 +1221,6 @@ nsSocketTransportService::Observe(nsISupports *subject,
         }
 #endif
 
-    } else if (!strcmp(topic, NS_WIDGET_SLEEP_OBSERVER_TOPIC)) {
-        mSleepPhase = true;
-        if (mAfterWakeUpTimer) {
-            mAfterWakeUpTimer->Cancel();
-            mAfterWakeUpTimer = nullptr;
-        }
-    } else if (!strcmp(topic, NS_WIDGET_WAKE_OBSERVER_TOPIC)) {
-        if (mSleepPhase && !mAfterWakeUpTimer) {
-            mAfterWakeUpTimer = do_CreateInstance("@mozilla.org/timer;1");
-            if (mAfterWakeUpTimer) {
-                mAfterWakeUpTimer->Init(this, 2000, nsITimer::TYPE_ONE_SHOT);
-            }
-        }
     } else if (!strcmp(topic, "xpcom-shutdown-threads")) {
         ShutdownThread();
     }
@@ -1465,7 +1329,6 @@ nsSocketTransportService::ProbeMaxCount()
         if (pfd[index].fd)
             PR_Close(pfd[index].fd);
 
-    Telemetry::Accumulate(Telemetry::NETWORK_PROBE_MAXCOUNT, gMaxCount);
     SOCKET_LOG(("Socket Limit Test max was confirmed at %d\n", gMaxCount));
 }
 #endif // windows

@@ -6,7 +6,6 @@
 
 #include "mozilla/Base64.h"
 #include "mozilla/TaskQueue.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/Function.h"
 
 #include "MediaContentType.h"
@@ -208,8 +207,20 @@ already_AddRefed<SharedThreadPool> GetMediaThreadPool(MediaThreadType aType)
       name = "MediaPlayback";
       break;
   }
-  return SharedThreadPool::
+  RefPtr<SharedThreadPool> pool = SharedThreadPool::
     Get(nsDependentCString(name), MediaPrefs::MediaThreadPoolDefaultCount());
+
+  // Ensure a larger stack for platform decoder threads
+  if (aType == MediaThreadType::PLATFORM_DECODER) {
+    const uint32_t minStackSize = 512*1024;
+    uint32_t stackSize;
+    MOZ_ALWAYS_SUCCEEDS(pool->GetThreadStackSize(&stackSize));
+    if (stackSize < minStackSize) {
+      MOZ_ALWAYS_SUCCEEDS(pool->SetThreadStackSize(minStackSize));
+    }
+  }
+
+  return pool.forget();
 }
 
 bool
@@ -247,24 +258,6 @@ ExtractH264CodecDetails(const nsAString& aCodec,
   } else if (aLevel <= 5) {
     aLevel *= 10;
   }
-
-  // Capture the constraint_set flag value for the purpose of Telemetry.
-  // We don't NS_ENSURE_SUCCESS here because ExtractH264CodecDetails doesn't
-  // care about this, but we make sure constraints is above 4 (constraint_set5_flag)
-  // otherwise collect 0 for unknown.
-  uint8_t constraints = PromiseFlatString(Substring(aCodec, 7, 2)).ToInteger(&rv, 16);
-  Telemetry::Accumulate(Telemetry::VIDEO_CANPLAYTYPE_H264_CONSTRAINT_SET_FLAG,
-                        constraints >= 4 ? constraints : 0);
-
-  // 244 is the highest meaningful profile value (High 4:4:4 Intra Profile)
-  // that can be represented as single hex byte, otherwise collect 0 for unknown.
-  Telemetry::Accumulate(Telemetry::VIDEO_CANPLAYTYPE_H264_PROFILE,
-                        aProfile <= 244 ? aProfile : 0);
-
-  // Make sure aLevel represents a value between levels 1 and 5.2,
-  // otherwise collect 0 for unknown.
-  Telemetry::Accumulate(Telemetry::VIDEO_CANPLAYTYPE_H264_LEVEL,
-                        (aLevel >= 10 && aLevel <= 52) ? aLevel : 0);
 
   return true;
 }
@@ -445,6 +438,16 @@ ParseMIMETypeString(const nsAString& aMIMEType,
   return ParseCodecsString(codecsStr, aOutCodecs);
 }
 
+template <int N>
+static bool
+StartsWith(const nsACString& string, const char (&prefix)[N])
+{
+    if (N - 1 > string.Length()) {
+      return false;
+    }
+    return memcmp(string.Data(), prefix, N - 1) == 0;
+}
+
 bool
 IsH264CodecString(const nsAString& aCodec)
 {
@@ -477,15 +480,14 @@ IsVP9CodecString(const nsAString& aCodec)
          aCodec.EqualsLiteral("vp9.0");
 }
 
-template <int N>
-static bool
-StartsWith(const nsACString& string, const char (&prefix)[N])
+#ifdef MOZ_AV1
+bool
+IsAV1CodecString(const nsAString& aCodec)
 {
-    if (N - 1 > string.Length()) {
-      return false;
-    }
-    return memcmp(string.Data(), prefix, N - 1) == 0;
+  return aCodec.EqualsLiteral("av1") ||
+    StartsWith(NS_ConvertUTF16toUTF8(aCodec), "av01");
 }
+#endif
 
 UniquePtr<TrackInfo>
 CreateTrackInfoWithMIMEType(const nsACString& aCodecMIMEType)

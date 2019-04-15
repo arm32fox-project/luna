@@ -12,6 +12,7 @@
 #include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/BinarySearch.h"
+#include "mozilla/CheckedInt.h"
 #include "mozilla/fallible.h"
 #include "mozilla/Function.h"
 #include "mozilla/MathAlgorithms.h"
@@ -19,6 +20,7 @@
 #include "mozilla/Move.h"
 #include "mozilla/ReverseIterator.h"
 #include "mozilla/TypeTraits.h"
+#include "mozilla/Span.h"
 
 #include <string.h>
 
@@ -420,6 +422,17 @@ protected:
   typename ActualAlloc::ResultTypeProxy EnsureCapacity(size_type aCapacity,
                                                        size_type aElemSize);
 
+  // Extend the storage to accommodate aCount extra elements.
+  // @param aLength The current size of the array.
+  // @param aCount The number of elements to add.
+  // @param aElemSize The size of an array element.
+  // @return False if insufficient memory is available or the new length
+  //   would overflow; true otherwise.
+  template<typename ActualAlloc>
+  typename ActualAlloc::ResultTypeProxy ExtendCapacity(size_type aLength,
+                                                       size_type aCount,
+                                                       size_type aElemSize);
+
   // Tries to resize the storage to the minimum required amount. If this fails,
   // the array is left as-is.
   // @param aElemSize  The size of an array element.
@@ -461,8 +474,9 @@ protected:
   // @param aElementSize the size of an array element.
   // @param aElemAlign the alignment in bytes of an array element.
   template<typename ActualAlloc>
-  bool InsertSlotsAt(index_type aIndex, size_type aCount,
-                     size_type aElementSize, size_t aElemAlign);
+  typename ActualAlloc::ResultTypeProxy
+  InsertSlotsAt(index_type aIndex, size_type aCount,
+                size_type aElementSize, size_t aElemAlign);
 
   template<typename ActualAlloc, class Allocator>
   typename ActualAlloc::ResultTypeProxy
@@ -1112,6 +1126,18 @@ public:
   const_reverse_iterator rend() const { return const_reverse_iterator(begin()); }
   const_reverse_iterator crend() const { return rend(); }
 
+  // Span integration
+
+  operator mozilla::Span<elem_type>()
+  {
+    return mozilla::Span<elem_type>(Elements(), Length());
+  }
+
+  operator mozilla::Span<const elem_type>() const
+  {
+    return mozilla::Span<const elem_type>(Elements(), Length());
+ }
+
   //
   // Search methods
   //
@@ -1336,6 +1362,16 @@ protected:
     return ReplaceElementsAt<Item, ActualAlloc>(
       aStart, aCount, aArray.Elements(), aArray.Length());
   }
+
+  template<class Item, typename ActualAlloc = Alloc>
+  elem_type* ReplaceElementsAt(index_type aStart,
+                               size_type aCount,
+                               mozilla::Span<const Item> aSpan)
+  {
+    return ReplaceElementsAt<Item, ActualAlloc>(
+      aStart, aCount, aSpan.Elements(), aSpan.Length());
+  }
+
 public:
 
   template<class Item>
@@ -1345,6 +1381,15 @@ public:
                                const mozilla::fallible_t&)
   {
     return ReplaceElementsAt<Item, FallibleAlloc>(aStart, aCount, aArray);
+  }
+
+  template<class Item>
+  MOZ_MUST_USE elem_type* ReplaceElementsAt(index_type aStart,
+                                            size_type aCount,
+                                            mozilla::Span<const Item> aSpan,
+                                            const mozilla::fallible_t&)
+  {
+    return ReplaceElementsAt<Item, FallibleAlloc>(aStart, aCount, aSpan);
   }
 
   // A variation on the ReplaceElementsAt method defined above.
@@ -1399,6 +1444,15 @@ protected:
     return ReplaceElementsAt<Item, ActualAlloc>(
       aIndex, 0, aArray.Elements(), aArray.Length());
   }
+
+  template<class Item, typename ActualAlloc = Alloc>
+  elem_type* InsertElementsAt(index_type aIndex,
+                              mozilla::Span<const Item> aSpan)
+  {
+    return ReplaceElementsAt<Item, ActualAlloc>(
+      aIndex, 0, aSpan.Elements(), aSpan.Length());
+  }
+
 public:
 
   template<class Item, class Allocator>
@@ -1425,6 +1479,14 @@ public:
     return InsertElementAt<FallibleAlloc>(aIndex);
   }
 
+  template<class Item>
+  MOZ_MUST_USE elem_type* InsertElementsAt(index_type aIndex,
+                                           mozilla::Span<const Item> aSpan,
+                                           const mozilla::fallible_t&)
+  {
+    return InsertElementsAt<Item, FallibleAlloc>(aIndex, aSpan);
+  }
+
   // Insert a new element, move constructing if possible.
 protected:
   template<class Item, typename ActualAlloc = Alloc>
@@ -1439,6 +1501,24 @@ public:
   {
     return InsertElementAt<Item, FallibleAlloc>(aIndex,
                                                 mozilla::Forward<Item>(aItem));
+  }
+
+  // Reconstruct the element at the given index, and return a pointer to the
+  // reconstructed element.  This will destroy the existing element and
+  // default-construct a new one, giving you a state much like what single-arg
+  // InsertElementAt(), or no-arg AppendElement() does, but without changing the
+  // length of the array.
+  //
+  // array[idx] = T()
+  //
+  // would accomplish the same thing as long as T has the appropriate moving
+  // operator=, but some types don't for various reasons.
+  elem_type* ReconstructElementAt(index_type aIndex)
+  {
+    elem_type* elem = &ElementAt(aIndex);
+    elem_traits::Destruct(elem);
+    elem_traits::Construct(elem);
+    return elem;
   }
 
   // This method searches for the smallest index of an element that is strictly
@@ -1526,6 +1606,13 @@ protected:
   template<class Item, typename ActualAlloc = Alloc>
   elem_type* AppendElements(const Item* aArray, size_type aArrayLen);
 
+  template<class Item, typename ActualAlloc = Alloc>
+  elem_type* AppendElements(mozilla::Span<const Item> aSpan)
+  {
+    return AppendElements<Item, FallibleAlloc>(aSpan.Elements(),
+                                               aSpan.Length());
+  }
+
 public:
 
   template<class Item>
@@ -1534,6 +1621,15 @@ public:
                             const mozilla::fallible_t&)
   {
     return AppendElements<Item, FallibleAlloc>(aArray, aArrayLen);
+  }
+
+  template<class Item>
+  /* MOZ_MUST_USE */
+  elem_type* AppendElements(mozilla::Span<const Item> aSpan,
+                            const mozilla::fallible_t&)
+  {
+    return AppendElements<Item, FallibleAlloc>(aSpan.Elements(),
+                                               aSpan.Length());
   }
 
   // A variation on the AppendElements method defined above.
@@ -1590,8 +1686,8 @@ public:
 protected:
   template<typename ActualAlloc = Alloc>
   elem_type* AppendElements(size_type aCount) {
-    if (!ActualAlloc::Successful(this->template EnsureCapacity<ActualAlloc>(
-          Length() + aCount, sizeof(elem_type)))) {
+    if (!ActualAlloc::Successful(this->template ExtendCapacity<ActualAlloc>(
+          Length(), aCount, sizeof(elem_type)))) {
       return nullptr;
     }
     elem_type* elems = Elements() + Length();
@@ -1807,9 +1903,8 @@ protected:
   template<typename ActualAlloc = Alloc>
   elem_type* InsertElementsAt(index_type aIndex, size_type aCount)
   {
-    if (!base_type::template InsertSlotsAt<ActualAlloc>(aIndex, aCount,
-                                                        sizeof(elem_type),
-                                                        MOZ_ALIGNOF(elem_type))) {
+    if (!ActualAlloc::Successful(this->template InsertSlotsAt<ActualAlloc>(
+          aIndex, aCount, sizeof(elem_type), MOZ_ALIGNOF(elem_type)))) {
       return nullptr;
     }
 
@@ -1982,9 +2077,8 @@ auto
 nsTArray_Impl<E, Alloc>::InsertElementsAt(index_type aIndex, size_type aCount,
                                           const Item& aItem) -> elem_type*
 {
-  if (!base_type::template InsertSlotsAt<ActualAlloc>(aIndex, aCount,
-                                                      sizeof(elem_type),
-                                                      MOZ_ALIGNOF(elem_type))) {
+  if (!ActualAlloc::Successful(this->template InsertSlotsAt<ActualAlloc>(
+        aIndex, aCount, sizeof(elem_type), MOZ_ALIGNOF(elem_type)))) {
     return nullptr;
   }
 
@@ -2003,6 +2097,7 @@ template<typename ActualAlloc>
 auto
 nsTArray_Impl<E, Alloc>::InsertElementAt(index_type aIndex) -> elem_type*
 {
+  // Length() + 1 is guaranteed to not overflow, so EnsureCapacity is OK.
   if (!ActualAlloc::Successful(this->template EnsureCapacity<ActualAlloc>(
         Length() + 1, sizeof(elem_type)))) {
     return nullptr;
@@ -2019,6 +2114,7 @@ template<class Item, typename ActualAlloc>
 auto
 nsTArray_Impl<E, Alloc>::InsertElementAt(index_type aIndex, Item&& aItem) -> elem_type*
 {
+  // Length() + 1 is guaranteed to not overflow, so EnsureCapacity is OK.
   if (!ActualAlloc::Successful(this->template EnsureCapacity<ActualAlloc>(
          Length() + 1, sizeof(elem_type)))) {
     return nullptr;
@@ -2035,8 +2131,8 @@ template<class Item, typename ActualAlloc>
 auto
 nsTArray_Impl<E, Alloc>::AppendElements(const Item* aArray, size_type aArrayLen) -> elem_type*
 {
-  if (!ActualAlloc::Successful(this->template EnsureCapacity<ActualAlloc>(
-        Length() + aArrayLen, sizeof(elem_type)))) {
+  if (!ActualAlloc::Successful(this->template ExtendCapacity<ActualAlloc>(
+        Length(), aArrayLen, sizeof(elem_type)))) {
     return nullptr;
   }
   index_type len = Length();
@@ -2058,8 +2154,8 @@ nsTArray_Impl<E, Alloc>::AppendElements(nsTArray_Impl<Item, Allocator>&& aArray)
 
   index_type len = Length();
   index_type otherLen = aArray.Length();
-  if (!Alloc::Successful(this->template EnsureCapacity<Alloc>(
-        len + otherLen, sizeof(elem_type)))) {
+  if (!Alloc::Successful(this->template ExtendCapacity<Alloc>(
+        len, otherLen, sizeof(elem_type)))) {
     return nullptr;
   }
   copy_type::MoveNonOverlappingRegion(Elements() + len, aArray.Elements(), otherLen,
@@ -2075,6 +2171,7 @@ template<class Item, typename ActualAlloc>
 auto
 nsTArray_Impl<E, Alloc>::AppendElement(Item&& aItem) -> elem_type*
 {
+  // Length() + 1 is guaranteed to not overflow, so EnsureCapacity is OK.
   if (!ActualAlloc::Successful(this->template EnsureCapacity<ActualAlloc>(
          Length() + 1, sizeof(elem_type)))) {
     return nullptr;
@@ -2346,6 +2443,25 @@ struct nsTArray_CopyChooser<AutoTArray<E, N>>
 {
   typedef nsTArray_CopyWithConstructors<AutoTArray<E, N>> Type;
 };
+
+// Span integration
+namespace mozilla {
+
+template<class ElementType, class TArrayAlloc>
+Span<ElementType>
+MakeSpan(nsTArray_Impl<ElementType, TArrayAlloc>& aTArray)
+{
+  return aTArray;
+}
+
+template<class ElementType, class TArrayAlloc>
+Span<const ElementType>
+MakeSpan(const nsTArray_Impl<ElementType, TArrayAlloc>& aTArray)
+{
+  return aTArray;
+}
+
+} // namespace mozilla
 
 // Assert that AutoTArray doesn't have any extra padding inside.
 //

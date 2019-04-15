@@ -58,7 +58,6 @@
 #include "mozilla/net/NeckoChild.h"
 #include "mozilla/net/NeckoParent.h"
 #include "mozilla/ipc/URIUtils.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/Unused.h"
 #include "mozilla/BasePrincipal.h"
 
@@ -91,7 +90,6 @@
 #define BROWSER_PREF_PREFIX     "browser.cache."
 #define DONOTTRACK_HEADER_ENABLED "privacy.donottrackheader.enabled"
 #define H2MANDATORY_SUITE        "security.ssl3.ecdhe_rsa_aes_128_gcm_sha256"
-#define TELEMETRY_ENABLED        "toolkit.telemetry.enabled"
 #define ALLOW_EXPERIMENTS        "network.allow-experiments"
 #define SAFE_HINT_HEADER_VALUE   "safeHint.enabled"
 #define SECURITY_PREFIX          "security."
@@ -203,13 +201,13 @@ nsHttpHandler::nsHttpHandler()
     , mCompatFirefoxEnabled(false)
     , mCompatFirefoxVersion("52.9")
     , mUserAgentIsDirty(true)
+    , mAcceptLanguagesIsDirty(true)
     , mPromptTempRedirect(true)
     , mEnablePersistentHttpsCaching(false)
     , mDoNotTrackEnabled(false)
     , mSafeHintEnabled(false)
     , mParentalControlEnabled(false)
     , mHandlerActive(false)
-    , mTelemetryEnabled(false)
     , mAllowExperiments(true)
     , mDebugObservations(false)
     , mEnableSpdy(false)
@@ -305,7 +303,6 @@ nsHttpHandler::Init()
         prefBranch->AddObserver(INTL_ACCEPT_LANGUAGES, this, true);
         prefBranch->AddObserver(BROWSER_PREF("disk_cache_ssl"), this, true);
         prefBranch->AddObserver(DONOTTRACK_HEADER_ENABLED, this, true);
-        prefBranch->AddObserver(TELEMETRY_ENABLED, this, true);
         prefBranch->AddObserver(H2MANDATORY_SUITE, this, true);
         prefBranch->AddObserver(HTTP_PREF("tcp_keepalive.short_lived_connections"), this, true);
         prefBranch->AddObserver(HTTP_PREF("tcp_keepalive.long_lived_connections"), this, true);
@@ -419,6 +416,7 @@ nsHttpHandler::Init()
         obsService->AddObserver(this, "browser:purge-session-history", true);
         obsService->AddObserver(this, NS_NETWORK_LINK_TOPIC, true);
         obsService->AddObserver(this, "application-background", true);
+        obsService->AddObserver(this, "string-bundles-have-flushed", true);
     }
 
     MakeNewRequestTokenBucket();
@@ -470,7 +468,9 @@ nsHttpHandler::InitConnectionMgr()
 }
 
 nsresult
-nsHttpHandler::AddStandardRequestHeaders(nsHttpRequestHead *request, bool isSecure)
+nsHttpHandler::AddStandardRequestHeaders(nsHttpRequestHead *request,
+                                         bool isSecure,
+                                         nsContentPolicyType aContentPolicyType)
 {
     nsresult rv;
 
@@ -483,14 +483,32 @@ nsHttpHandler::AddStandardRequestHeaders(nsHttpRequestHead *request, bool isSecu
     // Add the "Accept" header.  Note, this is set as an override because the
     // service worker expects to see it.  The other "default" headers are
     // hidden from service worker interception.
-    rv = request->SetHeader(nsHttp::Accept, mAccept,
+    nsAutoCString accept;
+    if (aContentPolicyType == nsIContentPolicy::TYPE_DOCUMENT ||
+        aContentPolicyType == nsIContentPolicy::TYPE_SUBDOCUMENT) {
+      accept.Assign(mAcceptNavigation);
+    } else if (aContentPolicyType == nsIContentPolicy::TYPE_IMAGE ||
+               aContentPolicyType == nsIContentPolicy::TYPE_IMAGESET) {
+      accept.Assign(mAcceptImage);
+    } else if (aContentPolicyType == nsIContentPolicy::TYPE_STYLESHEET) {
+      accept.Assign(mAcceptStyle);
+    } else {
+      accept.Assign(mAcceptDefault);
+    }
+
+    rv = request->SetHeader(nsHttp::Accept, accept,
                             false, nsHttpHeaderArray::eVarietyRequestOverride);
     if (NS_FAILED(rv)) return rv;
 
     // Add the "Accept-Language" header.  This header is also exposed to the
     // service worker.
+    if (mAcceptLanguagesIsDirty) {
+        rv = SetAcceptLanguages();
+        MOZ_ASSERT(NS_SUCCEEDED(rv));
+    }
+
+    // Add the "Accept-Language" header
     if (!mAcceptLanguages.IsEmpty()) {
-        // Add the "Accept-Language" header
         rv = request->SetHeader(nsHttp::Accept_Language, mAcceptLanguages,
                                 false,
                                 nsHttpHeaderArray::eVarietyRequestOverride);
@@ -1265,12 +1283,36 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
             mQoSBits = (uint8_t) clamped(val, 0, 0xff);
     }
 
+    if (PREF_CHANGED(HTTP_PREF("accept.navigation"))) {
+        nsXPIDLCString accept;
+        rv = prefs->GetCharPref(HTTP_PREF("accept.navigation"),
+                                  getter_Copies(accept));
+        if (NS_SUCCEEDED(rv))
+            SetAccept(accept, ACCEPT_NAVIGATION);
+    }
+
+    if (PREF_CHANGED(HTTP_PREF("accept.image"))) {
+        nsXPIDLCString accept;
+        rv = prefs->GetCharPref(HTTP_PREF("accept.image"),
+                                  getter_Copies(accept));
+        if (NS_SUCCEEDED(rv))
+            SetAccept(accept, ACCEPT_IMAGE);
+    }
+
+    if (PREF_CHANGED(HTTP_PREF("accept.style"))) {
+        nsXPIDLCString accept;
+        rv = prefs->GetCharPref(HTTP_PREF("accept.style"),
+                                  getter_Copies(accept));
+        if (NS_SUCCEEDED(rv))
+            SetAccept(accept, ACCEPT_STYLE);
+    }
+
     if (PREF_CHANGED(HTTP_PREF("accept.default"))) {
         nsXPIDLCString accept;
         rv = prefs->GetCharPref(HTTP_PREF("accept.default"),
                                   getter_Copies(accept));
         if (NS_SUCCEEDED(rv))
-            SetAccept(accept);
+            SetAccept(accept, ACCEPT_DEFAULT);
     }
 
     if (PREF_CHANGED(HTTP_PREF("accept-encoding"))) {
@@ -1511,16 +1553,10 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
     //
 
     if (PREF_CHANGED(INTL_ACCEPT_LANGUAGES)) {
-        nsCOMPtr<nsIPrefLocalizedString> pls;
-        prefs->GetComplexValue(INTL_ACCEPT_LANGUAGES,
-                                NS_GET_IID(nsIPrefLocalizedString),
-                                getter_AddRefs(pls));
-        if (pls) {
-            nsXPIDLString uval;
-            pls->ToString(getter_Copies(uval));
-            if (uval)
-                SetAcceptLanguages(NS_ConvertUTF16toUTF8(uval).get());
-        }
+        // We don't want to set the new accept languages here since
+        // this pref is a complex type and it may be racy with flushing
+        // string resources.
+        mAcceptLanguagesIsDirty = true;
     }
 
     //
@@ -1546,19 +1582,6 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
     // toggle to true anytime a token bucket related pref is changed.. that
     // includes telemetry and allow-experiments because of the abtest profile
     bool requestTokenBucketUpdated = false;
-
-    //
-    // Telemetry
-    //
-
-    if (PREF_CHANGED(TELEMETRY_ENABLED)) {
-        cVar = false;
-        requestTokenBucketUpdated = true;
-        rv = prefs->GetBoolPref(TELEMETRY_ENABLED, &cVar);
-        if (NS_SUCCEEDED(rv)) {
-            mTelemetryEnabled = cVar;
-        }
-    }
 
     // "security.ssl3.ecdhe_rsa_aes_128_gcm_sha256" is the required h2 interop
     // suite.
@@ -1897,19 +1920,37 @@ PrepareAcceptLanguages(const char *i_AcceptLanguages, nsACString &o_AcceptLangua
 }
 
 nsresult
-nsHttpHandler::SetAcceptLanguages(const char *aAcceptLanguages)
+nsHttpHandler::SetAcceptLanguages()
 {
+    mAcceptLanguagesIsDirty = false;
+
+    const nsAdoptingCString& acceptLanguages =
+        Preferences::GetLocalizedCString(INTL_ACCEPT_LANGUAGES);
+
     nsAutoCString buf;
-    nsresult rv = PrepareAcceptLanguages(aAcceptLanguages, buf);
-    if (NS_SUCCEEDED(rv))
+    nsresult rv = PrepareAcceptLanguages(acceptLanguages.get(), buf);
+    if (NS_SUCCEEDED(rv)) {
         mAcceptLanguages.Assign(buf);
+    }
     return rv;
 }
 
 nsresult
-nsHttpHandler::SetAccept(const char *aAccept)
+nsHttpHandler::SetAccept(const char *aAccept, AcceptType aType)
 {
-    mAccept = aAccept;
+    switch (aType) {
+        case ACCEPT_NAVIGATION:
+            mAcceptNavigation = aAccept;
+            break;
+        case ACCEPT_IMAGE:
+            mAcceptImage = aAccept;
+            break;
+        case ACCEPT_STYLE:
+            mAcceptStyle = aAccept;
+            break;
+        case ACCEPT_DEFAULT:
+            mAcceptDefault = aAccept;
+    }
     return NS_OK;
 }
 
@@ -2067,7 +2108,11 @@ nsHttpHandler::NewProxiedChannel2(nsIURI *uri,
     rv = NewChannelId(&channelId);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = httpChannel->Init(uri, caps, proxyInfo, proxyResolveFlags, proxyURI, channelId);
+    nsContentPolicyType contentPolicyType =
+        aLoadInfo ? aLoadInfo->GetExternalContentPolicyType()
+                  : nsIContentPolicy::TYPE_OTHER;
+
+    rv = httpChannel->Init(uri, caps, proxyInfo, proxyResolveFlags, proxyURI, channelId, contentPolicyType);
     if (NS_FAILED(rv))
         return rv;
 
@@ -2175,11 +2220,6 @@ nsHttpHandler::Observe(nsISupports *subject,
         // depend on this value.
         mSessionStartTime = NowInSeconds();
 
-        if (!mDoNotTrackEnabled) {
-            Telemetry::Accumulate(Telemetry::DNT_USAGE, 2);
-        } else {
-            Telemetry::Accumulate(Telemetry::DNT_USAGE, 1);
-        }
     } else if (!strcmp(topic, "profile-change-net-restore")) {
         // initialize connection manager
         InitConnectionMgr();
@@ -2233,6 +2273,8 @@ nsHttpHandler::Observe(nsISupports *subject,
         if (mConnMgr) {
             mConnMgr->DoShiftReloadConnectionCleanup(nullptr);
         }
+    } else if (!strcmp(topic, "string-bundles-have-flushed")) {
+        mAcceptLanguagesIsDirty = true;
     }
 
     return NS_OK;

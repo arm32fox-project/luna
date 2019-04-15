@@ -2462,7 +2462,7 @@ RemoveComponentRegistries(nsIFile* aProfileDir, nsIFile* aLocalProfileDir,
   if (!file)
     return false;
 
-#if defined(XP_UNIX) || defined(XP_BEOS)
+#if defined(XP_UNIX)
 #define PLATFORM_FASL_SUFFIX ".mfasl"
 #elif defined(XP_WIN)
 #define PLATFORM_FASL_SUFFIX ".mfl"
@@ -4130,9 +4130,12 @@ XRE_InitCommandLine(int aArgc, char* aArgv[])
 #endif
 
   const char *path = nullptr;
-  ArgResult ar = CheckArg("greomni", false, &path);
+  ArgResult ar = CheckArg("greomni", true, &path);
   if (ar == ARG_BAD) {
-    PR_fprintf(PR_STDERR, "Error: argument --greomni requires a path argument\n");
+    PR_fprintf(PR_STDERR, 
+               "Error: argument --greomni requires a path argument or the "
+               "--osint argument was specified with the --greomni argument "
+               "which is invalid.\n");
     return NS_ERROR_FAILURE;
   }
 
@@ -4146,9 +4149,12 @@ XRE_InitCommandLine(int aArgc, char* aArgv[])
     return rv;
   }
 
-  ar = CheckArg("appomni", false, &path);
+  ar = CheckArg("appomni", true, &path);
   if (ar == ARG_BAD) {
-    PR_fprintf(PR_STDERR, "Error: argument --appomni requires a path argument\n");
+    PR_fprintf(PR_STDERR,
+               "Error: argument --appomni requires a path argument or the "
+               "--osint argument was specified with the --appomni argument "
+               "which is invalid.\n");
     return NS_ERROR_FAILURE;
   }
 
@@ -4338,11 +4344,6 @@ mozilla::BrowserTabsRemoteAutostart()
 
   gBrowserTabsRemoteStatus = status;
 
-  mozilla::Telemetry::Accumulate(mozilla::Telemetry::E10S_STATUS, status);
-  if (prefEnabled) {
-    mozilla::Telemetry::Accumulate(mozilla::Telemetry::E10S_BLOCKED_FROM_RUNNING,
-                                    !gBrowserTabsRemoteAutostart);
-  }
   return gBrowserTabsRemoteAutostart;
 }
 

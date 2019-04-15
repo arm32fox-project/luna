@@ -78,80 +78,13 @@ var gTabsPane = {
   /**
    * Determines the value of the New Tab display drop-down based
    * on the value of browser.newtab.url.
-   *
-   * @returns the appropriate value of browser.newtab.choice
    */
   readNewtabUrl: function() {
-    let newtabUrlPref = document.getElementById("browser.newtab.url");
-    let newtabUrlSanitizedPref = document.getElementById("browser.newtab.myhome");
     let newtabUrlChoice = document.getElementById("browser.newtab.choice");
-    switch (newtabUrlPref.value) {
-      case "about:logopage": 
-        newtabUrlChoice.value = 1;
-        break;
-      case "http://start.palemoon.org/":
-        newtabUrlChoice.value = 2;
-        break;
-      case newtabUrlSanitizedPref.value:
-        newtabUrlChoice.value = 3;
-        break;
-      case "about:newtab":
-        newtabUrlChoice.value = 4;
-        break;
-      default: // Custom URL entered.
-        document.getElementById("newtabPageCustom").hidden = false;
-        newtabUrlChoice.value = 0;
-        // We need this to consider instantApply.
-        this.newtabPageCustom = newtabUrlPref.value;
+    newtabUrlChoice.value = gNewtabUrl.getNewtabChoice();
+    if (newtabUrlChoice.value == 0) {
+      document.getElementById("newtabPageCustom").hidden = false;
     }
-  },
-
-  /**
-   * Writes browser.newtab.url with the appropriate value.
-   * if the choice is "my home page", get and sanitize the browser home page
-   * URL to make it suitable for newtab use.
-   *
-   * Called from prefwindow's ondialogaccept handler and
-   * from browser.newtab.choice's oncommand to consider instantApply.
-   */
-  writeNewtabUrl: function(newtabUrlChoice) {
-    try {
-      if (newtabUrlChoice) {
-        if (Services.prefs.getBoolPref("browser.preferences.instantApply")) {
-          newtabUrlChoice = parseInt(newtabUrlChoice);
-        } else {
-          return;
-        }
-      } else {
-        newtabUrlChoice = Services.prefs.getIntPref("browser.newtab.choice");
-      }
-      let browserHomepageUrl = Services.prefs.getComplexValue("browser.startup.homepage",
-                                Components.interfaces.nsIPrefLocalizedString).data;
-      let newtabUrlPref = Services.prefs.getCharPref("browser.newtab.url");
-      switch (newtabUrlChoice) {
-        case 1:
-          newtabUrlPref = "about:logopage";
-          break;
-        case 2:
-          newtabUrlPref = "http://start.palemoon.org/";
-          break;
-        case 3:
-          // If url is a pipe-delimited set of pages, just take the first one.
-          let newtabUrlSanitizedPref=browserHomepageUrl.split("|")[0];
-          // XXX: do we need extra sanitation here, e.g. for invalid URLs?
-          Services.prefs.setCharPref("browser.newtab.myhome", newtabUrlSanitizedPref);
-          newtabUrlPref = newtabUrlSanitizedPref;
-          break;
-        case 4:
-          newtabUrlPref = "about:newtab";
-          break;
-        default:
-          // In case of any other value it's a custom URL, consider instantApply.
-          if (this.newtabPageCustom) {
-            newtabUrlPref = this.newtabPageCustom;
-          }
-      } 
-      Services.prefs.setCharPref("browser.newtab.url",newtabUrlPref);
-    } catch(e) { console.error(e); }
+    gNewtabUrl.newtabUrlChoiceIsSet = true;
   }
 };

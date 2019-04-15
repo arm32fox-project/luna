@@ -157,7 +157,6 @@ def old_configure_options(*options):
     '--enable-accessibility',
     '--enable-address-sanitizer',
     '--enable-alsa',
-    '--enable-android-omx',
     '--enable-b2g-bt',
     '--enable-b2g-camera',
     '--enable-b2g-ril',
@@ -206,7 +205,6 @@ def old_configure_options(*options):
     '--enable-nspr-build',
     '--enable-official-branding',
     '--enable-official-vendor',
-    '--enable-omx-plugin',
     '--enable-oom-breakpoint',
     '--enable-optimize',
     '--enable-parental-controls',
@@ -243,6 +241,7 @@ def old_configure_options(*options):
     '--enable-universalchardet',
     '--enable-updater',
     '--enable-url-classifier',
+    '--enable-userinfo',
     '--enable-valgrind',
     '--enable-verify-mar',
     '--enable-webrtc',
@@ -307,6 +306,10 @@ def old_configure_options(*options):
     '--enable-mapi',
     '--enable-calendar',
     '--enable-incomplete-external-linkage',
+    
+    # Below are configure flags used by Pale Moon
+    '--disable-browser-statusbar',
+    '--disable-sync',
     
     # Below are configure flags used by Basilisk
     '--disable-webextensions',

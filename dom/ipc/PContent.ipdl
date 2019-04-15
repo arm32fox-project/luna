@@ -44,7 +44,6 @@ include protocol PRemoteSpellcheckEngine;
 include protocol PWebBrowserPersistDocument;
 include protocol PWebrtcGlobal;
 include protocol PPresentation;
-include protocol PVRManager;
 include protocol PVideoDecoderManager;
 include protocol PFlyWebPublishedServer;
 include DOMTypes;
@@ -90,8 +89,6 @@ using mozilla::DataStorageType from "ipc/DataStorageIPCUtils.h";
 using mozilla::DocShellOriginAttributes from "mozilla/ipc/BackgroundUtils.h";
 using struct mozilla::layers::TextureFactoryIdentifier from "mozilla/layers/CompositorTypes.h";
 using struct mozilla::dom::FlyWebPublishOptions from "mozilla/dom/FlyWebPublishOptionsIPCSerializer.h";
-using mozilla::Telemetry::Accumulation from "mozilla/TelemetryComms.h";
-using mozilla::Telemetry::KeyedAccumulation from "mozilla/TelemetryComms.h";
 
 union ChromeRegistryItem
 {
@@ -311,7 +308,6 @@ child:
     async InitRendering(
       Endpoint<PCompositorBridgeChild> compositor,
       Endpoint<PImageBridgeChild> imageBridge,
-      Endpoint<PVRManagerChild> vr,
       Endpoint<PVideoDecoderManagerChild> video);
 
     // Re-create the rendering stack using the given endpoints. This is sent
@@ -320,7 +316,6 @@ child:
     async ReinitRendering(
       Endpoint<PCompositorBridgeChild> compositor,
       Endpoint<PImageBridgeChild> bridge,
-      Endpoint<PVRManagerChild> vr,
       Endpoint<PVideoDecoderManagerChild> video);
 
     /**
@@ -660,8 +655,6 @@ parent:
 
     sync IsSecureURI(uint32_t type, URIParams uri, uint32_t flags)
         returns (bool isSecureURI);
-
-    async AccumulateMixedContentHSTS(URIParams uri, bool active);
 
     sync GetLookAndFeelCache()
         returns (LookAndFeelInt[] lookAndFeelIntCache);
@@ -1024,12 +1017,6 @@ parent:
                                                 Principal principal);
 
      async UnstoreAndBroadcastBlobURLUnregistration(nsCString url);
-
-    /**
-     * Messages for communicating child Telemetry to the parent process
-     */
-    async AccumulateChildHistogram(Accumulation[] accumulations);
-    async AccumulateChildKeyedHistogram(KeyedAccumulation[] accumulations);
 
     sync GetA11yContentId() returns (uint32_t aContentId);
 

@@ -27,7 +27,6 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
 #include "mozilla/StartupTimeline.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/Unused.h"
 #include "Navigator.h"
 #include "URIUtils.h"
@@ -40,6 +39,7 @@
 #include "nsIDOMDocument.h"
 #include "nsIDOMElement.h"
 
+#include "nsAboutProtocolUtils.h"
 #include "nsArray.h"
 #include "nsArrayUtils.h"
 #include "nsContentSecurityManager.h"
@@ -194,7 +194,6 @@
 #include "nsSandboxFlags.h"
 #include "nsXULAppAPI.h"
 #include "nsDOMNavigationTiming.h"
-#include "nsISecurityUITelemetry.h"
 #include "nsIAppsService.h"
 #include "nsDSURIContentListener.h"
 #include "nsDocShellLoadTypes.h"
@@ -1263,6 +1262,7 @@ nsDocShell::LoadURI(nsIURI* aURI,
   nsCOMPtr<nsIURI> referrer;
   nsCOMPtr<nsIURI> originalURI;
   bool loadReplace = false;
+  bool isFromProcessingFrameAttributes = false;
   nsCOMPtr<nsIInputStream> postStream;
   nsCOMPtr<nsIInputStream> headersStream;
   nsCOMPtr<nsIPrincipal> triggeringPrincipal;
@@ -1292,6 +1292,7 @@ nsDocShell::LoadURI(nsIURI* aURI,
     aLoadInfo->GetReferrer(getter_AddRefs(referrer));
     aLoadInfo->GetOriginalURI(getter_AddRefs(originalURI));
     aLoadInfo->GetLoadReplace(&loadReplace);
+    aLoadInfo->GetIsFromProcessingFrameAttributes(&isFromProcessingFrameAttributes);
     nsDocShellInfoLoadType lt = nsIDocShellLoadInfo::loadNormal;
     aLoadInfo->GetLoadType(&lt);
     // Get the appropriate loadType from nsIDocShellLoadInfo type
@@ -1571,6 +1572,7 @@ nsDocShell::LoadURI(nsIURI* aURI,
   return InternalLoad(aURI,
                       originalURI,
                       loadReplace,
+                      isFromProcessingFrameAttributes,
                       referrer,
                       referrerPolicy,
                       triggeringPrincipal,
@@ -1972,71 +1974,7 @@ nsDocShell::GetCharset(nsACString& aCharset)
 NS_IMETHODIMP
 nsDocShell::GatherCharsetMenuTelemetry()
 {
-  nsCOMPtr<nsIContentViewer> viewer;
-  GetContentViewer(getter_AddRefs(viewer));
-  if (!viewer) {
-    return NS_OK;
-  }
-
-  nsIDocument* doc = viewer->GetDocument();
-  if (!doc || doc->WillIgnoreCharsetOverride()) {
-    return NS_OK;
-  }
-
-  Telemetry::Accumulate(Telemetry::CHARSET_OVERRIDE_USED, true);
-
-  bool isFileURL = false;
-  nsIURI* url = doc->GetOriginalURI();
-  if (url) {
-    url->SchemeIs("file", &isFileURL);
-  }
-
-  int32_t charsetSource = doc->GetDocumentCharacterSetSource();
-  switch (charsetSource) {
-    case kCharsetFromTopLevelDomain:
-      // Unlabeled doc on a domain that we map to a fallback encoding
-      Telemetry::Accumulate(Telemetry::CHARSET_OVERRIDE_SITUATION, 7);
-      break;
-    case kCharsetFromFallback:
-    case kCharsetFromDocTypeDefault:
-    case kCharsetFromCache:
-    case kCharsetFromParentFrame:
-    case kCharsetFromHintPrevDoc:
-      // Changing charset on an unlabeled doc.
-      if (isFileURL) {
-        Telemetry::Accumulate(Telemetry::CHARSET_OVERRIDE_SITUATION, 0);
-      } else {
-        Telemetry::Accumulate(Telemetry::CHARSET_OVERRIDE_SITUATION, 1);
-      }
-      break;
-    case kCharsetFromAutoDetection:
-      // Changing charset on unlabeled doc where chardet fired
-      if (isFileURL) {
-        Telemetry::Accumulate(Telemetry::CHARSET_OVERRIDE_SITUATION, 2);
-      } else {
-        Telemetry::Accumulate(Telemetry::CHARSET_OVERRIDE_SITUATION, 3);
-      }
-      break;
-    case kCharsetFromMetaPrescan:
-    case kCharsetFromMetaTag:
-    case kCharsetFromChannel:
-      // Changing charset on a doc that had a charset label.
-      Telemetry::Accumulate(Telemetry::CHARSET_OVERRIDE_SITUATION, 4);
-      break;
-    case kCharsetFromParentForced:
-    case kCharsetFromUserForced:
-      // Changing charset on a document that already had an override.
-      Telemetry::Accumulate(Telemetry::CHARSET_OVERRIDE_SITUATION, 5);
-      break;
-    case kCharsetFromIrreversibleAutoDetection:
-    case kCharsetFromOtherComponent:
-    case kCharsetFromByteOrderMark:
-    case kCharsetUninitialized:
-    default:
-      // Bug. This isn't supposed to happen.
-      Telemetry::Accumulate(Telemetry::CHARSET_OVERRIDE_SITUATION, 6);
-      break;
-  }
+  /* STUB */
   return NS_OK;
 }
 
@@ -5046,24 +4984,11 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI* aURI,
           cssClass.AssignLiteral("badStsCert");
         }
 
-        uint32_t bucketId;
-        if (isStsHost) {
-          // measuring STS separately allows us to measure click through
-          // rates easily
-          bucketId = nsISecurityUITelemetry::WARNING_BAD_CERT_TOP_STS;
-        } else {
-          bucketId = nsISecurityUITelemetry::WARNING_BAD_CERT_TOP;
-        }
-
         // See if an alternate cert error page is registered
         nsAdoptingCString alternateErrorPage =
           Preferences::GetCString("security.alternate_certificate_error_page");
         if (alternateErrorPage) {
           errorPage.Assign(alternateErrorPage);
-        }
-
-        if (!IsFrame() && errorPage.EqualsIgnoreCase("certerror")) {
-          Telemetry::Accumulate(mozilla::Telemetry::SECURITY_UI, bucketId);
         }
 
       } else {
@@ -5086,27 +5011,12 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI* aURI,
       errorPage.Assign(alternateErrorPage);
     }
 
-    uint32_t bucketId;
-    bool sendTelemetry = false;
     if (NS_ERROR_PHISHING_URI == aError) {
-      sendTelemetry = true;
       error.AssignLiteral("deceptiveBlocked");
-      bucketId = IsFrame() ? nsISecurityUITelemetry::WARNING_PHISHING_PAGE_FRAME
-                           : nsISecurityUITelemetry::WARNING_PHISHING_PAGE_TOP;
     } else if (NS_ERROR_MALWARE_URI == aError) {
-      sendTelemetry = true;
       error.AssignLiteral("malwareBlocked");
-      bucketId = IsFrame() ? nsISecurityUITelemetry::WARNING_MALWARE_PAGE_FRAME
-                           : nsISecurityUITelemetry::WARNING_MALWARE_PAGE_TOP;
     } else if (NS_ERROR_UNWANTED_URI == aError) {
-      sendTelemetry = true;
       error.AssignLiteral("unwantedBlocked");
-      bucketId = IsFrame() ? nsISecurityUITelemetry::WARNING_UNWANTED_PAGE_FRAME
-                           : nsISecurityUITelemetry::WARNING_UNWANTED_PAGE_TOP;
-    }
-
-    if (sendTelemetry && errorPage.EqualsIgnoreCase("blocked")) {
-      Telemetry::Accumulate(Telemetry::SECURITY_UI, bucketId);
     }
 
     cssClass.AssignLiteral("blacklist");
@@ -5412,8 +5322,8 @@ nsDocShell::LoadErrorPage(nsIURI* aURI, const char16_t* aURL,
   rv = NS_NewURI(getter_AddRefs(errorPageURI), errorPageUrl);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return InternalLoad(errorPageURI, nullptr, false, nullptr,
-                      mozilla::net::RP_Default,
+  return InternalLoad(errorPageURI, nullptr, false, false,
+                      nullptr, mozilla::net::RP_Default,
                       nsContentUtils::GetSystemPrincipal(), nullptr,
                       INTERNAL_LOAD_FLAGS_NONE, EmptyString(),
                       nullptr, NullString(), nullptr, nullptr, LOAD_ERROR_PAGE,
@@ -5499,6 +5409,7 @@ nsDocShell::Reload(uint32_t aReloadFlags)
     rv = InternalLoad(currentURI,
                       originalURI,
                       loadReplace,
+                      false,           // Is from processing frame attributes
                       referrerURI,
                       referrerPolicy,
                       triggeringPrincipal,
@@ -7622,8 +7533,6 @@ nsDocShell::EndPageLoad(nsIWebProgress* aProgress,
     TimeStamp channelCreationTime;
     rv = timingChannel->GetChannelCreation(&channelCreationTime);
     if (NS_SUCCEEDED(rv) && !channelCreationTime.IsNull()) {
-      Telemetry::AccumulateTimeDelta(Telemetry::TOTAL_CONTENT_PAGE_LOAD_TIME,
-                                     channelCreationTime);
       nsCOMPtr<nsPILoadGroupInternal> internalLoadGroup =
         do_QueryInterface(mLoadGroup);
       if (internalLoadGroup) {
@@ -9652,6 +9561,7 @@ class InternalLoadEvent : public Runnable
 public:
   InternalLoadEvent(nsDocShell* aDocShell, nsIURI* aURI,
                     nsIURI* aOriginalURI, bool aLoadReplace,
+                    bool aIsFromProcessingFrameAttributes,
                     nsIURI* aReferrer, uint32_t aReferrerPolicy,
                     nsIPrincipal* aTriggeringPrincipal,
                     nsIPrincipal* aPrincipalToInherit, uint32_t aFlags,
@@ -9665,6 +9575,7 @@ public:
     , mURI(aURI)
     , mOriginalURI(aOriginalURI)
     , mLoadReplace(aLoadReplace)
+    , mIsFromProcessingFrameAttributes(aIsFromProcessingFrameAttributes)
     , mReferrer(aReferrer)
     , mReferrerPolicy(aReferrerPolicy)
     , mTriggeringPrincipal(aTriggeringPrincipal)
@@ -9689,6 +9600,7 @@ public:
   {
     return mDocShell->InternalLoad(mURI, mOriginalURI,
                                    mLoadReplace,
+                                   mIsFromProcessingFrameAttributes,
                                    mReferrer,
                                    mReferrerPolicy,
                                    mTriggeringPrincipal, mPrincipalToInherit,
@@ -9709,6 +9621,7 @@ private:
   nsCOMPtr<nsIURI> mURI;
   nsCOMPtr<nsIURI> mOriginalURI;
   bool mLoadReplace;
+  bool mIsFromProcessingFrameAttributes;
   nsCOMPtr<nsIURI> mReferrer;
   uint32_t mReferrerPolicy;
   nsCOMPtr<nsIPrincipal> mTriggeringPrincipal;
@@ -9777,6 +9690,7 @@ NS_IMETHODIMP
 nsDocShell::InternalLoad(nsIURI* aURI,
                          nsIURI* aOriginalURI,
                          bool aLoadReplace,
+                         bool aIsFromProcessingFrameAttributes,
                          nsIURI* aReferrer,
                          uint32_t aReferrerPolicy,
                          nsIPrincipal* aTriggeringPrincipal,
@@ -10079,6 +9993,7 @@ nsDocShell::InternalLoad(nsIURI* aURI,
                                     INTERNAL_LOAD_FLAGS_DONT_SEND_REFERRER));
         loadInfo->SetOriginalURI(aOriginalURI);
         loadInfo->SetLoadReplace(aLoadReplace);
+        loadInfo->SetIsFromProcessingFrameAttributes(aIsFromProcessingFrameAttributes);
         loadInfo->SetTriggeringPrincipal(aTriggeringPrincipal);
         loadInfo->SetInheritPrincipal(
           aFlags & INTERNAL_LOAD_FLAGS_INHERIT_PRINCIPAL);
@@ -10127,6 +10042,7 @@ nsDocShell::InternalLoad(nsIURI* aURI,
       rv = targetDocShell->InternalLoad(aURI,
                                         aOriginalURI,
                                         aLoadReplace,
+                                        aIsFromProcessingFrameAttributes,
                                         aReferrer,
                                         aReferrerPolicy,
                                         aTriggeringPrincipal,
@@ -10209,6 +10125,7 @@ nsDocShell::InternalLoad(nsIURI* aURI,
       // Do this asynchronously
       nsCOMPtr<nsIRunnable> ev =
         new InternalLoadEvent(this, aURI, aOriginalURI, aLoadReplace,
+                              aIsFromProcessingFrameAttributes,
                               aReferrer, aReferrerPolicy,
                               aTriggeringPrincipal, principalToInherit,
                               aFlags, aTypeHint, aPostData, aHeadersData,
@@ -10735,7 +10652,8 @@ nsDocShell::InternalLoad(nsIURI* aURI,
                         nsINetworkPredictor::PREDICT_LOAD, this, nullptr);
 
   nsCOMPtr<nsIRequest> req;
-  rv = DoURILoad(aURI, aOriginalURI, aLoadReplace, loadFromExternal,
+  rv = DoURILoad(aURI, aOriginalURI, aLoadReplace, 
+                 aIsFromProcessingFrameAttributes, loadFromExternal,
                  (aFlags & INTERNAL_LOAD_FLAGS_FORCE_ALLOW_DATA_URI),
                  aReferrer,
                  !(aFlags & INTERNAL_LOAD_FLAGS_DONT_SEND_REFERRER),
@@ -10817,6 +10735,7 @@ nsresult
 nsDocShell::DoURILoad(nsIURI* aURI,
                       nsIURI* aOriginalURI,
                       bool aLoadReplace,
+                      bool aIsFromProcessingFrameAttributes,
                       bool aLoadFromExternal,
                       bool aForceAllowDataURI,
                       nsIURI* aReferrerURI,
@@ -10977,7 +10896,7 @@ nsDocShell::DoURILoad(nsIURI* aURI,
     securityFlags |= nsILoadInfo::SEC_SANDBOXED;
   }
 
-  nsCOMPtr<nsILoadInfo> loadInfo =
+  RefPtr<LoadInfo> loadInfo =
     (aContentPolicyType == nsIContentPolicy::TYPE_DOCUMENT) ?
       new LoadInfo(loadingWindow, aTriggeringPrincipal, topLevelLoadingContext,
                    securityFlags) :
@@ -11001,6 +10920,10 @@ nsDocShell::DoURILoad(nsIURI* aURI,
   rv = loadInfo->SetOriginAttributes(neckoAttrs);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
+  }
+
+  if (aIsFromProcessingFrameAttributes) {
+    loadInfo->SetIsFromProcessingFrameAttributes();
   }
 
   if (!isSrcdoc) {
@@ -12281,7 +12204,9 @@ nsDocShell::ShouldAddToSessionHistory(nsIURI* aURI)
       return false;
     }
 
-    if (buf.EqualsLiteral("blank") || buf.EqualsLiteral("newtab")) {
+    if (buf.EqualsLiteral("blank") || buf.EqualsLiteral("logopage") ||
+        (buf.EqualsLiteral("newtab") &&
+         !Preferences::GetBool("browser.newtabpage.add_to_session_history", false))) {
       return false;
     }
   }
@@ -12653,6 +12578,7 @@ nsDocShell::LoadHistoryEntry(nsISHEntry* aEntry, uint32_t aLoadType)
   rv = InternalLoad(uri,
                     originalURI,
                     loadReplace,
+                    false,              // Is from processing frame attributes
                     referrerURI,
                     referrerPolicy,
                     triggeringPrincipal,
@@ -14156,6 +14082,7 @@ nsDocShell::OnLinkClickSync(nsIContent* aContent,
   nsresult rv = InternalLoad(clonedURI,                 // New URI
                              nullptr,                   // Original URI
                              false,                     // LoadReplace
+                             false,                     // From frame attributes
                              referer,                   // Referer URI
                              refererPolicy,             // Referer policy
                              triggeringPrincipal,

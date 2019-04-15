@@ -12,6 +12,8 @@
 #include "mozilla/SizePrintfMacros.h"
 #include "mozilla/Sprintf.h"
 
+#include <new>
+
 #include "jsapi.h"
 #include "jscntxt.h"
 #include "jsgc.h"
@@ -859,10 +861,8 @@ TypeSet::IsTypeAboutToBeFinalized(TypeSet::Type* v)
 }
 
 bool
-TypeSet::clone(LifoAlloc* alloc, TemporaryTypeSet* result) const
+TypeSet::cloneIntoUninitialized(LifoAlloc* alloc, TemporaryTypeSet* result) const
 {
-    MOZ_ASSERT(result->empty());
-
     unsigned objectCount = baseObjectCount();
     unsigned capacity = (objectCount >= 2) ? TypeHashSet::Capacity(objectCount) : 0;
 
@@ -874,15 +874,15 @@ TypeSet::clone(LifoAlloc* alloc, TemporaryTypeSet* result) const
         PodCopy(newSet, objectSet, capacity);
     }
 
-    new(result) TemporaryTypeSet(flags, capacity ? newSet : objectSet);
+    new (result) TemporaryTypeSet(flags, capacity ? newSet : objectSet);
     return true;
 }
 
 TemporaryTypeSet*
 TypeSet::clone(LifoAlloc* alloc) const
 {
-    TemporaryTypeSet* res = alloc->new_<TemporaryTypeSet>();
-    if (!res || !clone(alloc, res))
+    TemporaryTypeSet* res = alloc->pod_malloc<TemporaryTypeSet>();
+    if (!res || !cloneIntoUninitialized(alloc, res))
         return nullptr;
     return res;
 }
@@ -1150,10 +1150,9 @@ TypeScript::FreezeTypeSets(CompilerConstraintList* constraints, JSScript* script
     TemporaryTypeSet* types = alloc->newArrayUninitialized<TemporaryTypeSet>(count);
     if (!types)
         return false;
-    PodZero(types, count);
 
     for (size_t i = 0; i < count; i++) {
-        if (!existing[i].clone(alloc, &types[i]))
+        if (!existing[i].cloneIntoUninitialized(alloc, &types[i]))
             return false;
     }
 
@@ -3604,6 +3603,10 @@ TypeNewScript::make(JSContext* cx, ObjectGroup* group, JSFunction* fun)
     MOZ_ASSERT(!group->newScript());
     MOZ_ASSERT(!group->maybeUnboxedLayout());
 
+    // rollbackPartiallyInitializedObjects expects function_ to be
+    // canonicalized.
+    MOZ_ASSERT(fun->maybeCanonicalFunction() == fun);
+
     if (group->unknownProperties())
         return true;
 
@@ -3959,8 +3962,15 @@ TypeNewScript::rollbackPartiallyInitializedObjects(JSContext* cx, ObjectGroup* g
                 oomUnsafe.crash("rollbackPartiallyInitializedObjects");
         }
 
-        if (!iter.isConstructing() || !iter.matchCallee(cx, function))
+        if (!iter.isConstructing()) {
             continue;
+        }
+
+        MOZ_ASSERT(iter.calleeTemplate()->maybeCanonicalFunction());
+
+        if (iter.calleeTemplate()->maybeCanonicalFunction() != function) {
+            continue;
+        }
 
         // Derived class constructors initialize their this-binding later and
         // we shouldn't run the definite properties analysis on them.

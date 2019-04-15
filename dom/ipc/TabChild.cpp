@@ -107,7 +107,6 @@
 #include "nsDeviceContext.h"
 #include "nsSandboxFlags.h"
 #include "FrameLayerBuilder.h"
-#include "VRManagerChild.h"
 #include "nsICommandParams.h"
 #include "nsISHistory.h"
 #include "nsQueryObject.h"
@@ -177,7 +176,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(TabChildBase)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mTabChildGlobal)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mGlobal)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mWebBrowserChrome)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
@@ -2395,7 +2393,6 @@ TabChild::RecvSetDocShellIsActive(const bool& aIsActive,
         root->SchedulePaint();
       }
 
-      Telemetry::AutoTimer<Telemetry::TABCHILD_PAINT_TIME> timer;
       // If we need to repaint, let's do that right away. No sense waiting until
       // we get back to the event loop again. We suppress the display port so that
       // we only paint what's visible. This ensures that the tab we're switching
@@ -2566,7 +2563,6 @@ TabChild::InitRenderingState(const TextureFactoryIdentifier& aTextureFactoryIden
       lf->SetShadowManager(shadowManager);
       lf->IdentifyTextureHost(mTextureFactoryIdentifier);
       ImageBridgeChild::IdentifyCompositorTextureHost(mTextureFactoryIdentifier);
-      gfx::VRManagerChild::IdentifyTextureHost(mTextureFactoryIdentifier);
     }
 
     mRemoteFrame = remoteFrame;

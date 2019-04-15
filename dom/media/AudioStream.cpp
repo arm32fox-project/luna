@@ -14,7 +14,6 @@
 #include "mozilla/Mutex.h"
 #include "mozilla/Sprintf.h"
 #include <algorithm>
-#include "mozilla/Telemetry.h"
 #include "CubebUtils.h"
 #include "nsPrintfCString.h"
 #include "gfxPrefs.h"
@@ -346,7 +345,6 @@ AudioStream::Init(uint32_t aNumChannels, uint32_t aRate,
   cubeb* cubebContext = CubebUtils::GetCubebContext();
   if (!cubebContext) {
     NS_WARNING("Can't get cubeb context!");
-    CubebUtils::ReportCubebStreamInitFailure(true);
     return NS_ERROR_DOM_MEDIA_CUBEB_INITIALIZATION_ERR;
   }
 
@@ -368,18 +366,14 @@ AudioStream::OpenCubeb(cubeb* aContext, cubeb_stream_params& aParams,
                         latency_frames,
                         DataCallback_S, StateCallback_S, this) == CUBEB_OK) {
     mCubebStream.reset(stream);
-    CubebUtils::ReportCubebBackendUsed();
   } else {
     NS_WARNING(nsPrintfCString("AudioStream::OpenCubeb() %p failed to init cubeb", this).get());
-    CubebUtils::ReportCubebStreamInitFailure(aIsFirst);
     return NS_ERROR_FAILURE;
   }
 
   TimeDuration timeDelta = TimeStamp::Now() - aStartTime;
   LOG("creation time %sfirst: %u ms", aIsFirst ? "" : "not ",
       (uint32_t) timeDelta.ToMilliseconds());
-  Telemetry::Accumulate(aIsFirst ? Telemetry::AUDIOSTREAM_FIRST_OPEN_MS :
-      Telemetry::AUDIOSTREAM_LATER_OPEN_MS, timeDelta.ToMilliseconds());
 
   return NS_OK;
 }

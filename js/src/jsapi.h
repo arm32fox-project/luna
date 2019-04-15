@@ -2154,6 +2154,13 @@ namespace JS {
 extern JS_PUBLIC_API(bool)
 OrdinaryHasInstance(JSContext* cx, HandleObject objArg, HandleValue v, bool* bp);
 
+// Implementation of
+// https://www.ecma-international.org/ecma-262/6.0/#sec-instanceofoperator
+// This is almost identical to JS_HasInstance, except the latter may call a
+// custom hasInstance class op instead of InstanceofOperator.
+extern JS_PUBLIC_API(bool)
+InstanceofOperator(JSContext* cx, HandleObject obj, HandleValue v, bool* bp);
+
 } // namespace JS
 
 extern JS_PUBLIC_API(void*)
@@ -2917,7 +2924,7 @@ JS_GetOwnPropertyDescriptor(JSContext* cx, JS::HandleObject obj, const char* nam
                             JS::MutableHandle<JS::PropertyDescriptor> desc);
 
 extern JS_PUBLIC_API(bool)
-JS_GetOwnUCPropertyDescriptor(JSContext* cx, JS::HandleObject obj, const char16_t* name,
+JS_GetOwnUCPropertyDescriptor(JSContext* cx, JS::HandleObject obj, const char16_t* name, size_t namelen,
                               JS::MutableHandle<JS::PropertyDescriptor> desc);
 
 /**
@@ -2933,6 +2940,10 @@ JS_GetPropertyDescriptorById(JSContext* cx, JS::HandleObject obj, JS::HandleId i
 extern JS_PUBLIC_API(bool)
 JS_GetPropertyDescriptor(JSContext* cx, JS::HandleObject obj, const char* name,
                          JS::MutableHandle<JS::PropertyDescriptor> desc);
+
+extern JS_PUBLIC_API(bool)
+JS_GetUCPropertyDescriptor(JSContext* cx, JS::HandleObject obj, const char16_t* name, size_t namelen,
+                           JS::MutableHandle<JS::PropertyDescriptor> desc);
 
 /**
  * Define a property on obj.
@@ -5772,19 +5783,20 @@ JS_SetParallelParsingEnabled(JSContext* cx, bool enabled);
 extern JS_PUBLIC_API(void)
 JS_SetOffthreadIonCompilationEnabled(JSContext* cx, bool enabled);
 
-#define JIT_COMPILER_OPTIONS(Register)                                     \
-    Register(BASELINE_WARMUP_TRIGGER, "baseline.warmup.trigger")           \
-    Register(ION_WARMUP_TRIGGER, "ion.warmup.trigger")                     \
-    Register(ION_GVN_ENABLE, "ion.gvn.enable")                             \
-    Register(ION_FORCE_IC, "ion.forceinlineCaches")                        \
-    Register(ION_ENABLE, "ion.enable")                                     \
+#define JIT_COMPILER_OPTIONS(Register)                                      \
+    Register(BASELINE_WARMUP_TRIGGER, "baseline.warmup.trigger")            \
+    Register(ION_WARMUP_TRIGGER, "ion.warmup.trigger")                      \
+    Register(ION_GVN_ENABLE, "ion.gvn.enable")                              \
+    Register(ION_FORCE_IC, "ion.forceinlineCaches")                         \
+    Register(ION_ENABLE, "ion.enable")                                      \
     Register(ION_INTERRUPT_WITHOUT_SIGNAL, "ion.interrupt-without-signals") \
-    Register(ION_CHECK_RANGE_ANALYSIS, "ion.check-range-analysis")         \
-    Register(BASELINE_ENABLE, "baseline.enable")                           \
-    Register(OFFTHREAD_COMPILATION_ENABLE, "offthread-compilation.enable") \
-    Register(JUMP_THRESHOLD, "jump-threshold")                             \
-    Register(ASMJS_ATOMICS_ENABLE, "asmjs.atomics.enable")                 \
-    Register(WASM_TEST_MODE, "wasm.test-mode")                             \
+    Register(ION_CHECK_RANGE_ANALYSIS, "ion.check-range-analysis")          \
+    Register(BASELINE_ENABLE, "baseline.enable")                            \
+    Register(OFFTHREAD_COMPILATION_ENABLE, "offthread-compilation.enable")  \
+    Register(JUMP_THRESHOLD, "jump-threshold")                              \
+    Register(UNBOXED_OBJECTS, "unboxed_objects")                            \
+    Register(ASMJS_ATOMICS_ENABLE, "asmjs.atomics.enable")                  \
+    Register(WASM_TEST_MODE, "wasm.test-mode")                              \
     Register(WASM_FOLD_OFFSETS, "wasm.fold-offsets")
 
 typedef enum JSJitCompilerOption {
@@ -6562,7 +6574,7 @@ struct JS_PUBLIC_API(PerformanceGroup) {
     uint64_t refCount_;
 };
 
-using PerformanceGroupVector = mozilla::Vector<RefPtr<js::PerformanceGroup>, 0, SystemAllocPolicy>;
+using PerformanceGroupVector = mozilla::Vector<RefPtr<js::PerformanceGroup>, 8, SystemAllocPolicy>;
 
 /**
  * Commit any Performance Monitoring data.
@@ -6600,10 +6612,6 @@ extern JS_PUBLIC_API(bool)
 SetStopwatchIsMonitoringJank(JSContext*, bool);
 extern JS_PUBLIC_API(bool)
 GetStopwatchIsMonitoringJank(JSContext*);
-
-// Extract the CPU rescheduling data.
-extern JS_PUBLIC_API(void)
-GetPerfMonitoringTestCpuRescheduling(JSContext*, uint64_t* stayed, uint64_t* moved);
 
 
 /**

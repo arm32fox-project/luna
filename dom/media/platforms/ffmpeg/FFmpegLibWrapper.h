@@ -5,6 +5,7 @@
 #ifndef __FFmpegLibWrapper_h__
 #define __FFmpegLibWrapper_h__
 
+#include "mozilla/Attributes.h"
 #include "mozilla/Types.h"
 
 struct AVCodec;
@@ -69,6 +70,10 @@ struct FFmpegLibWrapper
   void (*avcodec_get_frame_defaults)(AVFrame* pic);
   // libavcodec v54 only
   void (*avcodec_free_frame)(AVFrame** frame);
+
+  // libavcodec v58 and later only
+  int (*avcodec_send_packet)(AVCodecContext* avctx, const AVPacket* avpkt);
+  int (*avcodec_receive_frame)(AVCodecContext* avctx, AVFrame* frame);
 
   // libavutil
   void (*av_log_set_level)(int level);

@@ -170,7 +170,6 @@
 #include "mozilla/css/ImageLoader.h"
 #include "mozilla/dom/DocumentTimeline.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/Telemetry.h"
 #include "nsCanvasFrame.h"
 #include "nsIImageLoadingContent.h"
 #include "nsImageFrame.h"
@@ -1109,21 +1108,6 @@ PresShell::Destroy()
     tp->Accumulate();
     if (tp->cumulative.numChars > 0) {
       LogTextPerfStats(tp, this, tp->cumulative, 0.0, eLog_totals, nullptr);
-    }
-  }
-  if (mPresContext) {
-    const bool mayFlushUserFontSet = false;
-    gfxUserFontSet* fs = mPresContext->GetUserFontSet(mayFlushUserFontSet);
-    if (fs) {
-      uint32_t fontCount;
-      uint64_t fontSize;
-      fs->GetLoadStatistics(fontCount, fontSize);
-      Telemetry::Accumulate(Telemetry::WEBFONT_PER_PAGE, fontCount);
-      Telemetry::Accumulate(Telemetry::WEBFONT_SIZE_PER_PAGE,
-                            uint32_t(fontSize/1024));
-    } else {
-      Telemetry::Accumulate(Telemetry::WEBFONT_PER_PAGE, 0);
-      Telemetry::Accumulate(Telemetry::WEBFONT_SIZE_PER_PAGE, 0);
     }
   }
 
@@ -2276,8 +2260,6 @@ PresShell::ScrollPage(bool aForward)
   nsIScrollableFrame* scrollFrame =
     GetFrameToScrollAsScrollable(nsIPresShell::eVertical);
   if (scrollFrame) {
-    mozilla::Telemetry::Accumulate(mozilla::Telemetry::SCROLL_INPUT_METHODS,
-        (uint32_t) ScrollInputMethod::MainThreadScrollPage);
     scrollFrame->ScrollBy(nsIntPoint(0, aForward ? 1 : -1),
                           nsIScrollableFrame::PAGES,
                           nsIScrollableFrame::SMOOTH,
@@ -2294,9 +2276,6 @@ PresShell::ScrollLine(bool aForward)
   nsIScrollableFrame* scrollFrame =
     GetFrameToScrollAsScrollable(nsIPresShell::eVertical);
   if (scrollFrame) {
-    mozilla::Telemetry::Accumulate(mozilla::Telemetry::SCROLL_INPUT_METHODS,
-        (uint32_t) ScrollInputMethod::MainThreadScrollLine);
-
     int32_t lineCount = Preferences::GetInt("toolkit.scrollbox.verticalScrollDistance",
                                             NS_DEFAULT_VERTICAL_SCROLL_DISTANCE);
     scrollFrame->ScrollBy(nsIntPoint(0, aForward ? lineCount : -lineCount),
@@ -2315,8 +2294,6 @@ PresShell::ScrollCharacter(bool aRight)
   nsIScrollableFrame* scrollFrame =
     GetFrameToScrollAsScrollable(nsIPresShell::eHorizontal);
   if (scrollFrame) {
-    mozilla::Telemetry::Accumulate(mozilla::Telemetry::SCROLL_INPUT_METHODS,
-        (uint32_t) ScrollInputMethod::MainThreadScrollCharacter);
     int32_t h = Preferences::GetInt("toolkit.scrollbox.horizontalScrollDistance",
                                     NS_DEFAULT_HORIZONTAL_SCROLL_DISTANCE);
     scrollFrame->ScrollBy(nsIntPoint(aRight ? h : -h, 0),
@@ -2335,8 +2312,6 @@ PresShell::CompleteScroll(bool aForward)
   nsIScrollableFrame* scrollFrame =
     GetFrameToScrollAsScrollable(nsIPresShell::eVertical);
   if (scrollFrame) {
-    mozilla::Telemetry::Accumulate(mozilla::Telemetry::SCROLL_INPUT_METHODS,
-        (uint32_t) ScrollInputMethod::MainThreadCompleteScroll);
     scrollFrame->ScrollBy(nsIntPoint(0, aForward ? 1 : -1),
                           nsIScrollableFrame::WHOLE,
                           nsIScrollableFrame::SMOOTH,
@@ -7321,11 +7296,11 @@ PresShell::HandleEvent(nsIFrame* aFrame,
     return NS_OK;
   }
 
-  nsIContent* capturingContent = ((aEvent->mClass == ePointerEventClass ||
-                                   aEvent->mClass == eWheelEventClass ||
-                                   aEvent->HasMouseEventMessage())
-                                 ? GetCapturingContent()
-                                 : nullptr);
+  nsCOMPtr<nsIContent> capturingContent = ((aEvent->mClass == ePointerEventClass ||
+                                            aEvent->mClass == eWheelEventClass ||
+                                            aEvent->HasMouseEventMessage())
+                                          ? GetCapturingContent()
+                                          : nullptr);
 
   nsCOMPtr<nsIDocument> retargetEventDoc;
   if (!aDontRetargetEvents) {
@@ -8228,16 +8203,6 @@ PresShell::HandleEventInternal(WidgetEvent* aEvent,
       break;
     default:
       break;
-    }
-  }
-
-  if (Telemetry::CanRecordBase() &&
-      !aEvent->mTimeStamp.IsNull() &&
-      aEvent->AsInputEvent()) {
-    double millis = (TimeStamp::Now() - aEvent->mTimeStamp).ToMilliseconds();
-    Telemetry::Accumulate(Telemetry::INPUT_EVENT_RESPONSE_MS, millis);
-    if (mDocument && mDocument->GetReadyStateEnum() != nsIDocument::READYSTATE_COMPLETE) {
-      Telemetry::Accumulate(Telemetry::LOAD_INPUT_EVENT_RESPONSE_MS, millis);
     }
   }
 
@@ -9428,9 +9393,6 @@ PresShell::DoVerifyReflow()
 }
 #endif
 
-// used with Telemetry metrics
-#define NS_LONG_REFLOW_TIME_MS    5000
-
 bool
 PresShell::ProcessReflowCommands(bool aInterruptible)
 {
@@ -9439,7 +9401,6 @@ PresShell::ProcessReflowCommands(bool aInterruptible)
     return true;
   }
 
-  mozilla::TimeStamp timerStart = mozilla::TimeStamp::Now();
   bool interrupted = false;
   if (!mDirtyRoots.IsEmpty()) {
 
@@ -9520,16 +9481,6 @@ PresShell::ProcessReflowCommands(bool aInterruptible)
     // waiting we avoid an overeager "jitter" effect.
     mShouldUnsuppressPainting = false;
     UnsuppressAndInvalidate();
-  }
-
-  if (mDocument->GetRootElement()) {
-    TimeDuration elapsed = TimeStamp::Now() - timerStart;
-    int32_t intElapsed = int32_t(elapsed.ToMilliseconds());
-
-    if (intElapsed > NS_LONG_REFLOW_TIME_MS) {
-      Telemetry::Accumulate(Telemetry::LONG_REFLOW_INTERRUPTIBLE,
-                            aInterruptible ? 1 : 0);
-    }
   }
 
   return !interrupted;

@@ -288,6 +288,12 @@ CallerGetterImpl(JSContext* cx, const CallArgs& args)
             return true;
         }
 
+        if (JS_IsDeadWrapper(callerObj)) {
+            JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr,
+                                      JSMSG_DEAD_OBJECT);
+            return false;
+        }
+
         JSFunction* callerFun = &callerObj->as<JSFunction>();
         MOZ_ASSERT(!callerFun->isBuiltin(), "non-builtin iterator returned a builtin?");
 
@@ -314,54 +320,14 @@ CallerSetterImpl(JSContext* cx, const CallArgs& args)
 {
     MOZ_ASSERT(IsFunction(args.thisv()));
 
-    // Beware!  This function can be invoked on *any* function!  It can't
-    // assume it'll never be invoked on natives, strict mode functions, bound
-    // functions, or anything else that ordinarily has immutable .caller
-    // defined with [[ThrowTypeError]].
-    RootedFunction fun(cx, &args.thisv().toObject().as<JSFunction>());
-    if (!CallerRestrictions(cx, fun))
-        return false;
+    // We just have to return |undefined|, but first we call CallerGetterImpl
+    // because we need the same strict-mode and security checks.
 
-    // Return |undefined| unless an error must be thrown.
+    if (!CallerGetterImpl(cx, args)) {
+        return false;
+    }
+
     args.rval().setUndefined();
-
-    // We can almost just return |undefined| here -- but if the caller function
-    // was strict mode code, we still have to throw a TypeError.  This requires
-    // computing the caller, checking that no security boundaries are crossed,
-    // and throwing a TypeError if the resulting caller is strict.
-
-    NonBuiltinScriptFrameIter iter(cx);
-    if (!AdvanceToActiveCallLinear(cx, iter, fun))
-        return true;
-
-    ++iter;
-    while (!iter.done() && iter.isEvalFrame())
-        ++iter;
-
-    if (iter.done() || !iter.isFunctionFrame())
-        return true;
-
-    RootedObject caller(cx, iter.callee(cx));
-    if (!cx->compartment()->wrap(cx, &caller)) {
-        cx->clearPendingException();
-        return true;
-    }
-
-    // If we don't have full access to the caller, or the caller is not strict,
-    // return undefined.  Otherwise throw a TypeError.
-    JSObject* callerObj = CheckedUnwrap(caller);
-    if (!callerObj)
-        return true;
-
-    JSFunction* callerFun = &callerObj->as<JSFunction>();
-    MOZ_ASSERT(!callerFun->isBuiltin(), "non-builtin iterator returned a builtin?");
-
-    if (callerFun->strict()) {
-        JS_ReportErrorFlagsAndNumberASCII(cx, JSREPORT_ERROR, GetErrorMessage, nullptr,
-                                          JSMSG_CALLER_IS_STRICT);
-        return false;
-    }
-
     return true;
 }
 
@@ -690,7 +656,7 @@ js::fun_symbolHasInstance(JSContext* cx, unsigned argc, Value* vp)
 }
 
 /*
- * ES6 (4-25-16) 7.3.19 OrdinaryHasInstance
+ * ES6 7.3.19 OrdinaryHasInstance
  */
 bool
 JS::OrdinaryHasInstance(JSContext* cx, HandleObject objArg, HandleValue v, bool* bp)
@@ -707,7 +673,7 @@ JS::OrdinaryHasInstance(JSContext* cx, HandleObject objArg, HandleValue v, bool*
     if (obj->is<JSFunction>() && obj->isBoundFunction()) {
         /* Steps 2a-b. */
         obj = obj->as<JSFunction>().getBoundFunctionTarget();
-        return InstanceOfOperator(cx, obj, v, bp);
+        return InstanceofOperator(cx, obj, v, bp);
     }
 
     /* Step 3. */
@@ -716,12 +682,12 @@ JS::OrdinaryHasInstance(JSContext* cx, HandleObject objArg, HandleValue v, bool*
         return true;
     }
 
-    /* Step 4. */
+    /* Step 4-5. */
     RootedValue pval(cx);
     if (!GetProperty(cx, obj, obj, cx->names().prototype, &pval))
         return false;
 
-    /* Step 5. */
+    /* Step 6. */
     if (pval.isPrimitive()) {
         /*
          * Throw a runtime error if instanceof is called on a function that
@@ -732,7 +698,7 @@ JS::OrdinaryHasInstance(JSContext* cx, HandleObject objArg, HandleValue v, bool*
         return false;
     }
 
-    /* Step 6. */
+    /* Step 7. */
     RootedObject pobj(cx, &pval.toObject());
     bool isDelegate;
     if (!IsDelegate(cx, pobj, v, &isDelegate))
@@ -815,8 +781,10 @@ CreateFunctionPrototype(JSContext* cx, JSProtoKey key)
 
     RootedFunction functionProto(cx, &functionProto_->as<JSFunction>());
 
-    const char* rawSource = "() {\n}";
+    const char* rawSource = "function () {\n}";
     size_t sourceLen = strlen(rawSource);
+    size_t begin = 9;
+    MOZ_ASSERT(rawSource[begin] == '(');
     mozilla::UniquePtr<char16_t[], JS::FreePolicy> source(InflateString(cx, rawSource, &sourceLen));
     if (!source)
         return nullptr;
@@ -838,8 +806,9 @@ CreateFunctionPrototype(JSContext* cx, JSProtoKey key)
     RootedScript script(cx, JSScript::Create(cx,
                                              options,
                                              sourceObject,
-                                             0,
-                                             ss->length()));
+                                             begin,
+                                             ss->length(),
+                                             0));
     if (!script || !JSScript::initFunctionPrototype(cx, script, functionProto))
         return nullptr;
 
@@ -1019,31 +988,13 @@ js::FunctionToString(JSContext* cx, HandleFunction fun, bool prettyPrint)
         }
     }
 
-    if (fun->isAsync()) {
-        if (!out.append("async "))
-            return nullptr;
-    }
-
-    bool funIsMethodOrNonArrowLambda = (fun->isLambda() && !fun->isArrow()) || fun->isMethod() ||
-                                        fun->isGetter() || fun->isSetter();
+    bool funIsNonArrowLambda = fun->isLambda() && !fun->isArrow();
     bool haveSource = fun->isInterpreted() && !fun->isSelfHostedBuiltin();
 
-    // If we're not in pretty mode, put parentheses around lambda functions and methods.
-    if (haveSource && !prettyPrint && funIsMethodOrNonArrowLambda) {
+    // If we're not in pretty mode, put parentheses around lambda functions
+    // so that eval returns lambda, not function statement.
+    if (haveSource && !prettyPrint && funIsNonArrowLambda) {
         if (!out.append("("))
-            return nullptr;
-    }
-    if (!fun->isArrow()) {
-        bool ok;
-        if (fun->isStarGenerator() && !fun->isAsync())
-            ok = out.append("function* ");
-        else
-            ok = out.append("function ");
-        if (!ok)
-            return nullptr;
-    }
-    if (fun->explicitName()) {
-        if (!out.append(fun->explicitName()))
             return nullptr;
     }
 
@@ -1052,20 +1003,47 @@ js::FunctionToString(JSContext* cx, HandleFunction fun, bool prettyPrint)
     {
         return nullptr;
     }
+
+    auto AppendPrelude = [&out, &fun]() {
+        if (fun->isAsync()) {
+            if (!out.append("async "))
+                return false;
+        }
+
+        if (!fun->isArrow()) {
+            if (!out.append("function"))
+                return false;
+
+            if (fun->isStarGenerator()) {
+                if (!out.append('*'))
+                    return false;
+            }
+        }
+
+        if (fun->explicitName()) {
+            if (!out.append(' '))
+                return false;
+            if (!out.append(fun->explicitName()))
+                return false;
+        }
+        return true;
+    };
+
     if (haveSource) {
-        Rooted<JSFlatString*> src(cx, script->sourceData(cx));
+        Rooted<JSFlatString*> src(cx, script->sourceDataWithPrelude(cx));
         if (!src)
             return nullptr;
 
         if (!out.append(src))
             return nullptr;
 
-        if (!prettyPrint && funIsMethodOrNonArrowLambda) {
+        if (!prettyPrint && funIsNonArrowLambda) {
             if (!out.append(")"))
                 return nullptr;
         }
     } else if (fun->isInterpreted() && !fun->isSelfHostedBuiltin()) {
-        if (!out.append("() {\n    ") ||
+        if (!AppendPrelude() ||
+            !out.append("() {\n    ") ||
             !out.append("[sourceless code]") ||
             !out.append("\n}"))
         {
@@ -1076,13 +1054,15 @@ js::FunctionToString(JSContext* cx, HandleFunction fun, bool prettyPrint)
 
         bool derived = fun->infallibleIsDefaultClassConstructor(cx);
         if (derived && fun->isDerivedClassConstructor()) {
-            if (!out.append("(...args) {\n    ") ||
+            if (!AppendPrelude() ||
+                !out.append("(...args) {\n    ") ||
                 !out.append("super(...args);\n}"))
             {
                 return nullptr;
             }
         } else {
-            if (!out.append("() {\n    "))
+            if (!AppendPrelude() ||
+                !out.append("() {\n    "))
                 return nullptr;
 
             if (!derived) {
@@ -1669,7 +1649,18 @@ FunctionConstructor(JSContext* cx, const CallArgs& args, GeneratorKind generator
 
     StringBuffer sb(cx);
 
-    if (!sb.append('('))
+    if (isAsync) {
+        if (!sb.append("async "))
+            return false;
+    }
+    if (!sb.append("function"))
+         return false;
+    if (isStarGenerator && !isAsync) {
+        if (!sb.append('*'))
+            return false;
+    }
+
+    if (!sb.append(" anonymous("))
         return false;
 
     if (args.length() > 1) {
@@ -1690,11 +1681,14 @@ FunctionConstructor(JSContext* cx, const CallArgs& args, GeneratorKind generator
 
             if (i < args.length() - 2) {
                 // Step 9.d.iii.
-                if (!sb.append(", "))
+                if (!sb.append(","))
                     return false;
             }
         }
     }
+
+    if (!sb.append('\n'))
+        return false;
 
     // Remember the position of ")".
     Maybe<uint32_t> parameterListEnd = Some(uint32_t(sb.length()));

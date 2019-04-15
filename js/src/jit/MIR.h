@@ -8272,7 +8272,10 @@ class MGetFirstDollarIndex
       : MUnaryInstruction(str)
     {
         setResultType(MIRType::Int32);
-        setMovable();
+
+        // Codegen assumes string length > 0 but that's not guaranteed in RegExp.
+        // Don't allow LICM to move this.
+        MOZ_ASSERT(!isMovable());
     }
 
   public:
@@ -9907,10 +9910,6 @@ class MArraySlice
         return unboxedType_;
     }
 
-    AliasSet getAliasSet() const override {
-        return AliasSet::Store(AliasSet::BoxedOrUnboxedElements(unboxedType()) |
-                               AliasSet::ObjectFields);
-    }
     bool possiblyCalls() const override {
         return true;
     }
@@ -11834,7 +11833,8 @@ class MCallGetProperty
     AliasSet getAliasSet() const override {
         if (!idempotent_)
             return AliasSet::Store(AliasSet::Any);
-        return AliasSet::None();
+        return AliasSet::Load(AliasSet::ObjectFields | AliasSet::FixedSlot |
+                              AliasSet::DynamicSlot);
     }
     bool possiblyCalls() const override {
         return true;

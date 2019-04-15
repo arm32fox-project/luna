@@ -124,9 +124,7 @@ function defaultQuery(conditions = "") {
             h.visit_count, h.typed, h.id, t.open_count, h.frecency
      FROM moz_places h
      LEFT JOIN moz_favicons f ON f.id = h.favicon_id
-     LEFT JOIN moz_openpages_temp t
-            ON t.url = h.url
-           AND t.userContextId = :userContextId
+     LEFT JOIN moz_openpages_temp t ON t.url = h.url
      WHERE h.frecency <> 0
        AND AUTOCOMPLETE_MATCH(:searchString, h.url,
                               CASE WHEN bookmarked THEN
@@ -150,7 +148,6 @@ const SQL_SWITCHTAB_QUERY =
    FROM moz_openpages_temp t
    LEFT JOIN moz_places h ON h.url_hash = hash(t.url) AND h.url = t.url
    WHERE h.id IS NULL
-     AND t.userContextId = :userContextId
      AND AUTOCOMPLETE_MATCH(:searchString, t.url, t.url, NULL,
                             NULL, NULL, NULL, t.open_count,
                             :matchBehavior, :searchBehavior)
@@ -170,9 +167,7 @@ const SQL_ADAPTIVE_QUERY =
    ) AS i
    JOIN moz_places h ON h.id = i.place_id
    LEFT JOIN moz_favicons f ON f.id = h.favicon_id
-   LEFT JOIN moz_openpages_temp t
-          ON t.url = h.url
-         AND t.userContextId = :userContextId
+   LEFT JOIN moz_openpages_temp t ON t.url = h.url
    WHERE AUTOCOMPLETE_MATCH(NULL, h.url,
                             IFNULL(btitle, h.title), tags,
                             h.visit_count, h.typed, bookmarked,
@@ -262,8 +257,6 @@ Cu.import("resource://gre/modules/Services.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
                                   "resource://gre/modules/PlacesUtils.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "TelemetryStopwatch",
-                                  "resource://gre/modules/TelemetryStopwatch.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
                                   "resource://gre/modules/NetUtil.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Preferences",
@@ -303,17 +296,15 @@ XPCOMUtils.defineLazyServiceGetter(this, "textURIService",
 XPCOMUtils.defineLazyGetter(this, "SwitchToTabStorage", () => Object.seal({
   _conn: null,
   // Temporary queue used while the database connection is not available.
-  _queue: new Map(),
+  _queue: new Set(),
   initDatabase: Task.async(function* (conn) {
     // To reduce IO use an in-memory table for switch-to-tab tracking.
     // Note: this should be kept up-to-date with the definition in
     //       nsPlacesTables.h.
     yield conn.execute(
       `CREATE TEMP TABLE moz_openpages_temp (
-         url TEXT,
-         userContextId INTEGER,
-         open_count INTEGER,
-         PRIMARY KEY (url, userContextId)
+         url TEXT PRIMARY KEY,
+         open_count INTEGER
        )`);
 
     // Note: this should be kept up-to-date with the definition in
@@ -324,64 +315,44 @@ XPCOMUtils.defineLazyGetter(this, "SwitchToTabStorage", () => Object.seal({
        WHEN NEW.open_count = 0
        BEGIN
          DELETE FROM moz_openpages_temp
-         WHERE url = NEW.url
-           AND userContextId = NEW.userContextId;
+         WHERE url = NEW.url;
        END`);
 
     this._conn = conn;
 
     // Populate the table with the current cache contents...
-    for (let [userContextId, uris] of this._queue) {
-      for (let uri of uris) {
-        this.add(uri, userContextId);
-      }
-    }
+    this._queue.forEach(this.add, this);
 
     // ...then clear it to avoid double additions.
     this._queue.clear();
   }),
 
-  add(uri, userContextId) {
+  add: function (uri) {
     if (!this._conn) {
-      if (!this._queue.has(userContextId)) {
-        this._queue.set(userContextId, new Set());
-      }
-      this._queue.get(userContextId).add(uri);
+      this._queue.add(uri);
       return;
     }
     this._conn.executeCached(
-      `INSERT OR REPLACE INTO moz_openpages_temp (url, userContextId, open_count)
-         VALUES ( :url,
-                  :userContextId,
-                  IFNULL( ( SELECT open_count + 1
-                            FROM moz_openpages_temp
-                            WHERE url = :url
-                            AND userContextId = :userContextId ),
-                          1
-                        )
+      `INSERT OR REPLACE INTO moz_openpages_temp (url, open_count)
+         VALUES ( :url, IFNULL( (SELECT open_count + 1
+                                  FROM moz_openpages_temp
+                                  WHERE url = :url),
+                                  1
+                              )
                 )`
-    , { url: uri.spec, userContextId });
+    , { url: uri.spec });
   },
 
-  delete(uri, userContextId) {
+  delete: function (uri) {
     if (!this._conn) {
-      // This should not happen.
-      if (!this._queue.has(userContextId)) {
-        throw new Error("Unknown userContextId!");
-      }
-
-      this._queue.get(userContextId).delete(uri);
-      if (this._queue.get(userContextId).size == 0) {
-        this._queue.delete(userContextId);
-      }
+      this._queue.delete(uri);
       return;
     }
     this._conn.executeCached(
       `UPDATE moz_openpages_temp
        SET open_count = open_count - 1
-       WHERE url = :url
-       AND userContextId = :userContextId`
-    , { url: uri.spec, userContextId });
+       WHERE url = :url`
+    , { url: uri.spec });
   },
 
   shutdown: function () {
@@ -886,10 +857,6 @@ Search.prototype = {
     // A search might be canceled before it starts.
     if (!this.pending)
       return;
-
-    TelemetryStopwatch.start(TELEMETRY_1ST_RESULT, this);
-    if (this._searchString)
-      TelemetryStopwatch.start(TELEMETRY_6_FIRST_RESULTS, this);
 
     // Since we call the synchronous parseSubmissionURL function later, we must
     // wait for the initialization of PlacesSearchAutocompleteProvider first.
@@ -1468,9 +1435,6 @@ Search.prototype = {
   },
 
   _onResultRow: function (row) {
-    if (this._localMatchesCount == 0) {
-      TelemetryStopwatch.finish(TELEMETRY_1ST_RESULT, this);
-    }
     let queryType = row.getResultByIndex(QUERYINDEX_QUERYTYPE);
     let match;
     switch (queryType) {
@@ -1565,9 +1529,6 @@ Search.prototype = {
                                match.icon,
                                match.style,
                                match.finalCompleteValue);
-
-    if (this._result.matchCount == 6)
-      TelemetryStopwatch.finish(TELEMETRY_6_FIRST_RESULTS, this);
 
     this.notifyResults(true);
   },
@@ -1793,7 +1754,6 @@ Search.prototype = {
         // We only want to search the tokens that we are left with - not the
         // original search string.
         searchString: this._searchTokens.join(" "),
-        userContextId: this._userContextId,
         // Limit the query to the the maximum number of desired results.
         // This way we can avoid doing more work than needed.
         maxResults: Prefs.maxRichResults
@@ -1817,7 +1777,6 @@ Search.prototype = {
         // We only want to search the tokens that we are left with - not the
         // original search string.
         searchString: this._searchTokens.join(" "),
-        userContextId: this._userContextId,
         maxResults: Prefs.maxRichResults
       }
     ];
@@ -1837,8 +1796,7 @@ Search.prototype = {
         search_string: this._searchString,
         query_type: QUERYTYPE_FILTERED,
         matchBehavior: this._matchBehavior,
-        searchBehavior: this._behavior,
-        userContextId: this._userContextId,
+        searchBehavior: this._behavior
       }
     ];
   },
@@ -2022,12 +1980,12 @@ UnifiedComplete.prototype = {
 
   // mozIPlacesAutoComplete
 
-  registerOpenPage(uri, userContextId) {
-    SwitchToTabStorage.add(uri, userContextId);
+  registerOpenPage: function PAC_registerOpenPage(uri) {
+    SwitchToTabStorage.add(uri);
   },
 
-  unregisterOpenPage(uri, userContextId) {
-    SwitchToTabStorage.delete(uri, userContextId);
+  unregisterOpenPage: function PAC_unregisterOpenPage(uri) {
+    SwitchToTabStorage.delete(uri);
   },
 
   // nsIAutoCompleteSearch
@@ -2088,8 +2046,6 @@ UnifiedComplete.prototype = {
    *        results or not.
    */
   finishSearch: function (notify=false) {
-    TelemetryStopwatch.cancel(TELEMETRY_1ST_RESULT, this);
-    TelemetryStopwatch.cancel(TELEMETRY_6_FIRST_RESULTS, this);
     // Clear state now to avoid race conditions, see below.
     let search = this._currentSearch;
     if (!search)

@@ -7,7 +7,6 @@
 #include "mozilla/EndianUtils.h"
 #include "mozilla/dom/TypedArray.h"
 #include "mozilla/HoldDropJSObjects.h"
-#include "mozilla/Telemetry.h"
 
 #include "nsSocketTransport2.h"
 #include "nsUDPSocket.h"
@@ -173,7 +172,6 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsUDPMessage)
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsUDPMessage)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsUDPMessage)
@@ -275,7 +273,6 @@ void
 nsUDPSocket::AddOutputBytes(uint64_t aBytes)
 {
   mByteWriteCount += aBytes;
-  SaveNetworkStats(false);
 }
 
 void
@@ -465,7 +462,6 @@ nsUDPSocket::OnSocketReady(PRFileDesc *fd, int16_t outFlags)
     return;
   }
   mByteReadCount += count;
-  SaveNetworkStats(false);
 
   FallibleTArray<uint8_t> data;
   if (!data.AppendElements(buff, count, fallible)) {
@@ -512,7 +508,6 @@ nsUDPSocket::OnSocketDetached(PRFileDesc *fd)
     NS_ASSERTION(mFD == fd, "wrong file descriptor");
     CloseSocket();
   }
-  SaveNetworkStats(true);
 
   if (mListener)
   {
@@ -726,7 +721,6 @@ nsUDPSocket::Close()
       // expects this happen synchronously.
       CloseSocket();
 
-      SaveNetworkStats(true);
       return NS_OK;
     }
   }
@@ -755,12 +749,6 @@ nsUDPSocket::GetLocalAddr(nsINetAddr * *aResult)
 }
 
 void
-nsUDPSocket::SaveNetworkStats(bool aEnforce)
-{
-  /*** STUB ***/
-}
-
-void
 nsUDPSocket::CloseSocket()
 {
   if (mFD) {
@@ -770,40 +758,7 @@ nsUDPSocket::CloseSocket()
       // If shutdown last to long, let the socket leak and do not close it.
       UDPSOCKET_LOG(("Intentional leak"));
     } else {
-
-      PRIntervalTime closeStarted = 0;
-      if (gSocketTransportService->IsTelemetryEnabledAndNotSleepPhase()) {
-        closeStarted = PR_IntervalNow();
-      }
-
       PR_Close(mFD);
-
-      if (gSocketTransportService->IsTelemetryEnabledAndNotSleepPhase()) {
-        PRIntervalTime now = PR_IntervalNow();
-        if (gIOService->IsNetTearingDown()) {
-          Telemetry::Accumulate(Telemetry::PRCLOSE_UDP_BLOCKING_TIME_SHUTDOWN,
-                                PR_IntervalToMilliseconds(now - closeStarted));
-
-        } else if (PR_IntervalToSeconds(now - gIOService->LastConnectivityChange())
-                   < 60) {
-          Telemetry::Accumulate(Telemetry::PRCLOSE_UDP_BLOCKING_TIME_CONNECTIVITY_CHANGE,
-                                PR_IntervalToMilliseconds(now - closeStarted));
-
-        } else if (PR_IntervalToSeconds(now - gIOService->LastNetworkLinkChange())
-                   < 60) {
-          Telemetry::Accumulate(Telemetry::PRCLOSE_UDP_BLOCKING_TIME_LINK_CHANGE,
-                                PR_IntervalToMilliseconds(now - closeStarted));
-
-        } else if (PR_IntervalToSeconds(now - gIOService->LastOfflineStateChange())
-                   < 60) {
-          Telemetry::Accumulate(Telemetry::PRCLOSE_UDP_BLOCKING_TIME_OFFLINE,
-                                PR_IntervalToMilliseconds(now - closeStarted));
-
-        } else {
-          Telemetry::Accumulate(Telemetry::PRCLOSE_UDP_BLOCKING_TIME_NORMAL,
-                                PR_IntervalToMilliseconds(now - closeStarted));
-        }
-      }
     }
     mFD = nullptr;
   }

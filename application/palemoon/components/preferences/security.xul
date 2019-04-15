@@ -43,12 +43,21 @@
 
       <!-- Security Protocols -->
       
-      <preference id="network.stricttransportsecurity.preloadlist"
-                  name="network.stricttransportsecurity.preloadlist"
+      <preference id="network.stricttransportsecurity.enabled"
+                  name="network.stricttransportsecurity.enabled"
                   type="bool"/>
       <preference id="security.cert_pinning.enforcement_level"
                   name="security.cert_pinning.enforcement_level"
                   type="int"/>
+      
+      <!-- Opportunistic Encryption -->
+                  
+      <preference id="network.http.upgrade-insecure-requests"
+                  name="network.http.upgrade-insecure-requests"
+                  type="bool"/>
+      <preference id="network.http.altsvc.oe"
+                  name="network.http.altsvc.oe"
+                  type="bool"/>
       
       <!-- XSS Filter -->
       <!--
@@ -137,13 +146,23 @@
         <checkbox id="enableHSTS"
                   label="&enableHSTS.label;"
                   accesskey="&enableHSTS.accesskey;"
-                  preference="network.stricttransportsecurity.preloadlist" />
+                  preference="network.stricttransportsecurity.enabled" />
         <checkbox id="enableHPKP"
                   label="&enableHPKP.label;"
                   accesskey="&enableHPKP.accesskey;"
                   oncommand="gSecurityPane.updateHPKPPref();"/>
       </vbox>
     </groupbox>
+    
+    <groupbox id="OpportunisticEncryption">
+      <caption label="&OpEnc.label;"/>
+      <checkbox id="enableUIROpEnc"
+                label="&enableUIROpEnc.label;"
+                preference="network.http.upgrade-insecure-requests" />
+      <checkbox id="enableAltSvcOpEnc"
+                label="&enableAltSvcOpEnc.label;"
+                preference="network.http.altsvc.oe" />
+    </groupbox>    
 
     <!-- XSS Filter -->
     <!--

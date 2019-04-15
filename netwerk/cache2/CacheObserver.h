@@ -61,12 +61,6 @@ class CacheObserver : public nsIObserver
     { return sHalfLifeExperiment; }
   static bool ClearCacheOnShutdown()
     { return sSanitizeOnShutdown && sClearCacheOnShutdown; }
-  static bool CacheFSReported()
-    { return sCacheFSReported; }
-  static void SetCacheFSReported();
-  static bool HashStatsReported()
-    { return sHashStatsReported; }
-  static void SetHashStatsReported();
   static void ParentDirOverride(nsIFile ** aDir);
 
   static bool EntryIsTooBig(int64_t aSize, bool aUsingDisk);
@@ -82,8 +76,6 @@ private:
   static CacheObserver* sSelf;
 
   void StoreDiskCacheCapacity();
-  void StoreCacheFSReported();
-  void StoreHashStatsReported();
   void AttachToPreferences();
 
   static uint32_t sUseNewCache;
@@ -106,8 +98,6 @@ private:
   static int32_t sHalfLifeExperiment;
   static bool sSanitizeOnShutdown;
   static bool sClearCacheOnShutdown;
-  static bool sCacheFSReported;
-  static bool sHashStatsReported;
   static Atomic<uint32_t, Relaxed> sMaxShutdownIOLag;
   static Atomic<PRIntervalTime> sShutdownDemandedTime;
 

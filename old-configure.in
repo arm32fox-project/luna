@@ -48,7 +48,7 @@ dnl ========================================================
 MOZJPEG=62
 MOZPNG=10625
 NSPR_VERSION=4
-NSPR_MINVER=4.19
+NSPR_MINVER=4.20
 NSS_VERSION=3
 
 dnl Set the minimum version of toolkit libs used by mozilla
@@ -68,7 +68,7 @@ GNOMEUI_VERSION=2.2.0
 GCONF_VERSION=1.2.1
 STARTUP_NOTIFICATION_VERSION=0.8
 DBUS_VERSION=0.60
-SQLITE_VERSION=3.21.0
+SQLITE_VERSION=3.27.2
 
 dnl Set various checks
 dnl ========================================================
@@ -215,11 +215,12 @@ case "$target" in
 
             # -Zc:sizedDealloc- disables C++14 global sized deallocation (see bug 1160146)
             CXXFLAGS="$CXXFLAGS -Zc:sizedDealloc-"
-
-            # Disable C++11 thread-safe statics due to crashes on XP (bug 1204752)
-            # See https://connect.microsoft.com/VisualStudio/feedback/details/1789709/visual-c-2015-runtime-broken-on-windows-server-2003-c-11-magic-statics
-            CXXFLAGS="$CXXFLAGS -Zc:threadSafeInit-"
-
+            
+            # C4752: We explicitly use AVX instructions in only some libs, not global
+            # This is a pointless "helpful warning" to use /arch:AVX which we don't want.
+            CFLAGS="$CFLAGS -wd4752"
+            CXXFLAGS="$CXXFLAGS -wd4752"
+            
             # https://connect.microsoft.com/VisualStudio/feedback/details/888527/warnings-on-dbghelp-h
             # for dbghelp.h, imagehlp.h, and shobj.h
             # C4091: 'typedef ': ignored on left of '' when no variable is declared
@@ -2044,7 +2045,7 @@ MOZ_ARG_WITH_BOOL(system-nss,
     _USE_SYSTEM_NSS=1 )
 
 if test -n "$_USE_SYSTEM_NSS"; then
-    AM_PATH_NSS(3.38, [MOZ_SYSTEM_NSS=1], [AC_MSG_ERROR([you don't have NSS installed or your version is too old])])
+    AM_PATH_NSS(3.41, [MOZ_SYSTEM_NSS=1], [AC_MSG_ERROR([you don't have NSS installed or your version is too old])])
 fi
 
 if test -z "$MOZ_SYSTEM_NSS"; then
@@ -2204,7 +2205,6 @@ MOZ_VORBIS=
 MOZ_TREMOR=
 MOZ_SAMPLE_TYPE_FLOAT32=
 MOZ_SAMPLE_TYPE_S16=
-MOZ_DIRECTSHOW=
 MOZ_WEBRTC=
 MOZ_PEERCONNECTION=
 MOZ_SRTP=
@@ -2212,8 +2212,6 @@ MOZ_WEBRTC_SIGNALING=
 MOZ_WEBRTC_ASSERT_ALWAYS=1
 MOZ_WEBRTC_HARDWARE_AEC_NS=
 MOZ_SCTP=
-MOZ_ANDROID_OMX=
-MOZ_OMX_PLUGIN=
 MOZ_VPX_ERROR_CONCEALMENT=
 VPX_USE_YASM=
 VPX_ASFLAGS=
@@ -2222,6 +2220,7 @@ VPX_X86_ASM=
 VPX_ARM_ASM=
 LIBJPEG_TURBO_AS=
 LIBJPEG_TURBO_ASFLAGS=
+MOZ_GAMEPAD=
 MOZ_PREF_EXTENSIONS=1
 MOZ_REFLOW_PERF=
 MOZ_SAFE_BROWSING=
@@ -2233,6 +2232,7 @@ MOZ_URL_CLASSIFIER=
 MOZ_XUL=1
 MOZ_ZIPWRITER=1
 MOZ_NO_SMART_CARDS=
+MOZ_NECKO_WIFI=1
 NECKO_COOKIES=1
 MOZ_USE_NATIVE_POPUP_WINDOWS=
 MOZ_EXCLUDE_HYPHENATION_DICTIONARIES=
@@ -2240,7 +2240,6 @@ MOZ_INSTALL_TRACKING=
 ACCESSIBILITY=1
 MOZ_TIME_MANAGER=
 MOZ_AUDIO_CHANNEL_MANAGER=
-MOZ_BINARY_EXTENSIONS=
 MOZ_JETPACK=1
 MOZ_DEVTOOLS_SERVER=1
 MOZ_DEVTOOLS=
@@ -2248,6 +2247,7 @@ MOZ_PLACES=1
 MOZ_SERVICES_HEALTHREPORT=1
 MOZ_SERVICES_SYNC=1
 MOZ_SERVICES_CLOUDSYNC=1
+MOZ_USERINFO=1
 
 case "$target_os" in
     mingw*)
@@ -2892,23 +2892,6 @@ fi
 fi # COMPILE_ENVIRONMENT
 
 dnl ========================================================
-dnl = DirectShow support
-dnl ========================================================
-if test "$OS_ARCH" = "WINNT"; then
-    dnl Enable DirectShow support by default.
-    MOZ_DIRECTSHOW=1
-fi
-
-MOZ_ARG_DISABLE_BOOL(directshow,
-[  --disable-directshow  Disable support for DirectShow],
-    MOZ_DIRECTSHOW=,
-    MOZ_DIRECTSHOW=1)
-
-if test -n "$MOZ_DIRECTSHOW"; then
-    AC_DEFINE(MOZ_DIRECTSHOW)
-fi;
-
-dnl ========================================================
 dnl = EME support
 dnl ========================================================
 
@@ -2939,45 +2922,6 @@ if test -n "$MOZ_EME"; then
 fi
 
 dnl ========================================================
-dnl = Enable media plugin support
-dnl ========================================================
-if test "$OS_TARGET" = "Android"; then
-  dnl Enable support on android by default
-  MOZ_ANDROID_OMX=1
-fi
-
-MOZ_ARG_ENABLE_BOOL(android-omx,
-[  --enable-android-omx  Enable support for Android OMX media backend],
-    MOZ_ANDROID_OMX=1,
-    MOZ_ANDROID_OMX=)
-
-if test -n "$MOZ_ANDROID_OMX"; then
-  AC_DEFINE(MOZ_ANDROID_OMX)
-fi
-
-dnl ========================================================
-dnl = Enable building OMX media plugin (B2G or Android)
-dnl ========================================================
-if test "$OS_TARGET" = "Android"; then
-  dnl Enable support on android by default
-  MOZ_OMX_PLUGIN=1
-fi
-
-MOZ_ARG_ENABLE_BOOL(omx-plugin,
-[  --enable-omx-plugin      Enable building OMX plugin (B2G)],
-    MOZ_OMX_PLUGIN=1,
-    MOZ_OMX_PLUGIN=)
-
-if test -n "$MOZ_OMX_PLUGIN"; then
-    if test "$OS_TARGET" = "Android"; then
-        dnl Only allow building OMX plugin on Android
-        AC_DEFINE(MOZ_OMX_PLUGIN)
-    else
-        dnl fail if we're not building on Android
-        AC_MSG_ERROR([OMX media plugin can only be built on Android])
-    fi
-fi
-
 dnl system libvpx Support
 dnl ========================================================
 MOZ_ARG_WITH_BOOL(system-libvpx,
@@ -3345,13 +3289,12 @@ fi # COMPILE_ENVIRONMENT
 dnl ========================================================
 dnl Gamepad support
 dnl ========================================================
-MOZ_GAMEPAD=1
 MOZ_GAMEPAD_BACKEND=stub
 
-MOZ_ARG_DISABLE_BOOL(gamepad,
-[  --disable-gamepad   Disable gamepad support],
-    MOZ_GAMEPAD=,
-    MOZ_GAMEPAD=1)
+MOZ_ARG_ENABLE_BOOL(gamepad,
+[  --enable-gamepad   Enable gamepad support],
+    MOZ_GAMEPAD=1,
+    MOZ_GAMEPAD=)
 
 if test "$MOZ_GAMEPAD"; then
     case "$OS_TARGET" in
@@ -3542,11 +3485,15 @@ dnl = FFmpeg's ffvpx configuration
 dnl ========================================================
 
 MOZ_FFVPX=
-case "$CPU_ARCH" in
-  x86)
+
+dnl Build ffvpx on 32-bit Windows and all supported 64-bit platforms.
+dnl 32-bit *nix has performance issues due to not supporting assembly decoder.
+
+case "$OS_ARCH:$CPU_ARCH" in
+  WINNT:x86)
       MOZ_FFVPX=1
   ;;
-  x86_64)
+  *:x86_64)
       MOZ_FFVPX=1
   ;;
 esac
@@ -3618,23 +3565,6 @@ AC_CHECK_PROGS(WGET, wget, "")
 AC_SUBST(WGET)
 
 dnl ========================================================
-dnl Maintenance Service
-dnl ========================================================
-
-MOZ_ARG_ENABLE_BOOL(maintenance-service,
-[  --enable-maintenance-service       Enable building of maintenanceservice],
-    MOZ_MAINTENANCE_SERVICE=1,
-    MOZ_MAINTENANCE_SERVICE= )
-
-if test -n "$MOZ_MAINTENANCE_SERVICE"; then
-  if test "$OS_ARCH" = "WINNT"; then
-    AC_DEFINE(MOZ_MAINTENANCE_SERVICE)
-  else
-    AC_MSG_ERROR([Can only build with --enable-maintenance-service with a Windows target])
-  fi
-fi
-
-dnl ========================================================
 dnl Bundled fonts on desktop platforms
 dnl ========================================================
 
@@ -3690,10 +3620,10 @@ if test "$MOZ_IOS"; then
   MOZ_UPDATER=
 fi
 
-MOZ_ARG_DISABLE_BOOL(updater,
-[  --disable-updater       Disable building of updater],
-    MOZ_UPDATER=,
-    MOZ_UPDATER=1 )
+MOZ_ARG_ENABLE_BOOL(updater,
+[  --enable-updater       Enable building of internal updater],
+    MOZ_UPDATER=1,
+    MOZ_UPDATER= )
 
 if test -n "$MOZ_UPDATER"; then
     AC_DEFINE(MOZ_UPDATER)
@@ -4584,6 +4514,20 @@ fi
 AC_SUBST(MOZ_DEVTOOLS)
 
 dnl ========================================================
+dnl = Disable nsUserInfo
+dnl ========================================================
+MOZ_ARG_DISABLE_BOOL(userinfo,
+[  --disable-userinfo         Disable nsUserInfo (default=enabled)],
+    MOZ_USERINFO=,
+    MOZ_USERINFO=1)
+
+if test -n "$MOZ_USERINFO"; then
+    AC_DEFINE(MOZ_USERINFO)
+fi
+
+AC_SUBST(MOZ_USERINFO)
+
+dnl ========================================================
 dnl = Define default location for MOZILLA_FIVE_HOME
 dnl ========================================================
 MOZ_ARG_WITH_STRING(default-mozilla-five-home,
@@ -4980,27 +4924,29 @@ dnl
 dnl option to disable necko's wifi scanner
 dnl
 
-case "$OS_TARGET" in
-  Android)
-    ;;
-  Darwin)
-    if test -z "$MOZ_IOS"; then
-      NECKO_WIFI=1
-    fi
-    ;;
-  DragonFly|FreeBSD|WINNT)
-    NECKO_WIFI=1
-    ;;
-  Linux)
-    NECKO_WIFI=1
-    NECKO_WIFI_DBUS=1
-    ;;
-esac
-
 MOZ_ARG_DISABLE_BOOL(necko-wifi,
 [  --disable-necko-wifi    Disable necko wifi scanner],
-    NECKO_WIFI=,
-    NECKO_WIFI=1)
+    MOZ_NECKO_WIFI=,
+    MOZ_NECKO_WIFI=1)
+
+if test "$MOZ_NECKO_WIFI"; then
+  case "$OS_TARGET" in
+    Android)
+      ;;
+    Darwin)
+      if test -z "$MOZ_IOS"; then
+        NECKO_WIFI=1
+      fi
+      ;;
+    DragonFly|FreeBSD|WINNT)
+      NECKO_WIFI=1
+      ;;
+    Linux)
+      NECKO_WIFI=1
+      NECKO_WIFI_DBUS=1
+      ;;
+  esac
+fi
 
 if test "$NECKO_WIFI"; then
   if test -z "$MOZ_ENABLE_DBUS" -a -n "$NECKO_WIFI_DBUS"; then
@@ -5107,7 +5053,6 @@ AC_SUBST(MOZ_UNIVERSALCHARDET)
 AC_SUBST(ACCESSIBILITY)
 AC_SUBST(MOZ_SPELLCHECK)
 AC_SUBST(MOZ_ANDROID_ANR_REPORTER)
-AC_SUBST(MOZ_MAINTENANCE_SERVICE)
 AC_SUBST(MOZ_VERIFY_MAR_SIGNATURE)
 AC_SUBST(MOZ_ENABLE_SIGNMAR)
 AC_SUBST(MOZ_UPDATER)
@@ -5134,10 +5079,6 @@ AC_SUBST(MOZ_FIX_LINK_PATHS)
 
 AC_SUBST(MOZ_POST_PROGRAM_COMMAND)
 AC_SUBST(MOZ_LINKER_EXTRACT)
-
-if test -n "$MOZ_BINARY_EXTENSIONS"; then
-  AC_DEFINE(MOZ_BINARY_EXTENSIONS)
-fi
 
 AC_SUBST(MOZ_ADDON_SIGNING)
 if test "$MOZ_ADDON_SIGNING" = 1; then
@@ -5467,9 +5408,6 @@ AC_SUBST(MOZ_TREMOR)
 AC_SUBST(MOZ_FFVPX)
 AC_SUBST_LIST(FFVPX_ASFLAGS)
 AC_SUBST(MOZ_EME)
-AC_SUBST(MOZ_DIRECTSHOW)
-AC_SUBST(MOZ_ANDROID_OMX)
-AC_SUBST(MOZ_OMX_PLUGIN)
 AC_SUBST(MOZ_VPX_ERROR_CONCEALMENT)
 AC_SUBST(VPX_USE_YASM)
 AC_SUBST_LIST(VPX_ASFLAGS)
@@ -5638,22 +5576,6 @@ else
 fi
 
 AC_SUBST(PREPROCESS_OPTION)
-
-dnl ========================================================
-dnl mask as shorthand property
-dnl ========================================================
-
-# The control structure code will be removed as soon as the feature is stable
-# Refer to bug 1281101 for more details.
-
-# Enable mask-as-shorthand property by default for nightly and aurora channels
-if test -z "$RELEASE_OR_BETA"; then
-  dnl mask as shorthand property enabled
-  MOZ_ENABLE_MASK_AS_SHORTHAND=1
-  AC_DEFINE(MOZ_ENABLE_MASK_AS_SHORTHAND)
-fi
-
-AC_SUBST(MOZ_ENABLE_MASK_AS_SHORTHAND)
 
 # Avoid using obsolete NSPR features
 AC_DEFINE(NO_NSPR_10_SUPPORT)

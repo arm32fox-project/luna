@@ -123,7 +123,8 @@ public:
     virtual nsresult Init(nsIURI *aURI, uint32_t aCaps, nsProxyInfo *aProxyInfo,
                           uint32_t aProxyResolveFlags,
                           nsIURI *aProxyURI,
-                          const nsID& aChannelId) override;
+                          const nsID& aChannelId,
+                          nsContentPolicyType aContentPolicyType) override;
 
     nsresult OnPush(const nsACString &uri, Http2PushedStream *pushedStream);
 
@@ -431,9 +432,6 @@ private:
                rv == NS_ERROR_MALFORMED_URI;
     }
 
-    // Report net vs cache time telemetry
-    void ReportNetVSCacheTelemetry();
-
     // Create a aggregate set of the current notification callbacks
     // and ensure the transaction is updated to use it.
     void UpdateAggregateCallbacks();
@@ -597,6 +595,10 @@ private:
     HttpChannelSecurityWarningReporter* mWarningReporter;
 
     RefPtr<ADivertableParentChannel> mParentChannel;
+    
+    // Whether we send opportunistic encryption requests.
+    bool mSendUpgradeRequest;
+
 protected:
     virtual void DoNotifyListenerCleanup() override;
 

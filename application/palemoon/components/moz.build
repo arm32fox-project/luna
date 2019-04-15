@@ -5,12 +5,14 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 DIRS += [
-    'about',
+    'abouthome',
     'certerror',
     'dirprovider',
     'downloads',
     'feeds',
     'fuel',
+    'newtab',
+    'pageinfo',
     'places',
     'permissions',
     'preferences',
@@ -23,6 +25,9 @@ DIRS += [
 if CONFIG['MOZ_BROWSER_STATUSBAR']:
     DIRS += ['statusbar']
 
+if CONFIG['MOZ_SERVICES_SYNC']:
+    DIRS += ['sync']
+
 DIRS += ['build']
 
 XPIDL_SOURCES += [
@@ -32,9 +37,9 @@ XPIDL_SOURCES += [
 
 XPIDL_MODULE = 'browsercompsbase'
 
-EXTRA_COMPONENTS += [ 'BrowserComponents.manifest' ]
-
 EXTRA_PP_COMPONENTS += [
+    'BrowserComponents.manifest',
+    'nsAboutRedirector.js',
     'nsBrowserContentHandler.js',
     'nsBrowserGlue.js',
 ]

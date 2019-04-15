@@ -32,7 +32,6 @@
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsIInputStream.h"
 #include "nsILineInputStream.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/Types.h"
 #include "mozilla/PeerIdentity.h"
 #include "mozilla/dom/ContentChild.h"
@@ -2034,7 +2033,6 @@ MediaManager::GetUserMedia(nsPIDOMWindowInner* aWindow,
   }
 
   // Determine permissions early (while we still have a stack).
-
   nsIURI* docURI = aWindow->GetDocumentURI();
   if (!docURI) {
     return NS_ERROR_UNEXPECTED;
@@ -2044,48 +2042,23 @@ MediaManager::GetUserMedia(nsPIDOMWindowInner* aWindow,
       Preferences::GetBool("media.navigator.permission.disabled", false);
   bool isHTTPS = false;
   docURI->SchemeIs("https", &isHTTPS);
-  nsCString host;
-  nsresult rv = docURI->GetHost(host);
-  // Test for some other schemes that ServiceWorker recognizes
-  bool isFile;
-  docURI->SchemeIs("file", &isFile);
-  bool isApp;
-  docURI->SchemeIs("app", &isApp);
-  // Same localhost check as ServiceWorkers uses
-  // (see IsOriginPotentiallyTrustworthy())
-  bool isLocalhost = NS_SUCCEEDED(rv) &&
-                     (host.LowerCaseEqualsLiteral("localhost") ||
-                      host.LowerCaseEqualsLiteral("127.0.0.1") ||
-                      host.LowerCaseEqualsLiteral("::1"));
-
-  // Record telemetry about whether the source of the call was secure, i.e.,
-  // privileged or HTTPS.  We may handle other cases
-if (privileged) {
-    Telemetry::Accumulate(Telemetry::WEBRTC_GET_USER_MEDIA_SECURE_ORIGIN,
-                          (uint32_t) GetUserMediaSecurityState::Privileged);
-  } else if (isHTTPS) {
-    Telemetry::Accumulate(Telemetry::WEBRTC_GET_USER_MEDIA_SECURE_ORIGIN,
-                          (uint32_t) GetUserMediaSecurityState::HTTPS);
-  } else if (isFile) {
-    Telemetry::Accumulate(Telemetry::WEBRTC_GET_USER_MEDIA_SECURE_ORIGIN,
-                          (uint32_t) GetUserMediaSecurityState::File);
-  } else if (isApp) {
-    Telemetry::Accumulate(Telemetry::WEBRTC_GET_USER_MEDIA_SECURE_ORIGIN,
-                          (uint32_t) GetUserMediaSecurityState::App);
-  } else if (isLocalhost) {
-    Telemetry::Accumulate(Telemetry::WEBRTC_GET_USER_MEDIA_SECURE_ORIGIN,
-                          (uint32_t) GetUserMediaSecurityState::Localhost);
-  } else {
-    Telemetry::Accumulate(Telemetry::WEBRTC_GET_USER_MEDIA_SECURE_ORIGIN,
-                          (uint32_t) GetUserMediaSecurityState::Other);
-  }
 
   nsCString origin;
-  rv = nsPrincipal::GetOriginForURI(docURI, origin);
+  nsresult rv = nsPrincipal::GetOriginForURI(docURI, origin);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
   }
 
+  // Disallow access to null principal pages
+  nsCOMPtr<nsIPrincipal> principal = aWindow->GetExtantDoc()->NodePrincipal();
+  if (principal->GetIsNullPrincipal()) {
+    RefPtr<MediaStreamError> error =
+        new MediaStreamError(aWindow,
+                             NS_LITERAL_STRING("NotAllowedError"));
+    onFailure->OnError(error);
+    return NS_OK;
+  }
+  
   if (!Preferences::GetBool("media.navigator.video.enabled", true)) {
     c.mVideo.SetAsBoolean() = false;
   }
@@ -2098,8 +2071,6 @@ if (privileged) {
     videoType = StringToEnum(dom::MediaSourceEnumValues::strings,
                              vc.mMediaSource,
                              MediaSourceEnum::Other);
-    Telemetry::Accumulate(Telemetry::WEBRTC_GET_USER_MEDIA_TYPE,
-                          (uint32_t) videoType);
     switch (videoType) {
       case MediaSourceEnum::Camera:
         break;
@@ -2182,8 +2153,6 @@ if (privileged) {
       ac.mMediaSource.AssignASCII(EnumToASCII(dom::MediaSourceEnumValues::strings,
                                               audioType));
     }
-    Telemetry::Accumulate(Telemetry::WEBRTC_GET_USER_MEDIA_TYPE,
-                          (uint32_t) audioType);
 
     switch (audioType) {
       case MediaSourceEnum::Microphone:
@@ -2229,7 +2198,6 @@ if (privileged) {
   StreamListeners* listeners = AddWindowID(windowID);
 
   // Create a disabled listener to act as a placeholder
-  nsIPrincipal* principal = aWindow->GetExtantDoc()->NodePrincipal();
   RefPtr<GetUserMediaCallbackMediaStreamListener> listener =
     new GetUserMediaCallbackMediaStreamListener(mMediaThread, windowID,
                                                 MakePrincipalHandle(principal));

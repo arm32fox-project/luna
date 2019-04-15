@@ -8,7 +8,6 @@
 #include "cryptohi.h"
 #include "keyhi.h"
 #include "mozilla/Assertions.h"
-#include "mozilla/Telemetry.h"
 #include "nsIContent.h"
 #include "nsIDOMHTMLSelectElement.h"
 #include "nsIGenKeypairInfoDlg.h"
@@ -395,54 +394,6 @@ loser:
       return rv;
 }
 
-
-void
-GatherKeygenTelemetry(uint32_t keyGenMechanism, int keysize, char* curve)
-{
-  if (keyGenMechanism == CKM_RSA_PKCS_KEY_PAIR_GEN) {
-    if (keysize > 8196 || keysize < 0) {
-      return;
-    }
-
-    nsCString telemetryValue("rsa");
-    telemetryValue.AppendPrintf("%d", keysize);
-    mozilla::Telemetry::Accumulate(
-        mozilla::Telemetry::KEYGEN_GENERATED_KEY_TYPE, telemetryValue);
-  } else if (keyGenMechanism == CKM_EC_KEY_PAIR_GEN) {
-    nsCString secp384r1 = NS_LITERAL_CSTRING("secp384r1");
-    nsCString secp256r1 = NS_LITERAL_CSTRING("secp256r1");
-
-    mozilla::UniqueSECItem decoded = DecodeECParams(curve);
-    if (!decoded) {
-      switch (keysize) {
-        case 2048:
-          mozilla::Telemetry::Accumulate(
-              mozilla::Telemetry::KEYGEN_GENERATED_KEY_TYPE, secp384r1);
-          break;
-        case 1024:
-        case 512:
-          mozilla::Telemetry::Accumulate(
-              mozilla::Telemetry::KEYGEN_GENERATED_KEY_TYPE, secp256r1);
-          break;
-      }
-    } else {
-      if (secp384r1.EqualsIgnoreCase(curve, secp384r1.Length())) {
-          mozilla::Telemetry::Accumulate(
-              mozilla::Telemetry::KEYGEN_GENERATED_KEY_TYPE, secp384r1);
-      } else if (secp256r1.EqualsIgnoreCase(curve, secp256r1.Length())) {
-          mozilla::Telemetry::Accumulate(
-              mozilla::Telemetry::KEYGEN_GENERATED_KEY_TYPE, secp256r1);
-      } else {
-        mozilla::Telemetry::Accumulate(
-            mozilla::Telemetry::KEYGEN_GENERATED_KEY_TYPE, NS_LITERAL_CSTRING("other_ec"));
-      }
-    }
-  } else {
-    MOZ_CRASH("Unknown keygen algorithm");
-    return;
-  }
-}
-
 nsresult
 nsKeygenFormProcessor::GetPublicKey(const nsAString& aValue,
                                     const nsAString& aChallenge,
@@ -680,8 +631,6 @@ nsKeygenFormProcessor::GetPublicKey(const nsAString& aValue,
     CopyASCIItoUTF16(keystring.get(), aOutPublicKey);
 
     rv = NS_OK;
-
-    GatherKeygenTelemetry(keyGenMechanism, keysize, keyparamsString);
 loser:
     if (srv != SECSuccess) {
         if ( privateKey ) {

@@ -20,7 +20,6 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/ProcessHangMonitor.h"
 #include "mozilla/Services.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/Unused.h"
 #include "nsAutoPtr.h"
 #include "nsCRT.h"
@@ -93,11 +92,6 @@ mozilla::plugins::SetupBridge(uint32_t aPluginId,
         return true;
     }
     PluginModuleChromeParent* chromeParent = static_cast<PluginModuleChromeParent*>(plugin->GetLibrary());
-    /*
-     *  We can't accumulate BLOCKED_ON_PLUGIN_MODULE_INIT_MS until here because
-     *  its histogram key is not available until *after* NP_Initialize.
-     */
-    chromeParent->AccumulateModuleInitBlockedTime();
     *rv = chromeParent->GetRunID(runID);
     if (NS_FAILED(*rv)) {
         return true;
@@ -336,16 +330,13 @@ PluginModuleContentParent::LoadModule(uint32_t aPluginId,
     dom::ContentChild* cp = dom::ContentChild::GetSingleton();
     nsresult rv;
     uint32_t runID;
-    TimeStamp sendLoadPluginStart = TimeStamp::Now();
     if (!cp->SendLoadPlugin(aPluginId, &rv, &runID) ||
         NS_FAILED(rv)) {
         return nullptr;
     }
-    TimeStamp sendLoadPluginEnd = TimeStamp::Now();
 
     PluginModuleContentParent* parent = mapping->GetModule();
     MOZ_ASSERT(parent);
-    parent->mTimeBlocked += (sendLoadPluginEnd - sendLoadPluginStart);
 
     if (!mapping->IsChannelOpened()) {
         // mapping is linked into PluginModuleMapping::sModuleListHead and is
@@ -441,7 +432,6 @@ PluginModuleChromeParent::LoadModule(const char* aFilePath, uint32_t aPluginId,
                                          aPluginTag->mSupportsAsyncInit));
     UniquePtr<LaunchCompleteTask> onLaunchedRunnable(new LaunchedTask(parent));
     parent->mSubprocess->SetCallRunnableImmediately(!parent->mIsStartingAsync);
-    TimeStamp launchStart = TimeStamp::Now();
     bool launched = parent->mSubprocess->Launch(Move(onLaunchedRunnable),
                                                 aPluginTag->mSandboxLevel);
     if (!launched) {
@@ -460,8 +450,6 @@ PluginModuleChromeParent::LoadModule(const char* aFilePath, uint32_t aPluginId,
             return nullptr;
         }
     }
-    TimeStamp launchEnd = TimeStamp::Now();
-    parent->mTimeBlocked = (launchEnd - launchStart);
     return parent.forget();
 }
 
@@ -1172,11 +1160,6 @@ PluginModuleParent::GetRunID(uint32_t* aRunID)
 void
 PluginModuleChromeParent::ActorDestroy(ActorDestroyReason why)
 {
-    if (why == AbnormalShutdown) {
-        Telemetry::Accumulate(Telemetry::SUBPROCESS_ABNORMAL_ABORT,
-                              NS_LITERAL_CSTRING("plugin"), 1);
-    }
-
     // We can't broadcast settings changes anymore.
     UnregisterSettingsCallbacks();
 
@@ -1764,15 +1747,12 @@ PluginModuleChromeParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* 
     PluginSettings settings;
     GetSettings(&settings);
 
-    TimeStamp callNpInitStart = TimeStamp::Now();
     // Asynchronous case
     if (mIsStartingAsync) {
         if (!SendAsyncNP_Initialize(settings)) {
             Close();
             return NS_ERROR_FAILURE;
         }
-        TimeStamp callNpInitEnd = TimeStamp::Now();
-        mTimeBlocked += (callNpInitEnd - callNpInitStart);
         return NS_OK;
     }
 
@@ -1785,8 +1765,6 @@ PluginModuleChromeParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* 
         Close();
         return NS_ERROR_FAILURE;
     }
-    TimeStamp callNpInitEnd = TimeStamp::Now();
-    mTimeBlocked += (callNpInitEnd - callNpInitStart);
 
     RecvNP_InitializeResult(*error);
 
@@ -1888,13 +1866,10 @@ PluginModuleChromeParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPError* error)
     PluginSettings settings;
     GetSettings(&settings);
 
-    TimeStamp callNpInitStart = TimeStamp::Now();
     if (mIsStartingAsync) {
         if (!SendAsyncNP_Initialize(settings)) {
             return NS_ERROR_FAILURE;
         }
-        TimeStamp callNpInitEnd = TimeStamp::Now();
-        mTimeBlocked += (callNpInitEnd - callNpInitStart);
         return NS_OK;
     }
 
@@ -1902,8 +1877,6 @@ PluginModuleChromeParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPError* error)
         Close();
         return NS_ERROR_FAILURE;
     }
-    TimeStamp callNpInitEnd = TimeStamp::Now();
-    mTimeBlocked += (callNpInitEnd - callNpInitStart);
     RecvNP_InitializeResult(*error);
     return NS_OK;
 }
@@ -2200,18 +2173,6 @@ public:
   }
 };
 
-void
-PluginModuleParent::AccumulateModuleInitBlockedTime()
-{
-    if (mPluginName.IsEmpty()) {
-        GetPluginDetails();
-    }
-    Telemetry::Accumulate(Telemetry::BLOCKED_ON_PLUGIN_MODULE_INIT_MS,
-                          GetHistogramKey(),
-                          static_cast<uint32_t>(mTimeBlocked.ToMilliseconds()));
-    mTimeBlocked = TimeDuration();
-}
-
 nsresult
 PluginModuleParent::NPP_NewInternal(NPMIMEType pluginType, NPP instance,
                                     uint16_t mode,
@@ -2223,13 +2184,6 @@ PluginModuleParent::NPP_NewInternal(NPMIMEType pluginType, NPP instance,
     if (mPluginName.IsEmpty()) {
         GetPluginDetails();
         InitQuirksModes(nsDependentCString(pluginType));
-        /** mTimeBlocked measures the time that the main thread has been blocked
-         *  on plugin module initialization. As implemented, this is the sum of
-         *  plugin-container launch + toolhelp32 snapshot + NP_Initialize.
-         *  We don't accumulate its value until here because the plugin info
-         *  for its histogram key is not available until *after* NP_Initialize.
-         */
-        AccumulateModuleInitBlockedTime();
     }
 
     nsCaseInsensitiveUTF8StringArrayComparator comparator;
@@ -2294,27 +2248,23 @@ PluginModuleParent::NPP_NewInternal(NPMIMEType pluginType, NPP instance,
         return NS_ERROR_FAILURE;
     }
 
-    {   // Scope for timer
-        Telemetry::AutoTimer<Telemetry::BLOCKED_ON_PLUGIN_INSTANCE_INIT_MS>
-            timer(GetHistogramKey());
-        if (mIsStartingAsync) {
-            MOZ_ASSERT(surrogate);
-            surrogate->AsyncCallDeparting();
-            if (!SendAsyncNPP_New(parentInstance)) {
+    if (mIsStartingAsync) {
+        MOZ_ASSERT(surrogate);
+        surrogate->AsyncCallDeparting();
+        if (!SendAsyncNPP_New(parentInstance)) {
+            *error = NPERR_GENERIC_ERROR;
+            return NS_ERROR_FAILURE;
+        }
+        *error = NPERR_NO_ERROR;
+    } else {
+        if (!CallSyncNPP_New(parentInstance, error)) {
+            // if IPC is down, we'll get an immediate "failed" return, but
+            // without *error being set.  So make sure that the error
+            // condition is signaled to nsNPAPIPluginInstance
+            if (NPERR_NO_ERROR == *error) {
                 *error = NPERR_GENERIC_ERROR;
-                return NS_ERROR_FAILURE;
             }
-            *error = NPERR_NO_ERROR;
-        } else {
-            if (!CallSyncNPP_New(parentInstance, error)) {
-                // if IPC is down, we'll get an immediate "failed" return, but
-                // without *error being set.  So make sure that the error
-                // condition is signaled to nsNPAPIPluginInstance
-                if (NPERR_NO_ERROR == *error) {
-                    *error = NPERR_GENERIC_ERROR;
-                }
-                return NS_ERROR_FAILURE;
-            }
+            return NS_ERROR_FAILURE;
         }
     }
 

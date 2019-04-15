@@ -248,7 +248,7 @@ function DO_LOG(aText) {
  * to allow enabling/disabling without a restart.
  */
 function PREF_LOG(aText) {
-  if (getBoolPref(BROWSER_SEARCH_PREF + "log", false))
+  if (Services.prefs.getBoolPref(BROWSER_SEARCH_PREF + "log", false))
     DO_LOG(aText);
 }
 var LOG = PREF_LOG;
@@ -934,18 +934,6 @@ function setLocalizedPref(aPrefName, aValue) {
 }
 
 /**
- * Wrapper for nsIPrefBranch::getBoolPref.
- * @param aPrefName
- *        The name of the pref to get.
- * @returns aDefault if the requested pref doesn't exist.
- */
-function getBoolPref(aName, aDefault) {
-  if (Services.prefs.getPrefType(aName) != Ci.nsIPrefBranch.PREF_BOOL)
-    return aDefault;
-  return Services.prefs.getBoolPref(aName);
-}
-
-/**
  * Get a unique nsIFile object with a sanitized name, based on the engine name.
  * @param aName
  *        A name to "sanitize". Can be an empty string, in which case a random
@@ -1591,7 +1579,7 @@ Engine.prototype = {
         stringBundle.formatStringFromName("addEngineConfirmation",
                                           [this._name, this._uri.host], 2);
     var checkboxMessage = null;
-    if (!getBoolPref(BROWSER_SEARCH_PREF + "noCurrentEngine", false))
+    if (!Services.prefs.getBoolPref(BROWSER_SEARCH_PREF + "noCurrentEngine", false))
       checkboxMessage = stringBundle.GetStringFromName("addEngineAsCurrentText");
 
     var addButtonLabel =
@@ -2237,12 +2225,26 @@ Engine.prototype = {
   get lazySerializeTask() {
     if (!this._lazySerializeTask) {
       let task = function taskCallback() {
-        this._serializeToFile();
+        // This check should be done by caller, but it is better to be safe than sorry.
+        if (!this._readOnly && this._file) {
+          this._serializeToFile();
+        }
       }.bind(this);
       this._lazySerializeTask = new DeferredTask(task, LAZY_SERIALIZE_DELAY);
     }
 
     return this._lazySerializeTask;
+  },
+
+  // This API is required by some search engine management extensions, so let's restore it.
+  // Old API was using a timer to do its work, but this can lead us too far. If extension is
+  // rely on such subtle internal details, that extension should be fixed, not browser.
+  _lazySerializeToFile: function SRCH_ENG_lazySerializeToFile() {
+    // This check should be done by caller, but it is better to be safe than sorry.
+    // Besides, we don't have to create a task for r/o or non-file engines.
+    if (!this._readOnly && this._file) {
+      this.lazySerializeTask.arm();
+    }
   },
 
   /**
@@ -2875,7 +2877,7 @@ function checkForSyncCompletion(aPromise) {
 // nsIBrowserSearchService
 function SearchService() {
   // Replace empty LOG function with the useful one if the log pref is set.
-  if (getBoolPref(BROWSER_SEARCH_PREF + "log", false))
+  if (Services.prefs.getBoolPref(BROWSER_SEARCH_PREF + "log", false))
     LOG = DO_LOG;
 
   this._initObservers = Promise.defer();
@@ -2903,12 +2905,12 @@ SearchService.prototype = {
       return;
     }
 
-    let warning =
+    let performanceWarning =
       "Search service falling back to synchronous initialization. " +
       "This is generally the consequence of an add-on using a deprecated " +
       "search service API.";
-    Deprecated.warning(warning, "https://developer.mozilla.org/en-US/docs/XPCOM_Interface_Reference/nsIBrowserSearchService#async_warning");
-    LOG(warning);
+    Deprecated.perfWarning(performanceWarning, "https://developer.mozilla.org/en-US/docs/XPCOM_Interface_Reference/nsIBrowserSearchService#async_warning");
+    LOG(performanceWarning);
 
     engineMetadataService.syncInit();
     this._syncInit();
@@ -3057,6 +3059,10 @@ SearchService.prototype = {
 
         continue;
       }
+
+      // Write out serialized search engine files when rebuilding cache.
+      // Do it lazily, to: 1) reuse existing API; 2) make browser interface more responsive
+      engine._lazySerializeToFile();
 
       let cacheKey = parent.path;
       if (!cache.directories[cacheKey]) {
@@ -3796,7 +3802,7 @@ SearchService.prototype = {
     // If the user has specified a custom engine order, read the order
     // information from the engineMetadataService instead of the default
     // prefs.
-    if (getBoolPref(BROWSER_SEARCH_PREF + "useDBForOrder", false)) {
+    if (Services.prefs.getBoolPref(BROWSER_SEARCH_PREF + "useDBForOrder", false)) {
       LOG("_buildSortedEngineList: using db for order");
 
       // Flag to keep track of whether or not we need to call _saveSortedEngineList.
@@ -4577,7 +4583,7 @@ SearchService.prototype = {
   notify: function SRCH_SVC_notify(aTimer) {
     LOG("_notify: checking for updates");
 
-    if (!getBoolPref(BROWSER_SEARCH_PREF + "update", true))
+    if (!Services.prefs.getBoolPref(BROWSER_SEARCH_PREF + "update", true))
       return;
 
     // Our timer has expired, but unfortunately, we can't get any data from it.
@@ -4920,7 +4926,7 @@ const SEARCH_UPDATE_LOG_PREFIX = "*** Search update: ";
  * logging pref (browser.search.update.log) is set to true.
  */
 function ULOG(aText) {
-  if (getBoolPref(BROWSER_SEARCH_PREF + "update.log", false)) {
+  if (Services.prefs.getBoolPref(BROWSER_SEARCH_PREF + "update.log", false)) {
     dump(SEARCH_UPDATE_LOG_PREFIX + aText + "\n");
     Services.console.logStringMessage(aText);
   }
@@ -4937,7 +4943,7 @@ var engineUpdateService = {
   update: function eus_Update(aEngine) {
     let engine = aEngine.wrappedJSObject;
     ULOG("update called for " + aEngine._name);
-    if (!getBoolPref(BROWSER_SEARCH_PREF + "update", true) || !engine._hasUpdates)
+    if (!Services.prefs.getBoolPref(BROWSER_SEARCH_PREF + "update", true) || !engine._hasUpdates)
       return;
 
     let testEngine = null;

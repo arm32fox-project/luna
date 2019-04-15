@@ -28,6 +28,21 @@ SyncStorageRequest.prototype = {
   _logName: "Sync.StorageRequest",
 
   /**
+   * The string to use as the base User-Agent in Sync requests.
+   * These strings will look something like
+   * 
+   *   Firefox/4.0 FxSync/1.8.0.20100101.mobile
+   * 
+   * or
+   * 
+   *   Firefox Aurora/5.0a1 FxSync/1.9.0.20110409.desktop
+   */
+  userAgent:
+    Services.appinfo.name + "/" + Services.appinfo.version +  // Product.
+    " FxSync/" + WEAVE_VERSION + "." +                        // Sync.
+    Services.appinfo.appBuildID + ".",                        // Build.
+
+  /**
    * Wait 5 minutes before killing a request.
    */
   timeout: STORAGE_REQUEST_TIMEOUT,
@@ -35,7 +50,8 @@ SyncStorageRequest.prototype = {
   dispatch: function dispatch(method, data, onComplete, onProgress) {
     // Compose a UA string fragment from the various available identifiers.
     if (Svc.Prefs.get("sendVersionInfo", true)) {
-      this.setHeader("user-agent", Utils.userAgent);
+      let ua = this.userAgent + Svc.Prefs.get("client.type", "desktop");
+      this.setHeader("user-agent", ua);
     }
 
     if (this.authenticator) {

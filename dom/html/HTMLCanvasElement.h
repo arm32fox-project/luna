@@ -224,9 +224,9 @@ public:
   nsIntSize GetSize();
 
   /**
-   * Determine whether the canvas is write-only.
+   * Determine whether the canvas is write-only (tainted).
    */
-  bool IsWriteOnly();
+  bool IsWriteOnly() const;
 
   /**
    * Force the canvas to be write-only.
@@ -349,10 +349,6 @@ public:
 
   static void SetAttrFromAsyncCanvasRenderer(AsyncCanvasRenderer *aRenderer);
   static void InvalidateFromAsyncCanvasRenderer(AsyncCanvasRenderer *aRenderer);
-
-  void StartVRPresentation();
-  void StopVRPresentation();
-  already_AddRefed<layers::SharedSurfaceTextureClient> GetVRFrame();
 
 protected:
   virtual ~HTMLCanvasElement();

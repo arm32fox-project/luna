@@ -13,10 +13,6 @@
 #include <float.h>
 #endif
 
-#if defined(SOLARIS)
-#include <ieeefp.h>
-#endif
-
 #include "js/TypeDecls.h"
 #include "js/Value.h"
 #include "js/RootingAPI.h"
@@ -975,11 +971,17 @@ public:
 
   static bool PrefetchEnabled(nsIDocShell* aDocShell);
 
+  static nsresult CalculateBufferSizeForImage(const uint32_t& aStride,
+                                              const mozilla::gfx::IntSize& aImageSize,
+                                              const mozilla::gfx::SurfaceFormat& aFormat,
+                                              size_t* aMaxBufferSize,
+                                              size_t* aUsedBufferSize);
+
+private:
   /**
    * Fill (with the parameters given) the localized string named |aKey| in
    * properties file |aFile|.
    */
-private:
   static nsresult FormatLocalizedString(PropertiesFile aFile,
                                         const char* aKey,
                                         const char16_t** aParams,
@@ -2729,6 +2731,13 @@ public:
                                  JS::MutableHandle<JSObject*> prototype);
 
   static bool AttemptLargeAllocationLoad(nsIHttpChannel* aChannel);
+
+  /**
+   * Detect whether a string is a (CSS) local-url.
+   * https://drafts.csswg.org/css-values/#local-urls
+   */
+  static bool
+  IsLocalRefURL(const nsString& aString);
 
 private:
   static bool InitializeEventTable();

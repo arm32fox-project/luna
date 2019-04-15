@@ -202,16 +202,12 @@
 #include "mozilla/dom/GamepadManager.h"
 #endif
 
-#include "mozilla/dom/VRDisplay.h"
-#include "mozilla/dom/VREventObserver.h"
-
 #include "nsRefreshDriver.h"
 #include "Layers.h"
 
 #include "mozilla/AddonPathService.h"
 #include "mozilla/BasePrincipal.h"
 #include "mozilla/Services.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/dom/Location.h"
 #include "nsHTMLDocument.h"
 #include "nsWrapperCacheInlines.h"
@@ -292,7 +288,6 @@ static bool                 gMouseDown                 = false;
 static bool                 gDragServiceDisabled       = false;
 static FILE                *gDumpFile                  = nullptr;
 static uint32_t             gSerialCounter             = 0;
-static TimeStamp            gLastRecordedRecentTimeouts;
 #define STATISTICS_INTERVAL (30 * PR_MSEC_PER_SEC)
 
 #ifdef DEBUG_jst
@@ -1522,7 +1517,6 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
     mIsPopupSpam(false),
     mBlockScriptedClosingFlag(false),
     mWasOffline(false),
-    mHasHadSlowScript(false),
     mNotifyIdleObserversIdleOnThaw(false),
     mNotifyIdleObserversActiveOnThaw(false),
     mCreatingInnerWindow(false),
@@ -1533,7 +1527,6 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
     mShowFocusRingForContent(false),
     mFocusByKeyOccurred(false),
     mHasGamepad(false),
-    mHasVREvents(false),
 #ifdef MOZ_GAMEPAD
     mHasSeenGamepadInput(false),
 #endif
@@ -1759,9 +1752,6 @@ nsGlobalWindow::~nsGlobalWindow()
 
     DropOuterWindowDocs();
   } else {
-    Telemetry::Accumulate(Telemetry::INNERWINDOWS_WITH_MUTATION_LISTENERS,
-                          mMutationBits ? 1 : 0);
-
     if (mListenerManager) {
       mListenerManager->Disconnect();
       mListenerManager = nullptr;
@@ -1971,12 +1961,9 @@ nsGlobalWindow::CleanUp()
   if (IsInnerWindow()) {
     DisableGamepadUpdates();
     mHasGamepad = false;
-    DisableVRUpdates();
-    mHasVREvents = false;
     DisableIdleCallbackRequests();
   } else {
     MOZ_ASSERT(!mHasGamepad);
-    MOZ_ASSERT(!mHasVREvents);
   }
 
   if (mCleanMessageManager) {
@@ -2027,7 +2014,7 @@ nsGlobalWindow::ClearControllers()
 }
 
 void
-nsGlobalWindow::FreeInnerObjects()
+nsGlobalWindow::FreeInnerObjects(bool aForDocumentOpen)
 {
   NS_ASSERTION(IsInnerWindow(), "Don't free inner objects on an outer window");
 
@@ -2086,8 +2073,10 @@ nsGlobalWindow::FreeInnerObjects()
     mDocumentURI = mDoc->GetDocumentURI();
     mDocBaseURI = mDoc->GetDocBaseURI();
 
-    while (mDoc->EventHandlingSuppressed()) {
-      mDoc->UnsuppressEventHandlingAndFireEvents(nsIDocument::eEvents, false);
+    if (!aForDocumentOpen) {
+      while (mDoc->EventHandlingSuppressed()) {
+        mDoc->UnsuppressEventHandlingAndFireEvents(nsIDocument::eEvents, false);
+      }
     }
 
     // Note: we don't have to worry about eAnimationsOnly suppressions because
@@ -2120,9 +2109,6 @@ nsGlobalWindow::FreeInnerObjects()
   mHasGamepad = false;
   mGamepads.Clear();
 #endif
-  DisableVRUpdates();
-  mHasVREvents = false;
-  mVRDisplays.Clear();
 }
 
 //*****************************************************************************
@@ -2277,7 +2263,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsGlobalWindow)
 #endif
 
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mCacheStorage)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mVRDisplays)
 
   // Traverse stuff from nsPIDOMWindow
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mChromeEventHandler)
@@ -2299,7 +2284,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsGlobalWindow)
 
   tmp->TraverseHostObjectURIs(cb);
 
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGlobalWindow)
@@ -2354,7 +2338,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGlobalWindow)
 #endif
 
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mCacheStorage)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mVRDisplays)
 
   // Unlink stuff from nsPIDOMWindow
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mChromeEventHandler)
@@ -2695,7 +2678,6 @@ TreatAsRemoteXUL(nsIPrincipal* aPrincipal)
 static bool
 EnablePrivilege(JSContext* cx, unsigned argc, JS::Value* vp)
 {
-  Telemetry::Accumulate(Telemetry::ENABLE_PRIVILEGE_EVER_CALLED, true);
   return xpc::EnableUniversalXPConnect(cx);
 }
 
@@ -3005,6 +2987,8 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
   nsCOMPtr<WindowStateHolder> wsh = do_QueryInterface(aState);
   NS_ASSERTION(!aState || wsh, "What kind of weird state are you giving me here?");
 
+  bool handleDocumentOpen = false;
+  
   JS::Rooted<JSObject*> newInnerGlobal(cx);
   if (reUseInnerWindow) {
     // We're reusing the current inner window.
@@ -3096,6 +3080,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
 
     if (currentInner && currentInner->GetWrapperPreserveColor()) {
       if (oldDoc == aDocument) {
+        handleDocumentOpen = true;
         // Move the navigator from the old inner window to the new one since
         // this is a document.write. This is safe from a same-origin point of
         // view because document.write can only be used by the same origin.
@@ -3120,7 +3105,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
       // Don't free objects on our current inner window if it's going to be
       // held in the bfcache.
       if (!currentInner->IsFrozen()) {
-        currentInner->FreeInnerObjects();
+        currentInner->FreeInnerObjects(handleDocumentOpen);
       }
     }
 
@@ -3388,9 +3373,6 @@ nsGlobalWindow::InnerSetNewDocument(JSContext* aCx, nsIDocument* aDocument)
 #ifdef DEBUG
   mLastOpenedURI = aDocument->GetDocumentURI();
 #endif
-
-  Telemetry::Accumulate(Telemetry::INNERWINDOWS_WITH_MUTATION_LISTENERS,
-                        mMutationBits ? 1 : 0);
 
   // Clear our mutation bitfield.
   mMutationBits = 0;
@@ -6848,8 +6830,6 @@ FullscreenTransitionTask::Run()
       Preferences::GetUint("full-screen-api.transition.timeout", 1000);
     mTimer->Init(observer, timeout, nsITimer::TYPE_ONE_SHOT);
   } else if (stage == eAfterToggle) {
-    Telemetry::AccumulateTimeDelta(Telemetry::FULLSCREEN_TRANSITION_BLACK_MS,
-                                   mFullscreenChangeStartTime);
     mWidget->PerformFullscreenTransition(nsIWidget::eAfterFullscreenToggle,
                                          mDuration.mFadeOut, mTransitionData,
                                          this);
@@ -10513,24 +10493,6 @@ nsGlobalWindow::DisableGamepadUpdates()
 }
 
 void
-nsGlobalWindow::EnableVRUpdates()
-{
-  MOZ_ASSERT(IsInnerWindow());
-
-  if (mHasVREvents && !mVREventObserver) {
-    mVREventObserver = new VREventObserver(this);
-  }
-}
-
-void
-nsGlobalWindow::DisableVRUpdates()
-{
-  MOZ_ASSERT(IsInnerWindow());
-
-  mVREventObserver = nullptr;
-}
-
-void
 nsGlobalWindow::SetChromeEventHandler(EventTarget* aChromeEventHandler)
 {
   MOZ_ASSERT(IsOuterWindow());
@@ -11577,13 +11539,6 @@ nsGlobalWindow::ShowSlowScriptDialog()
   unsigned lineno;
   bool hasFrame = JS::DescribeScriptedCaller(cx, &filename, &lineno);
 
-  // Record the slow script event if we haven't done so already for this inner window
-  // (which represents a particular page to the user).
-  if (!mHasHadSlowScript) {
-    Telemetry::Accumulate(Telemetry::SLOW_SCRIPT_PAGE_COUNT, 1);
-  }
-  mHasHadSlowScript = true;
-
   if (XRE_IsContentProcess() &&
       ProcessHangMonitor::Get()) {
     ProcessHangMonitor::SlowScriptAction action;
@@ -11612,10 +11567,6 @@ nsGlobalWindow::ShowSlowScriptDialog()
 
     return ContinueSlowScriptAndKeepNotifying;
   }
-
-  // Reached only on non-e10s - once per slow script dialog.
-  // On e10s - we probe once at ProcessHangsMonitor.jsm
-  Telemetry::Accumulate(Telemetry::SLOW_SCRIPT_NOTICE_COUNT, 1);
 
   // Get the nsIPrompt interface from the docshell
   nsCOMPtr<nsIDocShell> ds = GetDocShell();
@@ -12224,7 +12175,6 @@ nsGlobalWindow::Suspend()
       ac->RemoveWindowListener(mEnabledSensors[i], this);
   }
   DisableGamepadUpdates();
-  DisableVRUpdates();
 
   mozilla::dom::workers::SuspendWorkersForWindow(AsInner());
 
@@ -12288,7 +12238,6 @@ nsGlobalWindow::Resume()
       ac->AddWindowListener(mEnabledSensors[i], this);
   }
   EnableGamepadUpdates();
-  EnableVRUpdates();
 
   // Resume all of the AudioContexts for this window
   for (uint32_t i = 0; i < mAudioContexts.Length(); ++i) {
@@ -13445,13 +13394,6 @@ nsGlobalWindow::RunTimeout(Timeout* aTimeout)
     return;
   }
 
-  // Record telemetry information about timers set recently.
-  TimeDuration recordingInterval = TimeDuration::FromMilliseconds(STATISTICS_INTERVAL);
-  if (gLastRecordedRecentTimeouts.IsNull() ||
-      now - gLastRecordedRecentTimeouts > recordingInterval) {
-    gLastRecordedRecentTimeouts = now;
-  }
-
   // Insert a dummy timeout into the list of timeouts between the
   // portion of the list that we are about to process now and those
   // timeouts that will be processed in a future call to
@@ -14044,19 +13986,6 @@ nsGlobalWindow::SetHasGamepadEventListener(bool aHasGamepad/* = true*/)
 void
 nsGlobalWindow::EventListenerAdded(nsIAtom* aType)
 {
-  if (aType == nsGkAtoms::onvrdisplayconnect ||
-      aType == nsGkAtoms::onvrdisplaydisconnect ||
-      aType == nsGkAtoms::onvrdisplaypresentchange) {
-    NotifyVREventListenerAdded();
-  }
-}
-
-void
-nsGlobalWindow::NotifyVREventListenerAdded()
-{
-  MOZ_ASSERT(IsInnerWindow());
-  mHasVREvents = true;
-  EnableVRUpdates();
 }
 
 void
@@ -14200,27 +14129,6 @@ nsGlobalWindow::SyncGamepadState()
   }
 }
 #endif // MOZ_GAMEPAD
-
-bool
-nsGlobalWindow::UpdateVRDisplays(nsTArray<RefPtr<mozilla::dom::VRDisplay>>& aDevices)
-{
-  FORWARD_TO_INNER(UpdateVRDisplays, (aDevices), false);
-
-  VRDisplay::UpdateVRDisplays(mVRDisplays, AsInner());
-  aDevices = mVRDisplays;
-  return true;
-}
-
-void
-nsGlobalWindow::NotifyActiveVRDisplaysChanged()
-{
-  MOZ_ASSERT(IsInnerWindow());
-
-  if (mNavigator) {
-    mNavigator->NotifyActiveVRDisplaysChanged();
-  }
-}
-
 
 // nsGlobalChromeWindow implementation
 

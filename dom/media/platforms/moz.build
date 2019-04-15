@@ -10,7 +10,6 @@ EXPORTS += [
     'agnostic/TheoraDecoder.h',
     'agnostic/VorbisDecoder.h',
     'agnostic/VPXDecoder.h',
-    'MediaTelemetryConstants.h',
     'PDMFactory.h',
     'PlatformDecoderModule.h',
     'wrappers/FuzzingWrapper.h',
@@ -53,6 +52,14 @@ if CONFIG['MOZ_FFVPX']:
 if CONFIG['MOZ_FFMPEG']:
     DIRS += [
         'ffmpeg',
+    ]
+
+if CONFIG['MOZ_AV1']:
+    EXPORTS += [
+        'agnostic/AOMDecoder.h',
+    ]
+    UNIFIED_SOURCES += [
+        'agnostic/AOMDecoder.cpp',
     ]
 
 if CONFIG['MOZ_APPLEMEDIA']:

@@ -11,7 +11,6 @@
 #include "nsString.h"
 #include "nsXULAppAPI.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/Services.h"
 #include "mozilla/gfx/Logging.h"
 #include "mozilla/dom/ContentChild.h"
@@ -412,10 +411,6 @@ D3D11LayersCrashGuard::Initialize()
   }
 
   DriverCrashGuard::Initialize();
-
-  // If no telemetry states have been recorded, this will set the state to okay.
-  // Otherwise, it will have no effect.
-  RecordTelemetry(TelemetryState::Okay);
 }
 
 bool
@@ -448,41 +443,19 @@ D3D11LayersCrashGuard::UpdateEnvironment()
     return false;
   }
 
-  RecordTelemetry(TelemetryState::EnvironmentChanged);
   return true;
 }
 
 void
 D3D11LayersCrashGuard::LogCrashRecovery()
 {
-  RecordTelemetry(TelemetryState::RecoveredFromCrash);
   gfxCriticalNote << "D3D11 layers just crashed; D3D11 will be disabled.";
 }
 
 void
 D3D11LayersCrashGuard::LogFeatureDisabled()
 {
-  RecordTelemetry(TelemetryState::FeatureDisabled);
   gfxCriticalNote << "D3D11 layers disabled due to a prior crash.";
-}
-
-void
-D3D11LayersCrashGuard::RecordTelemetry(TelemetryState aState)
-{
-  // D3D11LayersCrashGuard is a no-op in the child process.
-  if (!XRE_IsParentProcess()) {
-    return;
-  }
-
-  // Since we instantiate this class more than once, make sure we only record
-  // the first state (since that is really all we care about).
-  static bool sTelemetryStateRecorded = false;
-  if (sTelemetryStateRecorded) {
-    return;
-  }
-
-  Telemetry::Accumulate(Telemetry::GRAPHICS_DRIVER_STARTUP_TEST, int32_t(aState));
-  sTelemetryStateRecorded = true;
 }
 
 D3D9VideoCrashGuard::D3D9VideoCrashGuard(dom::ContentParent* aContentParent)

@@ -14,7 +14,6 @@
 #include "mozilla/Assertions.h"
 #include "mozilla/Casting.h"
 #include "mozilla/RefPtr.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/TimeStamp.h"
 #include "mozilla/Unused.h"
 #include "nsContentUtils.h"
@@ -39,9 +38,6 @@ using namespace mozilla;
 using namespace mozilla::psm;
 
 extern LazyLogModule gPIPNSSLog;
-
-static void AccumulateCipherSuite(Telemetry::ID probe,
-                                  const SSLChannelInfo& channelInfo);
 
 namespace {
 
@@ -488,31 +484,6 @@ nsNSSHttpRequestSession::internal_send_receive_attempt(bool &retryable_error,
         }
       }
     }
-  }
-
-  if (!event->mStartTime.IsNull()) {
-    if (request_canceled) {
-      Telemetry::Accumulate(Telemetry::CERT_VALIDATION_HTTP_REQUEST_RESULT, 0);
-      Telemetry::AccumulateTimeDelta(
-        Telemetry::CERT_VALIDATION_HTTP_REQUEST_CANCELED_TIME,
-        event->mStartTime, TimeStamp::Now());
-    }
-    else if (NS_SUCCEEDED(mListener->mResultCode) &&
-             mListener->mHttpResponseCode == 200) {
-      Telemetry::Accumulate(Telemetry::CERT_VALIDATION_HTTP_REQUEST_RESULT, 1);
-      Telemetry::AccumulateTimeDelta(
-        Telemetry::CERT_VALIDATION_HTTP_REQUEST_SUCCEEDED_TIME,
-        event->mStartTime, TimeStamp::Now());
-    }
-    else {
-      Telemetry::Accumulate(Telemetry::CERT_VALIDATION_HTTP_REQUEST_RESULT, 2);
-      Telemetry::AccumulateTimeDelta(
-        Telemetry::CERT_VALIDATION_HTTP_REQUEST_FAILED_TIME,
-        event->mStartTime, TimeStamp::Now());
-    }
-  }
-  else {
-    Telemetry::Accumulate(Telemetry::CERT_VALIDATION_HTTP_REQUEST_RESULT, 3);
   }
 
   if (request_canceled) {
@@ -996,7 +967,6 @@ PreliminaryHandshakeDone(PRFileDesc* fd)
     } else {
       infoObject->SetNegotiatedNPN(nullptr, 0);
     }
-    mozilla::Telemetry::Accumulate(Telemetry::SSL_NPN_TYPE, state);
   } else {
     infoObject->SetNegotiatedNPN(nullptr, 0);
   }
@@ -1091,9 +1061,6 @@ CanFalseStartCallback(PRFileDesc* fd, void* client_data, PRBool *canFalseStart)
     }
   }
 
-  Telemetry::Accumulate(Telemetry::SSL_REASONS_FOR_NOT_FALSE_STARTING,
-                        reasonsForNotFalseStarting);
-
   if (reasonsForNotFalseStarting == 0) {
     *canFalseStart = PR_TRUE;
     infoObject->SetFalseStarted();
@@ -1102,102 +1069,6 @@ CanFalseStartCallback(PRFileDesc* fd, void* client_data, PRBool *canFalseStart)
   }
 
   return SECSuccess;
-}
-
-static void
-AccumulateNonECCKeySize(Telemetry::ID probe, uint32_t bits)
-{
-  unsigned int value = bits <   512 ?  1 : bits ==   512 ?  2
-                     : bits <   768 ?  3 : bits ==   768 ?  4
-                     : bits <  1024 ?  5 : bits ==  1024 ?  6
-                     : bits <  1280 ?  7 : bits ==  1280 ?  8
-                     : bits <  1536 ?  9 : bits ==  1536 ? 10
-                     : bits <  2048 ? 11 : bits ==  2048 ? 12
-                     : bits <  3072 ? 13 : bits ==  3072 ? 14
-                     : bits <  4096 ? 15 : bits ==  4096 ? 16
-                     : bits <  8192 ? 17 : bits ==  8192 ? 18
-                     : bits < 16384 ? 19 : bits == 16384 ? 20
-                     : 0;
-  Telemetry::Accumulate(probe, value);
-}
-
-// XXX: This attempts to map a bit count to an ECC named curve identifier. In
-// the vast majority of situations, we only have the Suite B curves available.
-// In that case, this mapping works fine. If we were to have more curves
-// available, the mapping would be ambiguous since there could be multiple
-// named curves for a given size (e.g. secp256k1 vs. secp256r1). We punt on
-// that for now. See also NSS bug 323674.
-static void
-AccumulateECCCurve(Telemetry::ID probe, uint32_t bits)
-{
-  unsigned int value = bits == 256 ? 23 // P-256
-                     : bits == 384 ? 24 // P-384
-                     : bits == 521 ? 25 // P-521
-                     : 0; // Unknown
-  Telemetry::Accumulate(probe, value);
-}
-
-static void
-AccumulateCipherSuite(Telemetry::ID probe, const SSLChannelInfo& channelInfo)
-{
-  uint32_t value;
-  switch (channelInfo.cipherSuite) {
-    // ECDHE key exchange
-    case TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256: value = 1; break;
-    case TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256: value = 2; break;
-    case TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA: value = 3; break;
-    case TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA: value = 4; break;
-    case TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA: value = 5; break;
-    case TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA: value = 6; break;
-    case TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA: value = 7; break;
-    case TLS_ECDHE_RSA_WITH_RC4_128_SHA: value = 8; break;
-    case TLS_ECDHE_ECDSA_WITH_RC4_128_SHA: value = 9; break;
-    case TLS_ECDHE_ECDSA_WITH_3DES_EDE_CBC_SHA: value = 10; break;
-    case TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256: value = 11; break;
-    case TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256: value = 12; break;
-    case TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384: value = 13; break;
-    case TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384: value = 14; break;
-    // DHE key exchange
-    case TLS_DHE_RSA_WITH_AES_128_CBC_SHA: value = 21; break;
-    case TLS_DHE_RSA_WITH_CAMELLIA_128_CBC_SHA: value = 22; break;
-    case TLS_DHE_RSA_WITH_AES_256_CBC_SHA: value = 23; break;
-    case TLS_DHE_RSA_WITH_CAMELLIA_256_CBC_SHA: value = 24; break;
-    case TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA: value = 25; break;
-    case TLS_DHE_DSS_WITH_AES_128_CBC_SHA: value = 26; break;
-    case TLS_DHE_DSS_WITH_CAMELLIA_128_CBC_SHA: value = 27; break;
-    case TLS_DHE_DSS_WITH_AES_256_CBC_SHA: value = 28; break;
-    case TLS_DHE_DSS_WITH_CAMELLIA_256_CBC_SHA: value = 29; break;
-    case TLS_DHE_DSS_WITH_3DES_EDE_CBC_SHA: value = 30; break;
-    // ECDH key exchange
-    case TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA: value = 41; break;
-    case TLS_ECDH_RSA_WITH_AES_128_CBC_SHA: value = 42; break;
-    case TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA: value = 43; break;
-    case TLS_ECDH_RSA_WITH_AES_256_CBC_SHA: value = 44; break;
-    case TLS_ECDH_ECDSA_WITH_3DES_EDE_CBC_SHA: value = 45; break;
-    case TLS_ECDH_RSA_WITH_3DES_EDE_CBC_SHA: value = 46; break;
-    case TLS_ECDH_ECDSA_WITH_RC4_128_SHA: value = 47; break;
-    case TLS_ECDH_RSA_WITH_RC4_128_SHA: value = 48; break;
-    // RSA key exchange
-    case TLS_RSA_WITH_AES_128_CBC_SHA: value = 61; break;
-    case TLS_RSA_WITH_CAMELLIA_128_CBC_SHA: value = 62; break;
-    case TLS_RSA_WITH_AES_256_CBC_SHA: value = 63; break;
-    case TLS_RSA_WITH_CAMELLIA_256_CBC_SHA: value = 64; break;
-    case SSL_RSA_FIPS_WITH_3DES_EDE_CBC_SHA: value = 65; break;
-    case TLS_RSA_WITH_3DES_EDE_CBC_SHA: value = 66; break;
-    case TLS_RSA_WITH_SEED_CBC_SHA: value = 67; break;
-    case TLS_RSA_WITH_RC4_128_SHA: value = 68; break;
-    case TLS_RSA_WITH_RC4_128_MD5: value = 69; break;
-    // TLS 1.3 PSK resumption
-    case TLS_AES_128_GCM_SHA256: value = 70; break;
-    case TLS_CHACHA20_POLY1305_SHA256: value = 71; break;
-    case TLS_AES_256_GCM_SHA384: value = 72; break;
-    // unknown
-    default:
-      value = 0;
-      break;
-  }
-  MOZ_ASSERT(value != 0);
-  Telemetry::Accumulate(probe, value);
 }
 
 // In the case of session resumption, the AuthCertificate hook has been bypassed
@@ -1309,70 +1180,37 @@ void HandshakeCallback(PRFileDesc* fd, void* client_data) {
                                            infoObject->GetPort(),
                                            versions.max);
 
-  bool usesFallbackCipher = false;
   SSLChannelInfo channelInfo;
   rv = SSL_GetChannelInfo(fd, &channelInfo, sizeof(channelInfo));
   MOZ_ASSERT(rv == SECSuccess);
   if (rv == SECSuccess) {
-    // Get the protocol version for telemetry
-    // 1=tls1, 2=tls1.1, 3=tls1.2
-    unsigned int versionEnum = channelInfo.protocolVersion & 0xFF;
-    MOZ_ASSERT(versionEnum > 0);
-    Telemetry::Accumulate(Telemetry::SSL_HANDSHAKE_VERSION, versionEnum);
-    AccumulateCipherSuite(
-      infoObject->IsFullHandshake() ? Telemetry::SSL_CIPHER_SUITE_FULL
-                                    : Telemetry::SSL_CIPHER_SUITE_RESUMED,
-      channelInfo);
-
     SSLCipherSuiteInfo cipherInfo;
     rv = SSL_GetCipherSuiteInfo(channelInfo.cipherSuite, &cipherInfo,
                                 sizeof cipherInfo);
     MOZ_ASSERT(rv == SECSuccess);
     if (rv == SECSuccess) {
-      usesFallbackCipher = channelInfo.keaType == ssl_kea_dh;
-
-      // keyExchange null=0, rsa=1, dh=2, fortezza=3, ecdh=4
-      Telemetry::Accumulate(
-        infoObject->IsFullHandshake()
-          ? Telemetry::SSL_KEY_EXCHANGE_ALGORITHM_FULL
-          : Telemetry::SSL_KEY_EXCHANGE_ALGORITHM_RESUMED,
-        channelInfo.keaType);
-
       MOZ_ASSERT(infoObject->GetKEAUsed() == channelInfo.keaType);
 
       if (infoObject->IsFullHandshake()) {
         switch (channelInfo.keaType) {
           case ssl_kea_rsa:
-            AccumulateNonECCKeySize(Telemetry::SSL_KEA_RSA_KEY_SIZE_FULL,
-                                    channelInfo.keaKeyBits);
             break;
           case ssl_kea_dh:
-            AccumulateNonECCKeySize(Telemetry::SSL_KEA_DHE_KEY_SIZE_FULL,
-                                    channelInfo.keaKeyBits);
             break;
           case ssl_kea_ecdh:
-            AccumulateECCCurve(Telemetry::SSL_KEA_ECDHE_CURVE_FULL,
-                               channelInfo.keaKeyBits);
             break;
           default:
             MOZ_CRASH("impossible KEA");
             break;
         }
 
-        Telemetry::Accumulate(Telemetry::SSL_AUTH_ALGORITHM_FULL,
-                              channelInfo.authType);
-
         // RSA key exchange doesn't use a signature for auth.
         if (channelInfo.keaType != ssl_kea_rsa) {
           switch (channelInfo.authType) {
             case ssl_auth_rsa:
             case ssl_auth_rsa_sign:
-              AccumulateNonECCKeySize(Telemetry::SSL_AUTH_RSA_KEY_SIZE_FULL,
-                                      channelInfo.authKeyBits);
               break;
             case ssl_auth_ecdsa:
-              AccumulateECCCurve(Telemetry::SSL_AUTH_ECDSA_CURVE_FULL,
-                                 channelInfo.authKeyBits);
               break;
             default:
               MOZ_CRASH("impossible auth algorithm");
@@ -1380,12 +1218,6 @@ void HandshakeCallback(PRFileDesc* fd, void* client_data) {
           }
         }
       }
-
-      Telemetry::Accumulate(
-          infoObject->IsFullHandshake()
-            ? Telemetry::SSL_SYMMETRIC_CIPHER_FULL
-            : Telemetry::SSL_SYMMETRIC_CIPHER_RESUMED,
-          cipherInfo.symCipher);
     }
   }
 
@@ -1421,15 +1253,6 @@ void HandshakeCallback(PRFileDesc* fd, void* client_data) {
   } else {
     state = nsIWebProgressListener::STATE_IS_SECURE |
             nsIWebProgressListener::STATE_SECURE_HIGH;
-    if (!usesFallbackCipher) {
-      SSLVersionRange defVersion;
-      rv = SSL_VersionRangeGetDefault(ssl_variant_stream, &defVersion);
-      if (rv == SECSuccess && versions.max >= defVersion.max) {
-        // we know this site no longer requires a fallback cipher
-        ioLayerHelpers.removeInsecureFallbackSite(infoObject->GetHostName(),
-                                                  infoObject->GetPort());
-      }
-    }
   }
 
   if (status->HasServerCert()) {

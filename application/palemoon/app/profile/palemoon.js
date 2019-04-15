@@ -37,20 +37,20 @@ pref("extensions.strictCompatibility", false);
 // for it to be compatible by default.
 pref("extensions.minCompatibleAppVersion", "1.5");
 
-// Preferences for APO integration
-#define APO_AM_URL addons.palemoon.org/integration/addon-manager
-#define APO_AUS_ARGS reqVersion=%REQ_VERSION%&id=%ITEM_ID%&version=%ITEM_VERSION%&maxAppVersion=%ITEM_MAXAPPVERSION%&status=%ITEM_STATUS%&appID=%APP_ID%&appVersion=%APP_VERSION%&appOS=%APP_OS%&appABI=%APP_ABI%&locale=%APP_LOCALE%&currentAppVersion=%CURRENT_APP_VERSION%&updateType=%UPDATE_TYPE%&compatMode=%COMPATIBILITY_MODE%
+#define AM_DOMAIN addons.palemoon.org
+#define AM_AUS_ARGS reqVersion=%REQ_VERSION%&id=%ITEM_ID%&version=%ITEM_VERSION%&maxAppVersion=%ITEM_MAXAPPVERSION%&status=%ITEM_STATUS%&appID=%APP_ID%&appVersion=%APP_VERSION%&appOS=%APP_OS%&appABI=%APP_ABI%&locale=%APP_LOCALE%&currentAppVersion=%CURRENT_APP_VERSION%&updateType=%UPDATE_TYPE%&compatMode=%COMPATIBILITY_MODE%
 
+// Preferences for AMO integration
 pref("extensions.getAddons.cache.enabled", false);
 pref("extensions.getAddons.maxResults", 10);
-pref("extensions.getAddons.get.url", "https://@APO_AM_URL@/internal/get?addonguid=%IDS%&os=%OS%&version=%VERSION%");
-pref("extensions.getAddons.getWithPerformance.url", "https://@APO_AM_URL@/internal/get?addonguid=%IDS%&os=%OS%&version=%VERSION%");
-pref("extensions.getAddons.search.browseURL", "https://@APO_AM_URL@/external/recommended");
-pref("extensions.getAddons.search.url", "https://@APO_AM_URL@/internal/search?q=%TERMS%&locale=%LOCALE%&os=%OS%&version=%VERSION%");
-pref("extensions.webservice.discoverURL", "http://@APO_AM_URL@/internal/discover/");
-pref("extensions.getAddons.recommended.url", "https://@APO_AM_URL@/internal/recommended?locale=%LOCALE%&os=%OS%");
-pref("extensions.getAddons.browseAddons", "https://addons.palemoon.org");
-pref("extensions.getAddons.recommended.browseURL", "https://@APO_AM_URL@/external/recommended");
+pref("extensions.getAddons.get.url", "https://@AM_DOMAIN@/?component=integration&type=internal&request=get&addonguid=%IDS%&os=%OS%&version=%VERSION%");
+pref("extensions.getAddons.getWithPerformance.url", "https://@AM_DOMAIN@/?component=integration&type=internal&request=get&addonguid=%IDS%&os=%OS%&version=%VERSION%");
+pref("extensions.getAddons.search.browseURL", "https://@AM_DOMAIN@/search/?terms=%TERMS%");
+pref("extensions.getAddons.search.url", "https://@AM_DOMAIN@/?component=integration&type=internal&request=search&q=%TERMS%&locale=%LOCALE%&os=%OS%&version=%VERSION%");
+pref("extensions.webservice.discoverURL", "http://@AM_DOMAIN@/?component=discover");
+pref("extensions.getAddons.recommended.url", "https://@AM_DOMAIN@/?component=integration&type=internal&request=recommended&locale=%LOCALE%&os=%OS%");
+pref("extensions.getAddons.browseAddons", "http://@AM_DOMAIN@/");
+pref("extensions.getAddons.recommended.browseURL", "https://@AM_DOMAIN@/?component=integration&type=external&request=recommended");
 
 // Blocklist preferences
 pref("extensions.blocklist.enabled", true);
@@ -70,10 +70,10 @@ pref("extensions.update.autoUpdateDefault", true);
 pref("extensions.autoDisableScopes", 15);
 
 // Dictionary download preference
-pref("browser.dictionaries.download.url", "https://addons.mozilla.org/%LOCALE%/firefox/dictionaries/");
+pref("browser.dictionaries.download.url", "https://@AM_DOMAIN@/dictionaries/");
 
 // Get More Tools link URL
-pref("browser.getdevtools.url","https://@APO_AM_URL@/external/devtools");
+pref("browser.getdevtools.url","https://@AM_DOMAIN@/?component=integration&type=external&request=devtools");
 
 // Feedback URL
 pref("browser.feedback.url", "https://forum.palemoon.org");
@@ -194,8 +194,8 @@ pref("app.update.incompatible.mode", 0);
 //  .. etc ..
 //
 pref("extensions.update.enabled", true);
-pref("extensions.update.url", "https://@APO_AM_URL@/internal/update?@APO_AUS_ARGS@");
-pref("extensions.update.background.url", "https://@APO_AM_URL@/internal/update?@APO_AUS_ARGS@");
+pref("extensions.update.url", "https://@AM_DOMAIN@/?component=aus&@AM_AUS_ARGS@");
+pref("extensions.update.background.url", "https://@AM_DOMAIN@/?component=aus&@AM_AUS_ARGS@");
 pref("extensions.update.interval", 86400);  // Check for updates to Extensions and 
                                             // Themes every day
 // Non-symmetric (not shared by extensions) extension-specific [update] preferences
@@ -229,10 +229,10 @@ pref("keyword.enabled", true);
 pref("general.useragent.locale", "@AB_CD@");
 pref("general.skins.selectedSkin", "classic/1.0");
 
-// Native UA mode by default
+// Native UA mode by default for unbranded
 pref("general.useragent.compatMode", 0);
-pref("general.useragent.compatmode.gecko", false);
-pref("general.useragent.compatmode.firefox", false);
+pref("general.useragent.compatMode.gecko", false);
+pref("general.useragent.compatMode.firefox", false);
 
 pref("general.smoothScroll", true);
 #ifdef UNIX_BUT_NOT_MAC
@@ -264,6 +264,9 @@ pref("browser.slowStartup.maxSamples", 5);
 pref("browser.enable_automatic_image_resizing", true);
 pref("browser.chrome.site_icons", true);
 pref("browser.chrome.favicons", true);
+// If enabled, will process favicons by drawing them on a canvas,
+// optimizing display size for the UI. This also strips animations.
+pref("browser.chrome.favicons.process", false);
 // browser.warnOnQuit == false will override all other possible prompts when quitting or restarting
 pref("browser.warnOnQuit", true);
 // browser.showQuitWarning specifically controls the quit warning dialog. We
@@ -359,7 +362,7 @@ pref("browser.download.panel.shown", false);
 pref("browser.download.panel.firstSessionCompleted", false);
 
 // search engines URL
-pref("browser.search.searchEnginesURL",      "https://@APO_AM_URL@/external/searchplugins");
+pref("browser.search.searchEnginesURL",      "https://@AM_DOMAIN@/?component=integration&type=external&request=searchplugins");
 
 // pointer to the default engine name
 pref("browser.search.defaultenginename",      "chrome://browser-region/locale/region.properties");
@@ -462,6 +465,10 @@ pref("browser.tabs.closeButtons", 1);
 // true   return to the tab that opened this tab (its owner)
 // false  return to the adjacent tab (old default)
 pref("browser.tabs.selectOwnerOnClose", true);
+
+pref("browser.tabs.showAudioPlayingIcon", true);
+// This should match Chromium's audio indicator delay.
+pref("browser.tabs.delayHidingAudioPlayingIconMS", 3000);
 
 pref("browser.allTabs.previews", true);
 pref("browser.ctrlTab.previews", true);
@@ -1065,6 +1072,8 @@ pref("prompts.tab_modal.focusSwitch", true);
 
 // Defines the url to be used for new tabs.
 pref("browser.newtab.url", "about:logopage");
+pref("browser.newtab.choice", 1);
+
 // Activates preloading of the new tab url.
 pref("browser.newtab.preload", false);
 
@@ -1074,10 +1083,11 @@ pref("browser.newtabpage.enabled", true);
 // XXX: Remove this when "enhanced" tiles are dead
 pref("browser.newtabpage.enhanced", false);
 
+// Disables capturing of page thumbnails
+pref("browser.pagethumbnails.capturing_disabled", false);
+
 // enables showing basic placeholders for missing thumbnails
 pref("browser.newtabpage.thumbnailPlaceholder", false);
-
-pref("privacy.usercontext.about_newtab_segregation.enabled", false);
 
 // number of columns of newtab grid
 pref("browser.newtabpage.columns", 4);
@@ -1108,6 +1118,9 @@ pref("security.csp.speccompliant", true);
 
 // Block insecure active content on https pages
 pref("security.mixed_content.block_active_content", true);
+
+// Disable Microsoft Family Safety MitM support
+pref("security.family_safety.mode", 0);
 
 // Override the Gecko-default value of false for Pale Moon.
 pref("plain_text.wrap_long_lines", true);
@@ -1148,18 +1161,13 @@ pref("toolkit.pageThumbs.minHeight", 180);
 pref("ui.key.menuAccessKeyFocuses", true);
 #endif
 
-// ****************** domain-specific UAs ******************
-
-// AMO needs "Firefox", obviously - pass on the OS (determined at build time)
-#ifdef XP_UNIX
-#ifdef XP_MACOSX
-pref("general.useragent.override.addons.mozilla.org","Mozilla/5.0 (Macintosh; Intel Mac OS X 10.8; rv:27.0) Gecko/20100101 Firefox/27.0");
-#else
-pref("general.useragent.override.addons.mozilla.org","Mozilla/5.0 (Linux; X11; rv:27.0) Gecko/20100101 Firefox/27.0");
-#endif
-#else
-pref("general.useragent.override.addons.mozilla.org","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:27.0) Gecko/20100101 Firefox/27.0");
-#endif
+// When a user cancels this number of authentication dialogs coming from
+// a single web page (eTLD+1) in a row, all following authentication dialogs
+// will be blocked (automatically canceled) for that page.
+// This counter is per-tab and per-domain to minimize false positives.
+// The counter resets when the page is reloaded from the UI
+// (content-reloads do NOT clear this to mitigate reloading tricks).
+pref("prompts.authentication_dialog_abuse_limit", 3);
 
 // ****************** s4e prefs ******************
 pref("status4evar.addonbar.borderStyle", false);

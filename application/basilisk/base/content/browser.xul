@@ -8,7 +8,6 @@
 
 <?xml-stylesheet href="chrome://browser/content/browser.css" type="text/css"?>
 <?xml-stylesheet href="chrome://browser/content/places/places.css" type="text/css"?>
-<?xml-stylesheet href="chrome://browser/content/usercontext/usercontext.css" type="text/css"?>
 #ifdef MOZ_DEVTOOLS
 <?xml-stylesheet href="chrome://devtools/skin/devtools-browser.css" type="text/css"?>
 #endif
@@ -521,8 +520,7 @@
             tabbrowser="content"
             flex="1"
             setfocus="false"
-            tooltip="tabbrowser-tab-tooltip"
-            stopwatchid="FX_TAB_CLICK_MS">
+            tooltip="tabbrowser-tab-tooltip">
         <tab class="tabbrowser-tab" selected="true" visuallyselected="true" fadein="true"/>
       </tabs>
 
@@ -552,12 +550,7 @@
                     key="key_undoCloseTab"
                     label="&undoCloseTab.label;"
                     observes="History:UndoCloseTab"/>
-          <menuseparator id="alltabs-popup-separator-1"/>
-          <menu id="alltabs_containersTab"
-                label="&newUserContext.label;">
-            <menupopup id="alltabs_containersMenuTab" />
-          </menu>
-          <menuseparator id="alltabs-popup-separator-2"/>
+          <menuseparator id="alltabs-popup-separator"/>
         </menupopup>
       </toolbarbutton>
 
@@ -676,10 +669,6 @@
                          tooltiptext="&urlbar.webRTCShareScreenNotificationAnchor.tooltip;"/>
                   <image id="servicesInstall-notification-icon" class="notification-anchor-icon service-icon" role="button"
                          tooltiptext="&urlbar.servicesNotificationAnchor.tooltip;"/>
-                  <image id="translate-notification-icon" class="notification-anchor-icon translation-icon" role="button"
-                         tooltiptext="&urlbar.translateNotificationAnchor.tooltip;"/>
-                  <image id="translated-notification-icon" class="notification-anchor-icon translation-icon in-use" role="button"
-                         tooltiptext="&urlbar.translatedNotificationAnchor.tooltip;"/>
                   <image id="eme-notification-icon" class="notification-anchor-icon drm-icon" role="button"
                          tooltiptext="&urlbar.emeNotificationAnchor.tooltip;"/>
                 </box>
@@ -1002,7 +991,8 @@
                     contentcontextmenu="contentAreaContextMenu"
                     autocompletepopup="PopupAutoComplete"
                     selectmenulist="ContentSelectDropdown"
-                    datetimepicker="DateTimePickerPanel"/>
+                    datetimepicker="DateTimePickerPanel"
+                    authdosprotected="true" />
       </vbox>
       <vbox id="browser-border-end" hidden="true" layer="true"/>
     </hbox>

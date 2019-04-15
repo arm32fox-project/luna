@@ -23,10 +23,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "CharsetMenu",
   "resource://gre/modules/CharsetMenu.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
   "resource://gre/modules/PrivateBrowsingUtils.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "SyncedTabs",
-  "resource://services-sync/SyncedTabs.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "ContextualIdentityService",
-  "resource://gre/modules/ContextualIdentityService.jsm");
 
 XPCOMUtils.defineLazyGetter(this, "CharsetBundle", function() {
   const kCharsetBundle = "chrome://global/locale/charsetMenu.properties";
@@ -312,77 +308,6 @@ const CustomizableWidgets = [
       obnode.setAttribute("element", "sync-status");
       obnode.setAttribute("attribute", "syncstatus");
       aNode.appendChild(obnode);
-
-      // A somewhat complicated dance to format the mobilepromo label.
-      let bundle = doc.getElementById("bundle_browser");
-      let formatArgs = ["android", "ios"].map(os => {
-        let link = doc.createElement("label");
-        link.textContent = bundle.getString(`appMenuRemoteTabs.mobilePromo.${os}`);
-        link.setAttribute("mobile-promo-os", os);
-        link.className = "text-link remotetabs-promo-link";
-        return link.outerHTML;
-      });
-      let promoParentElt = doc.getElementById("PanelUI-remotetabs-mobile-promo");
-      // Put it all together...
-      let contents = bundle.getFormattedString("appMenuRemoteTabs.mobilePromo.text2", formatArgs);
-      promoParentElt.innerHTML = contents;
-      // We manually manage the "click" event to open the promo links because
-      // allowing the "text-link" widget handle it has 2 problems: (1) it only
-      // supports button 0 and (2) it's tricky to intercept when it does the
-      // open and auto-close the panel. (1) can probably be fixed, but (2) is
-      // trickier without hard-coding here the knowledge of exactly what buttons
-      // it does support.
-      // So we allow left and middle clicks to open the link in a new tab and
-      // close the panel; not setting a "href" attribute prevents the text-link
-      // widget handling it, and we build the final URL in the click handler to
-      // make testing easier (ie, so tests can change the pref after the links
-      // were created and have the new pref value used.)
-      promoParentElt.addEventListener("click", e => {
-        let os = e.target.getAttribute("mobile-promo-os");
-        if (!os || e.button > 1) {
-          return;
-        }
-        let link = Services.prefs.getCharPref(`identity.mobilepromo.${os}`) + "synced-tabs";
-        doc.defaultView.openUILinkIn(link, "tab");
-        CustomizableUI.hidePanelForNode(e.target);
-      });
-    },
-    onViewShowing(aEvent) {
-      let doc = aEvent.target.ownerDocument;
-      this._tabsList = doc.getElementById("PanelUI-remotetabs-tabslist");
-      Services.obs.addObserver(this, SyncedTabs.TOPIC_TABS_CHANGED, false);
-
-      if (SyncedTabs.isConfiguredToSyncTabs) {
-        if (SyncedTabs.hasSyncedThisSession) {
-          this.setDeckIndex(this.deckIndices.DECKINDEX_TABS);
-        } else {
-          // Sync hasn't synced tabs yet, so show the "fetching" panel.
-          this.setDeckIndex(this.deckIndices.DECKINDEX_FETCHING);
-        }
-        // force a background sync.
-        SyncedTabs.syncTabs().catch(ex => {
-          Cu.reportError(ex);
-        });
-        // show the current list - it will be updated by our observer.
-        this._showTabs();
-      } else {
-        // not configured to sync tabs, so no point updating the list.
-        this.setDeckIndex(this.deckIndices.DECKINDEX_TABSDISABLED);
-      }
-    },
-    onViewHiding() {
-      Services.obs.removeObserver(this, SyncedTabs.TOPIC_TABS_CHANGED);
-      this._tabsList = null;
-    },
-    _tabsList: null,
-    observe(subject, topic, data) {
-      switch (topic) {
-        case SyncedTabs.TOPIC_TABS_CHANGED:
-          this._showTabs();
-          break;
-        default:
-          break;
-      }
     },
     setDeckIndex(index) {
       let deck = this._tabsList.ownerDocument.getElementById("PanelUI-remotetabs-deck");
@@ -1050,89 +975,6 @@ const CustomizableWidgets = [
       let win = aEvent.view;
       win.MailIntegration.sendLinkForBrowser(win.gBrowser.selectedBrowser)
     }
-  }, {
-    id: "containers-panelmenu",
-    type: "view",
-    viewId: "PanelUI-containers",
-    hasObserver: false,
-    onCreated: function(aNode) {
-      let doc = aNode.ownerDocument;
-      let win = doc.defaultView;
-      let items = doc.getElementById("PanelUI-containersItems");
-
-      let onItemCommand = function (aEvent) {
-        let item = aEvent.target;
-        if (item.hasAttribute("usercontextid")) {
-          let userContextId = parseInt(item.getAttribute("usercontextid"));
-          win.openUILinkIn(win.BROWSER_NEW_TAB_URL, "tab", {userContextId});
-        }
-      };
-      items.addEventListener("command", onItemCommand);
-
-      if (PrivateBrowsingUtils.isWindowPrivate(win)) {
-        aNode.setAttribute("disabled", "true");
-      }
-
-      this.updateVisibility(aNode);
-
-      if (!this.hasObserver) {
-        Services.prefs.addObserver("privacy.userContext.enabled", this, true);
-        this.hasObserver = true;
-      }
-    },
-    onViewShowing: function(aEvent) {
-      let doc = aEvent.target.ownerDocument;
-
-      let items = doc.getElementById("PanelUI-containersItems");
-
-      while (items.firstChild) {
-        items.firstChild.remove();
-      }
-
-      let fragment = doc.createDocumentFragment();
-      let bundle = doc.getElementById("bundle_browser");
-
-      ContextualIdentityService.getIdentities().forEach(identity => {
-        let label = ContextualIdentityService.getUserContextLabel(identity.userContextId);
-
-        let item = doc.createElementNS(kNSXUL, "toolbarbutton");
-        item.setAttribute("label", label);
-        item.setAttribute("usercontextid", identity.userContextId);
-        item.setAttribute("class", "subviewbutton");
-        item.setAttribute("data-identity-color", identity.color);
-        item.setAttribute("data-identity-icon", identity.icon);
-
-        fragment.appendChild(item);
-      });
-
-      fragment.appendChild(doc.createElementNS(kNSXUL, "menuseparator"));
-
-      let item = doc.createElementNS(kNSXUL, "toolbarbutton");
-      item.setAttribute("label", bundle.getString("userContext.aboutPage.label"));
-      item.setAttribute("command", "Browser:OpenAboutContainers");
-      item.setAttribute("class", "subviewbutton");
-      fragment.appendChild(item);
-
-      items.appendChild(fragment);
-    },
-
-    updateVisibility(aNode) {
-      aNode.hidden = !Services.prefs.getBoolPref("privacy.userContext.enabled");
-    },
-
-    observe(aSubject, aTopic, aData) {
-      let {instances} = CustomizableUI.getWidget("containers-panelmenu");
-      for (let {node} of instances) {
-	if (node) {
-	  this.updateVisibility(node);
-	}
-      }
-    },
-
-    QueryInterface: XPCOMUtils.generateQI([
-      Ci.nsISupportsWeakReference,
-      Ci.nsIObserver
-    ]),
   }];
 
 let preferencesButton = {

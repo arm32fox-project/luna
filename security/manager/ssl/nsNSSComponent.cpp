@@ -19,7 +19,6 @@
 #include "mozilla/Services.h"
 #include "mozilla/StaticPtr.h"
 #include "mozilla/SyncRunnable.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/Unused.h"
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsCRT.h"
@@ -785,13 +784,6 @@ nsNSSComponent::UnloadFamilySafetyRoot()
 // 2: detect Family Safety mode and import the root
 const char* kFamilySafetyModePref = "security.family_safety.mode";
 
-// The telemetry gathered by this function is as follows:
-// 0-2: the value of the Family Safety mode pref
-// 3: detecting Family Safety mode failed
-// 4: Family Safety was not enabled
-// 5: Family Safety was enabled
-// 6: failed to import the Family Safety root
-// 7: successfully imported the root
 void
 nsNSSComponent::MaybeEnableFamilySafetyCompatibility()
 {
@@ -805,29 +797,22 @@ nsNSSComponent::MaybeEnableFamilySafetyCompatibility()
   if (familySafetyMode > 2) {
     familySafetyMode = 0;
   }
-  Telemetry::Accumulate(Telemetry::FAMILY_SAFETY, familySafetyMode);
   if (familySafetyMode == 0) {
     return;
   }
   bool familySafetyEnabled;
   nsresult rv = AccountHasFamilySafetyEnabled(familySafetyEnabled);
   if (NS_FAILED(rv)) {
-    Telemetry::Accumulate(Telemetry::FAMILY_SAFETY, 3);
     return;
   }
   if (!familySafetyEnabled) {
-    Telemetry::Accumulate(Telemetry::FAMILY_SAFETY, 4);
     return;
   }
-  Telemetry::Accumulate(Telemetry::FAMILY_SAFETY, 5);
   if (familySafetyMode == 2) {
     rv = LoadFamilySafetyRoot();
     if (NS_FAILED(rv)) {
-      Telemetry::Accumulate(Telemetry::FAMILY_SAFETY, 6);
       MOZ_LOG(gPIPNSSLog, LogLevel::Debug,
               ("failed to load Family Safety root"));
-    } else {
-      Telemetry::Accumulate(Telemetry::FAMILY_SAFETY, 7);
     }
   }
 #endif // XP_WIN
@@ -1316,8 +1301,8 @@ typedef struct {
   bool weak;
 } CipherPref;
 
-// Update the switch statement in AccumulateCipherSuite in nsNSSCallbacks.cpp
-// when you add/remove cipher suites here.
+// List of available cipher suites and their prefs
+// Format: "pref", cipherSuite, defaultEnabled, [isWeak = false]
 static const CipherPref sCipherPrefs[] = {
  { "security.ssl3.ecdhe_rsa_aes_128_gcm_sha256",
    TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, true },
@@ -1376,12 +1361,18 @@ static const CipherPref sCipherPrefs[] = {
    TLS_RSA_WITH_AES_256_CBC_SHA, true },
 
 // Expensive/deprecated/weak
+// Deprecated
  { "security.ssl3.rsa_aes_128_gcm_sha256",
    TLS_RSA_WITH_AES_128_GCM_SHA256, false }, // Deprecated
  { "security.ssl3.rsa_aes_128_sha256",
    TLS_RSA_WITH_AES_128_CBC_SHA256, false }, // Deprecated
+// Weak/vulnerable
  { "security.ssl3.rsa_des_ede3_sha",
-   TLS_RSA_WITH_3DES_EDE_CBC_SHA, false }, // Weak (3DES)
+   TLS_RSA_WITH_3DES_EDE_CBC_SHA, false, true }, // Weak (3DES)
+ { "security.ssl3.rsa_rc4_128_sha",
+   TLS_RSA_WITH_RC4_128_SHA, false, true }, // RC4
+ { "security.ssl3.rsa_rc4_128_md5",
+   TLS_RSA_WITH_RC4_128_MD5, false, true }, // RC4, HMAC-MD5
 
  // All the rest are disabled
 
@@ -1391,8 +1382,8 @@ static const CipherPref sCipherPrefs[] = {
 // Bit flags indicating what weak ciphers are enabled.
 // The bit index will correspond to the index in sCipherPrefs.
 // Wrtten by the main thread, read from any threads.
-static Atomic<uint32_t> sEnabledWeakCiphers;
-static_assert(MOZ_ARRAY_LENGTH(sCipherPrefs) - 1 <= sizeof(uint32_t) * CHAR_BIT,
+static uint64_t sEnabledWeakCiphers;
+static_assert(MOZ_ARRAY_LENGTH(sCipherPrefs) - 1 <= sizeof(uint64_t) * CHAR_BIT,
               "too many cipher suites");
 
 /*static*/ bool
@@ -1404,10 +1395,10 @@ nsNSSComponent::AreAnyWeakCiphersEnabled()
 /*static*/ void
 nsNSSComponent::UseWeakCiphersOnSocket(PRFileDesc* fd)
 {
-  const uint32_t enabledWeakCiphers = sEnabledWeakCiphers;
+  const uint64_t enabledWeakCiphers = sEnabledWeakCiphers;
   const CipherPref* const cp = sCipherPrefs;
   for (size_t i = 0; cp[i].pref; ++i) {
-    if (enabledWeakCiphers & ((uint32_t)1 << i)) {
+    if (enabledWeakCiphers & ((uint64_t)1 << i)) {
       SSL_CipherPrefSet(fd, cp[i].id, true);
     }
   }
@@ -1534,11 +1525,11 @@ CipherSuiteChangeObserver::Observe(nsISupports* aSubject,
           // are enabled in prefs. They are only used on specific
           // sockets as a part of a fallback mechanism.
           // Only the main thread will change sEnabledWeakCiphers.
-          uint32_t enabledWeakCiphers = sEnabledWeakCiphers;
+          uint64_t enabledWeakCiphers = sEnabledWeakCiphers;
           if (cipherEnabled) {
-            enabledWeakCiphers |= ((uint32_t)1 << i);
+            enabledWeakCiphers |= ((uint64_t)1 << i);
           } else {
-            enabledWeakCiphers &= ~((uint32_t)1 << i);
+            enabledWeakCiphers &= ~((uint64_t)1 << i);
           }
           sEnabledWeakCiphers = enabledWeakCiphers;
         } else {
@@ -1565,22 +1556,6 @@ CipherSuiteChangeObserver::Observe(nsISupports* aSubject,
 void nsNSSComponent::setValidationOptions(bool isInitialSetting,
                                           const MutexAutoLock& lock)
 {
-  // This preference controls whether we do OCSP fetching and does not affect
-  // OCSP stapling.
-  // 0 = disabled, 1 = enabled
-  int32_t ocspEnabled = Preferences::GetInt("security.OCSP.enabled",
-                                            OCSP_ENABLED_DEFAULT);
-
-  bool ocspRequired = ocspEnabled &&
-    Preferences::GetBool("security.OCSP.require", false);
-
-  // We measure the setting of the pref at startup only to minimize noise by
-  // addons that may muck with the settings, though it probably doesn't matter.
-  if (isInitialSetting) {
-    Telemetry::Accumulate(Telemetry::CERT_OCSP_ENABLED, ocspEnabled);
-    Telemetry::Accumulate(Telemetry::CERT_OCSP_REQUIRED, ocspRequired);
-  }
-
   bool ocspStaplingEnabled = Preferences::GetBool("security.ssl.enable_ocsp_stapling",
                                                   true);
   PublicSSLState()->SetOCSPStaplingEnabled(ocspStaplingEnabled);
@@ -1932,20 +1907,6 @@ nsNSSComponent::InitializeNSS()
     return NS_ERROR_FAILURE;
   }
 
-  // TLSServerSocket may be run with the session cache enabled. It is necessary
-  // to call this once before that can happen. This specifies a maximum of 1000
-  // cache entries (the default number of cache entries is 10000, which seems a
-  // little excessive as there probably won't be that many clients connecting to
-  // any TLSServerSockets the browser runs.)
-  // Note that this must occur before any calls to SSL_ClearSessionCache
-  // (otherwise memory will leak).
-  if (SSL_ConfigServerSessionIDCache(1000, 0, 0, nullptr) != SECSuccess) {
-#ifdef ANDROID
-    MOZ_RELEASE_ASSERT(false);
-#endif
-    return NS_ERROR_FAILURE;
-  }
-
   // ensure the CertBlocklist is initialised
   nsCOMPtr<nsICertBlocklist> certList = do_GetService(NS_CERTBLOCKLIST_CONTRACTID);
 #ifdef ANDROID
@@ -1986,9 +1947,6 @@ nsNSSComponent::InitializeNSS()
     return NS_ERROR_FAILURE;
   }
 
-  if (PK11_IsFIPS()) {
-    Telemetry::Accumulate(Telemetry::FIPS_ENABLED, true);
-  }
   MOZ_LOG(gPIPNSSLog, LogLevel::Debug, ("NSS Initialization done\n"));
   return NS_OK;
 }
@@ -2476,7 +2434,7 @@ InitializeCipherSuite()
   }
 
   // Now only set SSL/TLS ciphers we knew about at compile time
-  uint32_t enabledWeakCiphers = 0;
+  uint64_t enabledWeakCiphers = 0;
   const CipherPref* const cp = sCipherPrefs;
   for (size_t i = 0; cp[i].pref; ++i) {
     bool cipherEnabled = Preferences::GetBool(cp[i].pref,
@@ -2485,7 +2443,7 @@ InitializeCipherSuite()
       // Weak ciphers are not used by default. See the comment
       // in CipherSuiteChangeObserver::Observe for details.
       if (cipherEnabled) {
-        enabledWeakCiphers |= ((uint32_t)1 << i);
+        enabledWeakCiphers |= ((uint64_t)1 << i);
       }
     } else {
       SSL_CipherPrefSetDefault(cp[i].id, cipherEnabled);

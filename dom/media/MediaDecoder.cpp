@@ -30,14 +30,9 @@
 #include "mozilla/dom/VideoTrack.h"
 #include "mozilla/dom/VideoTrackList.h"
 #include "nsPrintfCString.h"
-#include "mozilla/Telemetry.h"
 #include "GMPService.h"
 #include "Layers.h"
 #include "mozilla/layers/ShadowLayers.h"
-
-#ifdef MOZ_ANDROID_OMX
-#include "AndroidBridge.h"
-#endif
 
 using namespace mozilla::dom;
 using namespace mozilla::layers;
@@ -425,7 +420,6 @@ MediaDecoder::MediaDecoder(MediaDecoderOwner* aOwner)
   , INIT_CANONICAL(mPlaybackRateReliable, true)
   , INIT_CANONICAL(mDecoderPosition, 0)
   , INIT_CANONICAL(mIsVisible, !aOwner->IsHidden())
-  , mTelemetryReported(false)
 {
   MOZ_COUNT_CTOR(MediaDecoder);
   MOZ_ASSERT(NS_IsMainThread());
@@ -845,42 +839,6 @@ MediaDecoder::MetadataLoaded(nsAutoPtr<MediaInfo> aInfo,
   // So we call Invalidate() after calling mOwner->MetadataLoaded to ensure
   // the media element has the latest dimensions.
   Invalidate();
-
-  EnsureTelemetryReported();
-}
-
-void
-MediaDecoder::EnsureTelemetryReported()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  if (mTelemetryReported || !mInfo) {
-    // Note: sometimes we get multiple MetadataLoaded calls (for example
-    // for chained ogg). So we ensure we don't report duplicate results for
-    // these resources.
-    return;
-  }
-
-  nsTArray<nsCString> codecs;
-  if (mInfo->HasAudio() && !mInfo->mAudio.GetAsAudioInfo()->mMimeType.IsEmpty()) {
-    codecs.AppendElement(mInfo->mAudio.GetAsAudioInfo()->mMimeType);
-  }
-  if (mInfo->HasVideo() && !mInfo->mVideo.GetAsVideoInfo()->mMimeType.IsEmpty()) {
-    codecs.AppendElement(mInfo->mVideo.GetAsVideoInfo()->mMimeType);
-  }
-  if (codecs.IsEmpty()) {
-    if (mResource->GetContentType().IsEmpty()) {
-      NS_WARNING("Somehow the resource's content type is empty");
-      return;
-    }
-    codecs.AppendElement(nsPrintfCString("resource; %s", mResource->GetContentType().get()));
-  }
-  for (const nsCString& codec : codecs) {
-    DECODER_LOG("Telemetry MEDIA_CODEC_USED= '%s'", codec.get());
-    Telemetry::Accumulate(Telemetry::ID::MEDIA_CODEC_USED, codec);
-  }
-
-  mTelemetryReported = true;
 }
 
 const char*
@@ -1617,16 +1575,6 @@ MediaDecoder::IsWebMEnabled()
 {
   return Preferences::GetBool("media.webm.enabled");
 }
-
-#ifdef MOZ_ANDROID_OMX
-bool
-MediaDecoder::IsAndroidMediaPluginEnabled()
-{
-  return AndroidBridge::Bridge() &&
-         AndroidBridge::Bridge()->GetAPIVersion() < 16 &&
-         Preferences::GetBool("media.plugins.enabled");
-}
-#endif
 
 NS_IMETHODIMP
 MediaMemoryTracker::CollectReports(nsIHandleReportCallback* aHandleReport,

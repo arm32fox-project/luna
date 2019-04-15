@@ -22,7 +22,6 @@
 #include "nsIGfxInfo.h"
 #include "nsServiceManagerUtils.h"
 #include "nsTArray.h"
-#include "mozilla/Telemetry.h"
 #include "GeckoProfiler.h"
 
 #include "nsIWindowsRegKey.h"
@@ -428,10 +427,6 @@ gfxWindowsPlatform::HandleDeviceReset()
   DeviceResetReason resetReason = DeviceResetReason::OK;
   if (!DidRenderingDeviceReset(&resetReason)) {
     return false;
-  }
-
-  if (resetReason != DeviceResetReason::FORCED_RESET) {
-    Telemetry::Accumulate(Telemetry::DEVICE_RESET_REASON, uint32_t(resetReason));
   }
 
   // Remove devices and adapters.
@@ -1439,20 +1434,6 @@ gfxWindowsPlatform::InitializeD3D11Config()
   }
 }
 
-/* static */ void
-gfxWindowsPlatform::RecordContentDeviceFailure(TelemetryDeviceCode aDevice)
-{
-  // If the parent process fails to acquire a device, we record this
-  // normally as part of the environment. The exceptional case we're
-  // looking for here is when the parent process successfully acquires
-  // a device, but the content process fails to acquire the same device.
-  // This would not normally be displayed in about:support.
-  if (!XRE_IsContentProcess()) {
-    return;
-  }
-  Telemetry::Accumulate(Telemetry::GFX_CONTENT_FAILED_TO_ACQUIRE_DEVICE, uint32_t(aDevice));
-}
-
 void
 gfxWindowsPlatform::InitializeDevices()
 {
@@ -1490,18 +1471,9 @@ gfxWindowsPlatform::InitializeDevices()
     return;
   }
 
-  bool shouldUseD2D = gfxConfig::IsEnabled(Feature::DIRECT2D);
-
   // First, initialize D3D11. If this succeeds we attempt to use Direct2D.
   InitializeD3D11();
   InitializeD2D();
-
-  if (!gfxConfig::IsEnabled(Feature::DIRECT2D) &&
-      XRE_IsContentProcess() &&
-      shouldUseD2D)
-  {
-    RecordContentDeviceFailure(TelemetryDeviceCode::D2D1);
-  }
 }
 
 void
