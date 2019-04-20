@@ -30,7 +30,7 @@ class AccessibleWrap;
 class MsaaIdGenerator
 {
 public:
-  constexpr MsaaIdGenerator();
+  MsaaIdGenerator();
 
   uint32_t GetID();
   void ReleaseID(AccessibleWrap* aAccWrap);

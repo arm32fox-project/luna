@@ -23,6 +23,7 @@
 #include "nsISelectionPrivate.h"
 #include "nsISelectionController.h"
 #include "nsISimpleEnumerator.h"
+#include "nsXBLPrototypeBinding.h"
 #include "mozilla/dom/TouchEvent.h"
 #include "mozilla/EventListenerManager.h"
 #include "mozilla/EventStateManager.h"

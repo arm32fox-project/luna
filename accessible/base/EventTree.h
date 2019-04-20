@@ -8,6 +8,7 @@
 
 #include "AccEvent.h"
 #include "Accessible.h"
+#include "DocAccessible.h"
 
 #include "mozilla/RefPtr.h"
 #include "mozilla/UniquePtr.h"
