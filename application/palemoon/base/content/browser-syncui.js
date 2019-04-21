@@ -93,17 +93,25 @@ var gSyncUI = {
     document.getElementById("sync-setup-state").hidden = !needsSetup;
     document.getElementById("sync-syncnow-state").hidden = needsSetup;
 
-    if (!gBrowser)
+    if (!gBrowser) {
       return;
+    }
 
     let button = document.getElementById("sync-button");
-    if (!button)
+    if (!button) {
       return;
+    }
 
     button.removeAttribute("status");
+
     this._updateLastSyncTime();
-    if (needsSetup)
+
+    if (needsSetup) {
       button.removeAttribute("tooltiptext");
+      button.setAttribute("label", this._stringBundle.GetStringFromName("setupsync.label"));
+    } else {
+      button.setAttribute("label", this._stringBundle.GetStringFromName("syncnow.label"));
+    }
   },
 
 
@@ -117,6 +125,7 @@ var gSyncUI = {
       return;
 
     button.setAttribute("status", "active");
+    button.setAttribute("label", this._stringBundle.GetStringFromName("syncing2.label"));
   },
 
   onSyncDelay: function SUI_onSyncDelay() {
