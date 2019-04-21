@@ -281,11 +281,7 @@ var gSyncUI = {
     if (!syncButton)
       return;
 
-    let lastSync;
-    try {
-      lastSync = Services.prefs.getCharPref("services.sync.lastSync");
-    }
-    catch (e) { };
+    let lastSync = Services.prefs.getCharPref("services.sync.lastSync", "");
     if (!lastSync || this._needsSetup()) {
       syncButton.removeAttribute("tooltiptext");
       return;
