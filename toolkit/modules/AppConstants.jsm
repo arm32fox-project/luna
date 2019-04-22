@@ -102,13 +102,6 @@ MOZ_SAFE_BROWSING:
   false,
 #endif
 
-  MOZ_SERVICES_CLOUDSYNC:
-#ifdef MOZ_SERVICES_CLOUDSYNC
-  true,
-#else
-  false,
-#endif
-
   MOZ_UPDATER:
 #ifdef MOZ_UPDATER
   true,
@@ -175,13 +168,6 @@ MOZ_SAFE_BROWSING:
 
   MOZ_VERIFY_MAR_SIGNATURE:
 #ifdef MOZ_VERIFY_MAR_SIGNATURE
-  true,
-#else
-  false,
-#endif
-
-  MOZ_MAINTENANCE_SERVICE:
-#ifdef MOZ_MAINTENANCE_SERVICE
   true,
 #else
   false,

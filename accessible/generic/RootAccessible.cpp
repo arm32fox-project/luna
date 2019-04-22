@@ -27,8 +27,10 @@
 
 #include "nsIDocShellTreeItem.h"
 #include "nsIDocShellTreeOwner.h"
+#include "mozilla/a11y/DocAccessibleParent.h"
 #include "mozilla/dom/Event.h"
 #include "mozilla/dom/EventTarget.h"
+#include "mozilla/dom/TabParent.h"
 #include "nsIDOMCustomEvent.h"
 #include "nsIDOMXULMultSelectCntrlEl.h"
 #include "nsIDocument.h"

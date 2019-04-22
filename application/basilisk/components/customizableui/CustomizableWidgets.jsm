@@ -23,8 +23,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "CharsetMenu",
   "resource://gre/modules/CharsetMenu.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
   "resource://gre/modules/PrivateBrowsingUtils.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "ContextualIdentityService",
-  "resource://gre/modules/ContextualIdentityService.jsm");
 
 XPCOMUtils.defineLazyGetter(this, "CharsetBundle", function() {
   const kCharsetBundle = "chrome://global/locale/charsetMenu.properties";
@@ -42,10 +40,7 @@ const kWidePanelItemClass = "panel-wide-item";
 XPCOMUtils.defineLazyGetter(this, "log", () => {
   let scope = {};
   Cu.import("resource://gre/modules/Console.jsm", scope);
-  let debug;
-  try {
-    debug = Services.prefs.getBoolPref(kPrefCustomizationDebug);
-  } catch (ex) {}
+  let debug = Services.prefs.getBoolPref(kPrefCustomizationDebug, false);
   let consoleOptions = {
     maxLogLevel: debug ? "all" : "log",
     prefix: "CustomizableWidgets",
@@ -287,144 +282,6 @@ const CustomizableWidgets = [
     onViewHiding: function(aEvent) {
       log.debug("History view is being hidden!");
     }
-  }, {
-    id: "sync-button",
-    label: "remotetabs-panelmenu.label",
-    tooltiptext: "remotetabs-panelmenu.tooltiptext2",
-    type: "view",
-    viewId: "PanelUI-remotetabs",
-    defaultArea: CustomizableUI.AREA_PANEL,
-    deckIndices: {
-      DECKINDEX_TABS: 0,
-      DECKINDEX_TABSDISABLED: 1,
-      DECKINDEX_FETCHING: 2,
-      DECKINDEX_NOCLIENTS: 3,
-    },
-    onCreated(aNode) {
-      // Add an observer to the button so we get the animation during sync.
-      // (Note the observer sets many attributes, including label and
-      // tooltiptext, but we only want the 'syncstatus' attribute for the
-      // animation)
-      let doc = aNode.ownerDocument;
-      let obnode = doc.createElementNS(kNSXUL, "observes");
-      obnode.setAttribute("element", "sync-status");
-      obnode.setAttribute("attribute", "syncstatus");
-      aNode.appendChild(obnode);
-    },
-    setDeckIndex(index) {
-      let deck = this._tabsList.ownerDocument.getElementById("PanelUI-remotetabs-deck");
-      // We call setAttribute instead of relying on the XBL property setter due
-      // to things going wrong when we try and set the index before the XBL
-      // binding has been created - see bug 1241851 for the gory details.
-      deck.setAttribute("selectedIndex", index);
-    },
-
-    _showTabsPromise: Promise.resolve(),
-    // Update the tab list after any existing in-flight updates are complete.
-    _showTabs() {
-      this._showTabsPromise = this._showTabsPromise.then(() => {
-        return this.__showTabs();
-      });
-    },
-    // Return a new promise to update the tab list.
-    __showTabs() {
-      let doc = this._tabsList.ownerDocument;
-      return SyncedTabs.getTabClients().then(clients => {
-        // The view may have been hidden while the promise was resolving.
-        if (!this._tabsList) {
-          return;
-        }
-        if (clients.length === 0 && !SyncedTabs.hasSyncedThisSession) {
-          // the "fetching tabs" deck is being shown - let's leave it there.
-          // When that first sync completes we'll be notified and update.
-          return;
-        }
-
-        if (clients.length === 0) {
-          this.setDeckIndex(this.deckIndices.DECKINDEX_NOCLIENTS);
-          return;
-        }
-
-        this.setDeckIndex(this.deckIndices.DECKINDEX_TABS);
-        this._clearTabList();
-        SyncedTabs.sortTabClientsByLastUsed(clients, 50 /* maxTabs */);
-        let fragment = doc.createDocumentFragment();
-
-        for (let client of clients) {
-          // add a menu separator for all clients other than the first.
-          if (fragment.lastChild) {
-            let separator = doc.createElementNS(kNSXUL, "menuseparator");
-            fragment.appendChild(separator);
-          }
-          this._appendClient(client, fragment);
-        }
-        this._tabsList.appendChild(fragment);
-      }).catch(err => {
-        Cu.reportError(err);
-      }).then(() => {
-        // an observer for tests.
-        Services.obs.notifyObservers(null, "synced-tabs-menu:test:tabs-updated", null);
-      });
-    },
-    _clearTabList () {
-      let list = this._tabsList;
-      while (list.lastChild) {
-        list.lastChild.remove();
-      }
-    },
-    _showNoClientMessage() {
-      this._appendMessageLabel("notabslabel");
-    },
-    _appendMessageLabel(messageAttr, appendTo = null) {
-      if (!appendTo) {
-        appendTo = this._tabsList;
-      }
-      let message = this._tabsList.getAttribute(messageAttr);
-      let doc = this._tabsList.ownerDocument;
-      let messageLabel = doc.createElementNS(kNSXUL, "label");
-      messageLabel.textContent = message;
-      appendTo.appendChild(messageLabel);
-      return messageLabel;
-    },
-    _appendClient: function (client, attachFragment) {
-      let doc = attachFragment.ownerDocument;
-      // Create the element for the remote client.
-      let clientItem = doc.createElementNS(kNSXUL, "label");
-      clientItem.setAttribute("itemtype", "client");
-      let window = doc.defaultView;
-      clientItem.setAttribute("tooltiptext",
-        window.gSyncUI.formatLastSyncDate(new Date(client.lastModified)));
-      clientItem.textContent = client.name;
-
-      attachFragment.appendChild(clientItem);
-
-      if (client.tabs.length == 0) {
-        let label = this._appendMessageLabel("notabsforclientlabel", attachFragment);
-        label.setAttribute("class", "PanelUI-remotetabs-notabsforclient-label");
-      } else {
-        for (let tab of client.tabs) {
-          let tabEnt = this._createTabElement(doc, tab);
-          attachFragment.appendChild(tabEnt);
-        }
-      }
-    },
-    _createTabElement(doc, tabInfo) {
-      let item = doc.createElementNS(kNSXUL, "toolbarbutton");
-      let tooltipText = (tabInfo.title ? tabInfo.title + "\n" : "") + tabInfo.url;
-      item.setAttribute("itemtype", "tab");
-      item.setAttribute("class", "subviewbutton");
-      item.setAttribute("targetURI", tabInfo.url);
-      item.setAttribute("label", tabInfo.title != "" ? tabInfo.title : tabInfo.url);
-      item.setAttribute("image", tabInfo.icon);
-      item.setAttribute("tooltiptext", tooltipText);
-      // We need to use "click" instead of "command" here so openUILink
-      // respects different buttons (eg, to open in a new tab).
-      item.addEventListener("click", e => {
-        doc.defaultView.openUILink(tabInfo.url, e);
-        CustomizableUI.hidePanelForNode(item);
-      });
-      return item;
-    },
   }, {
     id: "privatebrowsing-button",
     shortcutId: "key_privatebrowsing",
@@ -977,89 +834,6 @@ const CustomizableWidgets = [
       let win = aEvent.view;
       win.MailIntegration.sendLinkForBrowser(win.gBrowser.selectedBrowser)
     }
-  }, {
-    id: "containers-panelmenu",
-    type: "view",
-    viewId: "PanelUI-containers",
-    hasObserver: false,
-    onCreated: function(aNode) {
-      let doc = aNode.ownerDocument;
-      let win = doc.defaultView;
-      let items = doc.getElementById("PanelUI-containersItems");
-
-      let onItemCommand = function (aEvent) {
-        let item = aEvent.target;
-        if (item.hasAttribute("usercontextid")) {
-          let userContextId = parseInt(item.getAttribute("usercontextid"));
-          win.openUILinkIn(win.BROWSER_NEW_TAB_URL, "tab", {userContextId});
-        }
-      };
-      items.addEventListener("command", onItemCommand);
-
-      if (PrivateBrowsingUtils.isWindowPrivate(win)) {
-        aNode.setAttribute("disabled", "true");
-      }
-
-      this.updateVisibility(aNode);
-
-      if (!this.hasObserver) {
-        Services.prefs.addObserver("privacy.userContext.enabled", this, true);
-        this.hasObserver = true;
-      }
-    },
-    onViewShowing: function(aEvent) {
-      let doc = aEvent.target.ownerDocument;
-
-      let items = doc.getElementById("PanelUI-containersItems");
-
-      while (items.firstChild) {
-        items.firstChild.remove();
-      }
-
-      let fragment = doc.createDocumentFragment();
-      let bundle = doc.getElementById("bundle_browser");
-
-      ContextualIdentityService.getIdentities().forEach(identity => {
-        let label = ContextualIdentityService.getUserContextLabel(identity.userContextId);
-
-        let item = doc.createElementNS(kNSXUL, "toolbarbutton");
-        item.setAttribute("label", label);
-        item.setAttribute("usercontextid", identity.userContextId);
-        item.setAttribute("class", "subviewbutton");
-        item.setAttribute("data-identity-color", identity.color);
-        item.setAttribute("data-identity-icon", identity.icon);
-
-        fragment.appendChild(item);
-      });
-
-      fragment.appendChild(doc.createElementNS(kNSXUL, "menuseparator"));
-
-      let item = doc.createElementNS(kNSXUL, "toolbarbutton");
-      item.setAttribute("label", bundle.getString("userContext.aboutPage.label"));
-      item.setAttribute("command", "Browser:OpenAboutContainers");
-      item.setAttribute("class", "subviewbutton");
-      fragment.appendChild(item);
-
-      items.appendChild(fragment);
-    },
-
-    updateVisibility(aNode) {
-      aNode.hidden = !Services.prefs.getBoolPref("privacy.userContext.enabled");
-    },
-
-    observe(aSubject, aTopic, aData) {
-      let {instances} = CustomizableUI.getWidget("containers-panelmenu");
-      for (let {node} of instances) {
-	if (node) {
-	  this.updateVisibility(node);
-	}
-      }
-    },
-
-    QueryInterface: XPCOMUtils.generateQI([
-      Ci.nsISupportsWeakReference,
-      Ci.nsIObserver
-    ]),
   }];
 
 let preferencesButton = {

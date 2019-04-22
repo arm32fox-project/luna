@@ -66,9 +66,6 @@ DIRS += [
     'xulstore'
 ]
 
-if CONFIG['MOZ_WEBEXTENSIONS']:
-    DIRS += ['webextensions']
-
 DIRS += ['mozintl']
 
 if not CONFIG['MOZ_FENNEC']:

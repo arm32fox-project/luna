@@ -248,7 +248,7 @@ function DO_LOG(aText) {
  * to allow enabling/disabling without a restart.
  */
 function PREF_LOG(aText) {
-  if (getBoolPref(BROWSER_SEARCH_PREF + "log", false))
+  if (Services.prefs.getBoolPref(BROWSER_SEARCH_PREF + "log", false))
     DO_LOG(aText);
 }
 var LOG = PREF_LOG;
@@ -418,12 +418,7 @@ function isPartnerBuild() {
 
 // Method to determine if we should be using geo-specific defaults
 function geoSpecificDefaultsEnabled() {
-  let geoSpecificDefaults = false;
-  try {
-    geoSpecificDefaults = Services.prefs.getBoolPref("browser.search.geoSpecificDefaults");
-  } catch(e) {}
-
-  return geoSpecificDefaults;
+  return Services.prefs.getBoolPref("browser.search.geoSpecificDefaults", false);
 }
 
 // Some notes on countryCode and region prefs:
@@ -528,11 +523,7 @@ function isUSTimezone() {
 // If it fails we don't touch that pref so isUS() does its normal thing.
 var ensureKnownCountryCode = Task.async(function* () {
   // If we have a country-code already stored in our prefs we trust it.
-  let countryCode;
-  try {
-    countryCode = Services.prefs.getCharPref("browser.search.countryCode");
-  } catch(e) {}
-
+  let countryCode = Services.prefs.getCharPref("browser.search.countryCode", "");
   if (!countryCode) {
     // We don't have it cached, so fetch it. fetchCountryCode() will call
     // storeCountryCode if it gets a result (even if that happens after the
@@ -732,10 +723,7 @@ var fetchRegionDefault = () => new Promise(resolve => {
 
   // Append the optional cohort value.
   const cohortPref = "browser.search.cohort";
-  let cohort;
-  try {
-    cohort = Services.prefs.getCharPref(cohortPref);
-  } catch(e) {}
+  let cohort = Services.prefs.getCharPref(cohortPref, "");
   if (cohort)
     endpoint += "/" + cohort;
 
@@ -934,18 +922,6 @@ function setLocalizedPref(aPrefName, aValue) {
 }
 
 /**
- * Wrapper for nsIPrefBranch::getBoolPref.
- * @param aPrefName
- *        The name of the pref to get.
- * @returns aDefault if the requested pref doesn't exist.
- */
-function getBoolPref(aName, aDefault) {
-  if (Services.prefs.getPrefType(aName) != Ci.nsIPrefBranch.PREF_BOOL)
-    return aDefault;
-  return Services.prefs.getBoolPref(aName);
-}
-
-/**
  * Get a unique nsIFile object with a sanitized name, based on the engine name.
  * @param aName
  *        A name to "sanitize". Can be an empty string, in which case a random
@@ -1046,11 +1022,8 @@ function QueryParameter(aName, aValue, aPurpose) {
 function ParamSubstitution(aParamValue, aSearchTerms, aEngine) {
   var value = aParamValue;
 
-  var distributionID = MOZ_DISTRIBUTION_ID;
-  try {
-    distributionID = Services.prefs.getCharPref(BROWSER_SEARCH_PREF + "distributionID");
-  }
-  catch (ex) { }
+  var distributionID = Services.prefs.getCharPref(BROWSER_SEARCH_PREF + "distributionID",
+                                                MOZ_DISTRIBUTION_ID || "");
   var official = MOZ_OFFICIAL;
   try {
     if (Services.prefs.getBoolPref(BROWSER_SEARCH_PREF + "official"))
@@ -1591,7 +1564,7 @@ Engine.prototype = {
         stringBundle.formatStringFromName("addEngineConfirmation",
                                           [this._name, this._uri.host], 2);
     var checkboxMessage = null;
-    if (!getBoolPref(BROWSER_SEARCH_PREF + "noCurrentEngine", false))
+    if (!Services.prefs.getBoolPref(BROWSER_SEARCH_PREF + "noCurrentEngine", false))
       checkboxMessage = stringBundle.GetStringFromName("addEngineAsCurrentText");
 
     var addButtonLabel =
@@ -2889,7 +2862,7 @@ function checkForSyncCompletion(aPromise) {
 // nsIBrowserSearchService
 function SearchService() {
   // Replace empty LOG function with the useful one if the log pref is set.
-  if (getBoolPref(BROWSER_SEARCH_PREF + "log", false))
+  if (Services.prefs.getBoolPref(BROWSER_SEARCH_PREF + "log", false))
     LOG = DO_LOG;
 
   this._initObservers = Promise.defer();
@@ -3814,7 +3787,7 @@ SearchService.prototype = {
     // If the user has specified a custom engine order, read the order
     // information from the engineMetadataService instead of the default
     // prefs.
-    if (getBoolPref(BROWSER_SEARCH_PREF + "useDBForOrder", false)) {
+    if (Services.prefs.getBoolPref(BROWSER_SEARCH_PREF + "useDBForOrder", false)) {
       LOG("_buildSortedEngineList: using db for order");
 
       // Flag to keep track of whether or not we need to call _saveSortedEngineList.
@@ -4595,7 +4568,7 @@ SearchService.prototype = {
   notify: function SRCH_SVC_notify(aTimer) {
     LOG("_notify: checking for updates");
 
-    if (!getBoolPref(BROWSER_SEARCH_PREF + "update", true))
+    if (!Services.prefs.getBoolPref(BROWSER_SEARCH_PREF + "update", true))
       return;
 
     // Our timer has expired, but unfortunately, we can't get any data from it.
@@ -4938,7 +4911,7 @@ const SEARCH_UPDATE_LOG_PREFIX = "*** Search update: ";
  * logging pref (browser.search.update.log) is set to true.
  */
 function ULOG(aText) {
-  if (getBoolPref(BROWSER_SEARCH_PREF + "update.log", false)) {
+  if (Services.prefs.getBoolPref(BROWSER_SEARCH_PREF + "update.log", false)) {
     dump(SEARCH_UPDATE_LOG_PREFIX + aText + "\n");
     Services.console.logStringMessage(aText);
   }
@@ -4955,7 +4928,7 @@ var engineUpdateService = {
   update: function eus_Update(aEngine) {
     let engine = aEngine.wrappedJSObject;
     ULOG("update called for " + aEngine._name);
-    if (!getBoolPref(BROWSER_SEARCH_PREF + "update", true) || !engine._hasUpdates)
+    if (!Services.prefs.getBoolPref(BROWSER_SEARCH_PREF + "update", true) || !engine._hasUpdates)
       return;
 
     let testEngine = null;

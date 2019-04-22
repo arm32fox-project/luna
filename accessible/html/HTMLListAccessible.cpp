@@ -10,6 +10,7 @@
 #include "nsAccUtils.h"
 #include "Role.h"
 #include "States.h"
+#include "EventTree.h"
 
 #include "nsBlockFrame.h"
 #include "nsBulletFrame.h"

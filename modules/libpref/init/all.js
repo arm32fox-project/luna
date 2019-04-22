@@ -1475,7 +1475,10 @@ pref("network.http.request.max-start-delay", 10);
 pref("network.http.request.max-attempts", 10);
 
 // Headers
-pref("network.http.accept.default", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
+pref("network.http.accept.default", "*/*");
+pref("network.http.accept.navigation", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
+pref("network.http.accept.image", "image/png,image/svg+xml,image/*;q=0.8,*/*;q=0.5");
+pref("network.http.accept.style", "text/css,*/*;q=0.1");
 
 // Prefs allowing granular control of referers
 // 0=don't send any, 1=send only on clicks, 2=send on image requests as well
@@ -5148,9 +5151,6 @@ pref("layout.accessiblecaret.hide_carets_for_mouse_input", true);
 // Wakelock is disabled by default.
 pref("dom.wakelock.enabled", false);
 
-// The URL of the Firefox Accounts auth server backend
-pref("identity.fxaccounts.auth.uri", "https://api.accounts.firefox.com/v1");
-
 // disable mozsample size for now
 pref("image.mozsamplesize.enabled", false);
 
@@ -5452,8 +5452,9 @@ pref("dom.storageManager.enabled", true);
 pref("dom.storageManager.enabled", false);
 #endif
 
-// When a user cancels this number of authentication dialogs coming from
-// a single web page in a row, all following authentication dialogs will
-// be blocked (automatically canceled) for that page. The counter resets
-// when the page is reloaded. To turn this feature off, just set the limit to 0.
-pref("prompts.authentication_dialog_abuse_limit", 3);
+// DoS protection for HTTP Auth prompt spawning.
+// -1 = completely disable HTTP Auth prompting. (careful!)
+// 0  = disable this DoS protection
+// >0 = suppress further prompts after the user has canceled the dialog n times
+// See application preferences for appropriate defaults.
+pref("prompts.authentication_dialog_abuse_limit", 0);
