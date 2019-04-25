@@ -102,7 +102,6 @@ EXTRA_JS_MODULES.sessionstore += ['sessionstore/Utils.jsm']
 EXTRA_PP_JS_MODULES += [
     'NewTabUtils.jsm',
     'Troubleshoot.jsm',
-    'UpdateChannel.jsm',
     'UpdateUtils.jsm',
 ]
 
