@@ -8,6 +8,7 @@
 #include "Accessible-inl.h"
 #include "nsEventShell.h"
 #include "DocAccessible.h"
+#include "DocAccessible-inl.h"
 #include "EmbeddedObjCollector.h"
 #include "NotificationController.h"
 #ifdef A11Y_LOG
