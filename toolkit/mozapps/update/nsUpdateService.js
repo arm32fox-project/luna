@@ -3739,8 +3739,8 @@ UpdatePrompt.prototype = {
       return;
     }
 
-    this._showUnobtrusiveUI(null, URI_UPDATE_PROMPT_DIALOG, null,
-                           UPDATE_WINDOW_NAME, "updatesavailable", update);
+    this._showUI(null, URI_UPDATE_PROMPT_DIALOG, null,
+                 UPDATE_WINDOW_NAME, "updatesavailable", update);
   },
 
   /**
@@ -3756,13 +3756,8 @@ UpdatePrompt.prototype = {
     if (this._getAltUpdateWindow())
       return;
 
-    if (background) {
-      this._showUnobtrusiveUI(null, URI_UPDATE_PROMPT_DIALOG, null,
-                              UPDATE_WINDOW_NAME, "finishedBackground", update);
-    } else {
-      this._showUI(null, URI_UPDATE_PROMPT_DIALOG, null,
-                   UPDATE_WINDOW_NAME, "finishedBackground", update);
-    }
+    this._showUI(null, URI_UPDATE_PROMPT_DIALOG, null,
+                 UPDATE_WINDOW_NAME, "finishedBackground", update);
   },
 
   /**
