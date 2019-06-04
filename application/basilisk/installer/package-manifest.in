@@ -479,8 +479,6 @@
 #endif
 @RESPATH@/components/SyncComponents.manifest
 @RESPATH@/components/Weave.js
-@RESPATH@/components/FxAccountsComponents.manifest
-@RESPATH@/components/FxAccountsPush.js
 @RESPATH@/components/CaptivePortalDetectComponents.manifest
 @RESPATH@/components/captivedetect.js
 @RESPATH@/components/servicesComponents.manifest
@@ -708,13 +706,6 @@
 @RESPATH@/chrome/pippki.manifest
 @RESPATH@/components/pipnss.xpt
 @RESPATH@/components/pippki.xpt
-
-; for Solaris SPARC
-#ifdef SOLARIS
-bin/libfreebl_32fpu_3.so
-bin/libfreebl_32int_3.so
-bin/libfreebl_32int64_3.so
-#endif
 
 ; [Updater]
 ;

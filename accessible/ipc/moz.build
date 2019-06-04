@@ -44,7 +44,7 @@ if CONFIG['ACCESSIBILITY']:
         'ProxyAccessibleShared.h',
     ]
 
-    UNIFIED_SOURCES += [
+    SOURCES += [
         'DocAccessibleChildBase.cpp',
         'DocAccessibleParent.cpp',
         'ProxyAccessibleBase.cpp',

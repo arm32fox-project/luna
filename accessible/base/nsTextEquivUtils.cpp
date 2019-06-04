@@ -10,9 +10,11 @@
 #include "Accessible-inl.h"
 #include "AccIterator.h"
 #include "nsCoreUtils.h"
+#include "nsStyleConsts.h"
 #include "nsIDOMXULLabeledControlEl.h"
 
 using namespace mozilla::a11y;
+using namespace mozilla;
 
 /**
  * The accessible for which we are computing a text equivalent. It is useful

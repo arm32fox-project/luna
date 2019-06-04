@@ -402,10 +402,17 @@
             let promptBox = {
               appendPrompt : function(args, onCloseCallback) {
                 let newPrompt = document.createElementNS(XUL_NS, "tabmodalprompt");
-                stack.appendChild(newPrompt);
+                // stack.appendChild(newPrompt);
+                stack.insertBefore(newPrompt, browser.nextSibling);
                 browser.setAttribute("tabmodalPromptShowing", true);
 
                 newPrompt.clientTop; // style flush to assure binding is attached
+
+                let prompts = this.listPrompts();
+                if (prompts.length > 1) {
+                  // Let's hide ourself behind the current prompt.
+                  newPrompt.hidden = true;
+                }
 
                 let tab = self._getTabForContentWindow(browser.contentWindow);
                 newPrompt.init(args, tab, onCloseCallback);
@@ -418,6 +425,7 @@
                 let prompts = this.listPrompts();
                 if (prompts.length) {
                   let prompt = prompts[prompts.length - 1];
+                  prompt.hidden = false;
                   prompt.Dialog.setDefaultFocus();
                 } else {
                   browser.removeAttribute("tabmodalPromptShowing");
@@ -737,8 +745,7 @@
 
                 let autocomplete = this.mTabBrowser._placesAutocomplete;
                 if (this.mBrowser.registeredOpenURI) {
-                  autocomplete.unregisterOpenPage(this.mBrowser.registeredOpenURI,
-                                                  this.mBrowser.getAttribute("usercontextid") || 0);
+                  autocomplete.unregisterOpenPage(this.mBrowser.registeredOpenURI);
                   delete this.mBrowser.registeredOpenURI;
                 }
                 // Tabs in private windows aren't registered as "Open" so
@@ -746,8 +753,7 @@
                 if (!isBlankPageURL(aLocation.spec) &&
                     (!PrivateBrowsingUtils.isWindowPrivate(window) ||
                     PrivateBrowsingUtils.permanentPrivateBrowsing)) {
-                  autocomplete.registerOpenPage(aLocation,
-                                                this.mBrowser.getAttribute("usercontextid") || 0);
+                  autocomplete.registerOpenPage(aLocation);
                   this.mBrowser.registeredOpenURI = aLocation;
                 }
               }
@@ -825,13 +831,8 @@
             }
 
             let sizedIconUrl = browser.mIconURL || "";
-            if (sizedIconUrl) {
-              let size = Math.round(16 * window.devicePixelRatio);
-              sizedIconUrl += (sizedIconUrl.includes("#") ? "&" : "#") +
-                              "-moz-resolution=" + size + "," + size;
-            }
             if (sizedIconUrl != aTab.getAttribute("image")) {
-              if (browser.mIconURL)
+              if (sizedIconUrl)
                 aTab.setAttribute("image", sizedIconUrl);
               else
                 aTab.removeAttribute("image");
@@ -1336,6 +1337,7 @@
             var aFromExternal;
             var aRelatedToCurrent;
             var aOriginPrincipal;
+            var aOpener;
             if (arguments.length == 2 &&
                 typeof arguments[1] == "object" &&
                 !(arguments[1] instanceof Ci.nsIURI)) {
@@ -1350,6 +1352,7 @@
               aFromExternal         = params.fromExternal;
               aRelatedToCurrent     = params.relatedToCurrent;
               aOriginPrincipal      = params.originPrincipal;
+              aOpener               = params.opener;
             }
 
             var bgLoad = (aLoadInBackground != null) ? aLoadInBackground :
@@ -1365,7 +1368,8 @@
                                   allowThirdPartyFixup: aAllowThirdPartyFixup,
                                   fromExternal: aFromExternal,
                                   originPrincipal: aOriginPrincipal,
-                                  relatedToCurrent: aRelatedToCurrent});
+                                  relatedToCurrent: aRelatedToCurrent,
+                                  opener: aOpener });
             if (!bgLoad)
               this.selectedTab = tab;
 
@@ -1383,7 +1387,6 @@
           let aTargetTab;
           let aNewIndex = -1;
           let aPostDatas = [];
-          let aUserContextId;
           if (arguments.length == 2 &&
               typeof arguments[1] == "object") {
             let params = arguments[1];
@@ -1394,7 +1397,6 @@
             aNewIndex             = typeof params.newIndex === "number" ?
                                     params.newIndex : aNewIndex;
             aPostDatas            = params.postDatas || aPostDatas;
-            aUserContextId        = params.userContextId;
           }
 
           if (!aURIs.length)
@@ -1443,8 +1445,7 @@
               ownerTab: owner,
               skipAnimation: multiple,
               allowThirdPartyFixup: aAllowThirdPartyFixup,
-              postData: aPostDatas[0],
-              userContextId: aUserContextId
+              postData: aPostDatas[0]
             });
             if (aNewIndex !== -1) {
               this.moveTabTo(firstTabAdded, aNewIndex);
@@ -1457,8 +1458,7 @@
             let tab = this.addTab(aURIs[i], {
               skipAnimation: true,
               allowThirdPartyFixup: aAllowThirdPartyFixup,
-              postData: aPostDatas[i],
-              userContextId: aUserContextId
+              postData: aPostDatas[i]
             });
             if (targetTabIndex !== -1)
               this.moveTabTo(tab, ++tabNum);
@@ -1492,6 +1492,7 @@
             var aSkipAnimation;
             var aOriginPrincipal;
             var aSkipBackgroundNotify;
+            var aOpener;
             if (arguments.length == 2 &&
                 typeof arguments[1] == "object" &&
                 !(arguments[1] instanceof Ci.nsIURI)) {
@@ -1507,6 +1508,7 @@
               aRelatedToCurrent     = params.relatedToCurrent;
               aSkipAnimation        = params.skipAnimation;
               aOriginPrincipal      = params.originPrincipal;
+              aOpener               = params.opener;
               aSkipBackgroundNotify = params.skipBackgroundNotify;
             }
 
@@ -1579,6 +1581,10 @@
             if (window.gShowPageResizers && document.getElementById("addon-bar").collapsed &&
                 window.windowState == window.STATE_NORMAL) {
               b.setAttribute("showresizer", "true");
+            }
+
+            if (aOpener) {
+              b.QueryInterface(Ci.nsIFrameLoaderOwner).presetOpenerWindow(aOpener);
             }
 
             if (this.hasAttribute("autocompletepopup"))
@@ -2059,8 +2065,7 @@
             this.mTabListeners[aTab._tPos].destroy();
 
             if (browser.registeredOpenURI && !aTabWillBeMoved) {
-              this._placesAutocomplete.unregisterOpenPage(browser.registeredOpenURI,
-                                                          browser.getAttribute("usercontextid") || 0);
+              this._placesAutocomplete.unregisterOpenPage(browser.registeredOpenURI);
               delete browser.registeredOpenURI;
             }
 
@@ -2428,8 +2433,7 @@
           <![CDATA[
             // If the current URI is registered as open remove it from the list.
             if (aOurBrowser.registeredOpenURI) {
-              this._placesAutocomplete.unregisterOpenPage(aOurBrowser.registeredOpenURI,
-                                                          aOurBrowser.getAttribute("usercontextid") || 0);
+              this._placesAutocomplete.unregisterOpenPage(aOurBrowser.registeredOpenURI);
               delete aOurBrowser.registeredOpenURI;
             }
 
@@ -3339,8 +3343,7 @@
           for (var i = 0; i < this.mTabListeners.length; ++i) {
             let browser = this.getBrowserAtIndex(i);
             if (browser.registeredOpenURI) {
-              this._placesAutocomplete.unregisterOpenPage(browser.registeredOpenURI,
-                                                          browser.getAttribute("usercontextid") || 0);
+              this._placesAutocomplete.unregisterOpenPage(browser.registeredOpenURI);
               delete browser.registeredOpenURI;
             }
             browser.webProgress.removeProgressListener(this.mTabFilters[i]);
@@ -3637,11 +3640,7 @@
           window.addEventListener("resize", this, false);
           window.addEventListener("load", this, false);
 
-          try {
-            this._tabAnimationLoggingEnabled = Services.prefs.getBoolPref("browser.tabs.animationLogging.enabled");
-          } catch (ex) {
-            this._tabAnimationLoggingEnabled = false;
-          }
+          this._tabAnimationLoggingEnabled = Services.prefs.getBoolPref("browser.tabs.animationLogging.enabled", false);
           this._browserNewtabpageEnabled = Services.prefs.getBoolPref("browser.newtabpage.enabled");
         ]]>
       </constructor>
@@ -4799,8 +4798,6 @@
             inBackground = !inBackground;
 
           let targetTab = this._getDragTargetTab(event);
-          let userContextId = this.selectedItem
-                              .getAttribute("usercontextid") || 0;
           let replace = !(!targetTab || dropEffect == "copy");
           let newIndex = this._getDropIndex(event);
           let urls = links.map(link => link.url);
@@ -4810,7 +4807,6 @@
             allowThirdPartyFixup: true,
             targetTab,
             newIndex,
-            userContextId,
           });
         }
 

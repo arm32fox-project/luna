@@ -47,6 +47,7 @@
 
 #include "nsDeckFrame.h"
 #include "nsLayoutUtils.h"
+#include "nsIPersistentProperties2.h"
 #include "nsIPresShell.h"
 #include "nsIStringBundle.h"
 #include "nsPresContext.h"

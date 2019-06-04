@@ -83,7 +83,7 @@ private:
 
 } // namespace detail
 
-constexpr MsaaIdGenerator::MsaaIdGenerator()
+MsaaIdGenerator::MsaaIdGenerator()
   : mIDSet(kNumUniqueIDBits)
 {}
 

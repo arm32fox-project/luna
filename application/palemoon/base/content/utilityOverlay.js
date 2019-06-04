@@ -12,6 +12,9 @@ Components.utils.import("resource:///modules/RecentWindow.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "ShellService",
                                   "resource:///modules/ShellService.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this, "Deprecated",
+                                  "resource://gre/modules/Deprecated.jsm");
+
 XPCOMUtils.defineLazyGetter(this, "BROWSER_NEW_TAB_URL", function () {
   const PREF = "browser.newtab.url";
 
@@ -57,6 +60,14 @@ function getBrowserURL()
   return "chrome://browser/content/browser.xul";
 }
 
+function getBoolPref(pref, defaultValue) {
+  Deprecated.warning("getBoolPref is deprecated and will be removed in a future release. " +
+                     "You should use Services.pref.getBoolPref (Services.jsm).",
+                     "https://github.com/MoonchildProductions/UXP/issues/989");
+  return Services.prefs.getBoolPref(pref, defaultValue);
+}
+
+
 function getTopWin(skipPopups) {
   // If this is called in a browser window, use that window regardless of
   // whether it's the frontmost window, since commands can be executed in
@@ -73,16 +84,6 @@ function getTopWin(skipPopups) {
 function openTopWin(url) {
   /* deprecated */
   openUILinkIn(url, "current");
-}
-
-function getBoolPref(prefname, def)
-{
-  try {
-    return Services.prefs.getBoolPref(prefname);
-  }
-  catch(er) {
-    return def;
-  }
 }
 
 /* openUILink handles clicks on UI elements that cause URLs to load.
@@ -151,7 +152,7 @@ function whereToOpenLink( e, ignoreButton, ignoreAlt )
 
   // ignoreButton allows "middle-click paste" to use function without always opening in a new window.
   var middle = !ignoreButton && e.button == 1;
-  var middleUsesTabs = getBoolPref("browser.tabs.opentabfor.middleclick", true);
+  var middleUsesTabs = Services.prefs.getBoolPref("browser.tabs.opentabfor.middleclick", true);
 
   // Don't do anything special with right-mouse clicks.  They're probably clicks on context menu items.
 
@@ -162,7 +163,7 @@ function whereToOpenLink( e, ignoreButton, ignoreAlt )
 #endif
     return shift ? "tabshifted" : "tab";
 
-  if (alt && getBoolPref("browser.altClickSave", false))
+  if (alt && Services.prefs.getBoolPref("browser.altClickSave", false))
     return "save";
 
   if (shift || (middle && !middleUsesTabs))
@@ -334,7 +335,7 @@ function openLinkIn(url, where, params) {
   if (loadInBackground == null) {
     loadInBackground = aFromChrome ?
                          false :
-                         getBoolPref("browser.tabs.loadInBackground");
+                         Services.prefs.getBoolPref("browser.tabs.loadInBackground");
   }
 
   let uriObj;
@@ -515,7 +516,7 @@ function getShellService()
 
 function isBidiEnabled() {
   // first check the pref.
-  if (getBoolPref("bidi.browser.ui", false))
+  if (Services.prefs.getBoolPref("bidi.browser.ui", false))
     return true;
 
   // if the pref isn't set, check for an RTL locale and force the pref to true
@@ -557,7 +558,7 @@ function checkForUpdates()
   // If there's an update ready to be applied, show the "Update Downloaded"
   // UI instead and let the user know they have to restart the application for
   // the changes to be applied.
-  if (um.activeUpdate && um.activeUpdate.state == "pending")
+  if (um.activeUpdate && ["pending", "pending-elevate", "applied"].includes(um.activeUpdate.state))
     prompter.showUpdateDownloaded(um.activeUpdate);
   else
     prompter.checkForUpdates();
@@ -583,10 +584,16 @@ function buildHelpMenu()
   var checkForUpdates = document.getElementById("checkForUpdates");
   var appMenuCheckForUpdates = document.getElementById("appmenu_checkForUpdates");
   var canCheckForUpdates = updates.canCheckForUpdates;
+  
   checkForUpdates.setAttribute("disabled", !canCheckForUpdates);
-  appMenuCheckForUpdates.setAttribute("disabled", !canCheckForUpdates);
-  if (!canCheckForUpdates)
+
+  if (appMenuCheckForUpdates) {
+    appMenuCheckForUpdates.setAttribute("disabled", !canCheckForUpdates);
+  }
+
+  if (!canCheckForUpdates) {
     return;
+  }
 
   var strings = document.getElementById("bundle_browser");
   var activeUpdate = um.activeUpdate;
@@ -622,19 +629,31 @@ function buildHelpMenu()
   }
 
   checkForUpdates.label = getStringWithUpdateName("updatesItem_" + key);
-  appMenuCheckForUpdates.label = getStringWithUpdateName("updatesItem_" + key);
+
+  if (appMenuCheckForUpdates) {
+    appMenuCheckForUpdates.label = getStringWithUpdateName("updatesItem_" + key);
+  }
+
   // updatesItem_default.accesskey, updatesItem_downloading.accesskey,
   // updatesItem_resume.accesskey or updatesItem_pending.accesskey
   checkForUpdates.accessKey = strings.getString("updatesItem_" + key +
                                                 ".accesskey");
-  appMenuCheckForUpdates.accessKey = strings.getString("updatesItem_" + key +
-                                                       ".accesskey");
+
+  if (appMenuCheckForUpdates) {
+    appMenuCheckForUpdates.accessKey = strings.getString("updatesItem_" + key +
+                                                         ".accesskey");
+  }
+
   if (um.activeUpdate && updates.isDownloading) {
     checkForUpdates.setAttribute("loading", "true");
-    appMenuCheckForUpdates.setAttribute("loading", "true");  
+    if (appMenuCheckForUpdates) {
+      appMenuCheckForUpdates.setAttribute("loading", "true");
+    }
   } else {
     checkForUpdates.removeAttribute("loading");
-    appMenuCheckForUpdates.removeAttribute("loading");
+    if (appMenuCheckForUpdates) {
+      appMenuCheckForUpdates.removeAttribute("loading");
+    }
   }
 #else
 #ifndef XP_MACOSX
@@ -673,7 +692,7 @@ function openAboutDialog() {
 
 function openPreferences(paneID, extraArgs)
 {
-  var instantApply = getBoolPref("browser.preferences.instantApply", false);
+  var instantApply = Services.prefs.getBoolPref("browser.preferences.instantApply", false);
   var features = "chrome,titlebar,toolbar,centerscreen" + (instantApply ? ",dialog=no" : ",modal");
 
   var win = Services.wm.getMostRecentWindow("Browser:Preferences");
@@ -699,6 +718,18 @@ function openPreferences(paneID, extraArgs)
 function openAdvancedPreferences(tabID)
 {
   openPreferences("paneAdvanced", { "advancedTab" : tabID });
+}
+
+/**
+ * Opens the release notes page for this version of the application.
+ */
+function openReleaseNotes()
+{ 
+  var relnotesURL = Components.classes["@mozilla.org/toolkit/URLFormatterService;1"]
+                              .getService(Components.interfaces.nsIURLFormatter)
+                              .formatURLPref("app.releaseNotesURL");
+  
+  openUILinkIn(relnotesURL, "tab");
 }
 
 /**
@@ -854,7 +885,7 @@ function openHelpLink(aHelpTopic, aCalledFromModal) {
 function openPrefsHelp() {
   // non-instant apply prefwindows are usually modal, so we can't open in the topmost window, 
   // since its probably behind the window.
-  var instantApply = getBoolPref("browser.preferences.instantApply");
+  var instantApply = Services.prefs.getBoolPref("browser.preferences.instantApply");
 
   var helpTopic = document.getElementsByTagName("prefwindow")[0].currentPane.helpTopic;
   openHelpLink(helpTopic, !instantApply);

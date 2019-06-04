@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "xpcAccessibilityService.h"
+#include "xpcAccessibleDocument.h"
 
 #include "nsAccessiblePivot.h"
 #include "nsAccessibilityService.h"
