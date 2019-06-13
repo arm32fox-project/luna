@@ -2458,9 +2458,9 @@ js::array_splice_impl(JSContext* cx, unsigned argc, Value* vp, bool returnValueI
                     return false;
 
                 /* Steps 10-11. */
-                DebugOnly<DenseElementResult> result =
-                    CopyBoxedOrUnboxedDenseElements(cx, arr, obj, 0, actualStart, actualDeleteCount);
-                MOZ_ASSERT(result.value == DenseElementResult::Success);
+                arr->as<NativeObject>().setDenseInitializedLength(actualStart + actualDeleteCount);
+                const Value* vp = obj->as<NativeObject>().getDenseElements() + actualStart;
+                arr->as<NativeObject>().initDenseElements(actualStart, vp, actualDeleteCount);
 
                 /* Step 12 (implicit). */
             }
@@ -2825,10 +2825,10 @@ ArraySliceOrdinary(JSContext* cx, HandleObject obj, uint32_t length, uint32_t be
         MOZ_ASSERT(count >= narr->as<ArrayObject>().length());
         narr->as<ArrayObject>().setLength(cx, count);
 
-        if (count) {
-            DebugOnly<DenseElementResult> result =
-                CopyBoxedOrUnboxedDenseElements(cx, narr, obj, 0, begin, count);
-            MOZ_ASSERT(result.value == DenseElementResult::Success);
+        if (count > 0) {
+            narr->as<NativeObject>().setDenseInitializedLength(begin + count);
+            const Value* vp = obj->as<NativeObject>().getDenseElements() + begin;
+            narr->as<NativeObject>().initDenseElements(begin, vp, count);
         }
         arr.set(narr);
         return true;
@@ -2968,7 +2968,9 @@ ArraySliceDenseKernel(JSContext* cx, ArrayObject* arr, int32_t beginArg, int32_t
         if (count) {
             if (!result->ensureElements(cx, count))
                 return false;
-            CopyBoxedOrUnboxedDenseElements(cx, result, arr, 0, begin, count);
+            result->as<NativeObject>().setDenseInitializedLength(begin + count);
+            const Value* vp = arr->as<NativeObject>().getDenseElements() + begin;
+            result->as<NativeObject>().initDenseElements(begin, vp, count);
         }
     }
 

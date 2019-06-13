@@ -5769,7 +5769,9 @@ CopyArray(JSContext* cx, HandleArrayObject arr, MutableHandleValue result)
     if (!nobj)
         return false;
     EnsureArrayGroupAnalyzed(cx, nobj); //XXX
-    CopyBoxedOrUnboxedDenseElements(cx, nobj, arr, 0, 0, length);
+    nobj->as<NativeObject>().setDenseInitializedLength(length);
+    const Value* vp = arr->as<NativeObject>().getDenseElements();
+    nobj->as<NativeObject>().initDenseElements(0, vp, length);
 
     result.setObject(*nobj);
     return true;
