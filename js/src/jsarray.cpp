@@ -2828,7 +2828,7 @@ ArraySliceOrdinary(JSContext* cx, HandleObject obj, uint32_t length, uint32_t be
         MOZ_ASSERT(count >= narr->as<ArrayObject>().length());
         narr->as<ArrayObject>().setLength(cx, count);
 
-        if (count > 0) {
+        if (count) {
             narr->as<NativeObject>().setDenseInitializedLength(begin + count);
             const Value* vp = obj->as<NativeObject>().getDenseElements() + begin;
             narr->as<NativeObject>().initDenseElements(begin, vp, count);
