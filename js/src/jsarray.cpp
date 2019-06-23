@@ -2365,6 +2365,22 @@ CanOptimizeForDenseStorage(HandleObject arr, uint32_t startingIndex, uint32_t co
            startingIndex + count <= arr->as<NativeObject>().getDenseInitializedLength();
 }
 
+static inline DenseElementResult
+CopyDenseElements(JSContext* cx, NativeObject* dst, NativeObject* src,
+                      uint32_t dstStart, uint32_t srcStart, uint32_t length)
+{
+    MOZ_ASSERT(dst->getDenseInitializedLength() == dstStart);
+    MOZ_ASSERT(src->getDenseInitializedLength() >= srcStart + length);
+    MOZ_ASSERT(dst->getDenseCapacity() >= dstStart + length);
+
+    dst->setDenseInitializedLength(dstStart + length);
+
+    const Value* vp = src->getDenseElements() + srcStart;
+    dst->initDenseElements(dstStart, vp, length);
+
+    return DenseElementResult::Success;
+}
+
 /* ES 2016 draft Mar 25, 2016 22.1.3.26. */
 bool
 js::array_splice(JSContext* cx, unsigned argc, Value* vp)
@@ -2462,9 +2478,11 @@ js::array_splice_impl(JSContext* cx, unsigned argc, Value* vp, bool returnValueI
                     return false;
 
                 /* Steps 10-11. */
-                arr->as<NativeObject>().setDenseInitializedLength(actualStart + actualDeleteCount);
-                const Value* vp = obj->as<NativeObject>().getDenseElements() + actualStart;
-                arr->as<NativeObject>().initDenseElements(actualStart, vp, actualDeleteCount);
+                DebugOnly<DenseElementResult> result =
+                    CopyDenseElements(cx, &arr->as<NativeObject>(), 
+                                      &obj->as<NativeObject>(), 0, 
+                                      actualStart, actualDeleteCount);
+                MOZ_ASSERT(result.value == DenseElementResult::Success);
 
                 /* Step 12 (implicit). */
             }
@@ -2829,9 +2847,9 @@ ArraySliceOrdinary(JSContext* cx, HandleObject obj, uint32_t length, uint32_t be
         narr->as<ArrayObject>().setLength(cx, count);
 
         if (count) {
-            narr->as<NativeObject>().setDenseInitializedLength(begin + count);
-            const Value* vp = obj->as<NativeObject>().getDenseElements() + begin;
-            narr->as<NativeObject>().initDenseElements(begin, vp, count);
+            DebugOnly<DenseElementResult> result =
+                CopyDenseElements(cx, &narr->as<NativeObject>(), &obj->as<NativeObject>(), 0, begin, count);
+            MOZ_ASSERT(result.value == DenseElementResult::Success);
         }
         arr.set(narr);
         return true;
@@ -2971,9 +2989,7 @@ ArraySliceDenseKernel(JSContext* cx, ArrayObject* arr, int32_t beginArg, int32_t
         if (count) {
             if (!result->ensureElements(cx, count))
                 return false;
-            result->as<NativeObject>().setDenseInitializedLength(begin + count);
-            const Value* vp = arr->as<NativeObject>().getDenseElements() + begin;
-            result->as<NativeObject>().initDenseElements(begin, vp, count);
+            CopyDenseElements(cx, &result->as<NativeObject>(), &arr->as<NativeObject>(), 0, begin, count);
         }
     }
 

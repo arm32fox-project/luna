@@ -5752,10 +5752,18 @@ CopyArray(JSContext* cx, HandleArrayObject arr, MutableHandleValue result)
     ArrayObject* nobj = NewFullyAllocatedArrayTryReuseGroup(cx, arr, length, TenuredObject);
     if (!nobj)
         return false;
+    
+    MOZ_ASSERT(arr->isNative());
+    MOZ_ASSERT(nobj->isNative());
+    MOZ_ASSERT(nobj->as<NativeObject>().getDenseInitializedLength() == 0);
+    MOZ_ASSERT(arr->as<NativeObject>().getDenseInitializedLength() >= length);
+    MOZ_ASSERT(nobj->as<NativeObject>().getDenseCapacity() >= length);
+
     nobj->as<NativeObject>().setDenseInitializedLength(length);
+
     const Value* vp = arr->as<NativeObject>().getDenseElements();
     nobj->as<NativeObject>().initDenseElements(0, vp, length);
-
+    
     result.setObject(*nobj);
     return true;
 }
