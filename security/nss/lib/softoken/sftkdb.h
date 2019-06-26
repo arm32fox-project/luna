@@ -25,7 +25,6 @@ CK_RV sftkdb_closeDB(SFTKDBHandle *handle);
 SECStatus sftkdb_PWIsInitialized(SFTKDBHandle *keydb);
 SECStatus sftkdb_CheckPassword(SFTKDBHandle *keydb, const char *pw,
                                PRBool *tokenRemoved);
-SECStatus sftkdb_CheckPasswordNull(SFTKDBHandle *keydb, PRBool *tokenRemoved);
 SECStatus sftkdb_PWCached(SFTKDBHandle *keydb);
 SECStatus sftkdb_HasPasswordSet(SFTKDBHandle *keydb);
 SECStatus sftkdb_ResetKeyDB(SFTKDBHandle *keydb);

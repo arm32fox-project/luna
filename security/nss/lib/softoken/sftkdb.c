@@ -530,7 +530,6 @@ sftk_signTemplate(PLArenaPool *arena, SFTKDBHandle *handle,
                 goto loser;
             }
             rv = sftkdb_SignAttribute(arena, &keyHandle->passwordKey,
-                                      keyHandle->defaultIterationCount,
                                       objectID, template[i].type,
                                       &plainText, &signText);
             PZ_Unlock(keyHandle->passwordLock);
@@ -664,7 +663,6 @@ sftk_ExtractTemplate(PLArenaPool *arena, SFTKObject *object,
                     break;
                 }
                 rv = sftkdb_EncryptAttribute(arena, &handle->passwordKey,
-                                             handle->defaultIterationCount,
                                              &plainText, &cipherText);
                 PZ_Unlock(handle->passwordLock);
                 if (rv == SECSuccess) {
@@ -2761,7 +2759,7 @@ sftk_DBInit(const char *configdir, const char *certPrefix,
                     (sftkdb_HasPasswordSet(*keyDB) == SECSuccess) ? PR_TRUE : PR_FALSE;
                 /* if the password on the key db is NULL, kick off our update
                  * chain of events */
-                sftkdb_CheckPasswordNull((*keyDB), &tokenRemoved);
+                sftkdb_CheckPassword((*keyDB), "", &tokenRemoved);
             } else {
                 /* we don't have a key DB, update the certificate DB now */
                 sftkdb_Update(*certDB, NULL);

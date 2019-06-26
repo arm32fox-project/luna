@@ -13,9 +13,7 @@ struct SFTKDBHandleStr {
     PRInt32 ref;
     CK_OBJECT_HANDLE type;
     SECItem passwordKey;
-    int defaultIterationCount;
     SECItem *newKey;
-    int newDefaultIterationCount;
     SECItem *oldKey;
     SECItem *updatePasswordKey;
     PZLock *passwordLock;
@@ -41,10 +39,9 @@ struct SFTKDBHandleStr {
 SECStatus sftkdb_DecryptAttribute(SECItem *passKey, SECItem *cipherText,
                                   SECItem **plainText);
 SECStatus sftkdb_EncryptAttribute(PLArenaPool *arena, SECItem *passKey,
-                                  int iterationCount, SECItem *plainText,
-                                  SECItem **cipherText);
+                                  SECItem *plainText, SECItem **cipherText);
 SECStatus sftkdb_SignAttribute(PLArenaPool *arena, SECItem *passKey,
-                               int iterationCount, CK_OBJECT_HANDLE objectID,
+                               CK_OBJECT_HANDLE objectID,
                                CK_ATTRIBUTE_TYPE attrType,
                                SECItem *plainText, SECItem **sigText);
 SECStatus sftkdb_VerifyAttribute(SECItem *passKey,
