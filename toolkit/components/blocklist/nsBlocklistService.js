@@ -4,6 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#filter substitution
+
 "use strict";
 
 const Cc = Components.classes;
@@ -24,8 +26,6 @@ try {
 
 XPCOMUtils.defineLazyModuleGetter(this, "FileUtils",
                                   "resource://gre/modules/FileUtils.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "UpdateChannel",
-                                  "resource://gre/modules/UpdateChannel.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "OS",
                                   "resource://gre/modules/osfile.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "ServiceRequest",
@@ -525,18 +525,19 @@ Blocklist.prototype = {
       pingCountTotal = 1;
 
     dsURI = dsURI.replace(/%APP_ID%/g, gApp.ID);
+
     // Not all applications implement nsIXULAppInfo (e.g. xpcshell doesn't).
-    if (gApp.version)
+    if (gApp.version) {
       dsURI = dsURI.replace(/%APP_VERSION%/g, gApp.version);
-    dsURI = dsURI.replace(/%PRODUCT%/g, gApp.name);
-    // Not all applications implement nsIXULAppInfo (e.g. xpcshell doesn't).
-    if (gApp.version)
       dsURI = dsURI.replace(/%VERSION%/g, gApp.version);
+    }
+
+    dsURI = dsURI.replace(/%PRODUCT%/g, gApp.name);
     dsURI = dsURI.replace(/%BUILD_ID%/g, gApp.appBuildID);
     dsURI = dsURI.replace(/%BUILD_TARGET%/g, gApp.OS + "_" + gABI);
     dsURI = dsURI.replace(/%OS_VERSION%/g, gOSVersion);
     dsURI = dsURI.replace(/%LOCALE%/g, getLocale());
-    dsURI = dsURI.replace(/%CHANNEL%/g, UpdateChannel.get());
+    dsURI = dsURI.replace(/%CHANNEL%/g, "@MOZ_UPDATE_CHANNEL@");
     dsURI = dsURI.replace(/%PLATFORM_VERSION%/g, gApp.platformVersion);
     dsURI = dsURI.replace(/%DISTRIBUTION%/g,
                       getDistributionPrefValue(PREF_APP_DISTRIBUTION));

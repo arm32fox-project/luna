@@ -17,6 +17,7 @@
 
 using namespace mozilla;
 using namespace mozilla::a11y;
+using namespace mozilla::dom;
 
 ////////////////////////////////////////////////////////////////////////////////
 // NotificationCollector

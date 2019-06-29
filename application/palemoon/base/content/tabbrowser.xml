@@ -402,10 +402,17 @@
             let promptBox = {
               appendPrompt : function(args, onCloseCallback) {
                 let newPrompt = document.createElementNS(XUL_NS, "tabmodalprompt");
-                stack.appendChild(newPrompt);
+                // stack.appendChild(newPrompt);
+                stack.insertBefore(newPrompt, browser.nextSibling);
                 browser.setAttribute("tabmodalPromptShowing", true);
 
                 newPrompt.clientTop; // style flush to assure binding is attached
+
+                let prompts = this.listPrompts();
+                if (prompts.length > 1) {
+                  // Let's hide ourself behind the current prompt.
+                  newPrompt.hidden = true;
+                }
 
                 let tab = self._getTabForContentWindow(browser.contentWindow);
                 newPrompt.init(args, tab, onCloseCallback);
@@ -418,6 +425,7 @@
                 let prompts = this.listPrompts();
                 if (prompts.length) {
                   let prompt = prompts[prompts.length - 1];
+                  prompt.hidden = false;
                   prompt.Dialog.setDefaultFocus();
                 } else {
                   browser.removeAttribute("tabmodalPromptShowing");
@@ -1329,6 +1337,7 @@
             var aFromExternal;
             var aRelatedToCurrent;
             var aOriginPrincipal;
+            var aOpener;
             if (arguments.length == 2 &&
                 typeof arguments[1] == "object" &&
                 !(arguments[1] instanceof Ci.nsIURI)) {
@@ -1343,6 +1352,7 @@
               aFromExternal         = params.fromExternal;
               aRelatedToCurrent     = params.relatedToCurrent;
               aOriginPrincipal      = params.originPrincipal;
+              aOpener               = params.opener;
             }
 
             var bgLoad = (aLoadInBackground != null) ? aLoadInBackground :
@@ -1358,7 +1368,8 @@
                                   allowThirdPartyFixup: aAllowThirdPartyFixup,
                                   fromExternal: aFromExternal,
                                   originPrincipal: aOriginPrincipal,
-                                  relatedToCurrent: aRelatedToCurrent});
+                                  relatedToCurrent: aRelatedToCurrent,
+                                  opener: aOpener });
             if (!bgLoad)
               this.selectedTab = tab;
 
@@ -1481,6 +1492,7 @@
             var aSkipAnimation;
             var aOriginPrincipal;
             var aSkipBackgroundNotify;
+            var aOpener;
             if (arguments.length == 2 &&
                 typeof arguments[1] == "object" &&
                 !(arguments[1] instanceof Ci.nsIURI)) {
@@ -1496,6 +1508,7 @@
               aRelatedToCurrent     = params.relatedToCurrent;
               aSkipAnimation        = params.skipAnimation;
               aOriginPrincipal      = params.originPrincipal;
+              aOpener               = params.opener;
               aSkipBackgroundNotify = params.skipBackgroundNotify;
             }
 
@@ -1568,6 +1581,10 @@
             if (window.gShowPageResizers && document.getElementById("addon-bar").collapsed &&
                 window.windowState == window.STATE_NORMAL) {
               b.setAttribute("showresizer", "true");
+            }
+
+            if (aOpener) {
+              b.QueryInterface(Ci.nsIFrameLoaderOwner).presetOpenerWindow(aOpener);
             }
 
             if (this.hasAttribute("autocompletepopup"))

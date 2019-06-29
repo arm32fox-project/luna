@@ -1264,7 +1264,6 @@ pref("javascript.options.strict",           false);
 #ifdef DEBUG
 pref("javascript.options.strict.debug",     false);
 #endif
-pref("javascript.options.unboxed_objects",  false);
 pref("javascript.options.baselinejit",      true);
 pref("javascript.options.ion",              true);
 pref("javascript.options.asmjs",            true);
@@ -1320,12 +1319,7 @@ pref("javascript.options.mem.gc_max_empty_chunk_count", 30);
 
 pref("javascript.options.showInConsole", false);
 
-#ifdef RELEASE_OR_BETA
-// Disabled in Beta and Release for now, see bug 1225406
-pref("javascript.options.shared_memory", false);
-#else
 pref("javascript.options.shared_memory", true);
-#endif
 
 pref("javascript.options.throw_on_debuggee_would_run", false);
 pref("javascript.options.dump_stack_on_debuggee_would_run", false);
@@ -5201,6 +5195,9 @@ pref("intl.allow-insecure-text-input", false);
 // Enable meta-viewport support in remote APZ-enabled frames.
 pref("dom.meta-viewport.enabled", false);
 
+// Disable <meta http-equiv=set-cookie> support. See m-c bug 1457503 / UXP #1102.
+pref("dom.meta-set-cookie.enabled", false);
+
 // MozSettings debugging prefs for each component
 pref("dom.mozSettings.SettingsDB.debug.enabled", false);
 pref("dom.mozSettings.SettingsManager.debug.enabled", false);
@@ -5234,9 +5231,6 @@ pref("browser.search.update.interval", 21600);
 pref("browser.search.suggest.enabled", true);
 pref("browser.search.reset.enabled", false);
 pref("browser.search.reset.whitelist", "");
-pref("browser.search.geoSpecificDefaults", false);
-pref("browser.search.geoip.url", "https://location.services.mozilla.com/v1/country?key=%MOZILLA_API_KEY%");
-pref("browser.search.geoip.timeout", 3000);
 
 #ifdef MOZ_OFFICIAL_BRANDING
 // {moz:official} expands to "official"

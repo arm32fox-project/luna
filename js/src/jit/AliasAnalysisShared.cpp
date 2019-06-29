@@ -93,10 +93,6 @@ GetObject(const MDefinition* ins)
       case MDefinition::Op_Elements:
       case MDefinition::Op_MaybeCopyElementsForWrite:
       case MDefinition::Op_MaybeToDoubleElement:
-      case MDefinition::Op_UnboxedArrayLength:
-      case MDefinition::Op_UnboxedArrayInitializedLength:
-      case MDefinition::Op_IncrementUnboxedArrayInitializedLength:
-      case MDefinition::Op_SetUnboxedArrayInitializedLength:
       case MDefinition::Op_TypedArrayLength:
       case MDefinition::Op_SetTypedObjectOffset:
       case MDefinition::Op_SetDisjointTypedElements:
@@ -114,8 +110,6 @@ GetObject(const MDefinition* ins)
       case MDefinition::Op_GuardObjectGroup:
       case MDefinition::Op_GuardObjectIdentity:
       case MDefinition::Op_GuardClass:
-      case MDefinition::Op_GuardUnboxedExpando:
-      case MDefinition::Op_LoadUnboxedExpando:
       case MDefinition::Op_LoadSlot:
       case MDefinition::Op_StoreSlot:
       case MDefinition::Op_InArray:

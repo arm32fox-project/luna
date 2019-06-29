@@ -262,7 +262,6 @@ class TypeSet
         bool hasStableClassAndProto(CompilerConstraintList* constraints);
         void watchStateChangeForInlinedCall(CompilerConstraintList* constraints);
         void watchStateChangeForTypedArrayData(CompilerConstraintList* constraints);
-        void watchStateChangeForUnboxedConvertedToNative(CompilerConstraintList* constraints);
         HeapTypeSetKey property(jsid id);
         void ensureTrackedProperty(JSContext* cx, jsid id);
 
@@ -815,8 +814,8 @@ class PreliminaryObjectArray
   public:
     PreliminaryObjectArray() = default;
 
-    void registerNewObject(JSObject* res);
-    void unregisterObject(JSObject* obj);
+    void registerNewObject(PlainObject* res);
+    void unregisterObject(PlainObject* obj);
 
     JSObject* get(size_t i) const {
         MOZ_ASSERT(i < COUNT);
