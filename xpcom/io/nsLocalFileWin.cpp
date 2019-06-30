@@ -3034,7 +3034,6 @@ nsLocalFile::IsExecutable(bool* aResult)
       "ins",
       "isp",
       "jar",         // java application bundle
-      "jnlp",        // java web start
       "js",
       "jse",
       "lnk",
