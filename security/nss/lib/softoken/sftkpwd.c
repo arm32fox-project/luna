@@ -36,9 +36,9 @@
 
 const int NSS_DEFAULT_ITERATION_COUNT =
 #ifdef DEBUG
-    1000
+    25
 #else
-    60000
+    500
 #endif
     ;
 
