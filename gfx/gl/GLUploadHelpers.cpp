@@ -495,7 +495,7 @@ UploadImageDataToTexture(GLContext* gl,
             surfaceFormat = SurfaceFormat::A8;
             break;
         default:
-            MOZ_ASSERT_UNREACHABLE(false, "Unhandled image surface format!");
+            MOZ_ASSERT_UNREACHABLE("Unhandled image surface format!");
     }
 
     if (aOutUploadSize) {
