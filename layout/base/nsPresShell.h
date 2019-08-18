@@ -384,11 +384,12 @@ public:
   virtual void LoadComplete() override;
 
   void AddSizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
-                              nsArenaMemoryStats *aArenaObjectsSize,
-                              size_t *aPresShellSize,
-                              size_t *aStyleSetsSize,
-                              size_t *aTextRunsSize,
-                              size_t *aPresContextSize) override;
+                              nsArenaMemoryStats* aArenaObjectsSize,
+                              size_t* aPresShellSize,
+                              size_t* aStyleSetsSize,
+                              size_t* aTextRunsSize,
+                              size_t* aPresContextSize,
+                              size_t* aFramePropertiesSize) override;
   size_t SizeOfTextRuns(mozilla::MallocSizeOf aMallocSizeOf) const;
 
   virtual void AddInvalidateHiddenPresShellObserver(nsRefreshDriver *aDriver) override;
@@ -617,7 +618,6 @@ protected:
   public:
     virtual ~DelayedEvent() { }
     virtual void Dispatch() { }
-    virtual bool IsKeyPressEvent() { return false; }
   };
 
   class DelayedInputEvent : public DelayedEvent
@@ -642,7 +642,6 @@ protected:
   {
   public:
     explicit DelayedKeyEvent(mozilla::WidgetKeyboardEvent* aEvent);
-    virtual bool IsKeyPressEvent() override;
   };
 
   // Check if aEvent is a mouse event and record the mouse location for later
@@ -952,8 +951,6 @@ protected:
 
   // Whether the widget has received a paint message yet.
   bool                      mHasReceivedPaintMessage : 1;
-
-  bool                      mIsLastKeyDownCanceled : 1;
 
   static bool               sDisableNonTestMouseEvents;
 };

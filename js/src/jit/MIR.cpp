@@ -1970,7 +1970,7 @@ WrappedFunction::WrappedFunction(JSFunction* fun)
 
 MCall*
 MCall::New(TempAllocator& alloc, JSFunction* target, size_t maxArgc, size_t numActualArgs,
-           bool construct, bool isDOMCall)
+           bool construct, bool ignoresReturnValue, bool isDOMCall)
 {
     WrappedFunction* wrappedTarget = target ? new(alloc) WrappedFunction(target) : nullptr;
     MOZ_ASSERT(maxArgc >= numActualArgs);
@@ -1979,7 +1979,7 @@ MCall::New(TempAllocator& alloc, JSFunction* target, size_t maxArgc, size_t numA
         MOZ_ASSERT(!construct);
         ins = new(alloc) MCallDOMNative(wrappedTarget, numActualArgs);
     } else {
-        ins = new(alloc) MCall(wrappedTarget, numActualArgs, construct);
+        ins = new(alloc) MCall(wrappedTarget, numActualArgs, construct, ignoresReturnValue);
     }
     if (!ins->init(alloc, maxArgc + NumNonArgumentOperands))
         return nullptr;
@@ -2628,40 +2628,6 @@ jit::EqualTypes(MIRType type1, TemporaryTypeSet* typeset1,
 
     // Typesets should equal.
     return typeset1->equals(typeset2);
-}
-
-// Tests whether input/inputTypes can always be stored to an unboxed
-// object/array property with the given unboxed type.
-bool
-jit::CanStoreUnboxedType(TempAllocator& alloc,
-                         JSValueType unboxedType, MIRType input, TypeSet* inputTypes)
-{
-    TemporaryTypeSet types;
-
-    switch (unboxedType) {
-      case JSVAL_TYPE_BOOLEAN:
-      case JSVAL_TYPE_INT32:
-      case JSVAL_TYPE_DOUBLE:
-      case JSVAL_TYPE_STRING:
-        types.addType(TypeSet::PrimitiveType(unboxedType), alloc.lifoAlloc());
-        break;
-
-      case JSVAL_TYPE_OBJECT:
-        types.addType(TypeSet::AnyObjectType(), alloc.lifoAlloc());
-        types.addType(TypeSet::NullType(), alloc.lifoAlloc());
-        break;
-
-      default:
-        MOZ_CRASH("Bad unboxed type");
-    }
-
-    return TypeSetIncludes(&types, input, inputTypes);
-}
-
-static bool
-CanStoreUnboxedType(TempAllocator& alloc, JSValueType unboxedType, MDefinition* value)
-{
-    return CanStoreUnboxedType(alloc, unboxedType, value->type(), value->resultTypeSet());
 }
 
 bool
@@ -4817,15 +4783,14 @@ MCreateThisWithTemplate::canRecoverOnBailout() const
 
 MObjectState::MObjectState(MObjectState* state)
   : numSlots_(state->numSlots_),
-    numFixedSlots_(state->numFixedSlots_),
-    operandIndex_(state->operandIndex_)
+    numFixedSlots_(state->numFixedSlots_)
 {
     // This instruction is only used as a summary for bailout paths.
     setResultType(MIRType::Object);
     setRecoveredOnBailout();
 }
 
-MObjectState::MObjectState(JSObject *templateObject, OperandIndexMap* operandIndex)
+MObjectState::MObjectState(JSObject* templateObject)
 {
     // This instruction is only used as a summary for bailout paths.
     setResultType(MIRType::Object);
@@ -4836,8 +4801,6 @@ MObjectState::MObjectState(JSObject *templateObject, OperandIndexMap* operandInd
     NativeObject* nativeObject = &templateObject->as<NativeObject>();
     numSlots_ = nativeObject->slotSpan();
     numFixedSlots_ = nativeObject->numFixedSlots();
-
-    operandIndex_ = operandIndex;
 }
 
 JSObject*
@@ -4897,7 +4860,7 @@ MObjectState::New(TempAllocator& alloc, MDefinition* obj)
     JSObject* templateObject = templateObjectOf(obj);
     MOZ_ASSERT(templateObject, "Unexpected object creation.");
 
-    MObjectState* res = new(alloc) MObjectState(templateObject, nullptr);
+    MObjectState* res = new(alloc) MObjectState(templateObject);
     if (!res || !res->init(alloc, obj))
         return nullptr;
     return res;
@@ -5823,46 +5786,6 @@ jit::ElementAccessIsDenseNative(CompilerConstraintList* constraints,
     return clasp && clasp->isNative() && !IsTypedArrayClass(clasp);
 }
 
-JSValueType
-jit::UnboxedArrayElementType(CompilerConstraintList* constraints, MDefinition* obj,
-                             MDefinition* id)
-{
-    if (obj->mightBeType(MIRType::String))
-        return JSVAL_TYPE_MAGIC;
-
-    if (id && id->type() != MIRType::Int32 && id->type() != MIRType::Double)
-        return JSVAL_TYPE_MAGIC;
-
-    TemporaryTypeSet* types = obj->resultTypeSet();
-    if (!types || types->unknownObject())
-        return JSVAL_TYPE_MAGIC;
-
-    JSValueType elementType = JSVAL_TYPE_MAGIC;
-    for (unsigned i = 0; i < types->getObjectCount(); i++) {
-        TypeSet::ObjectKey* key = types->getObject(i);
-        if (!key)
-            continue;
-
-        if (key->unknownProperties() || !key->isGroup())
-            return JSVAL_TYPE_MAGIC;
-
-        if (key->clasp() != &UnboxedArrayObject::class_)
-            return JSVAL_TYPE_MAGIC;
-
-        const UnboxedLayout &layout = key->group()->unboxedLayout();
-
-        if (layout.nativeGroup())
-            return JSVAL_TYPE_MAGIC;
-
-        if (elementType == layout.elementType() || elementType == JSVAL_TYPE_MAGIC)
-            elementType = layout.elementType();
-        else
-            return JSVAL_TYPE_MAGIC;
-    }
-
-    return elementType;
-}
-
 bool
 jit::ElementAccessIsTypedArray(CompilerConstraintList* constraints,
                                MDefinition* obj, MDefinition* id,
@@ -6020,11 +5943,6 @@ ObjectSubsumes(TypeSet::ObjectKey* first, TypeSet::ObjectKey* second)
 
         return firstElements.maybeTypes() && secondElements.maybeTypes() &&
                firstElements.maybeTypes()->equals(secondElements.maybeTypes());
-    }
-
-    if (first->clasp() == &UnboxedArrayObject::class_) {
-        return first->group()->unboxedLayout().elementType() ==
-               second->group()->unboxedLayout().elementType();
     }
 
     return false;
@@ -6264,15 +6182,6 @@ PrototypeHasIndexedProperty(IonBuilder* builder, JSObject* obj)
     } while (obj);
 
     return false;
-}
-
-// Whether Array.prototype, or an object on its proto chain, has an indexed property.
-bool
-jit::ArrayPrototypeHasIndexedProperty(IonBuilder* builder, JSScript* script)
-{
-    if (JSObject* proto = script->global().maybeGetArrayPrototype())
-        return PrototypeHasIndexedProperty(builder, proto);
-    return true;
 }
 
 // Whether obj or any of its prototypes have an indexed property.

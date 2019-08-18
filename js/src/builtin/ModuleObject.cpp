@@ -103,7 +103,7 @@ GlobalObject::initImportEntryProto(JSContext* cx, Handle<GlobalObject*> global)
         JS_PS_END
     };
 
-    RootedObject proto(cx, global->createBlankPrototype<PlainObject>(cx));
+    RootedObject proto(cx, GlobalObject::createBlankPrototype<PlainObject>(cx, global));
     if (!proto)
         return false;
 
@@ -169,7 +169,7 @@ GlobalObject::initExportEntryProto(JSContext* cx, Handle<GlobalObject*> global)
         JS_PS_END
     };
 
-    RootedObject proto(cx, global->createBlankPrototype<PlainObject>(cx));
+    RootedObject proto(cx, GlobalObject::createBlankPrototype<PlainObject>(cx, global));
     if (!proto)
         return false;
 
@@ -788,7 +788,7 @@ AssertModuleScopesMatch(ModuleObject* module)
 }
 
 void
-ModuleObject::fixEnvironmentsAfterCompartmentMerge(JSContext* cx)
+ModuleObject::fixEnvironmentsAfterCompartmentMerge()
 {
     AssertModuleScopesMatch(this);
     initialEnvironment().fixEnclosingEnvironmentAfterCompartmentMerge(script()->global());
@@ -947,7 +947,7 @@ ModuleObject::evaluate(JSContext* cx, HandleModuleObject self, MutableHandleValu
 ModuleObject::createNamespace(JSContext* cx, HandleModuleObject self, HandleObject exports)
 {
     MOZ_ASSERT(!self->namespace_());
-    MOZ_ASSERT(exports->is<ArrayObject>() || exports->is<UnboxedArrayObject>());
+    MOZ_ASSERT(exports->is<ArrayObject>());
 
     RootedModuleNamespaceObject ns(cx, ModuleNamespaceObject::create(cx, self));
     if (!ns)
@@ -1020,7 +1020,7 @@ GlobalObject::initModuleProto(JSContext* cx, Handle<GlobalObject*> global)
         JS_FS_END
     };
 
-    RootedObject proto(cx, global->createBlankPrototype<PlainObject>(cx));
+    RootedObject proto(cx, GlobalObject::createBlankPrototype<PlainObject>(cx, global));
     if (!proto)
         return false;
 

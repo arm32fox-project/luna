@@ -43,8 +43,8 @@ MC_PALEMOON=1
 # Firefox-like browsers
 MOZ_PHOENIX=1
 
-# Browser Feature: Status bar Component
-MOZ_BROWSER_STATUSBAR=1
+# Lightweight Themes
+MOZ_PERSONAS=1
 
 # Browser Feature: Profile Migration Component
 MOZ_PROFILE_MIGRATOR=

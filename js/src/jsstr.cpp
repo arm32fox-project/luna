@@ -461,9 +461,13 @@ ToStringForStringFunction(JSContext* cx, HandleValue thisv)
         RootedObject obj(cx, &thisv.toObject());
         if (obj->is<StringObject>()) {
             StringObject* nobj = &obj->as<StringObject>();
-            Rooted<jsid> id(cx, NameToId(cx->names().toString));
-            if (ClassMethodIsNative(cx, nobj, &StringObject::class_, id, str_toString))
+            // We have to make sure that the ToPrimitive call from ToString
+            // would be unobservable.
+            if (HasNoToPrimitiveMethodPure(nobj, cx) &&
+                HasNativeMethodPure(nobj, cx->names().toString, str_toString, cx))
+            {
                 return nobj->unbox();
+            }
         }
     } else if (thisv.isNullOrUndefined()) {
         JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr, JSMSG_CANT_CONVERT_TO,
@@ -2369,7 +2373,7 @@ js::str_replace_string_raw(JSContext* cx, HandleString string, HandleString patt
 }
 
 // ES 2016 draft Mar 25, 2016 21.1.3.17 steps 4, 8, 12-18.
-static JSObject*
+static ArrayObject*
 SplitHelper(JSContext* cx, HandleLinearString str, uint32_t limit, HandleLinearString sep,
             HandleObjectGroup group)
 {
@@ -2466,7 +2470,7 @@ SplitHelper(JSContext* cx, HandleLinearString str, uint32_t limit, HandleLinearS
 }
 
 // Fast-path for splitting a string into a character array via split("").
-static JSObject*
+static ArrayObject*
 CharSplitHelper(JSContext* cx, HandleLinearString str, uint32_t limit, HandleObjectGroup group)
 {
     size_t strLength = str->length();
@@ -2491,7 +2495,7 @@ CharSplitHelper(JSContext* cx, HandleLinearString str, uint32_t limit, HandleObj
 }
 
 // ES 2016 draft Mar 25, 2016 21.1.3.17 steps 4, 8, 12-18.
-JSObject*
+ArrayObject*
 js::str_split_string(JSContext* cx, HandleObjectGroup group, HandleString str, HandleString sep, uint32_t limit)
 
 {
@@ -2901,8 +2905,8 @@ StringObject::assignInitialShape(ExclusiveContext* cx, Handle<StringObject*> obj
 {
     MOZ_ASSERT(obj->empty());
 
-    return obj->addDataProperty(cx, cx->names().length, LENGTH_SLOT,
-                                JSPROP_PERMANENT | JSPROP_READONLY);
+    return NativeObject::addDataProperty(cx, obj, cx->names().length, LENGTH_SLOT,
+                                         JSPROP_PERMANENT | JSPROP_READONLY);
 }
 
 JSObject*
@@ -2910,17 +2914,20 @@ js::InitStringClass(JSContext* cx, HandleObject obj)
 {
     MOZ_ASSERT(obj->isNative());
 
-    Rooted<GlobalObject*> global(cx, &obj->as<GlobalObject>());
+    Handle<GlobalObject*> global = obj.as<GlobalObject>();
 
     Rooted<JSString*> empty(cx, cx->runtime()->emptyString);
-    RootedObject proto(cx, global->createBlankPrototype(cx, &StringObject::class_));
-    if (!proto || !proto->as<StringObject>().init(cx, empty))
+    RootedObject proto(cx, GlobalObject::createBlankPrototype(cx, global, &StringObject::class_));
+    if (!proto)
+        return nullptr;
+    Handle<StringObject*> protoObj = proto.as<StringObject>();
+    if (!StringObject::init(cx, protoObj, empty))
         return nullptr;
 
     /* Now create the String function. */
     RootedFunction ctor(cx);
-    ctor = global->createConstructor(cx, StringConstructor, cx->names().String, 1,
-                                     AllocKind::FUNCTION, &jit::JitInfo_String);
+    ctor = GlobalObject::createConstructor(cx, StringConstructor, cx->names().String, 1,
+                                           AllocKind::FUNCTION, &jit::JitInfo_String);
     if (!ctor)
         return nullptr;
 

@@ -72,49 +72,37 @@ extern ArrayObject*
 NewDenseFullyAllocatedArrayWithTemplate(JSContext* cx, uint32_t length, JSObject* templateObject);
 
 /* Create a dense array with the same copy-on-write elements as another object. */
-extern JSObject*
+extern ArrayObject*
 NewDenseCopyOnWriteArray(JSContext* cx, HandleArrayObject templateObject, gc::InitialHeap heap);
 
-// The methods below can create either boxed or unboxed arrays.
-
-extern JSObject*
+extern ArrayObject*
 NewFullyAllocatedArrayTryUseGroup(ExclusiveContext* cx, HandleObjectGroup group, size_t length,
                                   NewObjectKind newKind = GenericObject);
 
-extern JSObject*
+extern ArrayObject*
 NewPartlyAllocatedArrayTryUseGroup(ExclusiveContext* cx, HandleObjectGroup group, size_t length);
 
-extern JSObject*
-NewFullyAllocatedArrayTryReuseGroup(JSContext* cx, JSObject* obj, size_t length,
+extern ArrayObject*
+NewFullyAllocatedArrayTryReuseGroup(JSContext* cx, HandleObject obj, size_t length,
                                     NewObjectKind newKind = GenericObject);
 
-extern JSObject*
-NewPartlyAllocatedArrayTryReuseGroup(JSContext* cx, JSObject* obj, size_t length);
+extern ArrayObject*
+NewPartlyAllocatedArrayTryReuseGroup(JSContext* cx, HandleObject obj, size_t length);
 
-extern JSObject*
+extern ArrayObject*
 NewFullyAllocatedArrayForCallingAllocationSite(JSContext* cx, size_t length,
                                                NewObjectKind newKind = GenericObject);
 
-extern JSObject*
+extern ArrayObject*
 NewPartlyAllocatedArrayForCallingAllocationSite(JSContext* cx, size_t length, HandleObject proto);
 
-enum class ShouldUpdateTypes
-{
-    Update,
-    DontUpdate
-};
-
-extern bool
-MaybeAnalyzeBeforeCreatingLargeArray(ExclusiveContext* cx, HandleObjectGroup group,
-                                     const Value* vp, size_t length);
-
-extern JSObject*
+extern ArrayObject*
 NewCopiedArrayTryUseGroup(ExclusiveContext* cx, HandleObjectGroup group,
                           const Value* vp, size_t length,
                           NewObjectKind newKind = GenericObject,
                           ShouldUpdateTypes updateTypes = ShouldUpdateTypes::Update);
 
-extern JSObject*
+extern ArrayObject*
 NewCopiedArrayForCallingAllocationSite(JSContext* cx, const Value* vp, size_t length,
                                        HandleObject proto = nullptr);
 
@@ -128,13 +116,6 @@ NewValuePair(JSContext* cx, const Value& val1, const Value& val2, MutableHandleV
  */
 extern bool
 WouldDefinePastNonwritableLength(HandleNativeObject obj, uint32_t index);
-
-/*
- * Canonicalize |vp| to a uint32_t value potentially suitable for use as an
- * array length.
- */
-extern bool
-CanonicalizeArrayLengthValue(JSContext* cx, HandleValue v, uint32_t* canonicalized);
 
 extern bool
 GetLengthProperty(JSContext* cx, HandleObject obj, uint32_t* lengthp);
@@ -166,13 +147,10 @@ extern bool
 array_pop(JSContext* cx, unsigned argc, js::Value* vp);
 
 extern bool
-array_splice_impl(JSContext* cx, unsigned argc, js::Value* vp, bool pop);
-
-extern bool
 array_join(JSContext* cx, unsigned argc, js::Value* vp);
 
 extern void
-ArrayShiftMoveElements(JSObject* obj);
+ArrayShiftMoveElements(NativeObject* obj);
 
 extern bool
 array_shift(JSContext* cx, unsigned argc, js::Value* vp);
@@ -192,6 +170,8 @@ array_reverse(JSContext* cx, unsigned argc, js::Value* vp);
 extern bool
 array_splice(JSContext* cx, unsigned argc, js::Value* vp);
 
+extern const JSJitInfo array_splice_info;
+
 /*
  * Append the given (non-hole) value to the end of an array.  The array must be
  * a newborn array -- that is, one which has not been exposed to script for
@@ -202,7 +182,7 @@ array_splice(JSContext* cx, unsigned argc, js::Value* vp);
 extern bool
 NewbornArrayPush(JSContext* cx, HandleObject obj, const Value& v);
 
-extern JSObject*
+extern ArrayObject*
 ArrayConstructorOneArg(JSContext* cx, HandleObjectGroup group, int32_t lengthInt);
 
 #ifdef DEBUG

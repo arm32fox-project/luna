@@ -666,7 +666,7 @@ nsDisplayListBuilder::AddAnimationsAndTransitionsToLayer(Layer* aLayer,
     // EffectCompositor needs to know that we refused to run this animation
     // asynchronously so that it will not throttle the main thread
     // animation.
-    aFrame->Properties().Set(nsIFrame::RefusedAsyncAnimationProperty(), true);
+    aFrame->SetProperty(nsIFrame::RefusedAsyncAnimationProperty(), true);
 
     // We need to schedule another refresh driver run so that EffectCompositor
     // gets a chance to unthrottle the animation.
@@ -902,15 +902,13 @@ void nsDisplayListBuilder::MarkOutOfFlowFrameForDisplay(nsIFrame* aDirtyFrame,
   const DisplayItemClip* oldClip = mClipState.GetClipForContainingBlockDescendants();
   const DisplayItemScrollClip* sc = mClipState.GetCurrentInnermostScrollClip();
   OutOfFlowDisplayData* data = new OutOfFlowDisplayData(oldClip, sc, dirty);
-  aFrame->Properties().Set(nsDisplayListBuilder::OutOfFlowDisplayDataProperty(), data);
+  aFrame->SetProperty(nsDisplayListBuilder::OutOfFlowDisplayDataProperty(), data);
 
   MarkFrameForDisplay(aFrame, aDirtyFrame);
 }
 
 static void UnmarkFrameForDisplay(nsIFrame* aFrame) {
-  nsPresContext* presContext = aFrame->PresContext();
-  presContext->PropertyTable()->
-    Delete(aFrame, nsDisplayListBuilder::OutOfFlowDisplayDataProperty());
+  aFrame->DeleteProperty(nsDisplayListBuilder::OutOfFlowDisplayDataProperty());
 
   for (nsIFrame* f = aFrame; f;
        f = nsLayoutUtils::GetParentOrPlaceholderFor(f)) {
@@ -5710,7 +5708,7 @@ nsDisplayTransform::GetDeltaToTransformOrigin(const nsIFrame* aFrame,
   }
 
   /* Allows us to access dimension getters by index. */
-  float coords[2];
+  float transformOrigin[2];
   TransformReferenceBox::DimensionGetter dimensionGetter[] =
     { &TransformReferenceBox::Width, &TransformReferenceBox::Height };
   TransformReferenceBox::DimensionGetter offsetGetter[] =
@@ -5720,33 +5718,33 @@ nsDisplayTransform::GetDeltaToTransformOrigin(const nsIFrame* aFrame,
     /* If the transform-origin specifies a percentage, take the percentage
      * of the size of the box.
      */
-    const nsStyleCoord &coord = display->mTransformOrigin[index];
-    if (coord.GetUnit() == eStyleUnit_Calc) {
-      const nsStyleCoord::Calc *calc = coord.GetCalcValue();
-      coords[index] =
+    const nsStyleCoord &originValue = display->mTransformOrigin[index];
+    if (originValue.GetUnit() == eStyleUnit_Calc) {
+      const nsStyleCoord::Calc *calc = originValue.GetCalcValue();
+      transformOrigin[index] =
         NSAppUnitsToFloatPixels((refBox.*dimensionGetter[index])(), aAppUnitsPerPixel) *
           calc->mPercent +
         NSAppUnitsToFloatPixels(calc->mLength, aAppUnitsPerPixel);
-    } else if (coord.GetUnit() == eStyleUnit_Percent) {
-      coords[index] =
+    } else if (originValue.GetUnit() == eStyleUnit_Percent) {
+      transformOrigin[index] =
         NSAppUnitsToFloatPixels((refBox.*dimensionGetter[index])(), aAppUnitsPerPixel) *
-        coord.GetPercentValue();
+        originValue.GetPercentValue();
     } else {
-      MOZ_ASSERT(coord.GetUnit() == eStyleUnit_Coord, "unexpected unit");
-      coords[index] =
-        NSAppUnitsToFloatPixels(coord.GetCoordValue(), aAppUnitsPerPixel);
+      MOZ_ASSERT(originValue.GetUnit() == eStyleUnit_Coord, "unexpected unit");
+      transformOrigin[index] =
+        NSAppUnitsToFloatPixels(originValue.GetCoordValue(), aAppUnitsPerPixel);
     }
 
     if (aFrame->GetStateBits() & NS_FRAME_SVG_LAYOUT) {
       // SVG frames (unlike other frames) have a reference box that can be (and
       // typically is) offset from the TopLeft() of the frame. We need to
       // account for that here.
-      coords[index] +=
+      transformOrigin[index] +=
         NSAppUnitsToFloatPixels((refBox.*offsetGetter[index])(), aAppUnitsPerPixel);
     }
   }
 
-  return Point3D(coords[0], coords[1],
+  return Point3D(transformOrigin[0], transformOrigin[1],
                  NSAppUnitsToFloatPixels(display->mTransformOrigin[2].GetCoordValue(),
                                          aAppUnitsPerPixel));
 }
@@ -5919,6 +5917,17 @@ nsDisplayTransform::GetResultingTransformMatrixInternal(const FrameTransformProp
     frame && frame->IsSVGTransformed(&svgTransform, &transformFromSVGParent);
   bool hasTransformFromSVGParent =
     hasSVGTransforms && !transformFromSVGParent.IsIdentity();
+
+  bool shouldRound = true;
+
+  // An SVG frame should not have its translation rounded.
+  // Note it's possible that the SVG frame doesn't have an SVG
+  // transform but only has a CSS transform.
+  if (frame && frame->HasAnyStateBits(NS_FRAME_SVG_LAYOUT) &&
+      !(frame->GetType() == nsGkAtoms::svgOuterSVGAnonChildFrame)) {
+    shouldRound = false;
+  }
+  
   /* Transformed frames always have a transform, or are preserving 3d (and might still have perspective!) */
   if (aProperties.mTransformList) {
     result = nsStyleTransformMatrix::ReadTransforms(aProperties.mTransformList->mHead,
@@ -5996,7 +6005,7 @@ nsDisplayTransform::GetResultingTransformMatrixInternal(const FrameTransformProp
     // Otherwise we need to manually translate into our parent's coordinate
     // space.
     if (frame->IsTransformed()) {
-      nsLayoutUtils::PostTranslate(result, frame->GetPosition(), aAppUnitsPerPixel, !hasSVGTransforms);
+      nsLayoutUtils::PostTranslate(result, frame->GetPosition(), aAppUnitsPerPixel, shouldRound);
     }
     Matrix4x4 parent =
       GetResultingTransformMatrixInternal(props,
@@ -6007,7 +6016,7 @@ nsDisplayTransform::GetResultingTransformMatrixInternal(const FrameTransformProp
   }
 
   if (aFlags & OFFSET_BY_ORIGIN) {
-    nsLayoutUtils::PostTranslate(result, aOrigin, aAppUnitsPerPixel, !hasSVGTransforms);
+    nsLayoutUtils::PostTranslate(result, aOrigin, aAppUnitsPerPixel, shouldRound);
   }
 
   return result;

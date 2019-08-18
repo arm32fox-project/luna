@@ -523,7 +523,7 @@ class InterpreterFrame
     ArgumentsObject& argsObj() const;
     void initArgsObj(ArgumentsObject& argsobj);
 
-    JSObject* createRestParameter(JSContext* cx);
+    ArrayObject* createRestParameter(JSContext* cx);
 
     /*
      * Environment chain
@@ -1004,6 +1004,17 @@ class InvokeArgs : public detail::GenericArgsBase<NO_CONSTRUCT>
 
   public:
     explicit InvokeArgs(JSContext* cx) : Base(cx) {}
+};
+
+/** Function call args of statically-unknown count. */
+class InvokeArgsMaybeIgnoresReturnValue : public detail::GenericArgsBase<NO_CONSTRUCT>
+{
+    using Base = detail::GenericArgsBase<NO_CONSTRUCT>;
+
+  public:
+    explicit InvokeArgsMaybeIgnoresReturnValue(JSContext* cx, bool ignoresReturnValue) : Base(cx) {
+        this->ignoresReturnValue_ = ignoresReturnValue;
+    }
 };
 
 /** Function call args of statically-known count. */

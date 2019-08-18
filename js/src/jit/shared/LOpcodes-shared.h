@@ -69,7 +69,6 @@
     _(NewArrayDynamicLength)        \
     _(NewTypedArray)                \
     _(NewTypedArrayDynamicLength)   \
-    _(ArraySplice)                  \
     _(NewObject)                    \
     _(NewTypedObject)               \
     _(NewNamedLambdaObject)         \
@@ -267,10 +266,6 @@
     _(PostWriteElementBarrierV)     \
     _(InitializedLength)            \
     _(SetInitializedLength)         \
-    _(UnboxedArrayLength)           \
-    _(UnboxedArrayInitializedLength) \
-    _(IncrementUnboxedArrayInitializedLength) \
-    _(SetUnboxedArrayInitializedLength) \
     _(BoundsCheck)                  \
     _(BoundsCheckRange)             \
     _(BoundsCheckLower)             \

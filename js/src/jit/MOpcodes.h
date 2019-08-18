@@ -69,7 +69,6 @@ namespace jit {
     _(Call)                                                                 \
     _(ApplyArgs)                                                            \
     _(ApplyArray)                                                           \
-    _(ArraySplice)                                                          \
     _(Bail)                                                                 \
     _(Unreachable)                                                          \
     _(EncodeSnapshot)                                                       \
@@ -198,10 +197,6 @@ namespace jit {
     _(SetTypedObjectOffset)                                                 \
     _(InitializedLength)                                                    \
     _(SetInitializedLength)                                                 \
-    _(UnboxedArrayLength)                                                   \
-    _(UnboxedArrayInitializedLength)                                        \
-    _(IncrementUnboxedArrayInitializedLength)                               \
-    _(SetUnboxedArrayInitializedLength)                                     \
     _(Not)                                                                  \
     _(BoundsCheck)                                                          \
     _(BoundsCheckLower)                                                     \

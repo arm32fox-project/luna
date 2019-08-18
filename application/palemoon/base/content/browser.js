@@ -1216,9 +1216,11 @@ var gBrowserInit = {
     placesContext.addEventListener("popuphiding", updateEditUIVisibility, false);
 #endif
 
+#ifdef MOZ_PERSONAS
     gBrowser.mPanelContainer.addEventListener("InstallBrowserTheme", LightWeightThemeWebInstaller, false, true);
     gBrowser.mPanelContainer.addEventListener("PreviewBrowserTheme", LightWeightThemeWebInstaller, false, true);
     gBrowser.mPanelContainer.addEventListener("ResetBrowserThemePreview", LightWeightThemeWebInstaller, false, true);
+#endif
 
     // Bug 666808 - AeroPeek support for e10s
     if (!gMultiProcessBrowser) {
@@ -2443,16 +2445,12 @@ function BrowserOnAboutPageLoad(doc) {
 
     // Inject search engine and snippets URL.
     let docElt = doc.documentElement;
-    // set the following attributes BEFORE searchEngineURL, which triggers to
-    // show the snippets when it's set.
-    docElt.setAttribute("snippetsURL", AboutHomeUtils.snippetsURL);
     if (AboutHomeUtils.showKnowYourRights) {
       docElt.setAttribute("showKnowYourRights", "true");
       // Set pref to indicate we've shown the notification.
       let currentVersion = Services.prefs.getIntPref("browser.rights.version");
       Services.prefs.setBoolPref("browser.rights." + currentVersion + ".shown", true);
     }
-    docElt.setAttribute("snippetsVersion", AboutHomeUtils.snippetsVersion);
 
     function updateSearchEngine() {
       let engine = AboutHomeUtils.defaultSearchEngine;

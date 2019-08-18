@@ -53,12 +53,6 @@ pref("extensions.getAddons.recommended.browseURL", "https://@AM_DOMAIN@/?compone
 
 pref("extensions.update.autoUpdateDefault", true);
 
-// Leave these for the moment...
-pref("extensions.hotfix.id", "firefox-hotfix@mozilla.org");
-pref("extensions.hotfix.cert.checkAttributes", true);
-pref("extensions.hotfix.certs.1.sha1Fingerprint", "91:53:98:0C:C1:86:DF:47:8F:35:22:9E:11:C9:A7:31:04:49:A1:AA");
-pref("extensions.hotfix.certs.2.sha1Fingerprint", "39:E7:2B:7A:5B:CF:37:78:F9:5D:4A:E0:53:2D:2F:3D:68:53:C5:60");
-
 // Also, leave this for the moment...
 // Check AUS for system add-on updates.
 pref("extensions.systemAddon.update.url", "https://aus5.mozilla.org/update/3/SystemAddons/%VERSION%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/update.xml");
@@ -1015,12 +1009,7 @@ pref("services.sync.syncedTabs.showRemoteIcons", true);
 
 pref("services.sync.sendTabToDevice.enabled", true);
 
-// Developer edition preferences
-#ifdef MOZ_DEV_EDITION
-sticky_pref("lightweightThemes.selectedThemeID", "firefox-devedition@mozilla.org");
-#else
 sticky_pref("lightweightThemes.selectedThemeID", "");
-#endif
 
 // Whether the character encoding menu is under the main Firefox button. This
 // preference is a string so that localizers can alter it.

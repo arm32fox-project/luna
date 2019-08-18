@@ -339,14 +339,17 @@ IsObjectValueInCompartment(const Value& v, JSCompartment* comp);
 #endif
 
 // Operations which change an object's dense elements can either succeed, fail,
-// or be unable to complete. For native objects, the latter is used when the
-// object's elements must become sparse instead. The enum below is used for
-// such operations, and for similar operations on unboxed arrays and methods
-// that work on both kinds of objects.
+// or be unable to complete. The latter is used when the object's elements must
+// become sparse instead. The enum below is used for such operations.
 enum class DenseElementResult {
     Failure,
     Success,
     Incomplete
+};
+
+enum class ShouldUpdateTypes {
+    Update,
+    DontUpdate
 };
 
 /*
@@ -467,11 +470,6 @@ class NativeObject : public ShapedObject
     // that are (temporarily) inconsistent.
     void setLastPropertyMakeNonNative(Shape* shape);
 
-    // As for setLastProperty(), but changes the class associated with the
-    // object to a native one. The object's type has already been changed, and
-    // this brings the shape into sync with it.
-    void setLastPropertyMakeNative(ExclusiveContext* cx, Shape* shape);
-
     // Newly-created TypedArrays that map a SharedArrayBuffer are
     // marked as shared by giving them an ObjectElements that has the
     // ObjectElements::SHARED_MEMORY flag set.
@@ -493,8 +491,8 @@ class NativeObject : public ShapedObject
     void checkShapeConsistency() { }
 #endif
 
-    Shape*
-    replaceWithNewEquivalentShape(ExclusiveContext* cx,
+    static Shape*
+    replaceWithNewEquivalentShape(ExclusiveContext* cx, HandleNativeObject obj,
                                   Shape* existingShape, Shape* newShape = nullptr,
                                   bool accessorShape = false);
 
@@ -512,7 +510,7 @@ class NativeObject : public ShapedObject
      */
     bool setSlotSpan(ExclusiveContext* cx, uint32_t span);
 
-    bool toDictionaryMode(ExclusiveContext* cx);
+    static MOZ_MUST_USE bool toDictionaryMode(ExclusiveContext* cx, HandleNativeObject obj);
 
   private:
     friend class TenuringTracer;
@@ -611,12 +609,15 @@ class NativeObject : public ShapedObject
     }
 
   public:
-    bool generateOwnShape(ExclusiveContext* cx, Shape* newShape = nullptr) {
-        return replaceWithNewEquivalentShape(cx, lastProperty(), newShape);
+    static MOZ_MUST_USE bool generateOwnShape(ExclusiveContext* cx, HandleNativeObject obj,
+                                              Shape* newShape = nullptr)
+    {
+        return replaceWithNewEquivalentShape(cx, obj, obj->lastProperty(), newShape);
     }
 
-    bool shadowingShapeChange(ExclusiveContext* cx, const Shape& shape);
-    bool clearFlag(ExclusiveContext* cx, BaseShape::Flag flag);
+    static MOZ_MUST_USE bool shadowingShapeChange(ExclusiveContext* cx, HandleNativeObject obj,
+                                                  const Shape& shape);
+    static bool clearFlag(ExclusiveContext* cx, HandleNativeObject obj, BaseShape::Flag flag);
 
     // The maximum number of slots in an object.
     // |MAX_SLOTS_COUNT * sizeof(JS::Value)| shouldn't overflow
@@ -743,10 +744,10 @@ class NativeObject : public ShapedObject
                               bool allowDictionary = true);
 
     /* Add a data property whose id is not yet in this scope. */
-    Shape* addDataProperty(ExclusiveContext* cx,
-                           jsid id_, uint32_t slot, unsigned attrs);
-    Shape* addDataProperty(ExclusiveContext* cx, HandlePropertyName name,
-                           uint32_t slot, unsigned attrs);
+    static Shape* addDataProperty(ExclusiveContext* cx, HandleNativeObject obj,
+                                  jsid id_, uint32_t slot, unsigned attrs);
+    static Shape* addDataProperty(ExclusiveContext* cx, HandleNativeObject obj,
+                                  HandlePropertyName name, uint32_t slot, unsigned attrs);
 
     /* Add or overwrite a property for id in this scope. */
     static Shape*
@@ -766,7 +767,7 @@ class NativeObject : public ShapedObject
                    unsigned attrs, JSGetterOp getter, JSSetterOp setter);
 
     /* Remove the property named by id from this object. */
-    bool removeProperty(ExclusiveContext* cx, jsid id);
+    static bool removeProperty(ExclusiveContext* cx, HandleNativeObject obj, jsid id);
 
     /* Clear the scope, making it empty. */
     static void clear(ExclusiveContext* cx, HandleNativeObject obj);
@@ -785,7 +786,8 @@ class NativeObject : public ShapedObject
                         unsigned flags, ShapeTable::Entry* entry, bool allowDictionary,
                         const AutoKeepShapeTables& keep);
 
-    bool fillInAfterSwap(JSContext* cx, const Vector<Value>& values, void* priv);
+    static MOZ_MUST_USE bool fillInAfterSwap(JSContext* cx, HandleNativeObject obj,
+                                             const Vector<Value>& values, void* priv);
 
   public:
     // Return true if this object has been converted from shared-immutable
@@ -1147,6 +1149,10 @@ class NativeObject : public ShapedObject
         elementsRangeWriteBarrierPost(dstStart, count);
     }
 
+    inline DenseElementResult
+    setOrExtendDenseElements(ExclusiveContext* cx, uint32_t start, const Value* vp, uint32_t count,
+                             ShouldUpdateTypes updateTypes = ShouldUpdateTypes::Update);
+
     bool shouldConvertDoubleElements() {
         return getElementsHeader()->shouldConvertDoubleElements();
     }
@@ -1467,19 +1473,6 @@ NativeGetExistingProperty(JSContext* cx, HandleObject receiver, HandleNativeObje
                           HandleShape shape, MutableHandleValue vp);
 
 /* * */
-
-/*
- * If obj has an already-resolved data property for id, return true and
- * store the property value in *vp.
- */
-extern bool
-HasDataProperty(JSContext* cx, NativeObject* obj, jsid id, Value* vp);
-
-inline bool
-HasDataProperty(JSContext* cx, NativeObject* obj, PropertyName* name, Value* vp)
-{
-    return HasDataProperty(cx, obj, NameToId(name), vp);
-}
 
 extern bool
 GetPropertyForNameLookup(JSContext* cx, HandleObject obj, HandleId id, MutableHandleValue vp);

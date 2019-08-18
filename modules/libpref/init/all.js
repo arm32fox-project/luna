@@ -1319,12 +1319,7 @@ pref("javascript.options.mem.gc_max_empty_chunk_count", 30);
 
 pref("javascript.options.showInConsole", false);
 
-#ifdef RELEASE_OR_BETA
-// Disabled in Beta and Release for now, see bug 1225406
-pref("javascript.options.shared_memory", false);
-#else
 pref("javascript.options.shared_memory", true);
-#endif
 
 pref("javascript.options.throw_on_debuggee_would_run", false);
 pref("javascript.options.dump_stack_on_debuggee_would_run", false);
@@ -1335,6 +1330,10 @@ pref("image.animation_mode",                "normal");
 
 // Same-origin policy for file URIs, "false" is traditional
 pref("security.fileuri.strict_origin_policy", true);
+
+// Treat all file URIs as having a unique origin.
+// Only has an effect if strict origin policy is true.
+pref("security.fileuri.unique_origin", true);
 
 // If this pref is true, prefs in the logging.config branch will be cleared on
 // startup. This is done so that setting a log-file and log-modules at runtime
@@ -1992,6 +1991,13 @@ pref("network.generic-ntlm-auth.workstation", "WORKSTATION");
 //       but don't allow it for cross-origin sub-resources
 //   2 - allow the cross-origin authentication as well.
 pref("network.auth.subresource-http-auth-allow", 2);
+
+// Sub-resources HTTP-authentication for cross-origin images:
+// true - presenting the http auth. dialog for cross-origin images is allowed.
+// false - suppress the http auth. dialog for cross-origin images.
+// If network.auth.subresource-http-auth-allow has a value of 0 or 1, this pref
+// does not have any effect.
+pref("network.auth.subresource-http-img-XO-auth", false);
 
 // This preference controls whether to allow sending default credentials (SSO) to
 // NTLM/Negotiate servers allowed in the "trusted uri" list when navigating them
@@ -4006,6 +4012,12 @@ pref("autocomplete.ungrab_during_mode_switch", true);
 // toggling to use the XUL filepicker
 pref("ui.allow_platform_file_picker", true);
 
+// Allow for using the native GTK file picker. If the application is not run
+// with GTK_USE_PORTAL=1 this pref has no effect.
+#ifdef MOZ_WIDGET_GTK
+pref("widget.allow-gtk-native-file-chooser", false);
+#endif
+
 pref("helpers.global_mime_types_file", "/etc/mime.types");
 pref("helpers.global_mailcap_file", "/etc/mailcap");
 pref("helpers.private_mime_types_file", "~/.mime.types");
@@ -5444,6 +5456,9 @@ pref("layout.css.servo.enabled", true);
 // Please note that manually entering a data: URI in the
 // URL-Bar will not be blocked when flipping this pref.
 pref("security.data_uri.block_toplevel_data_uri_navigations", true);
+
+// If true, all FTP subresource loads will be blocked.
+pref("security.block_ftp_subresources", true);
 
 // Disable Storage api in release builds.
 #ifdef NIGHTLY_BUILD

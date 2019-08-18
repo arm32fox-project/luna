@@ -28,7 +28,7 @@
 #include "vm/NativeObject-inl.h"
 #include "vm/StringObject-inl.h"
 #include "vm/TypeInference-inl.h"
-#include "vm/UnboxedObject-inl.h"
+#include "gc/StoreBuffer-inl.h"
 
 using namespace js;
 using namespace js::jit;
@@ -54,8 +54,8 @@ VMFunction::addToFunctions()
 }
 
 bool
-InvokeFunction(JSContext* cx, HandleObject obj, bool constructing, uint32_t argc, Value* argv,
-               MutableHandleValue rval)
+InvokeFunction(JSContext* cx, HandleObject obj, bool constructing, bool ignoresReturnValue,
+               uint32_t argc, Value* argv, MutableHandleValue rval)
 {
     TraceLoggerThread* logger = TraceLoggerForMainThread(cx->runtime());
     TraceLogStartEvent(logger, TraceLogger_Call);
@@ -104,7 +104,7 @@ InvokeFunction(JSContext* cx, HandleObject obj, bool constructing, uint32_t argc
         return InternalConstructWithProvidedThis(cx, fval, thisv, cargs, newTarget, rval);
     }
 
-    InvokeArgs args(cx);
+    InvokeArgsMaybeIgnoresReturnValue args(cx, ignoresReturnValue);
     if (!args.init(cx, argc))
         return false;
 
@@ -120,7 +120,7 @@ InvokeFunctionShuffleNewTarget(JSContext* cx, HandleObject obj, uint32_t numActu
 {
     MOZ_ASSERT(numFormalArgs > numActualArgs);
     argv[1 + numActualArgs] = argv[1 + numFormalArgs];
-    return InvokeFunction(cx, obj, true, numActualArgs, argv, rval);
+    return InvokeFunction(cx, obj, true, false, numActualArgs, argv, rval);
 }
 
 bool
@@ -304,21 +304,9 @@ template bool StringsEqual<true>(JSContext* cx, HandleString lhs, HandleString r
 template bool StringsEqual<false>(JSContext* cx, HandleString lhs, HandleString rhs, bool* res);
 
 bool
-ArraySpliceDense(JSContext* cx, HandleObject obj, uint32_t start, uint32_t deleteCount)
-{
-    JS::AutoValueArray<4> argv(cx);
-    argv[0].setUndefined();
-    argv[1].setObject(*obj);
-    argv[2].set(Int32Value(start));
-    argv[3].set(Int32Value(deleteCount));
-
-    return js::array_splice_impl(cx, 2, argv.begin(), false);
-}
-
-bool
 ArrayPopDense(JSContext* cx, HandleObject obj, MutableHandleValue rval)
 {
-    MOZ_ASSERT(obj->is<ArrayObject>() || obj->is<UnboxedArrayObject>());
+    MOZ_ASSERT(obj->is<ArrayObject>());
 
     AutoDetectInvalidation adi(cx, rval);
 
@@ -337,12 +325,11 @@ ArrayPopDense(JSContext* cx, HandleObject obj, MutableHandleValue rval)
 }
 
 bool
-ArrayPushDense(JSContext* cx, HandleObject obj, HandleValue v, uint32_t* length)
+ArrayPushDense(JSContext* cx, HandleArrayObject arr, HandleValue v, uint32_t* length)
 {
-    *length = GetAnyBoxedOrUnboxedArrayLength(obj);
-    DenseElementResult result =
-        SetOrExtendAnyBoxedOrUnboxedDenseElements(cx, obj, *length, v.address(), 1,
-                                                  ShouldUpdateTypes::DontUpdate);
+    *length = arr->length();
+    DenseElementResult result = arr->setOrExtendDenseElements(cx, *length, v.address(), 1,
+                                                              ShouldUpdateTypes::DontUpdate);
     if (result != DenseElementResult::Incomplete) {
         (*length)++;
         return result == DenseElementResult::Success;
@@ -350,7 +337,7 @@ ArrayPushDense(JSContext* cx, HandleObject obj, HandleValue v, uint32_t* length)
 
     JS::AutoValueArray<3> argv(cx);
     argv[0].setUndefined();
-    argv[1].setObject(*obj);
+    argv[1].setObject(*arr);
     argv[2].set(v);
     if (!js::array_push(cx, 1, argv.begin()))
         return false;
@@ -362,7 +349,7 @@ ArrayPushDense(JSContext* cx, HandleObject obj, HandleValue v, uint32_t* length)
 bool
 ArrayShiftDense(JSContext* cx, HandleObject obj, MutableHandleValue rval)
 {
-    MOZ_ASSERT(obj->is<ArrayObject>() || obj->is<UnboxedArrayObject>());
+    MOZ_ASSERT(obj->is<ArrayObject>());
 
     AutoDetectInvalidation adi(cx, rval);
 
@@ -556,7 +543,7 @@ CreateThis(JSContext* cx, HandleObject callee, HandleObject newTarget, MutableHa
     if (callee->is<JSFunction>()) {
         RootedFunction fun(cx, &callee->as<JSFunction>());
         if (fun->isInterpreted() && fun->isConstructor()) {
-            JSScript* script = fun->getOrCreateScript(cx);
+            JSScript* script = JSFunction::getOrCreateScript(cx, fun);
             if (!script || !script->ensureHasTypes(cx))
                 return false;
             if (fun->isBoundFunction() || script->isDerivedClassConstructor()) {
@@ -1143,16 +1130,14 @@ Recompile(JSContext* cx)
 }
 
 bool
-SetDenseOrUnboxedArrayElement(JSContext* cx, HandleObject obj, int32_t index,
-                              HandleValue value, bool strict)
+SetDenseElement(JSContext* cx, HandleNativeObject obj, int32_t index, HandleValue value, bool strict)
 {
     // This function is called from Ion code for StoreElementHole's OOL path.
-    // In this case we know the object is native or an unboxed array and that
-    // no type changes are needed.
+    // In this case we know the object is native and that no type changes are
+	// needed.
 
-    DenseElementResult result =
-        SetOrExtendAnyBoxedOrUnboxedDenseElements(cx, obj, index, value.address(), 1,
-                                                  ShouldUpdateTypes::DontUpdate);
+    DenseElementResult result = obj->setOrExtendDenseElements(cx, index, value.address(), 1,
+                                                              ShouldUpdateTypes::DontUpdate);
     if (result != DenseElementResult::Incomplete)
         return result == DenseElementResult::Success;
 

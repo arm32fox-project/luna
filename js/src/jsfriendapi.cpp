@@ -113,7 +113,7 @@ JS_SplicePrototype(JSContext* cx, HandleObject obj, HandleObject proto)
     }
 
     Rooted<TaggedProto> tagged(cx, TaggedProto(proto));
-    return obj->splicePrototype(cx, obj->getClass(), tagged);
+    return JSObject::splicePrototype(cx, obj, obj->getClass(), tagged);
 }
 
 JS_FRIEND_API(JSObject*)
@@ -269,9 +269,9 @@ js::GetBuiltinClass(JSContext* cx, HandleObject obj, ESClass* cls)
     if (MOZ_UNLIKELY(obj->is<ProxyObject>()))
         return Proxy::getBuiltinClass(cx, obj, cls);
 
-    if (obj->is<PlainObject>() || obj->is<UnboxedPlainObject>())
+    if (obj->is<PlainObject>())
         *cls = ESClass::Object;
-    else if (obj->is<ArrayObject>() || obj->is<UnboxedArrayObject>())
+    else if (obj->is<ArrayObject>())
         *cls = ESClass::Array;
     else if (obj->is<NumberObject>())
         *cls = ESClass::Number;
