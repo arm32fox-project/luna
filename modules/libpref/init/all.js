@@ -732,12 +732,19 @@ pref("gfx.layerscope.port", 23456);
 // This should be use to quickly find which slow paths are used by test cases.
 pref("gfx.perf-warnings.enabled", false);
 
-// 0 = Off, 1 = Full, 2 = Tagged Images Only.
+// Color Management System
+// 0 = Off, 1 = All Images, 2 = Tagged Images Only.
 // See eCMSMode in gfx/thebes/gfxPlatform.h
+// Enabled by default on Windows and Mac, disabled elsewhere
+#if defined(XP_WIN) || defined(XP_MACOSX)
 pref("gfx.color_management.mode", 2);
+#else
+pref("gfx.color_management.mode", 0);
+#endif
 pref("gfx.color_management.display_profile", "");
 pref("gfx.color_management.rendering_intent", 0);
 pref("gfx.color_management.enablev4", true);
+
 
 pref("gfx.downloadable_fonts.enabled", true);
 pref("gfx.downloadable_fonts.fallback_delay", 3000);
