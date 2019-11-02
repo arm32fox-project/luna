@@ -55,6 +55,7 @@ bool sCubebPlaybackLatencyPrefSet;
 bool sCubebMSGLatencyPrefSet;
 bool sAudioStreamInitEverSucceeded = false;
 StaticAutoPtr<char> sBrandName;
+StaticAutoPtr<char> sCubebBackendName;
 
 const char kBrandBundleURL[]      = "chrome://branding/locale/brand.properties";
 
@@ -226,7 +227,7 @@ cubeb* GetCubebContextUnlocked()
       sBrandName, "Did not initialize sbrandName, and not on the main thread?");
   }
 
-  int rv = cubeb_init(&sCubebContext, sBrandName);
+  int rv = cubeb_init(&sCubebContext, sBrandName, sCubebBackendName);
   NS_WARNING_ASSERTION(rv == CUBEB_OK, "Could not get a cubeb context.");
   sCubebState = (rv == CUBEB_OK) ? CubebState::Initialized : CubebState::Uninitialized;
 
@@ -292,6 +293,7 @@ void ShutdownLibrary()
     sCubebContext = nullptr;
   }
   sBrandName = nullptr;
+  sCubebBackendName = nullptr;
   // This will ensure we don't try to re-create a context.
   sCubebState = CubebState::Shutdown;
 }
