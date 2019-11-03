@@ -10,7 +10,11 @@ Library('cubeb')
 
 SOURCES += [
     'cubeb.c',
-    'cubeb_panner.cpp'
+    'cubeb_log.cpp',
+    'cubeb_mixer.cpp',
+    'cubeb_panner.cpp',
+    'cubeb_strings.c',
+    'cubeb_utils.cpp'
 ]
 
 if CONFIG['MOZ_ALSA']:
@@ -39,7 +43,7 @@ if CONFIG['MOZ_JACK']:
     ]
     DEFINES['USE_JACK'] = True
 
-if CONFIG['OS_ARCH'] == 'OpenBSD':
+if CONFIG['MOZ_SNDIO']:
     SOURCES += [
         'cubeb_sndio.c',
     ]
@@ -76,6 +80,7 @@ if CONFIG['OS_TARGET'] == 'WINNT':
 if CONFIG['OS_TARGET'] == 'Android':
     SOURCES += ['cubeb_opensl.c']
     SOURCES += ['cubeb_resampler.cpp']
+    SOURCES += ['cubeb-jni.cpp']
     DEFINES['USE_OPENSL'] = True
     SOURCES += [
         'cubeb_audiotrack.c',
@@ -85,6 +90,7 @@ if CONFIG['OS_TARGET'] == 'Android':
 FINAL_LIBRARY = 'gkmedias'
 
 CFLAGS += CONFIG['MOZ_ALSA_CFLAGS']
+CFLAGS += CONFIG['MOZ_JACK_CFLAGS']
 CFLAGS += CONFIG['MOZ_PULSEAUDIO_CFLAGS']
 
 # We allow warnings for third-party code that can be updated from upstream.
