@@ -13,7 +13,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <dlfcn.h>
-#include <android/log.h>
+#include "android/log.h"
 
 #include "cubeb/cubeb.h"
 #include "cubeb-internal.h"
@@ -75,14 +75,12 @@ struct cubeb {
 };
 
 struct cubeb_stream {
-  /* Note: Must match cubeb_stream layout in cubeb.c. */
   cubeb * context;
-  void * user_ptr;
-  /**/
   cubeb_stream_params params;
   cubeb_data_callback data_callback;
   cubeb_state_callback state_callback;
   void * instance;
+  void * user_ptr;
   /* Number of frames that have been passed to the AudioTrack callback */
   long unsigned written;
   int draining;
@@ -147,9 +145,9 @@ audiotrack_get_min_frame_count(cubeb * ctx, cubeb_stream_params * params, int * 
   status_t status;
   /* Recent Android have a getMinFrameCount method. */
   if (!audiotrack_version_is_gingerbread(ctx)) {
-    status = ctx->klass.get_min_frame_count(min_frame_count, AUDIO_STREAM_TYPE_MUSIC, params->rate);
+    status = ctx->klass.get_min_frame_count(min_frame_count, params->stream_type, params->rate);
   } else {
-    status = ctx->klass.get_min_frame_count_gingerbread(min_frame_count, AUDIO_STREAM_TYPE_MUSIC, params->rate);
+    status = ctx->klass.get_min_frame_count_gingerbread(min_frame_count, params->stream_type, params->rate);
   }
   if (status != 0) {
     ALOG("error getting the min frame count");
@@ -327,7 +325,7 @@ audiotrack_stream_init(cubeb * ctx, cubeb_stream ** stream, char const * stream_
     channels = stm->params.channels == 2 ? AUDIO_CHANNEL_OUT_STEREO_ICS : AUDIO_CHANNEL_OUT_MONO_ICS;
   }
 
-  ctx->klass.ctor(stm->instance, AUDIO_STREAM_TYPE_MUSIC, stm->params.rate,
+  ctx->klass.ctor(stm->instance, stm->params.stream_type, stm->params.rate,
                   AUDIO_FORMAT_PCM_16_BIT, channels, min_frame_count, 0,
                   audiotrack_refill, stm, 0, 0);
 
@@ -424,16 +422,15 @@ static struct cubeb_ops const audiotrack_ops = {
   .get_min_latency = audiotrack_get_min_latency,
   .get_preferred_sample_rate = audiotrack_get_preferred_sample_rate,
   .enumerate_devices = NULL,
-  .device_collection_destroy = NULL,
   .destroy = audiotrack_destroy,
   .stream_init = audiotrack_stream_init,
   .stream_destroy = audiotrack_stream_destroy,
   .stream_start = audiotrack_stream_start,
   .stream_stop = audiotrack_stream_stop,
-  .stream_reset_default_device = NULL,
   .stream_get_position = audiotrack_stream_get_position,
   .stream_get_latency = audiotrack_stream_get_latency,
   .stream_set_volume = audiotrack_stream_set_volume,
+  .stream_set_panning = NULL,
   .stream_get_current_device = NULL,
   .stream_device_destroy = NULL,
   .stream_register_device_changed_callback = NULL,

@@ -39,13 +39,6 @@ MOZ_END_STD_NAMESPACE
 
 /* This header file contains the internal C++ API of the resamplers, for testing. */
 
-// When dropping audio input frames to prevent building
-// an input delay, this function returns the number of frames
-// to keep in the buffer.
-// @parameter sample_rate The sample rate of the stream.
-// @return A number of frames to keep.
-uint32_t min_buffered_audio_frame(uint32_t sample_rate);
-
 int to_speex_quality(cubeb_resampler_quality q);
 
 struct cubeb_resampler {
@@ -55,35 +48,16 @@ struct cubeb_resampler {
   virtual ~cubeb_resampler() {}
 };
 
-/** Base class for processors. This is just used to share methods for now. */
-class processor {
+class noop_resampler : public cubeb_resampler {
 public:
-  explicit processor(uint32_t channels)
-    : channels(channels)
-  {}
-protected:
-  size_t frames_to_samples(size_t frames) const
+  noop_resampler(cubeb_stream * s,
+                 cubeb_data_callback cb,
+                 void * ptr)
+    : stream(s)
+    , data_callback(cb)
+    , user_ptr(ptr)
   {
-    return frames * channels;
   }
-  size_t samples_to_frames(size_t samples) const
-  {
-    assert(!(samples % channels));
-    return samples / channels;
-  }
-  /** The number of channel of the audio buffers to be resampled. */
-  const uint32_t channels;
-};
-
-template<typename T>
-class passthrough_resampler : public cubeb_resampler
-                            , public processor {
-public:
-  passthrough_resampler(cubeb_stream * s,
-                        cubeb_data_callback cb,
-                        void * ptr,
-                        uint32_t input_channels,
-                        uint32_t sample_rate);
 
   virtual long fill(void * input_buffer, long * input_frames_count,
                     void * output_buffer, long output_frames);
@@ -93,23 +67,30 @@ public:
     return 0;
   }
 
-  void drop_audio_if_needed()
-  {
-    uint32_t to_keep = min_buffered_audio_frame(sample_rate);
-    uint32_t available = samples_to_frames(internal_input_buffer.length());
-    if (available > to_keep) {
-      internal_input_buffer.pop(nullptr, frames_to_samples(available - to_keep));
-    }
-  }
-
 private:
   cubeb_stream * const stream;
   const cubeb_data_callback data_callback;
   void * const user_ptr;
-  /* This allows to buffer some input to account for the fact that we buffer
-   * some inputs. */
-  auto_array<T> internal_input_buffer;
-  uint32_t sample_rate;
+};
+
+/** Base class for processors. This is just used to share methods for now. */
+class processor {
+public:
+  explicit processor(uint32_t channels)
+    : channels(channels)
+  {}
+protected:
+  size_t frames_to_samples(size_t frames)
+  {
+    return frames * channels;
+  }
+  size_t samples_to_frames(size_t samples)
+  {
+    assert(!(samples % channels));
+    return samples / channels;
+  }
+  /** The number of channel of the audio buffers to be resampled. */
+  const uint32_t channels;
 };
 
 /** Bidirectional resampler, can resample an input and an output stream, or just
@@ -157,7 +138,6 @@ private:
   cubeb_stream * const stream;
   const cubeb_data_callback data_callback;
   void * const user_ptr;
-  bool draining = false;
 };
 
 /** Handles one way of a (possibly) duplex resampler, working on interleaved
@@ -183,7 +163,6 @@ public:
                                 int quality)
   : processor(channels)
   , resampling_ratio(static_cast<float>(source_rate) / target_rate)
-  , source_rate(source_rate)
   , additional_latency(0)
   , leftover_samples(0)
   {
@@ -242,7 +221,7 @@ public:
 
   /** Returns a buffer containing exactly `output_frame_count` resampled frames.
     * The consumer should not hold onto the pointer. */
-  T * output(size_t output_frame_count, size_t * input_frames_used)
+  T * output(size_t output_frame_count)
   {
     if (resampling_out_buffer.capacity() < frames_to_samples(output_frame_count)) {
       resampling_out_buffer.reserve(frames_to_samples(output_frame_count));
@@ -259,7 +238,6 @@ public:
     /* This shifts back any unresampled samples to the beginning of the input
        buffer. */
     resampling_in_buffer.pop(nullptr, frames_to_samples(in_len));
-    *input_frames_used = in_len;
 
     return resampling_out_buffer.data();
   }
@@ -283,7 +261,7 @@ public:
    * exactly `output_frame_count` resampled frames. This can return a number
    * slightly bigger than what is strictly necessary, but it guaranteed that the
    * number of output frames will be exactly equal. */
-  uint32_t input_needed_for_output(uint32_t output_frame_count) const
+  uint32_t input_needed_for_output(uint32_t output_frame_count)
   {
     int32_t unresampled_frames_left = samples_to_frames(resampling_in_buffer.length());
     int32_t resampled_frames_left = samples_to_frames(resampling_out_buffer.length());
@@ -315,16 +293,6 @@ public:
   {
     resampling_in_buffer.set_length(leftover_samples +
                                     frames_to_samples(written_frames));
-  }
-
-  void drop_audio_if_needed()
-  {
-    // Keep at most 100ms buffered.
-    uint32_t available = samples_to_frames(resampling_in_buffer.length());
-    uint32_t to_keep = min_buffered_audio_frame(source_rate);
-    if (available > to_keep) {
-      resampling_in_buffer.pop(nullptr, frames_to_samples(available - to_keep));
-    }
   }
 private:
   /** Wrapper for the speex resampling functions to have a typed
@@ -362,7 +330,6 @@ private:
   SpeexResamplerState * speex_resampler;
   /** Source rate / target rate. */
   const float resampling_ratio;
-  const uint32_t source_rate;
   /** Storage for the input frames, to be resampled. Also contains
    * any unresampled frames after resampling. */
   auto_array<T> resampling_in_buffer;
@@ -381,13 +348,11 @@ class delay_line : public processor {
 public:
   /** Constructor
    * @parameter frames the number of frames of delay.
-   * @parameter channels the number of channels of this delay line.
-   * @parameter sample_rate sample-rate of the audio going through this delay line */
-  delay_line(uint32_t frames, uint32_t channels, uint32_t sample_rate)
+   * @parameter channels the number of channels of this delay line. */
+  delay_line(uint32_t frames, uint32_t channels)
     : processor(channels)
     , length(frames)
     , leftover_samples(0)
-    , sample_rate(sample_rate)
   {
     /* Fill the delay line with some silent frames to add latency. */
     delay_input_buffer.push_silence(frames * channels);
@@ -410,7 +375,7 @@ public:
    * @parameter frames_needed the number of frames to be returned.
    * @return a buffer containing the delayed frames. The consumer should not
    * hold onto the pointer. */
-  T * output(uint32_t frames_needed, size_t * input_frames_used)
+  T * output(uint32_t frames_needed)
   {
     if (delay_output_buffer.capacity() < frames_to_samples(frames_needed)) {
       delay_output_buffer.reserve(frames_to_samples(frames_needed));
@@ -420,7 +385,6 @@ public:
     delay_output_buffer.push(delay_input_buffer.data(),
                              frames_to_samples(frames_needed));
     delay_input_buffer.pop(nullptr, frames_to_samples(frames_needed));
-    *input_frames_used = frames_needed;
 
     return delay_output_buffer.data();
   }
@@ -462,7 +426,7 @@ public:
    * @parameter frames_needed the number of frames one want to write into the
    * delay_line
    * @returns the number of frames one will get. */
-  size_t input_needed_for_output(uint32_t frames_needed) const
+  size_t input_needed_for_output(uint32_t frames_needed)
   {
     return frames_needed;
   }
@@ -477,15 +441,6 @@ public:
   {
     return length;
   }
-
-  void drop_audio_if_needed()
-  {
-    size_t available = samples_to_frames(delay_input_buffer.length());
-    uint32_t to_keep = min_buffered_audio_frame(sample_rate);
-    if (available > to_keep) {
-      delay_input_buffer.pop(nullptr, frames_to_samples(available - to_keep));
-    }
-  }
 private:
   /** The length, in frames, of this delay line */
   uint32_t length;
@@ -497,7 +452,6 @@ private:
   /** The output buffer. This is only ever used if using the ::output with a
    * single argument. */
   auto_array<T> delay_output_buffer;
-  uint32_t sample_rate;
 };
 
 /** This sits behind the C API and is more typed. */
@@ -526,10 +480,7 @@ cubeb_resampler_create_internal(cubeb_stream * stream,
       (output_params && output_params->rate == target_rate)) ||
       (input_params && !output_params && (input_params->rate == target_rate)) ||
       (output_params && !input_params && (output_params->rate == target_rate))) {
-    return new passthrough_resampler<T>(stream, callback,
-                                        user_ptr,
-                                        input_params ? input_params->channels : 0,
-                                        target_rate);
+    return new noop_resampler(stream, callback, user_ptr);
   }
 
   /* Determine if we need to resampler one or both directions, and create the
@@ -561,15 +512,13 @@ cubeb_resampler_create_internal(cubeb_stream * stream,
    * other direction so that the streams are synchronized. */
   if (input_resampler && !output_resampler && input_params && output_params) {
     output_delay.reset(new delay_line<T>(input_resampler->latency(),
-                                         output_params->channels,
-                                         output_params->rate));
+                                         output_params->channels));
     if (!output_delay) {
       return NULL;
     }
   } else if (output_resampler && !input_resampler && input_params && output_params) {
     input_delay.reset(new delay_line<T>(output_resampler->latency(),
-                                        input_params->channels,
-                                        output_params->rate));
+                                        input_params->channels));
     if (!input_delay) {
       return NULL;
     }
