@@ -52,7 +52,7 @@ static uint32 hash3(const void *, size_t);
 static uint32 hash4(const void *, size_t);
 
 /* Global default hash function */
-uint32 (*__default_hash)(const void *, size_t) = hash4;
+uint32 (*dbm_default_hash)(const void *, size_t) = hash4;
 
 /*
  * HASH FUNCTIONS
@@ -205,3 +205,4 @@ hash4(const void *keyarg, register size_t len)
     }
     return (h);
 }
+
