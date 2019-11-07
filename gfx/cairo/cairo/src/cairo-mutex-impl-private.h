@@ -141,7 +141,9 @@
 
 #elif defined(_WIN32) /******************************************************/
 
-#define WIN32_LEAN_AND_MEAN
+#ifndef WIN32_LEAN_AND_MEAN
+# define WIN32_LEAN_AND_MEAN
+#endif
 /* We require Windows 7 features */
 #if !defined(WINVER) || (WINVER < 0x0601)
 # define WINVER 0x0601
