@@ -19,11 +19,7 @@ var gEMEHandler = {
   ensureEMEEnabled: function(browser, keySystem) {
     Services.prefs.setBoolPref("media.eme.enabled", true);
     if (keySystem) {
-      if (keySystem.startsWith("com.adobe") &&
-          Services.prefs.getPrefType("media.gmp-eme-adobe.enabled") &&
-          !Services.prefs.getBoolPref("media.gmp-eme-adobe.enabled")) {
-        Services.prefs.setBoolPref("media.gmp-eme-adobe.enabled", true);
-      } else if (keySystem == "com.widevine.alpha" &&
+      if (keySystem == "com.widevine.alpha" &&
                  Services.prefs.getPrefType("media.gmp-widevinecdm.enabled") &&
                  !Services.prefs.getBoolPref("media.gmp-widevinecdm.enabled")) {
         Services.prefs.setBoolPref("media.gmp-widevinecdm.enabled", true);
@@ -34,10 +30,6 @@ var gEMEHandler = {
   isKeySystemVisible: function(keySystem) {
     if (!keySystem) {
       return false;
-    }
-    if (keySystem.startsWith("com.adobe") &&
-        Services.prefs.getPrefType("media.gmp-eme-adobe.visible")) {
-      return Services.prefs.getBoolPref("media.gmp-eme-adobe.visible");
     }
     if (keySystem == "com.widevine.alpha" &&
         Services.prefs.getPrefType("media.gmp-widevinecdm.visible")) {
@@ -201,14 +193,6 @@ const TELEMETRY_DDSTAT_SOLVED = 4;
 
 let gDecoderDoctorHandler = {
   getLabelForNotificationBox(type) {
-    if (type == "adobe-cdm-not-found" &&
-        AppConstants.platform == "win") {
-      return gNavigatorBundle.getString("decoder.noCodecs.message");
-    }
-    if (type == "adobe-cdm-not-activated" &&
-        AppConstants.platform == "win") {
-      return gNavigatorBundle.getString("decoder.noCodecs.message");
-    }
     if (type == "platform-decoder-not-found") {
       if (AppConstants.platform == "win") {
         return gNavigatorBundle.getString("decoder.noHWAcceleration.message");
