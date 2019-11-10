@@ -1591,7 +1591,7 @@ nsLocalFile::IsExecutable(bool* aResult)
 
   // Then check the execute bit.
   *aResult = (access(mPath.get(), X_OK) == 0);
-#ifdef SOLARIS
+#ifdef XP_SOLARIS
   // On Solaris, access will always return 0 for root user, however
   // the file is only executable if S_IXUSR | S_IXGRP | S_IXOTH is set.
   // See bug 351950, https://bugzilla.mozilla.org/show_bug.cgi?id=351950

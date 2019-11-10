@@ -13,7 +13,6 @@ Cu.import("resource://gre/modules/Promise.jsm");
 Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://gre/modules/Log.jsm");
 Cu.import("resource://services-sync/util.js");
-Cu.import("resource://services-common/async.js");
 
 // Lazy import to prevent unnecessary load on startup.
 for (let symbol of ["BulkKeyBundle", "SyncKeyBundle"]) {
@@ -23,8 +22,7 @@ for (let symbol of ["BulkKeyBundle", "SyncKeyBundle"]) {
 }
 
 /**
- * Manages "legacy" identity and authentication for Sync.
- * See browserid_identity for the Firefox Accounts based identity manager.
+ * Manages identity and authentication for Sync.
  *
  * The following entities are managed:
  *
@@ -85,14 +83,18 @@ IdentityManager.prototype = {
   _syncKeyBundle: null,
 
   /**
-   * Initialize the identity provider.
+   * Initialize the identity provider.  Returns a promise that is resolved
+   * when initialization is complete and the provider can be queried for
+   * its state
    */
   initialize: function() {
     // Nothing to do for this identity provider.
+    return Promise.resolve();
   },
 
   finalize: function() {
     // Nothing to do for this identity provider.
+    return Promise.resolve();
   },
 
   /**
@@ -109,6 +111,14 @@ IdentityManager.prototype = {
   ensureLoggedIn: function() {
     // nothing to do for this identity provider
     return Promise.resolve();
+  },
+
+  /**
+   * Indicates if the identity manager is still initializing
+   */
+  get readyToAuthenticate() {
+    // We initialize in a fully sync manner, so we are always finished.
+    return true;
   },
 
   get account() {
@@ -326,7 +336,7 @@ IdentityManager.prototype = {
       try {
         this._syncKeyBundle = new SyncKeyBundle(this.username, this.syncKey);
       } catch (ex) {
-        this._log.warn("Failed to create sync bundle", ex);
+        this._log.warn("Failed to create sync key bundle", ex);
         return null;
       }
     }
@@ -447,9 +457,6 @@ IdentityManager.prototype = {
     try {
       service.recordManager.get(service.storageURL + "meta/fxa_credentials");
     } catch (ex) {
-      if (Async.isShutdownException(ex)) {
-        throw ex;
-      }
       this._log.warn("Failed to pre-fetch the migration sentinel", ex);
     }
   },
@@ -593,13 +600,4 @@ IdentityManager.prototype = {
     // Do nothing for Sync 1.1.
     return {accepted: true};
   },
-
-  // Tell Sync what the login status should be if it saw a 401 fetching
-  // info/collections as part of login verification (typically immediately
-  // after login.)
-  // In our case it means an authoritative "password is incorrect".
-  loginStatusFromVerification404() {
-    return LOGIN_FAILED_LOGIN_REJECTED;
-  }
-
 };

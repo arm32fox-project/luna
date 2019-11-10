@@ -31,6 +31,8 @@
 %endif
 
 :root {
+  --toolbox-after-color: ThreeDShadow;
+
   --toolbar-custom-color: hsl(210,75%,92%);
   --toolbar-highlight-top: rgba(255,255,255,.5);
   --toolbar-highlight-bottom: transparent;
@@ -50,6 +52,15 @@
   --tab-selected-highlight: rgba(255,255,255,.7);
 
   --window-text-color: currentColor;
+}
+
+/* Use SVG for HiDPI 133%+ */
+@media (min-resolution: 1.33dppx) {
+  :root {
+    --toolbarbutton-image: url("chrome://browser/skin/Toolbar.svg");
+    --toolbarbutton-glass-image: url("chrome://browser/skin/Toolbar-glass.svg");
+    --toolbarbutton-inverted-image: url("chrome://browser/skin/Toolbar-inverted.svg");
+  }
 }
 
 :root:-moz-lwtheme-brighttext {
@@ -82,7 +93,7 @@
   display: -moz-box;
   -moz-box-ordinal-group: 101; /* tabs toolbar is 100 */
   height: 1px;
-  background-color: ThreeDShadow;
+  background-color: var(--toolbox-after-color);
 }
 #navigator-toolbox[tabsontop=false]::after,
 #main-window[disablechrome] #navigator-toolbox::after {
@@ -1788,12 +1799,6 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   -moz-padding-start: 0px;
 }
 
-.browserContainer > findbar {
-  background-color: -moz-dialog;
-  color: -moz-DialogText;
-  text-shadow: none;
-}
-
 /* ::::: throbber ::::: */
 
 #navigator-throbber {
@@ -1836,6 +1841,17 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 #TabsToolbar:not(:-moz-lwtheme),
 #TabsToolbar[tabsontop=false] {
   background-image: linear-gradient(to top, @toolbarShadowColor@ 1px, rgba(0,0,0,.05) 1px, transparent 50%);
+}
+
+/* When the tab bar is collapsed, show a 1px border in its place. */
+#TabsToolbar[tabsontop="false"][collapsed="true"]:not([customizing="true"]) {
+  visibility: visible;
+  height: 1px;
+  border-bottom-width: 1px;
+  /* !important here to override border-style: none on the toolbar */
+  border-bottom-style: solid !important;
+  border-bottom-color: var(--toolbox-after-color);
+  overflow: hidden;
 }
 
 .tabbrowser-tab,
@@ -2022,6 +2038,90 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 
 .tab-close-button:-moz-lwtheme-brighttext {
   list-style-image: url("chrome://global/skin/icons/close-inverted.svg");
+}
+
+/* Tab sound indicator */
+.tab-icon-sound {
+  -moz-margin-start: 4px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+}
+
+.allTabs-endimage[soundplaying],
+.tab-icon-sound[soundplaying] {
+  list-style-image: url("chrome://browser/skin/tabbrowser/tab-audio.svg#tab-audio");
+}
+
+.allTabs-endimage[muted],
+.tab-icon-sound[muted] {
+  list-style-image: url("chrome://browser/skin/tabbrowser/tab-audio.svg#tab-audio-muted");
+}
+
+.allTabs-endimage[blocked],
+.tab-icon-sound[blocked] {
+  list-style-image: url("chrome://browser/skin/tabbrowser/tab-audio.svg#tab-audio-blocked");
+}
+
+#TabsToolbar:-moz-lwtheme-brighttext .tab-icon-sound[soundplaying],
+#TabsToolbar:-moz-lwtheme-brighttext .tab-icon-sound[blocked],
+#TabsToolbar:-moz-lwtheme-brighttext .tab-icon-sound[muted] {
+  filter: invert(1);
+}
+
+.tab-icon-sound[soundplaying-scheduledremoval]:not([muted]):not(:hover),
+.tab-icon-overlay[soundplaying-scheduledremoval]:not([muted]):not(:hover) {
+  transition: opacity .3s linear var(--soundplaying-removal-delay);
+  opacity: 0;
+}
+
+/* Tab icon overlay */
+.tab-icon-overlay {
+  width: 16px;
+  height: 16px;
+  margin-top: -8px;
+  margin-inline-start: -15px;
+  margin-inline-end: -1px;
+  position: relative;
+}
+
+.tab-icon-overlay[soundplaying],
+.tab-icon-overlay[muted]:not([crashed]),
+.tab-icon-overlay[blocked]:not([crashed]) {
+  border-radius: 10px;
+}
+
+.tab-icon-overlay[soundplaying]:hover,
+.tab-icon-overlay[muted]:not([crashed]):hover,
+.tab-icon-overlay[blocked]:not([crashed]):hover {
+  background-color: white;
+}
+
+.tab-icon-overlay[soundplaying] {
+  list-style-image: url("chrome://browser/skin/tabbrowser/tab-audio-small.svg#tab-audio");
+}
+
+.tab-icon-overlay[muted] {
+  list-style-image: url("chrome://browser/skin/tabbrowser/tab-audio-small.svg#tab-audio-muted");
+}
+
+.tab-icon-overlay[blocked] {
+  list-style-image: url("chrome://browser/skin/tabbrowser/tab-audio-small.svg#tab-audio-blocked");
+}
+
+#TabsToolbar:-moz-lwtheme-brighttext .tab-icon-overlay[soundplaying]:not([selected]):not(:hover),
+.tab-icon-overlay[soundplaying][selected]:-moz-lwtheme-brighttext:not(:hover) {
+  list-style-image: url("chrome://browser/skin/tabbrowser/tab-audio-small.svg#tab-audio-white");
+}
+
+#TabsToolbar:-moz-lwtheme-brighttext .tab-icon-overlay[muted]:not([crashed]):not([selected]):not(:hover),
+.tab-icon-overlay[muted][selected]:-moz-lwtheme-brighttext:not(:hover) {
+  list-style-image: url("chrome://browser/skin/tabbrowser/tab-audio-small.svg#tab-audio-white-muted");
+}
+
+#TabsToolbar:-moz-lwtheme-brighttext .tab-icon-overlay[blocked]:not([crashed]):not([selected]):not(:hover),
+.tab-icon-overlay[blocked][selected]:-moz-lwtheme-brighttext:not(:hover) {
+  list-style-image: url("chrome://browser/skin/tabbrowser/tab-audio-small.svg#tab-audio-white-blocked");
 }
 
 /* Tab scrollbox arrow, tabstrip new tab and all-tabs buttons */
@@ -2957,8 +3057,8 @@ toolbar[brighttext] #addonbar-closebutton {
   
   @media (-moz-os-version: windows-vista),
          (-moz-os-version: windows-win7) {
-    #navigator-toolbox:not(:-moz-lwtheme)::after {
-      background-color: #aabccf;
+    :root:not(:-moz-lwtheme) {
+      --toolbox-after-color: #aabccf;
     }
   }
 
@@ -2967,9 +3067,9 @@ toolbar[brighttext] #addonbar-closebutton {
     :root {
       --toolbar-custom-color: hsl(210,0%,92%);
     }
-
-    #navigator-toolbox:not(:-moz-lwtheme)::after {
-      background-color: #bcbcbc;
+    
+    :root:not(:-moz-lwtheme) {
+      --toolbox-after-color: #bcbcbc;
     }
   }
  

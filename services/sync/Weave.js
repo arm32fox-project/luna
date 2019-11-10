@@ -72,13 +72,6 @@ WeaveService.prototype = {
                                          Ci.nsISupportsWeakReference]),
 
   ensureLoaded: function () {
-#ifndef MC_PALEMOON
-    // If we are loaded and not using FxA, load the migration module.
-    if (!this.fxAccountsEnabled) {
-      Cu.import("resource://services-sync/FxaMigrator.jsm");
-    }
-#endif
-
     Components.utils.import("resource://services-sync/main.js");
 
     // Side-effect of accessing the service is that it is instantiated.
@@ -100,26 +93,6 @@ WeaveService.prototype = {
   },
 
   /**
-   * Whether Firefox Accounts is enabled.
-   *
-   * @return bool
-   */
-  get fxAccountsEnabled() {
-#ifdef MC_PALEMOON
-    return false;
-#else
-    try {
-      // Old sync guarantees '@' will never appear in the username while FxA
-      // uses the FxA email address - so '@' is the flag we use.
-      let username = Services.prefs.getCharPref(SYNC_PREFS_BRANCH + "username");
-      return !username || username.includes('@');
-    } catch (_) {
-      return true; // No username == only allow FxA to be configured.
-    }
-#endif
-  },
-
-  /**
    * Whether Sync appears to be enabled.
    *
    * This returns true if all the Sync preferences for storing account
@@ -130,7 +103,8 @@ WeaveService.prototype = {
    */
   get enabled() {
     let prefs = Services.prefs.getBranch(SYNC_PREFS_BRANCH);
-    return prefs.prefHasUserValue("username");
+    return prefs.prefHasUserValue("username") &&
+           prefs.prefHasUserValue("clusterURL");
   },
 
   observe: function (subject, topic, data) {
@@ -158,10 +132,7 @@ WeaveService.prototype = {
             Components.utils.import("resource://services-sync/main.js");
             isConfigured = Weave.Status.checkSetup() != Weave.CLIENT_NOT_CONFIGURED;
           }
-          let getHistogramById = Services.telemetry.getHistogramById;
-          getHistogramById("WEAVE_CONFIGURED").add(isConfigured);
           if (isConfigured) {
-            getHistogramById("WEAVE_CONFIGURED_MASTER_PASSWORD").add(Utils.mpEnabled());
             this.ensureLoaded();
           }
         }.bind(this)

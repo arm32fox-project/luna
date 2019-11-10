@@ -56,11 +56,6 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
       <field name="AppConstants" readonly="true">
         (Components.utils.import("resource://gre/modules/AppConstants.jsm", {})).AppConstants;
       </field>
-#ifdef MOZ_WEBEXTENSIONS
-      <field name="ExtensionSearchHandler" readonly="true">
-        (Components.utils.import("resource://gre/modules/ExtensionSearchHandler.jsm", {})).ExtensionSearchHandler;
-      </field>
-#endif
 
       <constructor><![CDATA[
         this._prefs = Components.classes["@mozilla.org/preferences-service;1"]
@@ -488,15 +483,6 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
                   actionDetails
                 );
                 break;
-#ifdef MOZ_WEBEXTENSIONS
-              case "extension":
-                this.handleRevert();
-                // Give the extension control of handling the command.
-                let searchString = action.params.content;
-                let keyword = action.params.keyword;
-                this.ExtensionSearchHandler.handleInputEntered(keyword, searchString, where);
-                return;
-#endif
             }
           } else {
             // This is a fallback for add-ons and old testing code that directly
@@ -553,6 +539,9 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
             // but don't let that interfere with the loading of the url.
             Cu.reportError(ex);
           }
+
+          // Reset DOS mitigations for the basic auth prompt.
+          delete browser.authPromptCounter;
 
           let params = {
             postData,
@@ -1214,11 +1203,6 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
           this._clearNoActions();
           this.formatValue();
         }
-#ifdef MOZ_WEBEXTENSIONS
-        if (ExtensionSearchHandler.hasActiveInputSession()) {
-          ExtensionSearchHandler.handleInputCancelled();
-        }
-#endif
       ]]></handler>
 
       <handler event="dragstart" phase="capturing"><![CDATA[

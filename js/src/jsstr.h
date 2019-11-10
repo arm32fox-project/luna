@@ -367,10 +367,10 @@ extern bool
 str_trim(JSContext* cx, unsigned argc, Value* vp);
 
 extern bool
-str_trimLeft(JSContext* cx, unsigned argc, Value* vp);
+str_trimStart(JSContext* cx, unsigned argc, Value* vp);
 
 extern bool
-str_trimRight(JSContext* cx, unsigned argc, Value* vp);
+str_trimEnd(JSContext* cx, unsigned argc, Value* vp);
 
 extern bool
 str_toLocaleLowerCase(JSContext* cx, unsigned argc, Value* vp);
@@ -465,7 +465,7 @@ FileEscapedString(FILE* fp, const char* chars, size_t length, uint32_t quote)
     return res;
 }
 
-JSObject*
+ArrayObject*
 str_split_string(JSContext* cx, HandleObjectGroup group, HandleString str, HandleString sep,
                  uint32_t limit);
 

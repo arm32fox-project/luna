@@ -47,12 +47,6 @@ namespace dom {
 using namespace mozilla::dom::quota;
 using namespace mozilla::ipc;
 
-namespace {
-
-const char kPrefIndexedDBEnabled[] = "dom.indexedDB.enabled";
-
-} // namespace
-
 class IDBFactory::BackgroundCreateCallback final
   : public nsIIPCBackgroundChildCreateCallback
 {
@@ -129,12 +123,6 @@ IDBFactory::CreateForWindow(nsPIDOMWindowInner* aWindow,
 
   nsCOMPtr<nsIPrincipal> principal;
   nsresult rv = AllowedForWindowInternal(aWindow, getter_AddRefs(principal));
-
-  if (!(NS_SUCCEEDED(rv) && nsContentUtils::IsSystemPrincipal(principal)) &&
-      NS_WARN_IF(!Preferences::GetBool(kPrefIndexedDBEnabled, false))) {
-    *aFactory = nullptr;
-    return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
-  }
 
   if (rv == NS_ERROR_DOM_NOT_SUPPORTED_ERR) {
     NS_WARNING("IndexedDB is not permitted in a third-party window.");
@@ -245,12 +233,6 @@ IDBFactory::CreateForMainThreadJSInternal(
 {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aPrincipalInfo);
-
-  if (aPrincipalInfo->type() != PrincipalInfo::TSystemPrincipalInfo &&
-      NS_WARN_IF(!Preferences::GetBool(kPrefIndexedDBEnabled, false))) {
-    *aFactory = nullptr;
-    return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
-  }
 
   IndexedDatabaseManager* mgr = IndexedDatabaseManager::GetOrCreate();
   if (NS_WARN_IF(!mgr)) {
@@ -500,13 +482,13 @@ IDBFactory::Cmp(JSContext* aCx, JS::Handle<JS::Value> aFirst,
                 JS::Handle<JS::Value> aSecond, ErrorResult& aRv)
 {
   Key first, second;
-  nsresult rv = first.SetFromJSVal(aCx, aFirst);
+  nsresult rv = first.SetFromJSVal(aCx, aFirst, /* aCallGetters */ true);
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
     return 0;
   }
 
-  rv = second.SetFromJSVal(aCx, aSecond);
+  rv = second.SetFromJSVal(aCx, aSecond, /* aCallGetters */ true);
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
     return 0;
@@ -883,7 +865,6 @@ NS_INTERFACE_MAP_END
 NS_IMPL_CYCLE_COLLECTION_CLASS(IDBFactory)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(IDBFactory)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mWindow)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 

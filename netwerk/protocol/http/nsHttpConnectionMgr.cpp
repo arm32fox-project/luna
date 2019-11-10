@@ -23,7 +23,6 @@
 #include "mozilla/net/DNS.h"
 #include "nsISocketTransport.h"
 #include "nsISSLSocketControl.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/net/DashboardTypes.h"
 #include "NullHttpTransaction.h"
 #include "nsIDNSRecord.h"
@@ -35,8 +34,6 @@
 #include "mozilla/ChaosMode.h"
 #include "mozilla/Unused.h"
 #include "nsIURI.h"
-
-#include "mozilla/Telemetry.h"
 
 namespace mozilla {
 namespace net {
@@ -376,8 +373,12 @@ nsHttpConnectionMgr::VerifyTraffic()
 nsresult
 nsHttpConnectionMgr::DoShiftReloadConnectionCleanup(nsHttpConnectionInfo *aCI)
 {
+    RefPtr<nsHttpConnectionInfo> ci;
+    if (aCI) {
+      ci = aCI->Clone();
+    }
     return PostEvent(&nsHttpConnectionMgr::OnMsgDoShiftReloadConnectionCleanup,
-                     0, aCI);
+                     0, ci);
 }
 
 class SpeculativeConnectArgs : public ARefBase
@@ -507,9 +508,13 @@ nsHttpConnectionMgr::UpdateParam(nsParamName name, uint16_t value)
 }
 
 nsresult
-nsHttpConnectionMgr::ProcessPendingQ(nsHttpConnectionInfo *ci)
+nsHttpConnectionMgr::ProcessPendingQ(nsHttpConnectionInfo* aCI)
 {
-    LOG(("nsHttpConnectionMgr::ProcessPendingQ [ci=%s]\n", ci->HashKey().get()));
+    LOG(("nsHttpConnectionMgr::ProcessPendingQ [ci=%s]\n", aCI->HashKey().get()));
+    RefPtr<nsHttpConnectionInfo> ci;
+    if (aCI) {
+        ci = aCI->Clone();
+    }    
     return PostEvent(&nsHttpConnectionMgr::OnMsgProcessPendingQ, 0, ci);
 }
 
@@ -847,7 +852,6 @@ nsHttpConnectionMgr::GetSpdyPreferredEnt(nsConnectionEntry *aOriginalEntry)
              "with %s connections. rv=%x isJoined=%d",
              preferred->mConnInfo->Origin(), aOriginalEntry->mConnInfo->Origin(),
              rv, isJoined));
-        Telemetry::Accumulate(Telemetry::SPDY_NPN_JOIN, false);
         return nullptr;
     }
 
@@ -857,7 +861,6 @@ nsHttpConnectionMgr::GetSpdyPreferredEnt(nsConnectionEntry *aOriginalEntry)
          "so %s will be coalesced with %s",
          preferred->mConnInfo->Origin(), aOriginalEntry->mConnInfo->Origin(),
          aOriginalEntry->mConnInfo->Origin(), preferred->mConnInfo->Origin()));
-    Telemetry::Accumulate(Telemetry::SPDY_NPN_JOIN, true);
     return preferred;
 }
 
@@ -1189,14 +1192,6 @@ nsHttpConnectionMgr::MakeNewConnection(nsConnectionEntry *ent,
                 transport->SetConnectionFlags(flags);
             }
 
-            Telemetry::AutoCounter<Telemetry::HTTPCONNMGR_USED_SPECULATIVE_CONN> usedSpeculativeConn;
-            ++usedSpeculativeConn;
-
-            if (ent->mHalfOpens[i]->IsFromPredictor()) {
-              Telemetry::AutoCounter<Telemetry::PREDICTOR_TOTAL_PRECONNECTS_USED> totalPreconnectsUsed;
-              ++totalPreconnectsUsed;
-            }
-
             // return OK because we have essentially opened a new connection
             // by converting a speculative half-open to general use
             return NS_OK;
@@ -1390,14 +1385,6 @@ nsHttpConnectionMgr::AddToShortestPipeline(nsConnectionEntry *ent,
         ent->SetYellowConnection(bestConn);
 
     if (!trans->GetPendingTime().IsNull()) {
-        if (trans->UsesPipelining())
-            AccumulateTimeDelta(
-                Telemetry::TRANSACTION_WAIT_TIME_HTTP_PIPELINES,
-                trans->GetPendingTime(), TimeStamp::Now());
-        else
-            AccumulateTimeDelta(
-                Telemetry::TRANSACTION_WAIT_TIME_HTTP,
-                trans->GetPendingTime(), TimeStamp::Now());
         trans->SetPendingTime(false);
     }
     return true;
@@ -1680,8 +1667,6 @@ nsHttpConnectionMgr::DispatchTransaction(nsConnectionEntry *ent,
         rv = conn->Activate(trans, caps, priority);
         MOZ_ASSERT(NS_SUCCEEDED(rv), "SPDY Cannot Fail Dispatch");
         if (NS_SUCCEEDED(rv) && !trans->GetPendingTime().IsNull()) {
-            AccumulateTimeDelta(Telemetry::TRANSACTION_WAIT_TIME_SPDY,
-                trans->GetPendingTime(), TimeStamp::Now());
             trans->SetPendingTime(false);
         }
         return rv;
@@ -1698,12 +1683,6 @@ nsHttpConnectionMgr::DispatchTransaction(nsConnectionEntry *ent,
     rv = DispatchAbstractTransaction(ent, trans, caps, conn, priority);
 
     if (NS_SUCCEEDED(rv) && !trans->GetPendingTime().IsNull()) {
-        if (trans->UsesPipelining())
-            AccumulateTimeDelta(Telemetry::TRANSACTION_WAIT_TIME_HTTP_PIPELINES,
-                trans->GetPendingTime(), TimeStamp::Now());
-        else
-            AccumulateTimeDelta(Telemetry::TRANSACTION_WAIT_TIME_HTTP,
-                trans->GetPendingTime(), TimeStamp::Now());
         trans->SetPendingTime(false);
     }
     return rv;
@@ -1832,21 +1811,6 @@ nsHttpConnectionMgr::BuildPipeline(nsConnectionEntry *ent,
     return NS_OK;
 }
 
-void
-nsHttpConnectionMgr::ReportProxyTelemetry(nsConnectionEntry *ent)
-{
-    enum { PROXY_NONE = 1, PROXY_HTTP = 2, PROXY_SOCKS = 3, PROXY_HTTPS = 4 };
-
-    if (!ent->mConnInfo->UsingProxy())
-        Telemetry::Accumulate(Telemetry::HTTP_PROXY_TYPE, PROXY_NONE);
-    else if (ent->mConnInfo->UsingHttpsProxy())
-        Telemetry::Accumulate(Telemetry::HTTP_PROXY_TYPE, PROXY_HTTPS);
-    else if (ent->mConnInfo->UsingHttpProxy())
-        Telemetry::Accumulate(Telemetry::HTTP_PROXY_TYPE, PROXY_HTTP);
-    else
-        Telemetry::Accumulate(Telemetry::HTTP_PROXY_TYPE, PROXY_SOCKS);
-}
-
 nsresult
 nsHttpConnectionMgr::ProcessNewTransaction(nsHttpTransaction *trans)
 {
@@ -1863,13 +1827,18 @@ nsHttpConnectionMgr::ProcessNewTransaction(nsHttpTransaction *trans)
 
     trans->SetPendingTime();
 
-    Http2PushedStream *pushedStream = trans->GetPushedStream();
-    if (pushedStream) {
-        LOG(("  ProcessNewTransaction %p tied to h2 session push %p\n",
-             trans, pushedStream->Session()));
-        return pushedStream->Session()->
-            AddStream(trans, trans->Priority(), false, nullptr) ?
-            NS_OK : NS_ERROR_UNEXPECTED;
+    RefPtr<Http2PushedStreamWrapper> pushedStreamWrapper =
+        trans->GetPushedStream();
+    if (pushedStreamWrapper) {
+      Http2PushedStream* pushedStream = pushedStreamWrapper->GetStream();
+      if (pushedStream) {
+        LOG(("  ProcessNewTransaction %p tied to h2 session push %p\n", trans,
+             pushedStream->Session()));
+        return pushedStream->Session()->AddStream(trans, trans->Priority(), false,
+                                                  nullptr)
+                   ? NS_OK
+                   : NS_ERROR_UNEXPECTED;
+      }
     }
 
     nsresult rv = NS_OK;
@@ -1889,8 +1858,6 @@ nsHttpConnectionMgr::ProcessNewTransaction(nsHttpTransaction *trans)
 
         ent = preferredEntry;
     }
-
-    ReportProxyTelemetry(ent);
 
     // Check if the transaction already has a sticky reference to a connection.
     // If so, then we can just use it directly by transferring its reference
@@ -1988,13 +1955,9 @@ nsHttpConnectionMgr::CreateTransport(nsConnectionEntry *ent,
     if (speculative) {
         sock->SetSpeculative(true);
         sock->SetAllow1918(allow1918);
-        Telemetry::AutoCounter<Telemetry::HTTPCONNMGR_TOTAL_SPECULATIVE_CONN> totalSpeculativeConn;
-        ++totalSpeculativeConn;
 
         if (isFromPredictor) {
           sock->SetIsFromPredictor(true);
-          Telemetry::AutoCounter<Telemetry::PREDICTOR_TOTAL_PRECONNECTS_CREATED> totalPreconnectsCreated;
-          ++totalPreconnectsCreated;
         }
     }
 
@@ -3107,8 +3070,6 @@ nsHalfOpenSocket::SetupStreams(nsISocketTransport **transport,
     rv = socketTransport->SetSecurityCallbacks(this);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    Telemetry::Accumulate(Telemetry::HTTP_CONNECTION_ENTRY_CACHE_HIT_1,
-                          mEnt->mUsedForConnection);
     mEnt->mUsedForConnection = true;
 
     nsCOMPtr<nsIOutputStream> sout;
@@ -3907,16 +3868,6 @@ nsConnectionEntry::RemoveHalfOpen(nsHalfOpenSocket *halfOpen)
     // A failure to create the transport object at all
     // will result in it not being present in the halfopen table. That's expected.
     if (mHalfOpens.RemoveElement(halfOpen)) {
-
-        if (halfOpen->IsSpeculative()) {
-            Telemetry::AutoCounter<Telemetry::HTTPCONNMGR_UNUSED_SPECULATIVE_CONN> unusedSpeculativeConn;
-            ++unusedSpeculativeConn;
-
-            if (halfOpen->IsFromPredictor()) {
-                Telemetry::AutoCounter<Telemetry::PREDICTOR_TOTAL_PRECONNECTS_UNUSED> totalPreconnectsUnused;
-                ++totalPreconnectsUnused;
-            }
-        }
 
         MOZ_ASSERT(gHttpHandler->ConnMgr()->mNumHalfOpenConns);
         if (gHttpHandler->ConnMgr()->mNumHalfOpenConns) { // just in case

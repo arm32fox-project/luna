@@ -2173,9 +2173,9 @@ SelectProfile(nsIProfileLock* *aResult, nsIToolkitProfileService* aProfileSvc, n
     return ShowProfileManager(aProfileSvc, aNative);
   }
 
-#ifndef MOZ_DEV_EDITION
-  // If the only existing profile is the dev-edition-profile and this is not
-  // Developer Edition, then no valid profiles were found.
+  // Dev edition leftovers:
+  // If the only existing profile is the dev-edition-profile,
+  // then no valid profiles were found.
   if (count == 1) {
     nsCOMPtr<nsIToolkitProfile> deProfile;
     // GetSelectedProfile will auto-select the only profile if there's just one
@@ -2186,7 +2186,6 @@ SelectProfile(nsIProfileLock* *aResult, nsIToolkitProfileService* aProfileSvc, n
       count = 0;
     }
   }
-#endif
 
   if (!count) {
     gDoMigration = true;
@@ -2195,25 +2194,15 @@ SelectProfile(nsIProfileLock* *aResult, nsIToolkitProfileService* aProfileSvc, n
     // create a default profile
     nsCOMPtr<nsIToolkitProfile> profile;
     nsresult rv = aProfileSvc->CreateProfile(nullptr, // choose a default dir for us
-#ifdef MOZ_DEV_EDITION
-                                             NS_LITERAL_CSTRING("dev-edition-default"),
-#else
                                              NS_LITERAL_CSTRING("default"),
-#endif
                                              getter_AddRefs(profile));
     if (NS_SUCCEEDED(rv)) {
-#ifndef MOZ_DEV_EDITION
       aProfileSvc->SetDefaultProfile(profile);
-#endif
       aProfileSvc->Flush();
       rv = profile->Lock(nullptr, aResult);
       if (NS_SUCCEEDED(rv)) {
         if (aProfileName)
-#ifdef MOZ_DEV_EDITION
-          aProfileName->AssignLiteral("dev-edition-default");
-#else
           aProfileName->AssignLiteral("default");
-#endif
         return NS_OK;
       }
     }
@@ -2462,7 +2451,7 @@ RemoveComponentRegistries(nsIFile* aProfileDir, nsIFile* aLocalProfileDir,
   if (!file)
     return false;
 
-#if defined(XP_UNIX) || defined(XP_BEOS)
+#if defined(XP_UNIX)
 #define PLATFORM_FASL_SUFFIX ".mfasl"
 #elif defined(XP_WIN)
 #define PLATFORM_FASL_SUFFIX ".mfl"
@@ -4130,9 +4119,12 @@ XRE_InitCommandLine(int aArgc, char* aArgv[])
 #endif
 
   const char *path = nullptr;
-  ArgResult ar = CheckArg("greomni", false, &path);
+  ArgResult ar = CheckArg("greomni", true, &path);
   if (ar == ARG_BAD) {
-    PR_fprintf(PR_STDERR, "Error: argument --greomni requires a path argument\n");
+    PR_fprintf(PR_STDERR, 
+               "Error: argument --greomni requires a path argument or the "
+               "--osint argument was specified with the --greomni argument "
+               "which is invalid.\n");
     return NS_ERROR_FAILURE;
   }
 
@@ -4146,9 +4138,12 @@ XRE_InitCommandLine(int aArgc, char* aArgv[])
     return rv;
   }
 
-  ar = CheckArg("appomni", false, &path);
+  ar = CheckArg("appomni", true, &path);
   if (ar == ARG_BAD) {
-    PR_fprintf(PR_STDERR, "Error: argument --appomni requires a path argument\n");
+    PR_fprintf(PR_STDERR,
+               "Error: argument --appomni requires a path argument or the "
+               "--osint argument was specified with the --appomni argument "
+               "which is invalid.\n");
     return NS_ERROR_FAILURE;
   }
 
@@ -4226,9 +4221,6 @@ PRTimeToSeconds(PRTime t_usec)
 }
 #endif
 
-const char* kForceEnableE10sPref = "browser.tabs.remote.force-enable";
-const char* kForceDisableE10sPref = "browser.tabs.remote.force-disable";
-
 uint32_t
 MultiprocessBlockPolicy() {
   if (gMultiprocessBlockPolicyInitialized) {
@@ -4236,50 +4228,6 @@ MultiprocessBlockPolicy() {
   }
   gMultiprocessBlockPolicyInitialized = true;
 
-  /**
-   * Avoids enabling e10s if there are add-ons installed.
-   */
-  bool addonsCanDisable = Preferences::GetBool("extensions.e10sBlocksEnabling", false);
-  bool disabledByAddons = Preferences::GetBool("extensions.e10sBlockedByAddons", false);
-
-  if (addonsCanDisable && disabledByAddons) {
-    gMultiprocessBlockPolicy = kE10sDisabledForAddons;
-  }
-
-#if defined(XP_WIN)
-  bool disabledForA11y = false;
-  /**
-    * Avoids enabling e10s if accessibility has recently loaded. Performs the
-    * following checks:
-    * 1) Checks a pref indicating if a11y loaded in the last session. This pref
-    * is set in nsBrowserGlue.js. If a11y was loaded in the last session we
-    * do not enable e10s in this session.
-    * 2) Accessibility stores a last run date (PR_IntervalNow) when it is
-    * initialized (see nsBaseWidget.cpp). We check if this pref exists and
-    * compare it to now. If a11y hasn't run in an extended period of time or
-    * if the date pref does not exist we load e10s.
-    */
-  disabledForA11y = Preferences::GetBool(kAccessibilityLoadedLastSessionPref, false);
-  if (!disabledForA11y  &&
-      Preferences::HasUserValue(kAccessibilityLastRunDatePref)) {
-    #define ONE_WEEK_IN_SECONDS (60*60*24*7)
-    uint32_t a11yRunDate = Preferences::GetInt(kAccessibilityLastRunDatePref, 0);
-    MOZ_ASSERT(0 != a11yRunDate);
-    // If a11y hasn't run for a period of time, clear the pref and load e10s
-    uint32_t now = PRTimeToSeconds(PR_Now());
-    uint32_t difference = now - a11yRunDate;
-    if (difference > ONE_WEEK_IN_SECONDS || !a11yRunDate) {
-      Preferences::ClearUser(kAccessibilityLastRunDatePref);
-    } else {
-      disabledForA11y = true;
-    }
-  }
-
-  if (disabledForA11y) {
-    gMultiprocessBlockPolicy = kE10sDisabledForAccessibility;
-  }
-#endif
-  
   // We do not support E10S, block by policy.
   gMultiprocessBlockPolicy = kE10sForceDisabled;
 
@@ -4294,55 +4242,24 @@ mozilla::BrowserTabsRemoteAutostart()
   }
   gBrowserTabsRemoteAutostartInitialized = true;
 
-  // If we're in the content process, we are running E10S.
-  if (XRE_IsContentProcess()) {
-    gBrowserTabsRemoteAutostart = true;
-    return gBrowserTabsRemoteAutostart;
-  }
-
   bool optInPref = Preferences::GetBool("browser.tabs.remote.autostart", false);
   bool trialPref = Preferences::GetBool("browser.tabs.remote.autostart.2", false);
   bool prefEnabled = optInPref || trialPref;
   int status;
-  if (optInPref) {
-    status = kE10sEnabledByUser;
-  } else if (trialPref) {
-    status = kE10sEnabledByDefault;
-  } else {
-    status = kE10sDisabledByUser;
-  }
 
   if (prefEnabled) {
     uint32_t blockPolicy = MultiprocessBlockPolicy();
     if (blockPolicy != 0) {
       status = blockPolicy;
     } else {
-      gBrowserTabsRemoteAutostart = true;
+      MOZ_CRASH("e10s force enabled bypassing policy -- unsupported configuration");
     }
-  }
-
-  // Uber override pref for manual testing purposes
-  if (Preferences::GetBool(kForceEnableE10sPref, false)) {
-    gBrowserTabsRemoteAutostart = true;
-    prefEnabled = true;
-    status = kE10sEnabledByUser;
-  }
-
-  // Uber override pref for emergency blocking
-  if (gBrowserTabsRemoteAutostart &&
-      (Preferences::GetBool(kForceDisableE10sPref, false) ||
-       EnvHasValue("MOZ_FORCE_DISABLE_E10S"))) {
-    gBrowserTabsRemoteAutostart = false;
-    status = kE10sForceDisabled;
+  } else {
+    status = kE10sDisabledByUser;
   }
 
   gBrowserTabsRemoteStatus = status;
 
-  mozilla::Telemetry::Accumulate(mozilla::Telemetry::E10S_STATUS, status);
-  if (prefEnabled) {
-    mozilla::Telemetry::Accumulate(mozilla::Telemetry::E10S_BLOCKED_FROM_RUNNING,
-                                    !gBrowserTabsRemoteAutostart);
-  }
   return gBrowserTabsRemoteAutostart;
 }
 

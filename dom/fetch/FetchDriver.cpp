@@ -77,9 +77,6 @@ FetchDriver::Fetch(FetchDriverObserver* aObserver)
 
   mObserver = aObserver;
 
-  Telemetry::Accumulate(Telemetry::SERVICE_WORKER_REQUEST_PASSTHROUGH,
-                        mRequest->WasCreatedByFetchEvent());
-
   // FIXME(nsm): Deal with HSTS.
 
   MOZ_RELEASE_ASSERT(!mRequest->IsSynchronous(),
@@ -906,22 +903,12 @@ FetchDriver::SetRequestHeaders(nsIHttpChannel* aChannel) const
 
   AutoTArray<InternalHeaders::Entry, 5> headers;
   mRequest->Headers()->GetEntries(headers);
-  bool hasAccept = false;
   for (uint32_t i = 0; i < headers.Length(); ++i) {
-    if (!hasAccept && headers[i].mName.EqualsLiteral("accept")) {
-      hasAccept = true;
-    }
     if (headers[i].mValue.IsEmpty()) {
       aChannel->SetEmptyRequestHeader(headers[i].mName);
     } else {
       aChannel->SetRequestHeader(headers[i].mName, headers[i].mValue, false /* merge */);
     }
-  }
-
-  if (!hasAccept) {
-    aChannel->SetRequestHeader(NS_LITERAL_CSTRING("accept"),
-                               NS_LITERAL_CSTRING("*/*"),
-                               false /* merge */);
   }
 
   if (mRequest->ForceOriginHeader()) {

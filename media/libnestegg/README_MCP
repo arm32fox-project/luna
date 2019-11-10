@@ -1,0 +1,8 @@
+The source from this directory was copied from the nestegg
+git repository using the update.sh script.  The only changes
+made were those applied by update.sh and the addition of
+Makefile.in build files for the Mozilla build system.
+
+The nestegg git repository is: https://github.com/kinetiknz/nestegg
+
+The git commit ID used was f7a0b7cedc893b6683cf15cb210b1656c086d964.

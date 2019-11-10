@@ -2090,11 +2090,6 @@ void TelemetryHistogram::InitializeGlobalState(bool canRecordBase,
   // don't go unnoticed.
   // TODO: Compare explicitly with gHistograms[<histogram id>].bucketCount here
   // once we can make gHistograms constexpr (requires VS2015).
-  static_assert((JS::gcreason::NUM_TELEMETRY_REASONS == 100),
-      "NUM_TELEMETRY_REASONS is assumed to be a fixed value in Histograms.json."
-      " If this was an intentional change, update this assert with its value "
-      "and update the n_values for the following in Histograms.json: "
-      "GC_MINOR_REASON, GC_MINOR_REASON_LONG, GC_REASON_2");
   static_assert((mozilla::StartupTimeline::MAX_EVENT_ID == 16),
       "MAX_EVENT_ID is assumed to be a fixed value in Histograms.json.  If this"
       " was an intentional change, update this assert with its value and update"
@@ -2687,38 +2682,6 @@ TelemetryHistogram::IPCTimerFired(nsITimer* aTimer, void* aClosure)
     if (gKeyedAccumulations) {
       keyedAccumulationsToSend.SwapElements(*gKeyedAccumulations);
     }
-  }
-
-  switch (XRE_GetProcessType()) {
-    case GeckoProcessType_Content: {
-      mozilla::dom::ContentChild* contentChild = mozilla::dom::ContentChild::GetSingleton();
-      mozilla::Unused << NS_WARN_IF(!contentChild);
-      if (contentChild) {
-        if (accumulationsToSend.Length()) {
-          mozilla::Unused <<
-            NS_WARN_IF(!contentChild->SendAccumulateChildHistogram(accumulationsToSend));
-        }
-        if (keyedAccumulationsToSend.Length()) {
-          mozilla::Unused <<
-            NS_WARN_IF(!contentChild->SendAccumulateChildKeyedHistogram(keyedAccumulationsToSend));
-        }
-      }
-      break;
-    }
-    case GeckoProcessType_GPU: {
-      if (mozilla::gfx::GPUParent* gpu = mozilla::gfx::GPUParent::GetSingleton()) {
-        if (accumulationsToSend.Length()) {
-          mozilla::Unused << gpu->SendAccumulateChildHistogram(accumulationsToSend);
-        }
-        if (keyedAccumulationsToSend.Length()) {
-          mozilla::Unused << gpu->SendAccumulateChildKeyedHistogram(keyedAccumulationsToSend);
-        }
-      }
-      break;
-    }
-    default:
-      MOZ_ASSERT_UNREACHABLE("Unsupported process type");
-      break;
   }
 
   gIPCTimerArmed = false;

@@ -128,6 +128,12 @@ CTR_Update(CTRContext *ctr, unsigned char *outbuf,
     unsigned int tmp;
     SECStatus rv;
 
+    // Limit block count to 2^counterBits - 2
+    if (ctr->counterBits < (sizeof(unsigned int) * 8) &&
+        inlen > ((1 << ctr->counterBits) - 2) * AES_BLOCK_SIZE) {
+        PORT_SetError(SEC_ERROR_INPUT_LEN);
+        return SECFailure;
+    }
     if (maxout < inlen) {
         *outlen = inlen;
         PORT_SetError(SEC_ERROR_OUTPUT_LEN);
@@ -199,6 +205,12 @@ CTR_Update_HW_AES(CTRContext *ctr, unsigned char *outbuf,
     unsigned int tmp;
     SECStatus rv;
 
+    // Limit block count to 2^counterBits - 2
+    if (ctr->counterBits < (sizeof(unsigned int) * 8) &&
+        inlen > ((1 << ctr->counterBits) - 2) * AES_BLOCK_SIZE) {
+        PORT_SetError(SEC_ERROR_INPUT_LEN);
+        return SECFailure;
+    }
     if (maxout < inlen) {
         *outlen = inlen;
         PORT_SetError(SEC_ERROR_OUTPUT_LEN);
@@ -219,15 +231,18 @@ CTR_Update_HW_AES(CTRContext *ctr, unsigned char *outbuf,
         PORT_Assert(ctr->bufPtr == blocksize);
     }
 
-    intel_aes_ctr_worker(((AESContext *)(ctr->context))->Nr)(
-        ctr, outbuf, outlen, maxout, inbuf, inlen, blocksize);
-    /* XXX intel_aes_ctr_worker should set *outlen. */
-    PORT_Assert(*outlen == 0);
-    fullblocks = (inlen / blocksize) * blocksize;
-    *outlen += fullblocks;
-    outbuf += fullblocks;
-    inbuf += fullblocks;
-    inlen -= fullblocks;
+    if (inlen >= blocksize) {
+        rv = intel_aes_ctr_worker(((AESContext *)(ctr->context))->Nr)(
+            ctr, outbuf, outlen, maxout, inbuf, inlen, blocksize);
+        if (rv != SECSuccess) {
+            return SECFailure;
+        }
+        fullblocks = (inlen / blocksize) * blocksize;
+        *outlen += fullblocks;
+        outbuf += fullblocks;
+        inbuf += fullblocks;
+        inlen -= fullblocks;
+    }
 
     if (inlen == 0) {
         return SECSuccess;

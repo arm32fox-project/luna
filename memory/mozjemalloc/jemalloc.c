@@ -2646,8 +2646,13 @@ pages_purge(void *addr, size_t length)
 #      define JEMALLOC_MADV_PURGE MADV_FREE
 #      define JEMALLOC_MADV_ZEROS false
 #    endif
+#ifdef MOZ_MEMORY_SOLARIS
+        int err = posix_madvise(addr, length, JEMALLOC_MADV_PURGE);
+	unzeroed = (JEMALLOC_MADV_ZEROS == false || err != 0);
+#else
 	int err = madvise(addr, length, JEMALLOC_MADV_PURGE);
 	unzeroed = (JEMALLOC_MADV_ZEROS == false || err != 0);
+#endif
 #    undef JEMALLOC_MADV_PURGE
 #    undef JEMALLOC_MADV_ZEROS
 #  endif
@@ -3603,9 +3608,14 @@ arena_purge(arena_t *arena, bool all)
 #endif
 
 #ifndef MALLOC_DECOMMIT
+#ifdef MOZ_MEMORY_SOLARIS
+        posix_madvise((void*)((uintptr_t)chunk + (i << pagesize_2pow)),
+                (npages << pagesize_2pow),MADV_FREE);
+#else
 				madvise((void *)((uintptr_t)chunk + (i <<
 				    pagesize_2pow)), (npages << pagesize_2pow),
 				    MADV_FREE);
+#endif
 #  ifdef MALLOC_DOUBLE_PURGE
 				madvised = true;
 #  endif
@@ -5930,11 +5940,7 @@ RETURN:
 #endif
 
 #ifdef MOZ_MEMORY_SOLARIS
-#  ifdef __SUNPRO_C
-void *
-memalign_impl(size_t alignment, size_t size);
-#pragma no_inline(memalign_impl)
-#  elif (defined(__GNUC__))
+#  if (defined(__GNUC__))
 __attribute__((noinline))
 #  endif
 #else

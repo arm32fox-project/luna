@@ -687,6 +687,18 @@ window[chromehidden~="toolbar"] toolbar:not(#nav-bar):not(#TabsToolbar):not(#pri
   min-width: 1px;
 }
 
+%ifdef MOZ_SERVICES_SYNC
+/* Sync notification UI */
+#sync-notifications {
+  -moz-binding: url("chrome://browser/content/sync/notification.xml#notificationbox");
+  overflow-y: visible !important;
+}
+
+#sync-notifications notification {
+  -moz-binding: url("chrome://browser/content/sync/notification.xml#notification");
+}
+%endif
+
 /* History Swipe Animation */
 
 #historySwipeAnimationContainer {
@@ -931,11 +943,6 @@ html|*#gcli-output-frame,
 
 .browserStack[responsivemode][notransition] {
   transition: none;
-}
-
-/* Translation */
-notification[value="translation"] {
-  -moz-binding: url("chrome://browser/content/translation-infobar.xml#translationbar");
 }
 
 /** See bug 872317 for why the following rule is necessary. */

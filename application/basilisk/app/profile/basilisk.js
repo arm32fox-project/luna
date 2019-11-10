@@ -36,24 +36,24 @@ pref("extensions.minCompatibleAppVersion", "4.0");
 
 pref("xpinstall.customConfirmationUI", true);
 
+#define AM_DOMAIN addons.basilisk-browser.org
+#define AM_AUS_ARGS reqVersion=%REQ_VERSION%&id=%ITEM_ID%&version=%ITEM_VERSION%&maxAppVersion=%ITEM_MAXAPPVERSION%&status=%ITEM_STATUS%&appID=%APP_ID%&appVersion=%APP_VERSION%&appOS=%APP_OS%&appABI=%APP_ABI%&locale=%APP_LOCALE%&currentAppVersion=%CURRENT_APP_VERSION%&updateType=%UPDATE_TYPE%&compatMode=%COMPATIBILITY_MODE%
+
 // Preferences for AMO integration
 pref("extensions.getAddons.cache.enabled", false);
-pref("extensions.getAddons.maxResults", 15);
-pref("extensions.getAddons.get.url", "https://services.addons.mozilla.org/%LOCALE%/firefox/api/%API_VERSION%/search/guid:%IDS%?src=firefox&appOS=%OS%&appVersion=%VERSION%");
-pref("extensions.getAddons.getWithPerformance.url", "https://services.addons.mozilla.org/%LOCALE%/firefox/api/%API_VERSION%/search/guid:%IDS%?src=firefox&appOS=%OS%&appVersion=%VERSION%&tMain=%TIME_MAIN%&tFirstPaint=%TIME_FIRST_PAINT%&tSessionRestored=%TIME_SESSION_RESTORED%");
-pref("extensions.getAddons.search.browseURL", "https://addons.mozilla.org/%LOCALE%/firefox/search?q=%TERMS%&platform=%OS%&appver=%VERSION%");
-pref("extensions.getAddons.search.url", "https://services.addons.mozilla.org/%LOCALE%/firefox/api/%API_VERSION%/search/%TERMS%/all/%MAX_RESULTS%/%OS%/%VERSION%/%COMPATIBILITY_MODE%?src=firefox");
-pref("extensions.webservice.discoverURL", "https://discovery.addons.mozilla.org/%LOCALE%/firefox/discovery/pane/%VERSION%/%OS%/%COMPATIBILITY_MODE%");
-pref("extensions.getAddons.recommended.url", "https://services.addons.mozilla.org/%LOCALE%/%APP%/api/%API_VERSION%/list/recommended/all/%MAX_RESULTS%/%OS%/%VERSION%?src=firefox");
-pref("extensions.getAddons.link.url", "https://addons.mozilla.org/%LOCALE%/firefox/");
+pref("extensions.getAddons.maxResults", 10);
+pref("extensions.getAddons.get.url", "https://@AM_DOMAIN@/?component=integration&type=internal&request=get&addonguid=%IDS%&os=%OS%&version=%VERSION%");
+pref("extensions.getAddons.getWithPerformance.url", "https://@AM_DOMAIN@/?component=integration&type=internal&request=get&addonguid=%IDS%&os=%OS%&version=%VERSION%");
+pref("extensions.getAddons.search.browseURL", "https://@AM_DOMAIN@/search/?terms=%TERMS%");
+pref("extensions.getAddons.search.url", "https://@AM_DOMAIN@/?component=integration&type=internal&request=search&q=%TERMS%&locale=%LOCALE%&os=%OS%&version=%VERSION%");
+pref("extensions.webservice.discoverURL", "http://@AM_DOMAIN@/?component=discover");
+pref("extensions.getAddons.recommended.url", "https://@AM_DOMAIN@/?component=integration&type=internal&request=recommended&locale=%LOCALE%&os=%OS%");
+pref("extensions.getAddons.browseAddons", "http://@AM_DOMAIN@/");
+pref("extensions.getAddons.recommended.browseURL", "https://@AM_DOMAIN@/?component=integration&type=external&request=recommended");
 
 pref("extensions.update.autoUpdateDefault", true);
 
-pref("extensions.hotfix.id", "firefox-hotfix@mozilla.org");
-pref("extensions.hotfix.cert.checkAttributes", true);
-pref("extensions.hotfix.certs.1.sha1Fingerprint", "91:53:98:0C:C1:86:DF:47:8F:35:22:9E:11:C9:A7:31:04:49:A1:AA");
-pref("extensions.hotfix.certs.2.sha1Fingerprint", "39:E7:2B:7A:5B:CF:37:78:F9:5D:4A:E0:53:2D:2F:3D:68:53:C5:60");
-
+// Also, leave this for the moment...
 // Check AUS for system add-on updates.
 pref("extensions.systemAddon.update.url", "https://aus5.mozilla.org/update/3/SystemAddons/%VERSION%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/update.xml");
 
@@ -66,11 +66,14 @@ pref("extensions.webextensions.base-content-security-policy", "script-src 'self'
 pref("extensions.webextensions.default-content-security-policy", "script-src 'self'; object-src 'self';");
 
 // Require signed add-ons by default
-pref("xpinstall.signatures.required", true);
+pref("xpinstall.signatures.required", false);
 pref("xpinstall.signatures.devInfoURL", "https://wiki.mozilla.org/Addons/Extension_Signing");
 
 // Dictionary download preference
-pref("browser.dictionaries.download.url", "https://addons.mozilla.org/%LOCALE%/firefox/dictionaries/");
+pref("browser.dictionaries.download.url", "http://@AM_DOMAIN@/dictionaries/");
+
+// Get More Tools link URL
+pref("browser.getdevtools.url","https://@AM_DOMAIN@/?component=integration&type=external&request=devtools");
 
 // At startup, should we check to see if the installation
 // date is older than some threshold
@@ -135,16 +138,14 @@ pref("app.update.url", "https://aus5.mozilla.org/update/6/%PRODUCT%/%VERSION%/%B
 // app.update.url.manual is in branding section
 // app.update.url.details is in branding section
 
+// User-settable override to app.update.url for testing purposes.
+//pref("app.update.url.override", "");
+
 // app.update.interval is in branding section
 // app.update.promptWaitTime is in branding section
 
 // Show the Update Checking/Ready UI when the user was idle for x seconds
 pref("app.update.idletime", 60);
-
-// Whether or not to attempt using the service for updates.
-#ifdef MOZ_MAINTENANCE_SERVICE
-pref("app.update.service.enabled", true);
-#endif
 
 // Symmetric (can be overridden by individual extensions) update preferences.
 // e.g.
@@ -153,8 +154,8 @@ pref("app.update.service.enabled", true);
 //  .. etc ..
 //
 pref("extensions.update.enabled", true);
-pref("extensions.update.url", "https://versioncheck.addons.mozilla.org/update/VersionCheck.php?reqVersion=%REQ_VERSION%&id=%ITEM_ID%&version=%ITEM_VERSION%&maxAppVersion=%ITEM_MAXAPPVERSION%&status=%ITEM_STATUS%&appID=%APP_ID%&appVersion=52.9&appOS=%APP_OS%&appABI=%APP_ABI%&locale=%APP_LOCALE%&currentAppVersion=%CURRENT_APP_VERSION%&updateType=%UPDATE_TYPE%&compatMode=%COMPATIBILITY_MODE%");
-pref("extensions.update.background.url", "https://versioncheck-bg.addons.mozilla.org/update/VersionCheck.php?reqVersion=%REQ_VERSION%&id=%ITEM_ID%&version=%ITEM_VERSION%&maxAppVersion=%ITEM_MAXAPPVERSION%&status=%ITEM_STATUS%&appID=%APP_ID%&appVersion=52.9&appOS=%APP_OS%&appABI=%APP_ABI%&locale=%APP_LOCALE%&currentAppVersion=%CURRENT_APP_VERSION%&updateType=%UPDATE_TYPE%&compatMode=%COMPATIBILITY_MODE%");
+pref("extensions.update.url", "https://@AM_DOMAIN@/?component=aus&@AM_AUS_ARGS@");
+pref("extensions.update.background.url", "https://@AM_DOMAIN@/?component=aus&@AM_AUS_ARGS@");
 pref("extensions.update.interval", 86400);  // Check for updates to Extensions and
                                             // Themes every day
 // Non-symmetric (not shared by extensions) extension-specific [update] preferences
@@ -166,7 +167,7 @@ pref("extensions.{972ce4c6-7e08-4474-a285-3208198ce6fd}.name", "chrome://browser
 pref("extensions.{972ce4c6-7e08-4474-a285-3208198ce6fd}.description", "chrome://browser/locale/browser.properties");
 
 pref("lightweightThemes.update.enabled", true);
-pref("lightweightThemes.getMoreURL", "https://addons.mozilla.org/%LOCALE%/firefox/themes");
+pref("lightweightThemes.getMoreURL", "http://@AM_DOMAIN@/personas/");
 pref("lightweightThemes.recommendedThemes", "[{\"id\":\"recommended-1\",\"homepageURL\":\"https://addons.mozilla.org/firefox/addon/a-web-browser-renaissance/\",\"headerURL\":\"resource:///chrome/browser/content/browser/defaultthemes/1.header.jpg\",\"footerURL\":\"resource:///chrome/browser/content/browser/defaultthemes/1.footer.jpg\",\"textcolor\":\"#000000\",\"accentcolor\":\"#f2d9b1\",\"iconURL\":\"resource:///chrome/browser/content/browser/defaultthemes/1.icon.jpg\",\"previewURL\":\"resource:///chrome/browser/content/browser/defaultthemes/1.preview.jpg\",\"author\":\"Sean.Martell\",\"version\":\"0\"},{\"id\":\"recommended-2\",\"homepageURL\":\"https://addons.mozilla.org/firefox/addon/space-fantasy/\",\"headerURL\":\"resource:///chrome/browser/content/browser/defaultthemes/2.header.jpg\",\"footerURL\":\"resource:///chrome/browser/content/browser/defaultthemes/2.footer.jpg\",\"textcolor\":\"#ffffff\",\"accentcolor\":\"#d9d9d9\",\"iconURL\":\"resource:///chrome/browser/content/browser/defaultthemes/2.icon.jpg\",\"previewURL\":\"resource:///chrome/browser/content/browser/defaultthemes/2.preview.jpg\",\"author\":\"fx5800p\",\"version\":\"1.0\"},{\"id\":\"recommended-3\",\"homepageURL\":\"https://addons.mozilla.org/firefox/addon/linen-light/\",\"headerURL\":\"resource:///chrome/browser/content/browser/defaultthemes/3.header.png\",\"footerURL\":\"resource:///chrome/browser/content/browser/defaultthemes/3.footer.png\",\"accentcolor\":\"#ada8a8\",\"iconURL\":\"resource:///chrome/browser/content/browser/defaultthemes/3.icon.png\",\"previewURL\":\"resource:///chrome/browser/content/browser/defaultthemes/3.preview.png\",\"author\":\"DVemer\",\"version\":\"1.0\"},{\"id\":\"recommended-4\",\"homepageURL\":\"https://addons.mozilla.org/firefox/addon/pastel-gradient/\",\"headerURL\":\"resource:///chrome/browser/content/browser/defaultthemes/4.header.png\",\"footerURL\":\"resource:///chrome/browser/content/browser/defaultthemes/4.footer.png\",\"textcolor\":\"#000000\",\"accentcolor\":\"#000000\",\"iconURL\":\"resource:///chrome/browser/content/browser/defaultthemes/4.icon.png\",\"previewURL\":\"resource:///chrome/browser/content/browser/defaultthemes/4.preview.png\",\"author\":\"darrinhenein\",\"version\":\"1.0\"},{\"id\":\"recommended-5\",\"homepageURL\":\"https://addons.mozilla.org/firefox/addon/carbon-light/\",\"headerURL\":\"resource:///chrome/browser/content/browser/defaultthemes/5.header.png\",\"footerURL\":\"resource:///chrome/browser/content/browser/defaultthemes/5.footer.png\",\"textcolor\":\"#3b3b3b\",\"accentcolor\":\"#2e2e2e\",\"iconURL\":\"resource:///chrome/browser/content/browser/defaultthemes/5.icon.jpg\",\"previewURL\":\"resource:///chrome/browser/content/browser/defaultthemes/5.preview.jpg\",\"author\":\"Jaxivo\",\"version\":\"1.0\"}]");
 
 #if defined(MOZ_ADOBE_EME) || defined(MOZ_WIDEVINE_EME)
@@ -329,7 +330,7 @@ pref("browser.helperApps.deleteTempFileOnExit", true);
 #endif
 
 // search engines URL
-pref("browser.search.searchEnginesURL",      "https://addons.mozilla.org/%LOCALE%/firefox/search-engines/");
+pref("browser.search.searchEnginesURL",      "https://@AM_DOMAIN@/search-plugins/");
 
 // pointer to the default engine name
 pref("browser.search.defaultenginename",      "chrome://browser-region/locale/region.properties");
@@ -338,18 +339,6 @@ pref("browser.search.defaultenginename",      "chrome://browser-region/locale/re
 pref("browser.search.order.1",                "chrome://browser-region/locale/region.properties");
 pref("browser.search.order.2",                "chrome://browser-region/locale/region.properties");
 pref("browser.search.order.3",                "chrome://browser-region/locale/region.properties");
-
-// Market-specific search defaults
-// This is disabled globally, and then enabled for individual locales
-// in firefox-l10n.js (eg. it's enabled for en-US).
-pref("browser.search.geoSpecificDefaults", false);
-pref("browser.search.geoSpecificDefaults.url", "https://search.services.mozilla.com/1/%APP%/%VERSION%/%CHANNEL%/%LOCALE%/%REGION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%");
-
-// US specific default (used as a fallback if the geoSpecificDefaults request fails).
-pref("browser.search.defaultenginename.US",      "data:text/plain,browser.search.defaultenginename.US=Google");
-pref("browser.search.order.US.1",                "data:text/plain,browser.search.order.US.1=Google");
-pref("browser.search.order.US.2",                "data:text/plain,browser.search.order.US.2=Yahoo");
-pref("browser.search.order.US.3",                "data:text/plain,browser.search.order.US.3=Bing");
 
 // search bar results always open in a new tab
 pref("browser.search.openintab", false);
@@ -543,9 +532,10 @@ pref("browser.gesture.tap", "cmd_fullZoomReset");
 pref("browser.snapshots.limit", 0);
 
 // 0: Nothing happens
-// 1: Scrolling contents
+// 1: Scroll contents
 // 2: Go back or go forward, in your history
-// 3: Zoom in or out.
+// 3: Zoom in or out
+// 4: Scroll contents with X and Y swapped
 #ifdef XP_MACOSX
 // On OS X, if the wheel has one axis only, shift+wheel comes through as a
 // horizontal scroll event. Thus, we can't assign anything other than normal
@@ -578,6 +568,10 @@ pref("network.captive-portal-service.enabled", true);
 
 // If true, network link events will change the value of navigator.onLine
 pref("network.manage-offline-status", true);
+
+// Enable opportunistic encryption by default
+pref("network.http.altsvc.oe", true);
+pref("network.http.upgrade-insecure-requests", true);
 
 // We want to make sure mail URLs are handled externally...
 pref("network.protocol-handler.external.mailto", true); // for mail
@@ -1015,12 +1009,7 @@ pref("services.sync.syncedTabs.showRemoteIcons", true);
 
 pref("services.sync.sendTabToDevice.enabled", true);
 
-// Developer edition preferences
-#ifdef MOZ_DEV_EDITION
-sticky_pref("lightweightThemes.selectedThemeID", "firefox-devedition@mozilla.org");
-#else
 sticky_pref("lightweightThemes.selectedThemeID", "");
-#endif
 
 // Whether the character encoding menu is under the main Firefox button. This
 // preference is a string so that localizers can alter it.
@@ -1040,11 +1029,8 @@ pref("browser.newtabpage.introShown", false);
 // Toggles the content of 'about:newtab'. Shows the grid when enabled.
 pref("browser.newtabpage.enabled", true);
 
-// Toggles the enhanced content of 'about:newtab'. Shows sponsored tiles.
-sticky_pref("browser.newtabpage.enhanced", false);
-
-// enables Activity Stream inspired layout
-pref("browser.newtabpage.compact", false);
+// Disables capturing of page thumbnails
+pref("browser.pagethumbnails.capturing_disabled", false);
 
 // enables showing basic placeholders for missing thumbnails
 pref("browser.newtabpage.thumbnailPlaceholder", false);
@@ -1156,52 +1142,10 @@ pref("browser.uiCustomization.debug", false);
 // CustomizableUI state of the browser's user interface
 pref("browser.uiCustomization.state", "");
 
-// The remote content URL shown for FxA signup. Must use HTTPS.
-pref("identity.fxaccounts.remote.signup.uri", "https://accounts.firefox.com/signup?service=sync&context=fx_desktop_v3");
-
-// The URL where remote content that forces re-authentication for Firefox Accounts
-// should be fetched.  Must use HTTPS.
-pref("identity.fxaccounts.remote.force_auth.uri", "https://accounts.firefox.com/force_auth?service=sync&context=fx_desktop_v3");
-
-// The remote content URL shown for signin in. Must use HTTPS.
-pref("identity.fxaccounts.remote.signin.uri", "https://accounts.firefox.com/signin?service=sync&context=fx_desktop_v3");
-
-// The remote content URL where FxAccountsWebChannel messages originate.
-pref("identity.fxaccounts.remote.webchannel.uri", "https://accounts.firefox.com/");
-
-// The value of the context query parameter passed in some fxa requests when config
-// discovery is enabled.
-pref("identity.fxaccounts.contextParam", "fx_desktop_v3");
-
-// The URL we take the user to when they opt to "manage" their Firefox Account.
-// Note that this will always need to be in the same TLD as the
-// "identity.fxaccounts.remote.signup.uri" pref.
-pref("identity.fxaccounts.settings.uri", "https://accounts.firefox.com/settings?service=sync&context=fx_desktop_v3");
-
-// The remote URL of the FxA Profile Server
-pref("identity.fxaccounts.remote.profile.uri", "https://profile.accounts.firefox.com/v1");
-
-// The remote URL of the FxA OAuth Server
-pref("identity.fxaccounts.remote.oauth.uri", "https://oauth.accounts.firefox.com/v1");
-
-// Whether we display profile images in the UI or not.
-pref("identity.fxaccounts.profile_image.enabled", true);
-
-// Token server used by the FxA Sync identity.
-pref("identity.sync.tokenserver.uri", "https://token.services.mozilla.com/1.0/sync/1.5");
-
 // URLs for promo links to mobile browsers. Note that consumers are expected to
 // append a value for utm_campaign.
 pref("identity.mobilepromo.android", "https://www.mozilla.org/firefox/android/?utm_source=firefox-browser&utm_medium=firefox-browser&utm_campaign=");
 pref("identity.mobilepromo.ios", "https://www.mozilla.org/firefox/ios/?utm_source=firefox-browser&utm_medium=firefox-browser&utm_campaign=");
-
-// Migrate any existing Firefox Account data from the default profile to the
-// Developer Edition profile.
-#ifdef MOZ_DEV_EDITION
-pref("identity.fxaccounts.migrateToDevEdition", true);
-#else
-pref("identity.fxaccounts.migrateToDevEdition", false);
-#endif
 
 // On GTK, we now default to showing the menubar only when alt is pressed:
 #ifdef MOZ_WIDGET_GTK
@@ -1265,13 +1209,6 @@ pref("media.gmp-widevinecdm.enabled", true);
 // -1 means no experiment is run and we use the preferred value for frecency (6h)
 pref("browser.cache.frecency_experiment", 0);
 
-pref("browser.translation.detectLanguage", false);
-pref("browser.translation.neverForLanguages", "");
-// Show the translation UI bits, like the info bar, notification icon and preferences.
-pref("browser.translation.ui.show", false);
-// Allows to define the translation engine. Bing is default, Yandex may optionally switched on.
-pref("browser.translation.engine", "bing");
-
 // Telemetry settings.
 // Determines if Telemetry pings can be archived locally.
 pref("toolkit.telemetry.archive.enabled", true);
@@ -1283,17 +1220,6 @@ pref("media.gmp-provider.enabled", true);
 pref("privacy.trackingprotection.ui.enabled", true);
 #else
 pref("privacy.trackingprotection.ui.enabled", false);
-#endif
-
-// Enable Contextual Identity Containers
-#ifdef NIGHTLY_BUILD
-pref("privacy.userContext.enabled", true);
-pref("privacy.userContext.ui.enabled", true);
-pref("privacy.usercontext.about_newtab_segregation.enabled", true);
-#else
-pref("privacy.userContext.enabled", false);
-pref("privacy.userContext.ui.enabled", false);
-pref("privacy.usercontext.about_newtab_segregation.enabled", false);
 #endif
 
 #ifndef RELEASE_OR_BETA
@@ -1430,3 +1356,11 @@ pref("browser.crashReports.unsubmittedCheck.autoSubmit2", false);
 // controlling validation are located in /services/sync/services-sync.js
 pref("services.sync.validation.enabled", true);
 #endif
+
+// When a user cancels this number of authentication dialogs coming from
+// a single web page (eTLD+1) in a row, all following authentication dialogs
+// will be blocked (automatically canceled) for that page.
+// This counter is per-tab and per-domain to minimize false positives.
+// The counter resets when the page is reloaded from the UI
+// (content-reloads do NOT clear this to mitigate reloading tricks).
+pref("prompts.authentication_dialog_abuse_limit", 3);

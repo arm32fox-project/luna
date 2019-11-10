@@ -69,7 +69,6 @@ namespace jit {
     _(Call)                                                                 \
     _(ApplyArgs)                                                            \
     _(ApplyArray)                                                           \
-    _(ArraySplice)                                                          \
     _(Bail)                                                                 \
     _(Unreachable)                                                          \
     _(EncodeSnapshot)                                                       \
@@ -187,8 +186,6 @@ namespace jit {
     _(GuardObjectGroup)                                                     \
     _(GuardObjectIdentity)                                                  \
     _(GuardClass)                                                           \
-    _(GuardUnboxedExpando)                                                  \
-    _(LoadUnboxedExpando)                                                   \
     _(ArrayLength)                                                          \
     _(SetArrayLength)                                                       \
     _(GetNextEntryForIterator)                                              \
@@ -200,10 +197,6 @@ namespace jit {
     _(SetTypedObjectOffset)                                                 \
     _(InitializedLength)                                                    \
     _(SetInitializedLength)                                                 \
-    _(UnboxedArrayLength)                                                   \
-    _(UnboxedArrayInitializedLength)                                        \
-    _(IncrementUnboxedArrayInitializedLength)                               \
-    _(SetUnboxedArrayInitializedLength)                                     \
     _(Not)                                                                  \
     _(BoundsCheck)                                                          \
     _(BoundsCheckLower)                                                     \
@@ -219,7 +212,6 @@ namespace jit {
     _(StoreUnboxedScalar)                                                   \
     _(StoreUnboxedObjectOrNull)                                             \
     _(StoreUnboxedString)                                                   \
-    _(ConvertUnboxedObjectToNative)                                         \
     _(ArrayPopShift)                                                        \
     _(ArrayPush)                                                            \
     _(ArraySlice)                                                           \

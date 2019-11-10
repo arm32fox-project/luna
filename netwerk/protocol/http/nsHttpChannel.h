@@ -123,9 +123,10 @@ public:
     virtual nsresult Init(nsIURI *aURI, uint32_t aCaps, nsProxyInfo *aProxyInfo,
                           uint32_t aProxyResolveFlags,
                           nsIURI *aProxyURI,
-                          const nsID& aChannelId) override;
+                          const nsID& aChannelId,
+                          nsContentPolicyType aContentPolicyType) override;
 
-    nsresult OnPush(const nsACString &uri, Http2PushedStream *pushedStream);
+    nsresult OnPush(const nsACString &uri, Http2PushedStreamWrapper *pushedStream);
 
     static bool IsRedirectStatus(uint32_t status);
 
@@ -431,9 +432,6 @@ private:
                rv == NS_ERROR_MALFORMED_URI;
     }
 
-    // Report net vs cache time telemetry
-    void ReportNetVSCacheTelemetry();
-
     // Create a aggregate set of the current notification callbacks
     // and ensure the transaction is updated to use it.
     void UpdateAggregateCallbacks();
@@ -450,9 +448,7 @@ private:
     nsresult OpenCacheInputStream(nsICacheEntry* cacheEntry, bool startBuffering,
                                   bool checkingAppCacheEntry);
 
-    void SetPushedStream(Http2PushedStream *stream);
-
-    void MaybeWarnAboutAppCache();
+    void SetPushedStream(Http2PushedStreamWrapper *stream);
 
     void SetDoNotTrack();
 
@@ -582,9 +578,10 @@ private:
     nsTArray<nsContinueRedirectionFunc> mRedirectFuncStack;
 
     // Needed for accurate DNS timing
-    RefPtr<nsDNSPrefetch>           mDNSPrefetch;
+    RefPtr<nsDNSPrefetch>             mDNSPrefetch;
 
-    Http2PushedStream                 *mPushedStream;
+    RefPtr<Http2PushedStreamWrapper>  mPushedStream;
+    
     // True if the channel's principal was found on a phishing, malware, or
     // tracking (if tracking protection is enabled) blocklist
     bool                              mLocalBlocklist;
@@ -599,6 +596,10 @@ private:
     HttpChannelSecurityWarningReporter* mWarningReporter;
 
     RefPtr<ADivertableParentChannel> mParentChannel;
+    
+    // Whether we send opportunistic encryption requests.
+    bool mSendUpgradeRequest;
+
 protected:
     virtual void DoNotifyListenerCleanup() override;
 

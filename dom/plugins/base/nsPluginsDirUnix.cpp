@@ -19,16 +19,8 @@
 #include "nsIPrefService.h"
 
 #define LOCAL_PLUGIN_DLL_SUFFIX ".so"
-#if defined(__hpux)
-#define DEFAULT_X11_PATH "/usr/lib/X11R6/"
-#undef LOCAL_PLUGIN_DLL_SUFFIX
-#define LOCAL_PLUGIN_DLL_SUFFIX ".sl"
-#define LOCAL_PLUGIN_DLL_ALT_SUFFIX ".so"
-#elif defined(_AIX)
-#define DEFAULT_X11_PATH "/usr/lib"
-#define LOCAL_PLUGIN_DLL_ALT_SUFFIX ".a"
-#elif defined(SOLARIS)
-#define DEFAULT_X11_PATH "/usr/openwin/lib/"
+#ifdef XP_SOLARIS
+#define DEFAULT_X11_PATH "/usr/openwin/lib"
 #elif defined(LINUX)
 #define DEFAULT_X11_PATH "/usr/X11R6/lib/"
 #elif defined(__APPLE__)
@@ -102,7 +94,7 @@ static bool LoadExtraSharedLib(const char *name, char **soname, bool tryToGetSon
 
 #define PLUGIN_MAX_NUMBER_OF_EXTRA_LIBS 32
 #define PREF_PLUGINS_SONAME "plugin.soname.list"
-#if defined(SOLARIS) || defined(HPUX)
+#ifdef XP_SOLARIS
 #define DEFAULT_EXTRA_LIBS_LIST "libXt" LOCAL_PLUGIN_DLL_SUFFIX ":libXext" LOCAL_PLUGIN_DLL_SUFFIX ":libXm" LOCAL_PLUGIN_DLL_SUFFIX
 #else
 #define DEFAULT_EXTRA_LIBS_LIST "libXt" LOCAL_PLUGIN_DLL_SUFFIX ":libXext" LOCAL_PLUGIN_DLL_SUFFIX
@@ -278,9 +270,7 @@ nsresult nsPluginFile::LoadPlugin(PRLibrary **outLibrary)
     // at runtime.  Explicitly opening Xt/Xext into the global
     // namespace before attempting to load the plug-in seems to
     // work fine.
-
-
-#if defined(SOLARIS) || defined(HPUX)
+#if defined(XP_SOLARIS)
     // Acrobat/libXm: Lazy resolving might cause crash later (bug 211587)
     *outLibrary = PR_LoadLibraryWithFlags(libSpec, PR_LD_NOW);
     pLibrary = *outLibrary;
@@ -288,7 +278,7 @@ nsresult nsPluginFile::LoadPlugin(PRLibrary **outLibrary)
     // Some dlopen() doesn't recover from a failed PR_LD_NOW (bug 223744)
     *outLibrary = PR_LoadLibraryWithFlags(libSpec, 0);
     pLibrary = *outLibrary;
-#endif
+#endif    
     if (!pLibrary) {
         LoadExtraSharedLibs();
         // try reload plugin once more

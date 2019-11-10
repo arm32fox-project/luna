@@ -652,7 +652,7 @@ ArrayMetaTypeDescr::create(JSContext* cx,
     if (!CreateTraceList(cx, obj))
         return nullptr;
 
-    if (!cx->zone()->typeDescrObjects.put(obj)) {
+    if (!cx->zone()->addTypeDescrObject(cx, obj)) {
         ReportOutOfMemory(cx);
         return nullptr;
     }
@@ -993,8 +993,8 @@ StructMetaTypeDescr::create(JSContext* cx,
     if (!CreateTraceList(cx, descr))
         return nullptr;
 
-    if (!cx->zone()->typeDescrObjects.put(descr) ||
-        !cx->zone()->typeDescrObjects.put(fieldTypeVec))
+    if (!cx->zone()->addTypeDescrObject(cx, descr) ||
+        !cx->zone()->addTypeDescrObject(cx, fieldTypeVec))
     {
         ReportOutOfMemory(cx);
         return nullptr;
@@ -1124,11 +1124,11 @@ DefineSimpleTypeDescr(JSContext* cx,
                       typename T::Type type,
                       HandlePropertyName className)
 {
-    RootedObject objProto(cx, global->getOrCreateObjectPrototype(cx));
+    RootedObject objProto(cx, GlobalObject::getOrCreateObjectPrototype(cx, global));
     if (!objProto)
         return false;
 
-    RootedObject funcProto(cx, global->getOrCreateFunctionPrototype(cx));
+    RootedObject funcProto(cx, GlobalObject::getOrCreateFunctionPrototype(cx, global));
     if (!funcProto)
         return false;
 
@@ -1165,10 +1165,8 @@ DefineSimpleTypeDescr(JSContext* cx,
     if (!CreateTraceList(cx, descr))
         return false;
 
-    if (!cx->zone()->typeDescrObjects.put(descr)) {
-        ReportOutOfMemory(cx);
+    if (!cx->zone()->addTypeDescrObject(cx, descr))
         return false;
-    }
 
     return true;
 }
@@ -1187,7 +1185,7 @@ DefineMetaTypeDescr(JSContext* cx,
     if (!className)
         return nullptr;
 
-    RootedObject funcProto(cx, global->getOrCreateFunctionPrototype(cx));
+    RootedObject funcProto(cx, GlobalObject::getOrCreateFunctionPrototype(cx, global));
     if (!funcProto)
         return nullptr;
 
@@ -1199,7 +1197,7 @@ DefineMetaTypeDescr(JSContext* cx,
 
     // Create ctor.prototype.prototype, which inherits from Object.__proto__
 
-    RootedObject objProto(cx, global->getOrCreateObjectPrototype(cx));
+    RootedObject objProto(cx, GlobalObject::getOrCreateObjectPrototype(cx, global));
     if (!objProto)
         return nullptr;
     RootedObject protoProto(cx);
@@ -1218,7 +1216,7 @@ DefineMetaTypeDescr(JSContext* cx,
 
     const int constructorLength = 2;
     RootedFunction ctor(cx);
-    ctor = global->createConstructor(cx, T::construct, className, constructorLength);
+    ctor = GlobalObject::createConstructor(cx, T::construct, className, constructorLength);
     if (!ctor ||
         !LinkConstructorAndPrototype(cx, ctor, proto) ||
         !DefinePropertiesAndFunctions(cx, proto,
@@ -1242,10 +1240,10 @@ DefineMetaTypeDescr(JSContext* cx,
  * initializer for the `TypedObject` class populate the
  * `TypedObject` global (which is referred to as "module" herein).
  */
-bool
+/* static */ bool
 GlobalObject::initTypedObjectModule(JSContext* cx, Handle<GlobalObject*> global)
 {
-    RootedObject objProto(cx, global->getOrCreateObjectPrototype(cx));
+    RootedObject objProto(cx, GlobalObject::getOrCreateObjectPrototype(cx, global));
     if (!objProto)
         return false;
 
@@ -1319,9 +1317,8 @@ GlobalObject::initTypedObjectModule(JSContext* cx, Handle<GlobalObject*> global)
 JSObject*
 js::InitTypedObjectModuleObject(JSContext* cx, HandleObject obj)
 {
-    MOZ_ASSERT(obj->is<GlobalObject>());
-    Rooted<GlobalObject*> global(cx, &obj->as<GlobalObject>());
-    return global->getOrCreateTypedObjectModule(cx);
+    Handle<GlobalObject*> global = obj.as<GlobalObject>();
+    return GlobalObject::getOrCreateTypedObjectModule(cx, global);
 }
 
 /******************************************************************************
@@ -2218,7 +2215,6 @@ const ObjectOps TypedObject::objectOps_ = {
     TypedObject::obj_setProperty,
     TypedObject::obj_getOwnPropertyDescriptor,
     TypedObject::obj_deleteProperty,
-    nullptr, nullptr, /* watch/unwatch */
     nullptr,   /* getElements */
     TypedObject::obj_enumerate,
     nullptr, /* thisValue */

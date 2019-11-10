@@ -33,6 +33,15 @@
 <!ENTITY setDefault.accesskey            "d">
 <!ENTITY isDefault.label                 "&brandShortName; is currently your default browser">
 
+<!ENTITY UACompatGroup.label             "Compatibility">
+<!ENTITY UACompat.label                  "User Agent Mode:">
+<!ENTITY UACompat.Native                 "Native">
+<!ENTITY UACompat.Gecko                  "Gecko Compatibility">
+<!ENTITY UACompat.Firefox                "Firefox Compatibility">
+
+<!ENTITY captivePortalGroup.label        "Captive portals">
+<!ENTITY captivePortalDetect.label       "Detect restricted network access">
+
 <!ENTITY dataChoicesTab.label            "Data Choices">
 
 <!ENTITY crashReporterSection.label      "Crash Reporter">
@@ -126,12 +135,6 @@
 <!ENTITY viewSecurityDevices.label       "Security Devices">
 <!ENTITY viewSecurityDevices.accesskey   "y">
 
-<!ENTITY UACompatGroup.label    "Compatibility">
-<!ENTITY UACompat.label         "User Agent Mode:">
-<!ENTITY UACompat.Native        "Native">
-<!ENTITY UACompat.Gecko         "Gecko Compatibility">
-<!ENTITY UACompat.Firefox       "Firefox Compatibility">
-
 <!ENTITY scrollparamTab.label               "Scrolling">
 <!ENTITY smoothscroll.explain.label         "The parameters below only have an effect if smooth scrolling is enabled overall with the checkbox above.">
 <!ENTITY smoothscroll.to                    "to">
@@ -144,3 +147,5 @@
 <!ENTITY smoothscroll.pagekeys.duration     "Page up/down scroll duration:">
 <!ENTITY smoothscroll.scrollbar.label       "Smooth scroll with scrollbars">
 <!ENTITY smoothscroll.scrollbar.duration    "Scrollbar smooth scroll duration:">
+
+<!ENTITY smoothscroll.overall.yspeed.label  "Overall smooth scroll speed:">

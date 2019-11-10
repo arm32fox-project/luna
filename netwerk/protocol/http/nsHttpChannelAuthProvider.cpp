@@ -95,6 +95,9 @@ nsHttpChannelAuthProvider::~nsHttpChannelAuthProvider()
 uint32_t nsHttpChannelAuthProvider::sAuthAllowPref =
     SUBRESOURCE_AUTH_DIALOG_ALLOW_ALL;
 
+bool nsHttpChannelAuthProvider::sImgCrossOriginAuthAllowPref = false;
+bool nsHttpChannelAuthProvider::sConfirmAuthPref = false;
+
 void
 nsHttpChannelAuthProvider::InitializePrefs()
 {
@@ -102,6 +105,12 @@ nsHttpChannelAuthProvider::InitializePrefs()
   mozilla::Preferences::AddUintVarCache(&sAuthAllowPref,
                                         "network.auth.subresource-http-auth-allow",
                                         SUBRESOURCE_AUTH_DIALOG_ALLOW_ALL);
+  mozilla::Preferences::AddBoolVarCache(&sImgCrossOriginAuthAllowPref,
+                                        "network.auth.subresource-http-img-XO-auth",
+                                        false);
+  mozilla::Preferences::AddBoolVarCache(&sConfirmAuthPref,
+                                        "network.auth.confirmAuth.enabled",
+                                        false);
 }
 
 NS_IMETHODIMP
@@ -867,33 +876,15 @@ nsHttpChannelAuthProvider::GetCredentialsForChallenge(const char *challenge,
             else if (authFlags & nsIHttpAuthenticator::IDENTITY_ENCRYPTED)
                 level = nsIAuthPrompt2::LEVEL_PW_ENCRYPTED;
 
-            // Collect statistics on how frequently the various types of HTTP
-            // authentication are used over SSL and non-SSL connections.
-            if (gHttpHandler->IsTelemetryEnabled()) {
-              if (NS_LITERAL_CSTRING("basic").LowerCaseEqualsASCII(authType)) {
-                Telemetry::Accumulate(Telemetry::HTTP_AUTH_TYPE_STATS,
-                  UsingSSL() ? HTTP_AUTH_BASIC_SECURE : HTTP_AUTH_BASIC_INSECURE);
-              } else if (NS_LITERAL_CSTRING("digest").LowerCaseEqualsASCII(authType)) {
-                Telemetry::Accumulate(Telemetry::HTTP_AUTH_TYPE_STATS,
-                  UsingSSL() ? HTTP_AUTH_DIGEST_SECURE : HTTP_AUTH_DIGEST_INSECURE);
-              } else if (NS_LITERAL_CSTRING("ntlm").LowerCaseEqualsASCII(authType)) {
-                Telemetry::Accumulate(Telemetry::HTTP_AUTH_TYPE_STATS,
-                  UsingSSL() ? HTTP_AUTH_NTLM_SECURE : HTTP_AUTH_NTLM_INSECURE);
-              } else if (NS_LITERAL_CSTRING("negotiate").LowerCaseEqualsASCII(authType)) {
-                Telemetry::Accumulate(Telemetry::HTTP_AUTH_TYPE_STATS,
-                  UsingSSL() ? HTTP_AUTH_NEGOTIATE_SECURE : HTTP_AUTH_NEGOTIATE_INSECURE);
-              }
-            }
-
-            // Depending on the pref setting, the authentication dialog may be
+            // Depending on the pref settings, the authentication dialog may be
             // blocked for all sub-resources, blocked for cross-origin
             // sub-resources, or always allowed for sub-resources.
-            // For more details look at the bug 647010.
-            // BlockPrompt will set mCrossOrigin parameter as well.
+            // If always allowed, image prompts may still be blocked by pref.
+            // BlockPrompt() will set the mCrossOrigin parameter as well.
             if (BlockPrompt()) {
                 LOG(("nsHttpChannelAuthProvider::GetCredentialsForChallenge: "
-                     "Prompt is blocked [this=%p pref=%d]\n",
-                      this, sAuthAllowPref));
+                     "Prompt is blocked [this=%p pref=%d img-pref=%d]\n",
+                     this, sAuthAllowPref, sImgCrossOriginAuthAllowPref));
                 return NS_ERROR_ABORT;
             }
 
@@ -991,22 +982,6 @@ nsHttpChannelAuthProvider::BlockPrompt()
         }
     }
 
-    if (gHttpHandler->IsTelemetryEnabled()) {
-        if (topDoc) {
-            Telemetry::Accumulate(Telemetry::HTTP_AUTH_DIALOG_STATS,
-                                  HTTP_AUTH_DIALOG_TOP_LEVEL_DOC);
-        } else if (xhr) {
-            Telemetry::Accumulate(Telemetry::HTTP_AUTH_DIALOG_STATS,
-                                  HTTP_AUTH_DIALOG_XHR);
-        } else if (!mCrossOrigin) {
-            Telemetry::Accumulate(Telemetry::HTTP_AUTH_DIALOG_STATS,
-                                  HTTP_AUTH_DIALOG_SAME_ORIGIN_SUBRESOURCE);
-        } else {
-            Telemetry::Accumulate(Telemetry::HTTP_AUTH_DIALOG_STATS,
-                                  HTTP_AUTH_DIALOG_CROSS_ORIGIN_SUBRESOURCE);
-        }
-    }
-
     switch (sAuthAllowPref) {
     case SUBRESOURCE_AUTH_DIALOG_DISALLOW_ALL:
         // Do not open the http-authentication credentials dialog for
@@ -1017,7 +992,15 @@ nsHttpChannelAuthProvider::BlockPrompt()
         // the sub-resources only if they are not cross-origin.
         return !topDoc && !xhr && mCrossOrigin;
     case SUBRESOURCE_AUTH_DIALOG_ALLOW_ALL:
-        // Allow the http-authentication dialog.
+        // Allow the http-authentication dialog for subresources.
+        // If the pref network.auth.subresource-http-img-XO-auth is set to false,
+        // the http authentication dialog for image subresources is still blocked.
+        if (!sImgCrossOriginAuthAllowPref &&
+            loadInfo &&
+            ((loadInfo->GetExternalContentPolicyType() == nsIContentPolicy::TYPE_IMAGE) ||
+             (loadInfo->GetExternalContentPolicyType() == nsIContentPolicy::TYPE_IMAGESET))) {
+            return true;
+        }
         return false;
     default:
         // This is an invalid value.
@@ -1471,10 +1454,15 @@ nsHttpChannelAuthProvider::ConfirmAuth(const nsString &bundleKey,
                                        bool            doYesNoPrompt)
 {
     // skip prompting the user if
-    //   1) we've already prompted the user
-    //   2) we're not a toplevel channel
-    //   3) the userpass length is less than the "phishy" threshold
+    //   1) prompts are disabled by preference
+    //   2) we've already prompted the user
+    //   3) we're not a toplevel channel
+    //   4) the userpass length is less than the "phishy" threshold
 
+    if (!sConfirmAuthPref) {
+      return true;
+    }
+    
     uint32_t loadFlags;
     nsresult rv = mAuthChannel->GetLoadFlags(&loadFlags);
     if (NS_FAILED(rv))

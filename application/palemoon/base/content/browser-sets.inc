@@ -32,6 +32,7 @@
     <command id="cmd_printPreview" oncommand="PrintUtils.printPreview(PrintPreviewListener);"/>
     <command id="cmd_close" oncommand="BrowserCloseTabOrWindow()"/>
     <command id="cmd_closeWindow" oncommand="BrowserTryToCloseWindow()"/>
+	<command id="cmd_toggleMute" oncommand="gBrowser.selectedTab.toggleMuteAudio()"/>
     <command id="cmd_ToggleTabsOnTop" oncommand="TabsOnTop.toggle()"/>
     <command id="cmd_CustomizeToolbars" oncommand="BrowserCustomizeToolbar()"/>
     <command id="cmd_restartApplication" oncommand="restart(false);"/>
@@ -79,7 +80,6 @@
     <command id="Browser:NextTab" oncommand="gBrowser.tabContainer.advanceSelectedTab(1, true);"/>
     <command id="Browser:PrevTab" oncommand="gBrowser.tabContainer.advanceSelectedTab(-1, true);"/>
     <command id="Browser:ShowAllTabs" oncommand="allTabs.open();"/>
-    <command id="Browser:FocusNextFrame" oncommand="focusNextFrame(event);"/>
     <command id="cmd_fullZoomReduce"  oncommand="FullZoom.reduce()"/>
     <command id="cmd_fullZoomEnlarge" oncommand="FullZoom.enlarge()"/>
     <command id="cmd_fullZoomReset"   oncommand="FullZoom.reset()"/>
@@ -213,6 +213,7 @@
     <key id="printKb" key="&printCmd.commandkey;" command="cmd_print"  modifiers="accel"/>
     <key id="key_close" key="&closeCmd.key;" command="cmd_close" modifiers="accel"/>
     <key id="key_closeWindow" key="&closeCmd.key;" command="cmd_closeWindow" modifiers="accel,shift"/>
+	<key id="key_toggleMute" key="&toggleMuteCmd.key;" command="cmd_toggleMute" modifiers="control"/>
     <key id="key_undo"
          key="&undoCmd.key;"
          modifiers="accel"/>
@@ -251,8 +252,6 @@
 #ifndef XP_MACOSX
     <key id="showAllHistoryKb" key="&showAllHistoryCmd.commandkey;" command="Browser:ShowAllHistory" modifiers="accel,shift"/>
     <key keycode="VK_F5" command="Browser:ReloadSkipCache" modifiers="accel"/>
-    <key keycode="VK_F6" command="Browser:FocusNextFrame"/>
-    <key keycode="VK_F6" command="Browser:FocusNextFrame" modifiers="shift"/>
     <key id="key_fullScreen" keycode="VK_F11" command="View:FullScreen"/>
 #else
     <key id="key_fullScreen" key="&fullScreenCmd.macCommandKey;" command="View:FullScreen" modifiers="accel,control"/>

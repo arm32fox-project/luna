@@ -1,6 +1,3 @@
-#define APO_AM_URL addons.palemoon.org/integration/addon-manager
-#define APO_AUS_ARGS reqVersion=%REQ_VERSION%&id=%ITEM_ID%&version=%ITEM_VERSION%&maxAppVersion=%ITEM_MAXAPPVERSION%&status=%ITEM_STATUS%&appID=%APP_ID%&appVersion=%APP_VERSION%&appOS=%APP_OS%&appABI=%APP_ABI%&locale=%APP_LOCALE%&currentAppVersion=%CURRENT_APP_VERSION%&updateType=%UPDATE_TYPE%&compatMode=%COMPATIBILITY_MODE%
-
 // ===| General |==============================================================
 
 pref("startup.homepage_welcome_url","http://www.palemoon.org/firstrun.shtml");
@@ -15,8 +12,6 @@ pref("browser.identity.ssl_domain_display", 1); //show domain verified SSL (blue
 
 // ===| Application Update Service |===========================================
 
-pref("app.update.url", "https://aus.palemoon.org/?application=%PRODUCT%&version=%VERSION%&arch=%BUILD_TARGET%&buildid=%BUILD_ID%&channel=%CHANNEL%");
-
 // The time interval between the downloading of mar file chunks in the
 // background (in seconds)
 pref("app.update.download.backgroundInterval", 600);
@@ -29,14 +24,7 @@ pref("app.update.promptWaitTime", 172800);
 // ===| Add-ons Manager |======================================================
 
 // Add-on window fixes
-pref("extensions.getMoreThemesURL", "https://@APO_AM_URL@/external/themes");
-
-// Extensions Blocklist
-pref("extensions.blocklist.url","http://blocklist.palemoon.org/%VERSION%/blocklist.xml");
-pref("extensions.blocklist.itemURL", "http://blocklist.palemoon.org/info/?id=%blockID%");
-
-// Dictionary URL
-pref("browser.dictionaries.download.url", "https://addons.mozilla.org/%LOCALE%/firefox/dictionaries/");
+pref("extensions.getMoreThemesURL", "https://addons.palemoon.org/themes/");
 
 pref("extensions.update.autoUpdateDefault", true); // Automatically update extensions by default
 pref("extensions.getAddons.maxResults", 10);

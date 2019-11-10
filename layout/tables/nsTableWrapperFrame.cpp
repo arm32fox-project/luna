@@ -190,7 +190,11 @@ nsTableWrapperFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
   // Now we have to sort everything by content order, since the caption
   // may be somewhere inside the table
-  set.SortAllByContentOrder(GetContent());
+  set.BlockBorderBackgrounds()->SortByContentOrder(GetContent());
+  set.Floats()->SortByContentOrder(GetContent());
+  set.Content()->SortByContentOrder(GetContent());
+  set.PositionedDescendants()->SortByContentOrder(GetContent());
+  set.Outlines()->SortByContentOrder(GetContent());
   set.MoveTo(aLists);
 }
 
@@ -246,7 +250,7 @@ nsTableWrapperFrame::InitChildReflowInput(nsPresContext& aPresContext,
     }
     // Propagate our stored CB size if present, minus any margins.
     if (!HasAnyStateBits(NS_FRAME_OUT_OF_FLOW)) {
-      LogicalSize* cb = Properties().Get(GridItemCBSizeProperty());
+      LogicalSize* cb = GetProperty(GridItemCBSizeProperty());
       if (cb) {
         cbSize.emplace(*cb);
         *cbSize -= aReflowInput.ComputedLogicalMargin().Size(wm);
@@ -953,7 +957,7 @@ nsTableWrapperFrame::Reflow(nsPresContext*           aPresContext,
     // for the table frame if we are bsize constrained and the caption is above
     // or below the inner table.  Also reduce the CB size that we store for
     // our children in case we're a grid item, by the same amount.
-    LogicalSize* cbSize = Properties().Get(GridItemCBSizeProperty());
+    LogicalSize* cbSize = GetProperty(GridItemCBSizeProperty());
     if (NS_UNCONSTRAINEDSIZE != aOuterRI.AvailableBSize() || cbSize) {
       nscoord captionBSize = 0;
       nscoord captionISize = 0;

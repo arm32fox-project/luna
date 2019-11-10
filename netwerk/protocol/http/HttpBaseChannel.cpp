@@ -49,7 +49,6 @@
 #include "LoadInfo.h"
 #include "nsNullPrincipal.h"
 #include "nsISSLSocketControl.h"
-#include "mozilla/Telemetry.h"
 #include "nsIURL.h"
 #include "nsIConsoleService.h"
 #include "mozilla/BinarySearch.h"
@@ -152,7 +151,8 @@ HttpBaseChannel::Init(nsIURI *aURI,
                       nsProxyInfo *aProxyInfo,
                       uint32_t aProxyResolveFlags,
                       nsIURI *aProxyURI,
-                      const nsID& aChannelId)
+                      const nsID& aChannelId,
+                      nsContentPolicyType aContentPolicyType)
 {
   LOG(("HttpBaseChannel::Init [this=%p]\n", this));
 
@@ -201,7 +201,7 @@ HttpBaseChannel::Init(nsIURI *aURI,
   rv = mRequestHead.SetHeader(nsHttp::Host, hostLine);
   if (NS_FAILED(rv)) return rv;
 
-  rv = gHttpHandler->AddStandardRequestHeaders(&mRequestHead, isHTTPS);
+  rv = gHttpHandler->AddStandardRequestHeaders(&mRequestHead, isHTTPS, aContentPolicyType);
   if (NS_FAILED(rv)) return rv;
 
   nsAutoCString type;
@@ -997,17 +997,6 @@ HttpBaseChannel::DoApplyContentConversions(nsIStreamListener* aNextListener,
       }
 
       LOG(("converter removed '%s' content-encoding\n", val));
-      if (gHttpHandler->IsTelemetryEnabled()) {
-        int mode = 0;
-        if (from.Equals("gzip") || from.Equals("x-gzip")) {
-          mode = 1;
-        } else if (from.Equals("deflate") || from.Equals("x-deflate")) {
-          mode = 2;
-        } else if (from.Equals("br")) {
-          mode = 3;
-        }
-        Telemetry::Accumulate(Telemetry::HTTP_CONTENT_ENCODING, mode);
-      }
       nextListener = converter;
     }
     else {
@@ -1667,13 +1656,7 @@ HttpBaseChannel::SetRequestHeader(const nsACString& aHeader,
     return NS_ERROR_INVALID_ARG;
   }
 
-  nsHttpAtom atom = nsHttp::ResolveAtom(flatHeader.get());
-  if (!atom) {
-    NS_WARNING("failed to resolve atom");
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-
-  return mRequestHead.SetHeader(atom, flatValue, aMerge);
+  return mRequestHead.SetHeader(aHeader, flatValue, aMerge);
 }
 
 NS_IMETHODIMP
@@ -1690,13 +1673,7 @@ HttpBaseChannel::SetEmptyRequestHeader(const nsACString& aHeader)
     return NS_ERROR_INVALID_ARG;
   }
 
-  nsHttpAtom atom = nsHttp::ResolveAtom(flatHeader.get());
-  if (!atom) {
-    NS_WARNING("failed to resolve atom");
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-
-  return mRequestHead.SetEmptyHeader(atom);
+ return mRequestHead.SetEmptyHeader(aHeader);
 }
 
 NS_IMETHODIMP
@@ -1752,7 +1729,7 @@ HttpBaseChannel::SetResponseHeader(const nsACString& header,
 
   mResponseHeadersModified = true;
 
-  return mResponseHead->SetHeader(atom, value, merge);
+  return mResponseHead->SetHeader(header, value, merge);
 }
 
 NS_IMETHODIMP
@@ -3690,11 +3667,14 @@ HttpBaseChannel::GetPerformance()
     return nullptr;
   }
 
-  // We only add to the document's performance object if it has the same
-  // principal as the one triggering the load. This is to prevent navigations
-  // triggered _by_ the iframe from showing up in the parent document's
-  // performance entries if they have different origins.
   if (!mLoadInfo->TriggeringPrincipal()->Equals(loadingDocument->NodePrincipal())) {
+    return nullptr;
+  }
+
+  if (mLoadInfo->GetExternalContentPolicyType() == nsIContentPolicy::TYPE_SUBDOCUMENT &&
+      !mLoadInfo->GetIsFromProcessingFrameAttributes()) {
+    // We only report loads caused by processing the attributes of the
+    // browsing context container.
     return nullptr;
   }
 

@@ -18,7 +18,6 @@
 #include "mozilla/hal_sandbox/PHal.h"
 #include "mozilla/HalScreenConfiguration.h"
 #include "mozilla/HalTypes.h"
-#include "mozilla/Observer.h"
 #include "mozilla/Types.h"
 
 /*
@@ -476,20 +475,6 @@ void StartForceQuitWatchdog(hal::ShutdownMode aMode, int32_t aTimeoutSecs);
  * Perform Factory Reset to wipe out all user data.
  */
 void FactoryReset(mozilla::dom::FactoryResetReason& aReason);
-
-/**
- * Start monitoring disk space for low space situations.
- *
- * This API is currently only allowed to be used from the main process.
- */
-void StartDiskSpaceWatcher();
-
-/**
- * Stop monitoring disk space for low space situations.
- *
- * This API is currently only allowed to be used from the main process.
- */
-void StopDiskSpaceWatcher();
 
 /**
  * Get total system memory of device being run on in bytes.

@@ -70,7 +70,6 @@
 #include "prthread.h"
 
 #include "mozilla/Preferences.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/dom/BindingUtils.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/asmjscache/AsmJSCache.h"
@@ -626,7 +625,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsJSContext)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsJSContext)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mGlobalObjectRef)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsJSContext)
@@ -1357,9 +1355,20 @@ nsJSContext::RunCycleCollectorSlice()
       TimeStamp now = TimeStamp::Now();
 
       // Only run a limited slice if we're within the max running time.
-      if (TimeBetween(gCCStats.mBeginTime, now) < kMaxICCDuration) {
-        float sliceMultiplier = std::max(TimeBetween(gCCStats.mEndSliceTime, now) / (float)kICCIntersliceDelay, 1.0f);
-        budget = js::SliceBudget(js::TimeBudget(kICCSliceBudget * sliceMultiplier));
+      uint32_t runningTime = TimeBetween(gCCStats.mBeginTime, now);
+      if (runningTime < kMaxICCDuration) {
+        // Try to make up for a delay in running this slice.
+        float sliceDelayMultiplier = TimeBetween(gCCStats.mEndSliceTime, now) / (float)kICCIntersliceDelay;
+        float delaySliceBudget = kICCSliceBudget * sliceDelayMultiplier;
+
+        // Increase slice budgets up to |maxLaterSlice| as we approach
+        // half way through the ICC, to avoid large sync CCs.
+        float percentToHalfDone = std::min(2.0f * runningTime / kMaxICCDuration, 1.0f);
+        const float maxLaterSlice = 40.0f;
+        float laterSliceBudget = maxLaterSlice * percentToHalfDone;
+
+        budget = js::SliceBudget(js::TimeBudget(std::max({delaySliceBudget,
+                  laterSliceBudget, (float)kICCSliceBudget})));
       }
     }
   }
@@ -1477,21 +1486,7 @@ nsJSContext::EndCycleCollectionCallback(CycleCollectorResults &aResults)
            NS_GC_DELAY - std::min(ccNowDuration, kMaxICCDuration));
   }
 
-  // Log information about the CC via telemetry, JSON and the console.
-  Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_FINISH_IGC, gCCStats.mAnyLockedOut);
-  Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_SYNC_SKIPPABLE, gCCStats.mRanSyncForgetSkippable);
-  Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_FULL, ccNowDuration);
-  Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_MAX_PAUSE, gCCStats.mMaxSliceTime);
-
-  if (!sLastCCEndTime.IsNull()) {
-    // TimeBetween returns milliseconds, but we want to report seconds.
-    uint32_t timeBetween = TimeBetween(sLastCCEndTime, gCCStats.mBeginTime) / 1000;
-    Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_TIME_BETWEEN, timeBetween);
-  }
   sLastCCEndTime = endCCTimeStamp;
-
-  Telemetry::Accumulate(Telemetry::FORGET_SKIPPABLE_MAX,
-                        sMaxForgetSkippableTime / PR_USEC_PER_MSEC);
 
   PRTime delta = GetCollectionTimeDelta();
 
@@ -2633,7 +2628,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsJSArgArray)
   tmp->ReleaseJSObjects();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsJSArgArray)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsJSArgArray)

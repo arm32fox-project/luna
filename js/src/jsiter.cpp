@@ -157,8 +157,11 @@ SortComparatorIntegerIds(jsid a, jsid b, bool* lessOrEqualp)
 }
 
 static bool
-EnumerateNativeProperties(JSContext* cx, HandleNativeObject pobj, unsigned flags, Maybe<IdSet>& ht,
-                          AutoIdVector* props, Handle<UnboxedPlainObject*> unboxed = nullptr)
+EnumerateNativeProperties(JSContext* cx,
+                          HandleNativeObject pobj,
+						  unsigned flags,
+						  Maybe<IdSet>& ht,
+                          AutoIdVector* props)
 {
     bool enumerateSymbols;
     if (flags & JSITER_SYMBOLSONLY) {
@@ -217,16 +220,6 @@ EnumerateNativeProperties(JSContext* cx, HandleNativeObject pobj, unsigned flags
             PodCopy(tmp.begin(), ids, n);
 
             if (!MergeSort(ids, n, tmp.begin(), SortComparatorIntegerIds))
-                return false;
-        }
-
-        if (unboxed) {
-            // If |unboxed| is set then |pobj| is the expando for an unboxed
-            // plain object we are enumerating. Add the unboxed properties
-            // themselves here since they are all property names that were
-            // given to the object before any of the expando's properties.
-            MOZ_ASSERT(pobj->is<UnboxedExpandoObject>());
-            if (!EnumerateExtraProperties(cx, unboxed, flags, ht, props))
                 return false;
         }
 
@@ -355,22 +348,12 @@ Snapshot(JSContext* cx, HandleObject pobj_, unsigned flags, AutoIdVector* props)
 
     do {
         if (pobj->getOpsEnumerate()) {
-            if (pobj->is<UnboxedPlainObject>() && pobj->as<UnboxedPlainObject>().maybeExpando()) {
-                // Special case unboxed objects with an expando object.
-                RootedNativeObject expando(cx, pobj->as<UnboxedPlainObject>().maybeExpando());
-                if (!EnumerateNativeProperties(cx, expando, flags, ht, props,
-                                               pobj.as<UnboxedPlainObject>()))
-                {
-                    return false;
-                }
-            } else {
-                if (!EnumerateExtraProperties(cx, pobj, flags, ht, props))
-                    return false;
+            if (!EnumerateExtraProperties(cx, pobj, flags, ht, props))
+                return false;
 
-                if (pobj->isNative()) {
-                    if (!EnumerateNativeProperties(cx, pobj.as<NativeObject>(), flags, ht, props))
-                        return false;
-                }
+            if (pobj->isNative()) {
+                if (!EnumerateNativeProperties(cx, pobj.as<NativeObject>(), flags, ht, props))
+                    return false;
             }
         } else if (pobj->isNative()) {
             // Give the object a chance to resolve all lazy properties
@@ -671,7 +654,7 @@ VectorToKeyIterator(JSContext* cx, HandleObject obj, unsigned flags, AutoIdVecto
 {
     MOZ_ASSERT(!(flags & JSITER_FOREACH));
 
-    if (obj->isSingleton() && !obj->setIteratedSingleton(cx))
+    if (obj->isSingleton() && !JSObject::setIteratedSingleton(cx, obj))
         return false;
     MarkObjectGroupFlags(cx, obj, OBJECT_FLAG_ITERATED);
 
@@ -715,7 +698,7 @@ VectorToValueIterator(JSContext* cx, HandleObject obj, unsigned flags, AutoIdVec
 {
     MOZ_ASSERT(flags & JSITER_FOREACH);
 
-    if (obj->isSingleton() && !obj->setIteratedSingleton(cx))
+    if (obj->isSingleton() && !JSObject::setIteratedSingleton(cx, obj))
         return false;
     MarkObjectGroupFlags(cx, obj, OBJECT_FLAG_ITERATED);
 
@@ -785,11 +768,6 @@ CanCompareIterableObjectToCache(JSObject* obj)
 {
     if (obj->isNative())
         return obj->as<NativeObject>().hasEmptyElements();
-    if (obj->is<UnboxedPlainObject>()) {
-        if (UnboxedExpandoObject* expando = obj->as<UnboxedPlainObject>().maybeExpando())
-            return expando->hasEmptyElements();
-        return true;
-    }
     return false;
 }
 
@@ -943,7 +921,7 @@ js::CreateItrResultObject(JSContext* cx, HandleValue value, bool done)
     // FIXME: We can cache the iterator result object shape somewhere.
     AssertHeapIsIdle(cx);
 
-    RootedObject proto(cx, cx->global()->getOrCreateObjectPrototype(cx));
+    RootedObject proto(cx, GlobalObject::getOrCreateObjectPrototype(cx, cx->global()));
     if (!proto)
         return nullptr;
 
@@ -1507,7 +1485,7 @@ GlobalObject::initIteratorProto(JSContext* cx, Handle<GlobalObject*> global)
     if (global->getReservedSlot(ITERATOR_PROTO).isObject())
         return true;
 
-    RootedObject proto(cx, global->createBlankPrototype<PlainObject>(cx));
+    RootedObject proto(cx, GlobalObject::createBlankPrototype<PlainObject>(cx, global));
     if (!proto || !DefinePropertiesAndFunctions(cx, proto, nullptr, iterator_proto_methods))
         return false;
 
@@ -1526,7 +1504,8 @@ GlobalObject::initArrayIteratorProto(JSContext* cx, Handle<GlobalObject*> global
         return false;
 
     const Class* cls = &ArrayIteratorPrototypeClass;
-    RootedObject proto(cx, global->createBlankPrototypeInheriting(cx, cls, iteratorProto));
+    RootedObject proto(cx, GlobalObject::createBlankPrototypeInheriting(cx, global, cls,
+                                                                        iteratorProto));
     if (!proto ||
         !DefinePropertiesAndFunctions(cx, proto, nullptr, array_iterator_methods) ||
         !DefineToStringTag(cx, proto, cx->names().ArrayIterator))
@@ -1549,7 +1528,8 @@ GlobalObject::initStringIteratorProto(JSContext* cx, Handle<GlobalObject*> globa
         return false;
 
     const Class* cls = &StringIteratorPrototypeClass;
-    RootedObject proto(cx, global->createBlankPrototypeInheriting(cx, cls, iteratorProto));
+    RootedObject proto(cx, GlobalObject::createBlankPrototypeInheriting(cx, global, cls,
+                                                                        iteratorProto));
     if (!proto ||
         !DefinePropertiesAndFunctions(cx, proto, nullptr, string_iterator_methods) ||
         !DefineToStringTag(cx, proto, cx->names().StringIterator))
@@ -1570,7 +1550,8 @@ js::InitLegacyIteratorClass(JSContext* cx, HandleObject obj)
         return &global->getPrototype(JSProto_Iterator).toObject();
 
     RootedObject iteratorProto(cx);
-    iteratorProto = global->createBlankPrototype(cx, &PropertyIteratorObject::class_);
+    iteratorProto = GlobalObject::createBlankPrototype(cx, global,
+                                                       &PropertyIteratorObject::class_);
     if (!iteratorProto)
         return nullptr;
 
@@ -1582,7 +1563,7 @@ js::InitLegacyIteratorClass(JSContext* cx, HandleObject obj)
     ni->init(nullptr, nullptr, 0 /* flags */, 0, 0);
 
     Rooted<JSFunction*> ctor(cx);
-    ctor = global->createConstructor(cx, IteratorConstructor, cx->names().Iterator, 2);
+    ctor = GlobalObject::createConstructor(cx, IteratorConstructor, cx->names().Iterator, 2);
     if (!ctor)
         return nullptr;
     if (!LinkConstructorAndPrototype(cx, ctor, iteratorProto))
@@ -1603,7 +1584,8 @@ js::InitStopIterationClass(JSContext* cx, HandleObject obj)
 {
     Handle<GlobalObject*> global = obj.as<GlobalObject>();
     if (!global->getPrototype(JSProto_StopIteration).isObject()) {
-        RootedObject proto(cx, global->createBlankPrototype(cx, &StopIterationObject::class_));
+        RootedObject proto(cx, GlobalObject::createBlankPrototype(cx, global,
+                                                                  &StopIterationObject::class_));
         if (!proto || !FreezeObject(cx, proto))
             return nullptr;
 

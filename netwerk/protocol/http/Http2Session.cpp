@@ -168,13 +168,6 @@ Http2Session::~Http2Session()
         this, mDownstreamState));
 
   Shutdown();
-
-  Telemetry::Accumulate(Telemetry::SPDY_PARALLEL_STREAMS, mConcurrentHighWater);
-  Telemetry::Accumulate(Telemetry::SPDY_REQUEST_PER_CONN, (mNextStreamID - 1) / 2);
-  Telemetry::Accumulate(Telemetry::SPDY_SERVER_INITIATED_STREAMS,
-                        mServerPushedResources);
-  Telemetry::Accumulate(Telemetry::SPDY_GOAWAY_LOCAL, mClientGoAwayReason);
-  Telemetry::Accumulate(Telemetry::SPDY_GOAWAY_PEER, mPeerGoAwayReason);
 }
 
 void
@@ -387,12 +380,24 @@ Http2Session::AddStream(nsAHttpTransaction *aHttpTransaction,
 
   if (mClosed || mShouldGoAway) {
     nsHttpTransaction *trans = aHttpTransaction->QueryHttpTransaction();
-    if (trans && !trans->GetPushedStream()) {
-      LOG3(("Http2Session::AddStream %p atrans=%p trans=%p session unusable - resched.\n",
-            this, aHttpTransaction, trans));
-      aHttpTransaction->SetConnection(nullptr);
-      gHttpHandler->InitiateTransaction(trans, trans->Priority());
-      return true;
+    if (trans) {
+      RefPtr<Http2PushedStreamWrapper> pushedStreamWrapper;
+      pushedStreamWrapper = trans->GetPushedStream();
+      if (!pushedStreamWrapper || !pushedStreamWrapper->GetStream()) {
+        LOG3(
+            ("Http2Session::AddStream %p atrans=%p trans=%p session unusable - "
+             "resched.\n", this, aHttpTransaction, trans));
+        aHttpTransaction->SetConnection(nullptr);
+        nsresult rv =
+            gHttpHandler->InitiateTransaction(trans, trans->Priority());
+        if (NS_FAILED(rv)) {
+          LOG3(
+              ("Http2Session::AddStream %p atrans=%p trans=%p failed to "
+               "initiate transaction (%08x).\n",
+               this, aHttpTransaction, trans, static_cast<uint32_t>(rv)));
+        }
+        return true;
+      }
     }
   }
 
@@ -1508,13 +1513,11 @@ Http2Session::RecvSettings(Http2Session *self)
 
     case SETTINGS_TYPE_MAX_CONCURRENT:
       self->mMaxConcurrent = value;
-      Telemetry::Accumulate(Telemetry::SPDY_SETTINGS_MAX_STREAMS, value);
       self->ProcessPending();
       break;
 
     case SETTINGS_TYPE_INITIAL_WINDOW:
       {
-        Telemetry::Accumulate(Telemetry::SPDY_SETTINGS_IW, value >> 10);
         int32_t delta = value - self->mServerInitialStreamWindow;
         self->mServerInitialStreamWindow = value;
 
@@ -2179,6 +2182,7 @@ Http2Session::RecvAltSvc(Http2Session *self)
     }
     
     if (NS_FAILED(self->SetInputFrameDataStream(self->mInputFrameID)) ||
+        !self->mInputFrameDataStream ||
         !self->mInputFrameDataStream->Transaction() ||
         !self->mInputFrameDataStream->Transaction()->RequestHead()) {
       LOG3(("Http2Session::RecvAltSvc %p got frame w/o origin on invalid stream", self));
@@ -2494,8 +2498,6 @@ Http2Session::ReadyToProcessDataFrame(enum internalStateType newState)
              newState == DISCARDING_DATA_FRAME_PADDING);
   ChangeDownstreamState(newState);
 
-  Telemetry::Accumulate(Telemetry::SPDY_CHUNK_RECVD,
-                        mInputFrameDataSize >> 10);
   mLastDataReadEpoch = mLastReadEpoch;
 
   if (!mInputFrameID) {

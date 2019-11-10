@@ -121,6 +121,11 @@ AltSvcMapping::ProcessHeader(const nsCString &buf, const nsCString &originScheme
       continue;
     }
 
+    if (NS_FAILED(NS_CheckPortSafety(portno, originScheme.get()))) {
+      LOG(("Alt Svc does not allow port %d, ignoring request", portno));
+      continue;
+    }
+
     // unescape modifies a c string in place, so afterwards
     // update nsCString length
     nsUnescape(npnToken.BeginWriting());
@@ -654,8 +659,13 @@ private:
   {
     nsID channelId;
     nsLoadFlags flags;
+
+    nsContentPolicyType contentPolicyType =
+        loadInfo ? loadInfo->GetExternalContentPolicyType()
+                 : nsIContentPolicy::TYPE_OTHER;
+
     if (NS_FAILED(gHttpHandler->NewChannelId(&channelId)) ||
-        NS_FAILED(chan->Init(uri, caps, nullptr, 0, nullptr, channelId)) ||
+        NS_FAILED(chan->Init(uri, caps, nullptr, 0, nullptr, channelId, contentPolicyType)) ||
         NS_FAILED(chan->SetAllowAltSvc(false)) ||
         NS_FAILED(chan->SetRedirectMode(nsIHttpChannelInternal::REDIRECT_MODE_ERROR)) ||
         NS_FAILED(chan->SetLoadInfo(loadInfo)) ||

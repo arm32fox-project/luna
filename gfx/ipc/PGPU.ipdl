@@ -6,7 +6,6 @@
 include GraphicsMessages;
 include protocol PCompositorBridge;
 include protocol PImageBridge;
-include protocol PVRManager;
 include protocol PVsyncBridge;
 include protocol PVideoDecoderManager;
 
@@ -14,8 +13,6 @@ using base::ProcessId from "base/process.h";
 using mozilla::TimeDuration from "mozilla/TimeStamp.h";
 using mozilla::CSSToLayoutDeviceScale from "Units.h";
 using mozilla::gfx::IntSize from "mozilla/gfx/2D.h";
-using mozilla::Telemetry::Accumulation from "mozilla/TelemetryComms.h";
-using mozilla::Telemetry::KeyedAccumulation from "mozilla/TelemetryComms.h";
 
 namespace mozilla {
 namespace gfx {
@@ -47,7 +44,6 @@ parent:
 
   async InitVsyncBridge(Endpoint<PVsyncBridgeParent> endpoint);
   async InitImageBridge(Endpoint<PImageBridgeParent> endpoint);
-  async InitVRManager(Endpoint<PVRManagerParent> endpoint);
 
   // Called to update a gfx preference or variable.
   async UpdatePref(GfxPrefSetting pref);
@@ -63,7 +59,6 @@ parent:
   // Create a new content-process compositor bridge.
   async NewContentCompositorBridge(Endpoint<PCompositorBridgeParent> endpoint);
   async NewContentImageBridge(Endpoint<PImageBridgeParent> endpoint);
-  async NewContentVRManager(Endpoint<PVRManagerParent> endpoint);
   async NewContentVideoDecoderManager(Endpoint<PVideoDecoderManagerParent> endpoint);
 
   // Called to notify the GPU process of who owns a layersId.
@@ -92,10 +87,6 @@ child:
   // Have a message be broadcasted to the UI process by the UI process
   // observer service.
   async NotifyUiObservers(nsCString aTopic);
-
-  // Messages for reporting telemetry to the UI process.
-  async AccumulateChildHistogram(Accumulation[] accumulations);
-  async AccumulateChildKeyedHistogram(KeyedAccumulation[] accumulations);
 
   async NotifyDeviceReset();
 };

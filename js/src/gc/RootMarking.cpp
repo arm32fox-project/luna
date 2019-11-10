@@ -14,7 +14,6 @@
 #include "jsgc.h"
 #include "jsprf.h"
 #include "jstypes.h"
-#include "jswatchpoint.h"
 
 #include "builtin/MapObject.h"
 #include "frontend/BytecodeCompiler.h"
@@ -478,6 +477,7 @@ js::gc::GCRuntime::bufferGrayRoots()
     for (GCZonesIter zone(rt); !zone.done(); zone.next())
         MOZ_ASSERT(zone->gcGrayRoots.empty());
 
+    gcstats::AutoPhase ap(stats, gcstats::PHASE_BUFFER_GRAY_ROOTS);
 
     BufferGrayRootsTracer grayBufferer(rt);
     if (JSTraceDataOp op = grayRootTracer.op)
@@ -540,4 +540,3 @@ GCRuntime::resetBufferedGrayRoots() const
     for (GCZonesIter zone(rt); !zone.done(); zone.next())
         zone->gcGrayRoots.clearAndFree();
 }
-

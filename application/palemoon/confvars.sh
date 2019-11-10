@@ -43,8 +43,8 @@ MC_PALEMOON=1
 # Firefox-like browsers
 MOZ_PHOENIX=1
 
-# Browser Feature: Status bar Component
-MOZ_BROWSER_STATUSBAR=1
+# Lightweight Themes
+MOZ_PERSONAS=1
 
 # Browser Feature: Profile Migration Component
 MOZ_PROFILE_MIGRATOR=
@@ -53,9 +53,9 @@ MOZ_PROFILE_MIGRATOR=
 # MAR_CHANNEL_ID must not contained the follow 3 characters: ",\t"
 # ACCEPTED_MAR_CHANNEL_IDS should usually be the same as MAR_CHANNEL_ID
 # If more than one ID is needed, then you should use a comma seperated list.
-MOZ_UPDATER=1
-MAR_CHANNEL_ID=palemoon-release
-ACCEPTED_MAR_CHANNEL_IDS=palemoon-release
+MOZ_UPDATER=
+MAR_CHANNEL_ID=unofficial
+ACCEPTED_MAR_CHANNEL_IDS=unofficial,unstable,release
 
 # Platform Feature: Developer Tools
 # XXX: Devtools are disabled until they can be made to work with Pale Moon
@@ -99,7 +99,6 @@ if test "$OS_ARCH" = "WINNT" -o \
 fi
 
 # Short-circuit a few services to be removed
-MOZ_MAINTENANCE_SERVICE=
 MOZ_SERVICES_HEALTHREPORT=
 MOZ_ADDON_SIGNING=0
 MOZ_REQUIRE_SIGNING=0

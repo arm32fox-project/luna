@@ -30,7 +30,6 @@
 #include "vm/EnvironmentObject.h"
 #include "vm/SharedMem.h"
 #include "vm/TypedArrayCommon.h"
-#include "vm/UnboxedObject.h"
 
 // Undo windows.h damage on Win64
 #undef MemoryBarrier
@@ -376,8 +375,7 @@ class AliasSet {
         Element           = 1 << 1, // A Value member of obj->elements or
                                     // a typed object.
         UnboxedElement    = 1 << 2, // An unboxed scalar or reference member of
-                                    // a typed array, typed object, or unboxed
-                                    // object.
+                                    // typed object.
         DynamicSlot       = 1 << 3, // A Value member of obj->slots.
         FixedSlot         = 1 << 4, // A Value member of obj->fixedSlots().
         DOMProperty       = 1 << 5, // A DOM property
@@ -433,9 +431,6 @@ class AliasSet {
     static AliasSet Store(uint32_t flags) {
         MOZ_ASSERT(flags && !(flags & Store_));
         return AliasSet(flags | Store_);
-    }
-    static uint32_t BoxedOrUnboxedElements(JSValueType type) {
-        return (type == JSVAL_TYPE_MAGIC) ? Element : UnboxedElement;
     }
 };
 
@@ -3763,14 +3758,9 @@ class MObjectState
 {
   private:
     uint32_t numSlots_;
-    uint32_t numFixedSlots_;        // valid if isUnboxed() == false.
-    OperandIndexMap* operandIndex_; // valid if isUnboxed() == true.
+    uint32_t numFixedSlots_;
 
-    bool isUnboxed() const {
-        return operandIndex_ != nullptr;
-    }
-
-    MObjectState(JSObject *templateObject, OperandIndexMap* operandIndex);
+    MObjectState(JSObject *templateObject);
     explicit MObjectState(MObjectState* state);
 
     MOZ_MUST_USE bool init(TempAllocator& alloc, MDefinition* obj);
@@ -3795,7 +3785,6 @@ class MObjectState
     MOZ_MUST_USE bool initFromTemplateObject(TempAllocator& alloc, MDefinition* undefinedVal);
 
     size_t numFixedSlots() const {
-        MOZ_ASSERT(!isUnboxed());
         return numFixedSlots_;
     }
     size_t numSlots() const {
@@ -3829,18 +3818,6 @@ class MObjectState
     }
     void setDynamicSlot(uint32_t slot, MDefinition* def) {
         setSlot(slot + numFixedSlots(), def);
-    }
-
-    // Interface reserved for unboxed objects.
-    bool hasOffset(uint32_t offset) const {
-        MOZ_ASSERT(isUnboxed());
-        return offset < operandIndex_->map.length() && operandIndex_->map[offset] != 0;
-    }
-    MDefinition* getOffset(uint32_t offset) const {
-        return getOperand(operandIndex_->map[offset]);
-    }
-    void setOffset(uint32_t offset, MDefinition* def) {
-        replaceOperand(operandIndex_->map[offset], def);
     }
 
     MOZ_MUST_USE bool writeRecoverData(CompactBufferWriter& writer) const override;
@@ -4066,14 +4043,18 @@ class MCall
     uint32_t numActualArgs_;
 
     // True if the call is for JSOP_NEW.
-    bool construct_;
+    bool construct_:1;
 
-    bool needsArgCheck_;
+    // True if the caller does not use the return value.
+    bool ignoresReturnValue_:1;
 
-    MCall(WrappedFunction* target, uint32_t numActualArgs, bool construct)
+    bool needsArgCheck_:1;
+
+    MCall(WrappedFunction* target, uint32_t numActualArgs, bool construct, bool ignoresReturnValue)
       : target_(target),
         numActualArgs_(numActualArgs),
         construct_(construct),
+        ignoresReturnValue_(ignoresReturnValue),
         needsArgCheck_(true)
     {
         setResultType(MIRType::Value);
@@ -4082,7 +4063,7 @@ class MCall
   public:
     INSTRUCTION_HEADER(Call)
     static MCall* New(TempAllocator& alloc, JSFunction* target, size_t maxArgc, size_t numActualArgs,
-                      bool construct, bool isDOMCall);
+                      bool construct, bool ignoresReturnValue, bool isDOMCall);
 
     void initFunction(MDefinition* func) {
         initOperand(FunctionOperandIndex, func);
@@ -4125,6 +4106,10 @@ class MCall
 
     bool isConstructing() const {
         return construct_;
+    }
+
+    bool ignoresReturnValue() const {
+        return ignoresReturnValue_;
     }
 
     // The number of stack arguments is the max between the number of formal
@@ -4170,7 +4155,7 @@ class MCallDOMNative : public MCall
     // virtual things from MCall.
   protected:
     MCallDOMNative(WrappedFunction* target, uint32_t numActualArgs)
-        : MCall(target, numActualArgs, false)
+        : MCall(target, numActualArgs, false, false)
     {
         MOZ_ASSERT(getJitInfo()->type() != JSJitInfo::InlinableNative);
 
@@ -4185,7 +4170,8 @@ class MCallDOMNative : public MCall
     }
 
     friend MCall* MCall::New(TempAllocator& alloc, JSFunction* target, size_t maxArgc,
-                             size_t numActualArgs, bool construct, bool isDOMCall);
+                             size_t numActualArgs, bool construct, bool ignoresReturnValue,
+                             bool isDOMCall);
 
     const JSJitInfo* getJitInfo() const;
   public:
@@ -4198,27 +4184,6 @@ class MCallDOMNative : public MCall
     }
 
     virtual void computeMovable() override;
-};
-
-// arr.splice(start, deleteCount) with unused return value.
-class MArraySplice
-  : public MTernaryInstruction,
-    public Mix3Policy<ObjectPolicy<0>, IntPolicy<1>, IntPolicy<2> >::Data
-{
-  private:
-
-    MArraySplice(MDefinition* object, MDefinition* start, MDefinition* deleteCount)
-      : MTernaryInstruction(object, start, deleteCount)
-    { }
-
-  public:
-    INSTRUCTION_HEADER(ArraySplice)
-    TRIVIAL_NEW_WRAPPERS
-    NAMED_OPERANDS((0, object), (1, start), (2, deleteCount))
-
-    bool possiblyCalls() const override {
-        return true;
-    }
 };
 
 // fun.apply(self, arguments)
@@ -8272,7 +8237,10 @@ class MGetFirstDollarIndex
       : MUnaryInstruction(str)
     {
         setResultType(MIRType::Int32);
-        setMovable();
+
+        // Codegen assumes string length > 0 but that's not guaranteed in RegExp.
+        // Don't allow LICM to move this.
+        MOZ_ASSERT(!isMovable());
     }
 
   public:
@@ -8741,102 +8709,6 @@ class MSetInitializedLength
     }
 
     ALLOW_CLONE(MSetInitializedLength)
-};
-
-// Load the length from an unboxed array.
-class MUnboxedArrayLength
-  : public MUnaryInstruction,
-    public SingleObjectPolicy::Data
-{
-    explicit MUnboxedArrayLength(MDefinition* object)
-      : MUnaryInstruction(object)
-    {
-        setResultType(MIRType::Int32);
-        setMovable();
-    }
-
-  public:
-    INSTRUCTION_HEADER(UnboxedArrayLength)
-    TRIVIAL_NEW_WRAPPERS
-    NAMED_OPERANDS((0, object))
-
-    bool congruentTo(const MDefinition* ins) const override {
-        return congruentIfOperandsEqual(ins);
-    }
-    AliasSet getAliasSet() const override {
-        return AliasSet::Load(AliasSet::ObjectFields);
-    }
-
-    ALLOW_CLONE(MUnboxedArrayLength)
-};
-
-// Load the initialized length from an unboxed array.
-class MUnboxedArrayInitializedLength
-  : public MUnaryInstruction,
-    public SingleObjectPolicy::Data
-{
-    explicit MUnboxedArrayInitializedLength(MDefinition* object)
-      : MUnaryInstruction(object)
-    {
-        setResultType(MIRType::Int32);
-        setMovable();
-    }
-
-  public:
-    INSTRUCTION_HEADER(UnboxedArrayInitializedLength)
-    TRIVIAL_NEW_WRAPPERS
-    NAMED_OPERANDS((0, object))
-
-    bool congruentTo(const MDefinition* ins) const override {
-        return congruentIfOperandsEqual(ins);
-    }
-    AliasSet getAliasSet() const override {
-        return AliasSet::Load(AliasSet::ObjectFields);
-    }
-
-    ALLOW_CLONE(MUnboxedArrayInitializedLength)
-};
-
-// Increment the initialized length of an unboxed array object.
-class MIncrementUnboxedArrayInitializedLength
-  : public MUnaryInstruction,
-    public SingleObjectPolicy::Data
-{
-    explicit MIncrementUnboxedArrayInitializedLength(MDefinition* obj)
-      : MUnaryInstruction(obj)
-    {}
-
-  public:
-    INSTRUCTION_HEADER(IncrementUnboxedArrayInitializedLength)
-    TRIVIAL_NEW_WRAPPERS
-    NAMED_OPERANDS((0, object))
-
-    AliasSet getAliasSet() const override {
-        return AliasSet::Store(AliasSet::ObjectFields);
-    }
-
-    ALLOW_CLONE(MIncrementUnboxedArrayInitializedLength)
-};
-
-// Set the initialized length of an unboxed array object.
-class MSetUnboxedArrayInitializedLength
-  : public MBinaryInstruction,
-    public SingleObjectPolicy::Data
-{
-    explicit MSetUnboxedArrayInitializedLength(MDefinition* obj, MDefinition* length)
-      : MBinaryInstruction(obj, length)
-    {}
-
-  public:
-    INSTRUCTION_HEADER(SetUnboxedArrayInitializedLength)
-    TRIVIAL_NEW_WRAPPERS
-    NAMED_OPERANDS((0, object), (1, length))
-
-    AliasSet getAliasSet() const override {
-        return AliasSet::Store(AliasSet::ObjectFields);
-    }
-
-    ALLOW_CLONE(MSetUnboxedArrayInitializedLength)
 };
 
 // Load the array length from an elements header.
@@ -9332,23 +9204,19 @@ class MLoadElement
     ALLOW_CLONE(MLoadElement)
 };
 
-// Load a value from the elements vector for a dense native or unboxed array.
+// Load a value from the elements vector of a native object.
 // If the index is out-of-bounds, or the indexed slot has a hole, undefined is
 // returned instead.
 class MLoadElementHole
   : public MTernaryInstruction,
     public SingleObjectPolicy::Data
 {
-    // Unboxed element type, JSVAL_TYPE_MAGIC for dense native elements.
-    JSValueType unboxedType_;
-
     bool needsNegativeIntCheck_;
     bool needsHoleCheck_;
 
     MLoadElementHole(MDefinition* elements, MDefinition* index, MDefinition* initLength,
-                     JSValueType unboxedType, bool needsHoleCheck)
+                     bool needsHoleCheck)
       : MTernaryInstruction(elements, index, initLength),
-        unboxedType_(unboxedType),
         needsNegativeIntCheck_(true),
         needsHoleCheck_(needsHoleCheck)
     {
@@ -9370,9 +9238,6 @@ class MLoadElementHole
     TRIVIAL_NEW_WRAPPERS
     NAMED_OPERANDS((0, elements), (1, index), (2, initLength))
 
-    JSValueType unboxedType() const {
-        return unboxedType_;
-    }
     bool needsNegativeIntCheck() const {
         return needsNegativeIntCheck_;
     }
@@ -9383,8 +9248,6 @@ class MLoadElementHole
         if (!ins->isLoadElementHole())
             return false;
         const MLoadElementHole* other = ins->toLoadElementHole();
-        if (unboxedType() != other->unboxedType())
-            return false;
         if (needsHoleCheck() != other->needsHoleCheck())
             return false;
         if (needsNegativeIntCheck() != other->needsNegativeIntCheck())
@@ -9392,7 +9255,7 @@ class MLoadElementHole
         return congruentIfOperandsEqual(other);
     }
     AliasSet getAliasSet() const override {
-        return AliasSet::Load(AliasSet::BoxedOrUnboxedElements(unboxedType()));
+        return AliasSet::Load(AliasSet::Element);
     }
     void collectRangeInfoPreTrunc() override;
 
@@ -9572,20 +9435,17 @@ class MStoreElement
     ALLOW_CLONE(MStoreElement)
 };
 
-// Like MStoreElement, but supports indexes >= initialized length, and can
-// handle unboxed arrays. The downside is that we cannot hoist the elements
-// vector and bounds check, since this instruction may update the (initialized)
-// length and reallocate the elements vector.
+// Like MStoreElement, but supports indexes >= initialized length. The downside
+// is that we cannot hoist the elements vector and bounds check, since this
+// instruction may update the (initialized) length and reallocate the elements
+// vector.
 class MStoreElementHole
   : public MAryInstruction<4>,
     public MStoreElementCommon,
     public MixPolicy<SingleObjectPolicy, NoFloatPolicy<3> >::Data
 {
-    JSValueType unboxedType_;
-
     MStoreElementHole(MDefinition* object, MDefinition* elements,
-                      MDefinition* index, MDefinition* value, JSValueType unboxedType)
-      : unboxedType_(unboxedType)
+                      MDefinition* index, MDefinition* value)
     {
         initOperand(0, object);
         initOperand(1, elements);
@@ -9600,14 +9460,10 @@ class MStoreElementHole
     TRIVIAL_NEW_WRAPPERS
     NAMED_OPERANDS((0, object), (1, elements), (2, index), (3, value))
 
-    JSValueType unboxedType() const {
-        return unboxedType_;
-    }
     AliasSet getAliasSet() const override {
         // StoreElementHole can update the initialized length, the array length
         // or reallocate obj->elements.
-        return AliasSet::Store(AliasSet::ObjectFields |
-                               AliasSet::BoxedOrUnboxedElements(unboxedType()));
+        return AliasSet::Store(AliasSet::ObjectFields | AliasSet::Element);
     }
 
     ALLOW_CLONE(MStoreElementHole)
@@ -9620,13 +9476,11 @@ class MFallibleStoreElement
     public MStoreElementCommon,
     public MixPolicy<SingleObjectPolicy, NoFloatPolicy<3> >::Data
 {
-    JSValueType unboxedType_;
     bool strict_;
 
     MFallibleStoreElement(MDefinition* object, MDefinition* elements,
                           MDefinition* index, MDefinition* value,
-                          JSValueType unboxedType, bool strict)
-      : unboxedType_(unboxedType)
+                          bool strict)
     {
         initOperand(0, object);
         initOperand(1, elements);
@@ -9642,12 +9496,8 @@ class MFallibleStoreElement
     TRIVIAL_NEW_WRAPPERS
     NAMED_OPERANDS((0, object), (1, elements), (2, index), (3, value))
 
-    JSValueType unboxedType() const {
-        return unboxedType_;
-    }
     AliasSet getAliasSet() const override {
-        return AliasSet::Store(AliasSet::ObjectFields |
-                               AliasSet::BoxedOrUnboxedElements(unboxedType()));
+        return AliasSet::Store(AliasSet::ObjectFields | AliasSet::Element);
     }
     bool strict() const {
         return strict_;
@@ -9739,59 +9589,6 @@ class MStoreUnboxedString
     ALLOW_CLONE(MStoreUnboxedString)
 };
 
-// Passes through an object, after ensuring it is converted from an unboxed
-// object to a native representation.
-class MConvertUnboxedObjectToNative
-  : public MUnaryInstruction,
-    public SingleObjectPolicy::Data
-{
-    CompilerObjectGroup group_;
-
-    explicit MConvertUnboxedObjectToNative(MDefinition* obj, ObjectGroup* group)
-      : MUnaryInstruction(obj),
-        group_(group)
-    {
-        setGuard();
-        setMovable();
-        setResultType(MIRType::Object);
-    }
-
-  public:
-    INSTRUCTION_HEADER(ConvertUnboxedObjectToNative)
-    NAMED_OPERANDS((0, object))
-
-    static MConvertUnboxedObjectToNative* New(TempAllocator& alloc, MDefinition* obj,
-                                              ObjectGroup* group);
-
-    ObjectGroup* group() const {
-        return group_;
-    }
-    bool congruentTo(const MDefinition* ins) const override {
-        if (!congruentIfOperandsEqual(ins))
-            return false;
-        return ins->toConvertUnboxedObjectToNative()->group() == group();
-    }
-    AliasSet getAliasSet() const override {
-        // This instruction can read and write to all parts of the object, but
-        // is marked as non-effectful so it can be consolidated by LICM and GVN
-        // and avoid inhibiting other optimizations.
-        //
-        // This is valid to do because when unboxed objects might have a native
-        // group they can be converted to, we do not optimize accesses to the
-        // unboxed objects and do not guard on their group or shape (other than
-        // in this opcode).
-        //
-        // Later accesses can assume the object has a native representation
-        // and optimize accordingly. Those accesses cannot be reordered before
-        // this instruction, however. This is prevented by chaining this
-        // instruction with the object itself, in the same way as MBoundsCheck.
-        return AliasSet::None();
-    }
-    bool appendRoots(MRootList& roots) const override {
-        return roots.append(group_);
-    }
-};
-
 // Array.prototype.pop or Array.prototype.shift on a dense array.
 class MArrayPopShift
   : public MUnaryInstruction,
@@ -9805,13 +9602,12 @@ class MArrayPopShift
 
   private:
     Mode mode_;
-    JSValueType unboxedType_;
     bool needsHoleCheck_;
     bool maybeUndefined_;
 
-    MArrayPopShift(MDefinition* object, Mode mode, JSValueType unboxedType,
+    MArrayPopShift(MDefinition* object, Mode mode,
                    bool needsHoleCheck, bool maybeUndefined)
-      : MUnaryInstruction(object), mode_(mode), unboxedType_(unboxedType),
+      : MUnaryInstruction(object), mode_(mode),
         needsHoleCheck_(needsHoleCheck), maybeUndefined_(maybeUndefined)
     { }
 
@@ -9829,12 +9625,8 @@ class MArrayPopShift
     bool mode() const {
         return mode_;
     }
-    JSValueType unboxedType() const {
-        return unboxedType_;
-    }
     AliasSet getAliasSet() const override {
-        return AliasSet::Store(AliasSet::ObjectFields |
-                               AliasSet::BoxedOrUnboxedElements(unboxedType()));
+        return AliasSet::Store(AliasSet::ObjectFields | AliasSet::Element);
     }
 
     ALLOW_CLONE(MArrayPopShift)
@@ -9845,10 +9637,8 @@ class MArrayPush
   : public MBinaryInstruction,
     public MixPolicy<SingleObjectPolicy, NoFloatPolicy<1> >::Data
 {
-    JSValueType unboxedType_;
-
-    MArrayPush(MDefinition* object, MDefinition* value, JSValueType unboxedType)
-      : MBinaryInstruction(object, value), unboxedType_(unboxedType)
+    MArrayPush(MDefinition* object, MDefinition* value)
+      : MBinaryInstruction(object, value)
     {
         setResultType(MIRType::Int32);
     }
@@ -9858,12 +9648,8 @@ class MArrayPush
     TRIVIAL_NEW_WRAPPERS
     NAMED_OPERANDS((0, object), (1, value))
 
-    JSValueType unboxedType() const {
-        return unboxedType_;
-    }
     AliasSet getAliasSet() const override {
-        return AliasSet::Store(AliasSet::ObjectFields |
-                               AliasSet::BoxedOrUnboxedElements(unboxedType()));
+        return AliasSet::Store(AliasSet::ObjectFields | AliasSet::Element);
     }
     void computeRange(TempAllocator& alloc) override;
 
@@ -9877,15 +9663,13 @@ class MArraySlice
 {
     CompilerObject templateObj_;
     gc::InitialHeap initialHeap_;
-    JSValueType unboxedType_;
 
     MArraySlice(CompilerConstraintList* constraints, MDefinition* obj,
                 MDefinition* begin, MDefinition* end,
-                JSObject* templateObj, gc::InitialHeap initialHeap, JSValueType unboxedType)
+                JSObject* templateObj, gc::InitialHeap initialHeap)
       : MTernaryInstruction(obj, begin, end),
         templateObj_(templateObj),
-        initialHeap_(initialHeap),
-        unboxedType_(unboxedType)
+        initialHeap_(initialHeap)
     {
         setResultType(MIRType::Object);
     }
@@ -9903,14 +9687,6 @@ class MArraySlice
         return initialHeap_;
     }
 
-    JSValueType unboxedType() const {
-        return unboxedType_;
-    }
-
-    AliasSet getAliasSet() const override {
-        return AliasSet::Store(AliasSet::BoxedOrUnboxedElements(unboxedType()) |
-                               AliasSet::ObjectFields);
-    }
     bool possiblyCalls() const override {
         return true;
     }
@@ -11175,11 +10951,6 @@ class MGuardShape
         setMovable();
         setResultType(MIRType::Object);
         setResultTypeSet(obj->resultTypeSet());
-
-        // Disallow guarding on unboxed object shapes. The group is better to
-        // guard on, and guarding on the shape can interact badly with
-        // MConvertUnboxedObjectToNative.
-        MOZ_ASSERT(shape->getObjectClass() != &UnboxedPlainObject::class_);
     }
 
   public:
@@ -11274,11 +11045,6 @@ class MGuardObjectGroup
         setGuard();
         setMovable();
         setResultType(MIRType::Object);
-
-        // Unboxed groups which might be converted to natives can't be guarded
-        // on, due to MConvertUnboxedObjectToNative.
-        MOZ_ASSERT_IF(group->maybeUnboxedLayoutDontCheckGeneration(),
-                      !group->unboxedLayoutDontCheckGeneration().nativeGroup());
     }
 
   public:
@@ -11385,73 +11151,6 @@ class MGuardClass
     }
 
     ALLOW_CLONE(MGuardClass)
-};
-
-// Guard on the presence or absence of an unboxed object's expando.
-class MGuardUnboxedExpando
-  : public MUnaryInstruction,
-    public SingleObjectPolicy::Data
-{
-    bool requireExpando_;
-    BailoutKind bailoutKind_;
-
-    MGuardUnboxedExpando(MDefinition* obj, bool requireExpando, BailoutKind bailoutKind)
-      : MUnaryInstruction(obj),
-        requireExpando_(requireExpando),
-        bailoutKind_(bailoutKind)
-    {
-        setGuard();
-        setMovable();
-        setResultType(MIRType::Object);
-    }
-
-  public:
-    INSTRUCTION_HEADER(GuardUnboxedExpando)
-    TRIVIAL_NEW_WRAPPERS
-    NAMED_OPERANDS((0, object))
-
-    bool requireExpando() const {
-        return requireExpando_;
-    }
-    BailoutKind bailoutKind() const {
-        return bailoutKind_;
-    }
-    bool congruentTo(const MDefinition* ins) const override {
-        if (!congruentIfOperandsEqual(ins))
-            return false;
-        if (requireExpando() != ins->toGuardUnboxedExpando()->requireExpando())
-            return false;
-        return true;
-    }
-    AliasSet getAliasSet() const override {
-        return AliasSet::Load(AliasSet::ObjectFields);
-    }
-};
-
-// Load an unboxed plain object's expando.
-class MLoadUnboxedExpando
-  : public MUnaryInstruction,
-    public SingleObjectPolicy::Data
-{
-  private:
-    explicit MLoadUnboxedExpando(MDefinition* object)
-      : MUnaryInstruction(object)
-    {
-        setResultType(MIRType::Object);
-        setMovable();
-    }
-
-  public:
-    INSTRUCTION_HEADER(LoadUnboxedExpando)
-    TRIVIAL_NEW_WRAPPERS
-    NAMED_OPERANDS((0, object))
-
-    bool congruentTo(const MDefinition* ins) const override {
-        return congruentIfOperandsEqual(ins);
-    }
-    AliasSet getAliasSet() const override {
-        return AliasSet::Load(AliasSet::ObjectFields);
-    }
 };
 
 // Load from vp[slot] (slots that are not inline in an object).
@@ -11834,7 +11533,8 @@ class MCallGetProperty
     AliasSet getAliasSet() const override {
         if (!idempotent_)
             return AliasSet::Store(AliasSet::Any);
-        return AliasSet::None();
+        return AliasSet::Load(AliasSet::ObjectFields | AliasSet::FixedSlot |
+                              AliasSet::DynamicSlot);
     }
     bool possiblyCalls() const override {
         return true;
@@ -12355,15 +12055,13 @@ class MInArray
 {
     bool needsHoleCheck_;
     bool needsNegativeIntCheck_;
-    JSValueType unboxedType_;
 
     MInArray(MDefinition* elements, MDefinition* index,
              MDefinition* initLength, MDefinition* object,
-             bool needsHoleCheck, JSValueType unboxedType)
+             bool needsHoleCheck)
       : MQuaternaryInstruction(elements, index, initLength, object),
         needsHoleCheck_(needsHoleCheck),
-        needsNegativeIntCheck_(true),
-        unboxedType_(unboxedType)
+        needsNegativeIntCheck_(true)
     {
         setResultType(MIRType::Boolean);
         setMovable();
@@ -12383,9 +12081,6 @@ class MInArray
     bool needsNegativeIntCheck() const {
         return needsNegativeIntCheck_;
     }
-    JSValueType unboxedType() const {
-        return unboxedType_;
-    }
     void collectRangeInfoPreTrunc() override;
     AliasSet getAliasSet() const override {
         return AliasSet::Load(AliasSet::Element);
@@ -12397,8 +12092,6 @@ class MInArray
         if (needsHoleCheck() != other->needsHoleCheck())
             return false;
         if (needsNegativeIntCheck() != other->needsNegativeIntCheck())
-            return false;
-        if (unboxedType() != other->unboxedType())
             return false;
         return congruentIfOperandsEqual(other);
     }
@@ -14300,8 +13993,6 @@ MDefinition::maybeConstantValue()
 
 bool ElementAccessIsDenseNative(CompilerConstraintList* constraints,
                                 MDefinition* obj, MDefinition* id);
-JSValueType UnboxedArrayElementType(CompilerConstraintList* constraints, MDefinition* obj,
-                                    MDefinition* id);
 bool ElementAccessIsTypedArray(CompilerConstraintList* constraints,
                                MDefinition* obj, MDefinition* id,
                                Scalar::Type* arrayType);
@@ -14333,7 +14024,6 @@ bool PropertyWriteNeedsTypeBarrier(TempAllocator& alloc, CompilerConstraintList*
                                    MBasicBlock* current, MDefinition** pobj,
                                    PropertyName* name, MDefinition** pvalue,
                                    bool canModify, MIRType implicitType = MIRType::None);
-bool ArrayPrototypeHasIndexedProperty(IonBuilder* builder, JSScript* script);
 bool TypeCanHaveExtraIndexedProperties(IonBuilder* builder, TemporaryTypeSet* types);
 
 inline MIRType

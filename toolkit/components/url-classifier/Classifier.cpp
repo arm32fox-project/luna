@@ -15,7 +15,6 @@
 #include "nsNetCID.h"
 #include "nsPrintfCString.h"
 #include "nsThreadUtils.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/Logging.h"
 #include "mozilla/SyncRunnable.h"
 #include "mozilla/Base64.h"
@@ -413,8 +412,6 @@ Classifier::Check(const nsACString& aSpec,
                   uint32_t aFreshnessGuarantee,
                   LookupResultArray& aResults)
 {
-  Telemetry::AutoTimer<Telemetry::URLCLASSIFIER_CL_CHECK_TIME> timer;
-
   // Get the set of fragments based on the url. This is necessary because we
   // only look up at most 5 URLs per aSpec, even if aSpec has more than 5
   // components.
@@ -498,9 +495,6 @@ Classifier::Check(const nsACString& aSpec,
         matchingStatistics |= PrefixMatch::eMatchV2Prefix;
       }
     }
-
-    Telemetry::Accumulate(Telemetry::URLCLASSIFIER_PREFIX_MATCH,
-                          static_cast<uint8_t>(matchingStatistics));
   }
 
   return NS_OK;
@@ -509,8 +503,6 @@ Classifier::Check(const nsACString& aSpec,
 nsresult
 Classifier::ApplyUpdates(nsTArray<TableUpdate*>* aUpdates)
 {
-  Telemetry::AutoTimer<Telemetry::URLCLASSIFIER_CL_UPDATE_TIME> timer;
-
   PRIntervalTime clockStart = 0;
   if (LOG_ENABLED()) {
     clockStart = PR_IntervalNow();

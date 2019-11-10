@@ -35,7 +35,9 @@
 #ifdef XP_MACOSX
 ; Mac bundle stuff
 @APPNAME@/Contents/Info.plist
+#ifdef MOZ_UPDATER
 @APPNAME@/Contents/Library/LaunchServices
+#endif
 @APPNAME@/Contents/PkgInfo
 @RESPATH@/firefox.icns
 @RESPATH@/document.icns
@@ -56,8 +58,8 @@
 #ifdef HAVE_MAKENSISU
 @BINPATH@/uninstall/helper.exe
 #endif
-#ifdef MOZ_UPDATER
 @RESPATH@/update.locale
+#ifdef MOZ_UPDATER
 @RESPATH@/updater.ini
 #endif
 
@@ -114,7 +116,7 @@
 @BINPATH@/browser/VisualElements/VisualElements_150.png
 @BINPATH@/browser/VisualElements/VisualElements_70.png
 #else
-@BINPATH@/@MOZ_APP_NAME@-bin
+@RESPATH@/@MOZ_APP_NAME@-bin
 @BINPATH@/@MOZ_APP_NAME@
 #endif
 @RESPATH@/application.ini
@@ -136,13 +138,6 @@
 #ifdef XP_UNIX
 #ifndef XP_MACOSX
 @RESPATH@/run-mozilla.sh
-#endif
-#endif
-#ifdef XP_WIN
-#ifdef _AMD64_
-@BINPATH@/@DLL_PREFIX@qipcap64@DLL_SUFFIX@
-#else
-@BINPATH@/@DLL_PREFIX@qipcap@DLL_SUFFIX@
 #endif
 #endif
 
@@ -188,6 +183,7 @@
 @RESPATH@/components/dom.xpt
 @RESPATH@/components/dom_apps.xpt
 @RESPATH@/components/dom_base.xpt
+@RESPATH@/components/dom_bindings.xpt
 @RESPATH@/components/dom_system.xpt
 @RESPATH@/components/dom_canvas.xpt
 @RESPATH@/components/dom_core.xpt
@@ -359,8 +355,6 @@
 @RESPATH@/browser/components/nsSetDefaultBrowser.js
 @RESPATH@/browser/components/devtools-startup.manifest
 @RESPATH@/browser/components/devtools-startup.js
-@RESPATH@/browser/components/webideCli.js
-@RESPATH@/browser/components/webideComponents.manifest
 @RESPATH@/browser/components/browser-newtab.xpt
 @RESPATH@/browser/components/aboutNewTabService.js
 @RESPATH@/browser/components/NewTabComponents.manifest
@@ -402,15 +396,9 @@
 @RESPATH@/components/addonManager.js
 @RESPATH@/components/amContentHandler.js
 @RESPATH@/components/amInstallTrigger.js
-#ifdef MOZ_WEBEXTENSIONS
-@RESPATH@/components/amWebAPI.js
-#endif
 @RESPATH@/components/amWebInstallListener.js
 @RESPATH@/components/nsBlocklistService.js
 @RESPATH@/components/blocklist.manifest
-#ifdef MOZ_WEBEXTENSIONS
-@RESPATH@/components/nsBlocklistServiceContent.js
-#endif
 #ifdef MOZ_UPDATER
 @RESPATH@/components/nsUpdateService.manifest
 @RESPATH@/components/nsUpdateService.js
@@ -488,10 +476,10 @@
 @RESPATH@/browser/components/SelfSupportService.manifest
 @RESPATH@/browser/components/SelfSupportService.js
 #endif
+#ifdef MOZ_SERVICES_SYNC
 @RESPATH@/components/SyncComponents.manifest
 @RESPATH@/components/Weave.js
-@RESPATH@/components/FxAccountsComponents.manifest
-@RESPATH@/components/FxAccountsPush.js
+#endif
 @RESPATH@/components/CaptivePortalDetectComponents.manifest
 @RESPATH@/components/captivedetect.js
 @RESPATH@/components/servicesComponents.manifest
@@ -559,12 +547,6 @@
 @RESPATH@/components/TestInterfaceJSMaplike.js
 #endif
 
-#ifdef MOZ_WEBEXTENSIONS
-; [Extensions]
-@RESPATH@/components/extensions-toolkit.manifest
-@RESPATH@/browser/components/extensions-browser.manifest
-#endif
-
 ; Modules
 @RESPATH@/browser/modules/*
 @RESPATH@/modules/*
@@ -612,11 +594,6 @@
 @RESPATH@/browser/chrome/icons/default/default48.png
 #endif
 
-; [Webide Files]
-@RESPATH@/browser/chrome/webide@JAREXT@
-@RESPATH@/browser/chrome/webide.manifest
-@RESPATH@/browser/@PREF_DIR@/webide-prefs.js
-
 ; DevTools
 @RESPATH@/browser/chrome/devtools@JAREXT@
 @RESPATH@/browser/chrome/devtools.manifest
@@ -648,7 +625,9 @@
 @RESPATH@/defaults/pref/channel-prefs.js
 
 ; Services (gre) prefs
+#ifdef MOZ_SERVICES_SYNC
 @RESPATH@/defaults/pref/services-sync.js
+#endif
 
 ; [Layout Engine Resources]
 ; Style Sheets, Graphics and other Resources used by the layout engine.
@@ -706,6 +685,13 @@
 #ifndef MOZ_SYSTEM_NSS
 #if defined(XP_LINUX) && !defined(ANDROID)
 @BINPATH@/@DLL_PREFIX@freeblpriv3@DLL_SUFFIX@
+#elif defined(XP_SOLARIS) && defined(SPARC64)
+@BINPATH@/@DLL_PREFIX@freebl_64fpu_3@DLL_SUFFIX@
+@BINPATH@/@DLL_PREFIX@freebl_64int_3@DLL_SUFFIX@
+#elif defined(XP_SOLARIS) && defined(SPARC)
+@BINPATH@/@DLL_PREFIX@freebl_32fpu_3@DLL_SUFFIX@
+@BINPATH@/@DLL_PREFIX@freebl_32int64_3@DLL_SUFFIX@
+@BINPATH@/@DLL_PREFIX@freebl3@DLL_SUFFIX@
 #else
 @BINPATH@/@DLL_PREFIX@freebl3@DLL_SUFFIX@
 #endif
@@ -726,13 +712,6 @@
 @RESPATH@/components/pipnss.xpt
 @RESPATH@/components/pippki.xpt
 
-; for Solaris SPARC
-#ifdef SOLARIS
-bin/libfreebl_32fpu_3.so
-bin/libfreebl_32int_3.so
-bin/libfreebl_32int64_3.so
-#endif
-
 ; [Updater]
 ;
 #ifdef MOZ_UPDATER
@@ -741,13 +720,6 @@ bin/libfreebl_32int64_3.so
 #else
 @BINPATH@/updater@BIN_SUFFIX@
 #endif
-#endif
-
-; [MaintenanceService]
-;
-#ifdef MOZ_MAINTENANCE_SERVICE
-@BINPATH@/maintenanceservice.exe
-@BINPATH@/maintenanceservice_installer.exe
 #endif
 
 @RESPATH@/components/dom_audiochannel.xpt

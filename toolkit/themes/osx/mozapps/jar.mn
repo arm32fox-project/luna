@@ -8,36 +8,6 @@ toolkit.jar:
   skin/classic/mozapps/downloads/downloadIcon.png                 (downloads/downloadIcon.png)
 * skin/classic/mozapps/downloads/downloads.css                    (downloads/downloads.css)
   skin/classic/mozapps/downloads/unknownContentType.css           (downloads/unknownContentType.css)
-#ifdef MOZ_WEBEXTENSIONS
-  skin/classic/mozapps/extensions/category-search.png             (webextensions/category-search.png)
-  skin/classic/mozapps/extensions/category-discover.png           (webextensions/category-discover.png)
-  skin/classic/mozapps/extensions/category-plugins.png            (webextensions/category-plugins.png)
-  skin/classic/mozapps/extensions/category-service.png            (webextensions/category-service.png)
-  skin/classic/mozapps/extensions/category-dictionaries.png       (webextensions/category-dictionaries.png)
-  skin/classic/mozapps/extensions/category-experiments.png        (webextensions/category-experiments.png)
-  skin/classic/mozapps/extensions/category-recent.png             (webextensions/category-recent.png)
-  skin/classic/mozapps/extensions/category-available.png          (webextensions/category-available.png)
-  skin/classic/mozapps/extensions/discover-logo.png               (webextensions/discover-logo.png)
-  skin/classic/mozapps/extensions/extensionGeneric-16.png         (webextensions/extensionGeneric-16.png)
-  skin/classic/mozapps/extensions/themeGeneric.png                (webextensions/themeGeneric.png)
-  skin/classic/mozapps/extensions/themeGeneric-16.png             (webextensions/themeGeneric-16.png)
-  skin/classic/mozapps/extensions/dictionaryGeneric.png           (webextensions/dictionaryGeneric.png)
-  skin/classic/mozapps/extensions/dictionaryGeneric-16.png        (webextensions/dictionaryGeneric-16.png)
-  skin/classic/mozapps/extensions/experimentGeneric.png           (webextensions/experimentGeneric.png)
-  skin/classic/mozapps/extensions/localeGeneric.png               (webextensions/localeGeneric.png)
-  skin/classic/mozapps/extensions/rating-won.png                  (webextensions/rating-won.png)
-  skin/classic/mozapps/extensions/rating-not-won.png              (webextensions/rating-not-won.png)
-  skin/classic/mozapps/extensions/cancel.png                      (webextensions/cancel.png)
-  skin/classic/mozapps/extensions/toolbarbutton-dropmarker.png    (webextensions/toolbarbutton-dropmarker.png)
-  skin/classic/mozapps/extensions/heart.png                       (webextensions/heart.png)
-  skin/classic/mozapps/extensions/search.png                      (webextensions/search.png)
-  skin/classic/mozapps/extensions/about.css                       (webextensions/about.css)
-* skin/classic/mozapps/extensions/extensions.css                  (webextensions/extensions.css)
-  skin/classic/mozapps/extensions/update.css                      (webextensions/update.css)
-  skin/classic/mozapps/extensions/eula.css                        (webextensions/eula.css)
-  skin/classic/mozapps/extensions/blocklist.css                   (webextensions/blocklist.css)
-* skin/classic/mozapps/extensions/newaddon.css                    (webextensions/newaddon.css)
-#else
   skin/classic/mozapps/extensions/category-search.png             (extensions/category-search.png)
   skin/classic/mozapps/extensions/category-discover.png           (extensions/category-discover.png)
   skin/classic/mozapps/extensions/category-languages.png          (extensions/localeGeneric.png)
@@ -82,7 +52,6 @@ toolkit.jar:
   skin/classic/mozapps/extensions/eula.css                        (extensions/eula.css)
   skin/classic/mozapps/extensions/blocklist.css                   (extensions/blocklist.css)
 * skin/classic/mozapps/extensions/newaddon.css                    (extensions/newaddon.css)
-#endif
   skin/classic/mozapps/passwordmgr/key.png                        (passwordmgr/key.png)
   skin/classic/mozapps/passwordmgr/key-16.png                     (passwordmgr/key-16.png)
   skin/classic/mozapps/passwordmgr/key-64.png                     (passwordmgr/key-64.png)
@@ -98,22 +67,13 @@ toolkit.jar:
   skin/classic/mozapps/update/buttons.png                         (update/buttons.png)
 * skin/classic/mozapps/update/updates.css                         (update/updates.css)
   skin/classic/mozapps/viewsource/viewsource.css                  (viewsource/viewsource.css)
-#ifdef MOZ_WEBEXTENSIONS
-  skin/classic/mozapps/xpinstall/xpinstallConfirm.css             (webextensions/xpinstallConfirm.css)
-#else
   skin/classic/mozapps/xpinstall/xpinstallItemGeneric.png         (extensions/extensionGeneric.png)
   skin/classic/mozapps/xpinstall/xpinstallConfirm.css             (extensions/xpinstallConfirm.css)
-#endif
   skin/classic/mozapps/handling/handling.css                      (handling/handling.css)
 
 #ifdef MOZ_PHOENIX
 [browser/extensions/{972ce4c6-7e08-4474-a285-3208198ce6fd}] chrome.jar:
 #elif MOZ_SEPARATE_MANIFEST_FOR_THEME_OVERRIDES
 [extensions/{972ce4c6-7e08-4474-a285-3208198ce6fd}] chrome.jar:
-#endif
-#ifdef MOZ_WEBEXTENSIONS
-% override chrome://mozapps/skin/extensions/category-extensions.svg       chrome://mozapps/skin/extensions/extensionGeneric.svg
-% override chrome://mozapps/skin/extensions/category-languages.png        chrome://mozapps/skin/extensions/localeGeneric.png
-% override chrome://mozapps/skin/extensions/category-themes.png           chrome://mozapps/skin/extensions/themeGeneric.png
 #endif
 % override chrome://mozapps/skin/plugins/notifyPluginCrashed.png          chrome://mozapps/skin/plugins/notifyPluginGeneric.png

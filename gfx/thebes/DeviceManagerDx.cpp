@@ -10,7 +10,6 @@
 #include "gfxPrefs.h"
 #include "gfxWindowsPlatform.h"
 #include "mozilla/D3DMessageUtils.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/WindowsVersion.h"
 #include "mozilla/gfx/GraphicsMessages.h"
 #include "mozilla/gfx/Logging.h"
@@ -456,13 +455,11 @@ DeviceManagerDx::CreateContentDevice()
                          : D3D_DRIVER_TYPE_UNKNOWN;
   if (!CreateDevice(adapter, type, flags, hr, device)) {
     gfxCriticalNote << "Recovered from crash while creating a D3D11 content device";
-    gfxWindowsPlatform::RecordContentDeviceFailure(TelemetryDeviceCode::Content);
     return FeatureStatus::CrashedInHandler;
   }
 
   if (FAILED(hr) || !device) {
     gfxCriticalNote << "Failed to create a D3D11 content device: " << hexa(hr);
-    gfxWindowsPlatform::RecordContentDeviceFailure(TelemetryDeviceCode::Content);
     return FeatureStatus::Failed;
   }
 
@@ -587,10 +584,6 @@ DeviceManagerDx::MaybeResetAndReacquireDevices()
   DeviceResetReason resetReason;
   if (!HasDeviceReset(&resetReason)) {
     return false;
-  }
-
-  if (resetReason != DeviceResetReason::FORCED_RESET) {
-    Telemetry::Accumulate(Telemetry::DEVICE_RESET_REASON, uint32_t(resetReason));
   }
 
   bool createCompositorDevice = !!mCompositorDevice;
@@ -724,7 +717,6 @@ DeviceManagerDx::GetAnyDeviceRemovedReason(DeviceResetReason* aOutReason)
 void
 DeviceManagerDx::ForceDeviceReset(ForcedDeviceResetReason aReason)
 {
-  Telemetry::Accumulate(Telemetry::FORCED_DEVICE_RESET_REASON, uint32_t(aReason));
   {
     MutexAutoLock lock(mDeviceLock);
     mDeviceResetReason = Some(DeviceResetReason::FORCED_RESET);

@@ -14,12 +14,6 @@ INSTALLER_FILES = \
 	nsis/shared.nsh \
 	$(NULL)
 
-ifdef MOZ_MAINTENANCE_SERVICE
-INSTALLER_FILES += \
-	nsis/maintenanceservice_installer.nsi \
-	$(NULL)
-endif
-
 BRANDING_FILES = \
 	branding.nsi \
 	appname.bmp \
@@ -79,10 +73,6 @@ $(CONFIG_DIR)/setup.exe::
 	$(PYTHON) $(topsrcdir)/toolkit/mozapps/installer/windows/nsis/preprocess-locale.py \
 	  --preprocess-locale $(topsrcdir) \
 	  $(PPL_LOCALE_ARGS) $(AB_CD) $(CONFIG_DIR)
-	$(PYTHON) $(topsrcdir)/toolkit/mozapps/installer/windows/nsis/preprocess-locale.py \
-	  --preprocess-single-file $(topsrcdir) \
-	  $(PPL_LOCALE_ARGS) $(CONFIG_DIR) \
-	  nsisstrings.properties nsisstrings.nlf
 
 GARBARGE_DIRS += instgen
 

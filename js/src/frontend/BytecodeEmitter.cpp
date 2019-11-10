@@ -319,7 +319,7 @@ ScopeKindIsInBody(ScopeKind kind)
 static inline void
 MarkAllBindingsClosedOver(LexicalScope::Data& data)
 {
-    BindingName* names = data.names;
+    TrailingNamesArray& names = data.trailingNames;
     for (uint32_t i = 0; i < data.length; i++)
         names[i] = BindingName(names[i].name(), true);
 }
@@ -2260,12 +2260,14 @@ BytecodeEmitter::locationOfNameBoundInFunctionScope(JSAtom* name, EmitterScope* 
 bool
 BytecodeEmitter::emitCheck(ptrdiff_t delta, ptrdiff_t* offset)
 {
-    *offset = code().length();
+    size_t oldLength = code().length();
+    *offset = ptrdiff_t(oldLength);
 
-    // Start it off moderately large to avoid repeated resizings early on.
-    // ~98% of cases fit within 1024 bytes.
-    if (code().capacity() == 0 && !code().reserve(1024))
-        return false;
+    size_t newLength = oldLength + size_t(delta);
+    if (MOZ_UNLIKELY(newLength > MaxBytecodeLength)) {
+      ReportAllocationOverflow(cx);
+      return false;
+    }
 
     if (!code().growBy(delta)) {
         ReportOutOfMemory(cx);
@@ -3067,6 +3069,7 @@ BytecodeEmitter::checkSideEffects(ParseNode* pn, bool* answer)
       case PNK_TRUE:
       case PNK_FALSE:
       case PNK_NULL:
+      case PNK_RAW_UNDEFINED:
       case PNK_ELISION:
       case PNK_GENERATOR:
       case PNK_NUMBER:
@@ -3536,9 +3539,10 @@ BytecodeEmitter::needsImplicitThis()
 bool
 BytecodeEmitter::maybeSetDisplayURL()
 {
-    if (tokenStream()->hasDisplayURL()) {
-        if (!parser->ss->setDisplayURL(cx, tokenStream()->displayURL()))
+    if (tokenStream().hasDisplayURL()) {
+        if (!parser->ss->setDisplayURL(cx, tokenStream().displayURL())) {
             return false;
+        }
     }
     return true;
 }
@@ -3546,10 +3550,11 @@ BytecodeEmitter::maybeSetDisplayURL()
 bool
 BytecodeEmitter::maybeSetSourceMap()
 {
-    if (tokenStream()->hasSourceMapURL()) {
+    if (tokenStream().hasSourceMapURL()) {
         MOZ_ASSERT(!parser->ss->hasSourceMapURL());
-        if (!parser->ss->setSourceMapURL(cx, tokenStream()->sourceMapURL()))
+        if (!parser->ss->setSourceMapURL(cx, tokenStream().sourceMapURL())) {
             return false;
+        }
     }
 
     /*
@@ -3559,9 +3564,11 @@ BytecodeEmitter::maybeSetSourceMap()
     if (parser->options().sourceMapURL()) {
         // Warn about the replacement, but use the new one.
         if (parser->ss->hasSourceMapURL()) {
-            if(!parser->report(ParseWarning, false, nullptr, JSMSG_ALREADY_HAS_PRAGMA,
-                               parser->ss->filename(), "//# sourceMappingURL"))
+            if (!parser->reportNoOffset(ParseWarning, false, JSMSG_ALREADY_HAS_PRAGMA,
+                                        parser->ss->filename(), "//# sourceMappingURL"))
+            {
                 return false;
+            }
         }
 
         if (!parser->ss->setSourceMapURL(cx, parser->options().sourceMapURL()))
@@ -3586,33 +3593,34 @@ BytecodeEmitter::tellDebuggerAboutCompiledScript(ExclusiveContext* cx)
     }
 }
 
-inline TokenStream*
+inline TokenStream&
 BytecodeEmitter::tokenStream()
 {
-    return &parser->tokenStream;
+    return parser->tokenStream;
 }
 
 bool
 BytecodeEmitter::reportError(ParseNode* pn, unsigned errorNumber, ...)
 {
-    TokenPos pos = pn ? pn->pn_pos : tokenStream()->currentToken().pos;
+    TokenPos pos = pn ? pn->pn_pos : tokenStream().currentToken().pos;
 
     va_list args;
     va_start(args, errorNumber);
-    bool result = tokenStream()->reportCompileErrorNumberVA(pos.begin, JSREPORT_ERROR,
-                                                            errorNumber, args);
+    bool result = tokenStream().reportCompileErrorNumberVA(nullptr, pos.begin, JSREPORT_ERROR,
+                                                           errorNumber, args);
     va_end(args);
     return result;
 }
 
 bool
-BytecodeEmitter::reportStrictWarning(ParseNode* pn, unsigned errorNumber, ...)
+BytecodeEmitter::reportExtraWarning(ParseNode* pn, unsigned errorNumber, ...)
 {
-    TokenPos pos = pn ? pn->pn_pos : tokenStream()->currentToken().pos;
+    TokenPos pos = pn ? pn->pn_pos : tokenStream().currentToken().pos;
 
     va_list args;
     va_start(args, errorNumber);
-    bool result = tokenStream()->reportStrictWarningErrorNumberVA(pos.begin, errorNumber, args);
+    bool result = tokenStream().reportExtraWarningErrorNumberVA(nullptr, pos.begin,
+                                                                errorNumber, args);
     va_end(args);
     return result;
 }
@@ -3620,12 +3628,12 @@ BytecodeEmitter::reportStrictWarning(ParseNode* pn, unsigned errorNumber, ...)
 bool
 BytecodeEmitter::reportStrictModeError(ParseNode* pn, unsigned errorNumber, ...)
 {
-    TokenPos pos = pn ? pn->pn_pos : tokenStream()->currentToken().pos;
+    TokenPos pos = pn ? pn->pn_pos : tokenStream().currentToken().pos;
 
     va_list args;
     va_start(args, errorNumber);
-    bool result = tokenStream()->reportStrictModeErrorNumberVA(pos.begin, sc->strict(),
-                                                               errorNumber, args);
+    bool result = tokenStream().reportStrictModeErrorNumberVA(nullptr, pos.begin, sc->strict(),
+                                                              errorNumber, args);
     va_end(args);
     return result;
 }
@@ -4595,7 +4603,7 @@ BytecodeEmitter::emitSwitch(ParseNode* pn)
             // If the expression is a literal, suppress line number emission so
             // that debugging works more naturally.
             if (caseValue) {
-                if (!emitTree(caseValue,
+                if (!emitTree(caseValue, ValueUsage::WantValue,
                               caseValue->isLiteral() ? SUPPRESS_LINENOTE : EMIT_LINENOTE))
                 {
                     return false;
@@ -5806,27 +5814,69 @@ BytecodeEmitter::emitDestructuringOpsObject(ParseNode* pattern, DestructuringFla
     if (!emitRequireObjectCoercible())                            // ... RHS
         return false;
 
+    bool needsRestPropertyExcludedSet = pattern->pn_count > 1 &&
+                                        pattern->last()->isKind(PNK_SPREAD);
+    if (needsRestPropertyExcludedSet) {
+        if (!emitDestructuringObjRestExclusionSet(pattern))       // ... RHS SET
+            return false;
+
+        if (!emit1(JSOP_SWAP))                                    // ... SET RHS
+            return false;
+    }
+
     for (ParseNode* member = pattern->pn_head; member; member = member->pn_next) {
         ParseNode* subpattern;
-        if (member->isKind(PNK_MUTATEPROTO))
+        if (member->isKind(PNK_MUTATEPROTO) || member->isKind(PNK_SPREAD))
             subpattern = member->pn_kid;
         else
             subpattern = member->pn_right;
+
         ParseNode* lhs = subpattern;
+        MOZ_ASSERT_IF(member->isKind(PNK_SPREAD), !lhs->isKind(PNK_ASSIGN));
         if (lhs->isKind(PNK_ASSIGN))
             lhs = lhs->pn_left;
 
         size_t emitted;
-        if (!emitDestructuringLHSRef(lhs, &emitted))              // ... RHS *LREF
+        if (!emitDestructuringLHSRef(lhs, &emitted))              // ... *SET RHS *LREF
             return false;
 
         // Duplicate the value being destructured to use as a reference base.
         if (emitted) {
-            if (!emitDupAt(emitted))                              // ... RHS *LREF RHS
+            if (!emitDupAt(emitted))                              // ... *SET RHS *LREF RHS
                 return false;
         } else {
-            if (!emit1(JSOP_DUP))                                 // ... RHS RHS
+            if (!emit1(JSOP_DUP))                                 // ... *SET RHS RHS
                 return false;
+        }
+
+        if (member->isKind(PNK_SPREAD)) {
+            if (!updateSourceCoordNotes(member->pn_pos.begin))
+                return false;
+
+            if (!emitNewInit(JSProto_Object))                     // ... *SET RHS *LREF RHS TARGET
+                return false;
+            if (!emit1(JSOP_DUP))                                 // ... *SET RHS *LREF RHS TARGET TARGET
+                return false;
+            if (!emit2(JSOP_PICK, 2))                             // ... *SET RHS *LREF TARGET TARGET RHS
+                return false;
+
+            if (needsRestPropertyExcludedSet) {
+                if (!emit2(JSOP_PICK, emitted + 4))               // ... RHS *LREF TARGET TARGET RHS SET
+                    return false;
+            }
+
+            CopyOption option = needsRestPropertyExcludedSet
+                                ? CopyOption::Filtered
+                                : CopyOption::Unfiltered;
+            if (!emitCopyDataProperties(option))                  // ... RHS *LREF TARGET
+                return false;
+
+            // Destructure TARGET per this member's lhs.
+            if (!emitSetOrInitializeDestructuring(lhs, flav))     // ... RHS
+                return false;
+
+            MOZ_ASSERT(member == pattern->last(), "Rest property is always last");
+            break;
         }
 
         // Now push the property name currently being matched, which is the
@@ -5835,7 +5885,7 @@ BytecodeEmitter::emitDestructuringOpsObject(ParseNode* pattern, DestructuringFla
         bool needsGetElem = true;
 
         if (member->isKind(PNK_MUTATEPROTO)) {
-            if (!emitAtomOp(cx->names().proto, JSOP_GETPROP))     // ... RHS *LREF PROP
+            if (!emitAtomOp(cx->names().proto, JSOP_GETPROP))     // ... *SET RHS *LREF PROP
                 return false;
             needsGetElem = false;
         } else {
@@ -5843,40 +5893,131 @@ BytecodeEmitter::emitDestructuringOpsObject(ParseNode* pattern, DestructuringFla
 
             ParseNode* key = member->pn_left;
             if (key->isKind(PNK_NUMBER)) {
-                if (!emitNumberOp(key->pn_dval))                  // ... RHS *LREF RHS KEY
+                if (!emitNumberOp(key->pn_dval))                  // ... *SET RHS *LREF RHS KEY
                     return false;
             } else if (key->isKind(PNK_OBJECT_PROPERTY_NAME) || key->isKind(PNK_STRING)) {
-                PropertyName* name = key->pn_atom->asPropertyName();
-
-                // The parser already checked for atoms representing indexes and
-                // used PNK_NUMBER instead, but also watch for ids which TI treats
-                // as indexes for simplification of downstream analysis.
-                jsid id = NameToId(name);
-                if (id != IdToTypeId(id)) {
-                    if (!emitTree(key))                           // ... RHS *LREF RHS KEY
-                        return false;
-                } else {
-                    if (!emitAtomOp(name, JSOP_GETPROP))          // ... RHS *LREF PROP
-                        return false;
-                    needsGetElem = false;
-                }
-            } else {
-                if (!emitComputedPropertyName(key))               // ... RHS *LREF RHS KEY
+                if (!emitAtomOp(key->pn_atom, JSOP_GETPROP))      // ... *SET RHS *LREF PROP
                     return false;
+                needsGetElem = false;
+            } else {
+                if (!emitComputedPropertyName(key))               // ... *SET RHS *LREF RHS KEY
+                    return false;
+
+                // Add the computed property key to the exclusion set.
+                if (needsRestPropertyExcludedSet) {
+                    if (!emitDupAt(emitted + 3))                  // ... SET RHS *LREF RHS KEY SET
+                        return false;
+                    if (!emitDupAt(1))                            // ... SET RHS *LREF RHS KEY SET KEY
+                        return false;
+                    if (!emit1(JSOP_UNDEFINED))                   // ... SET RHS *LREF RHS KEY SET KEY UNDEFINED
+                        return false;
+                    if (!emit1(JSOP_INITELEM))                    // ... SET RHS *LREF RHS KEY SET
+                        return false;
+                    if (!emit1(JSOP_POP))                         // ... SET RHS *LREF RHS KEY
+                        return false;
+                }
             }
         }
 
         // Get the property value if not done already.
-        if (needsGetElem && !emitElemOpBase(JSOP_GETELEM))        // ... RHS *LREF PROP
+        if (needsGetElem && !emitElemOpBase(JSOP_GETELEM))        // ... *SET RHS *LREF PROP
             return false;
 
         if (subpattern->isKind(PNK_ASSIGN)) {
-            if (!emitDefault(subpattern->pn_right, lhs))          // ... RHS *LREF VALUE
+            if (!emitDefault(subpattern->pn_right, lhs))          // ... *SET RHS *LREF VALUE
                 return false;
         }
 
         // Destructure PROP per this member's lhs.
-        if (!emitSetOrInitializeDestructuring(subpattern, flav))  // ... RHS
+        if (!emitSetOrInitializeDestructuring(subpattern, flav))  // ... *SET RHS
+            return false;
+    }
+
+    return true;
+}
+
+bool
+BytecodeEmitter::emitDestructuringObjRestExclusionSet(ParseNode* pattern)
+{
+    MOZ_ASSERT(pattern->isKind(PNK_OBJECT));
+    MOZ_ASSERT(pattern->isArity(PN_LIST));
+    MOZ_ASSERT(pattern->last()->isKind(PNK_SPREAD));
+
+    ptrdiff_t offset = this->offset();
+    if (!emitNewInit(JSProto_Object))
+        return false;
+
+    // Try to construct the shape of the object as we go, so we can emit a
+    // JSOP_NEWOBJECT with the final shape instead.
+    // In the case of computed property names and indices, we cannot fix the
+    // shape at bytecode compile time. When the shape cannot be determined,
+    // |obj| is nulled out.
+
+    // No need to do any guessing for the object kind, since we know the upper
+    // bound of how many properties we plan to have.
+    gc::AllocKind kind = gc::GetGCObjectKind(pattern->pn_count - 1);
+    RootedPlainObject obj(cx, NewBuiltinClassInstance<PlainObject>(cx, kind, TenuredObject));
+    if (!obj)
+        return false;
+
+    RootedAtom pnatom(cx);
+    for (ParseNode* member = pattern->pn_head; member; member = member->pn_next) {
+        if (member->isKind(PNK_SPREAD))
+            break;
+
+        bool isIndex = false;
+        if (member->isKind(PNK_MUTATEPROTO)) {
+            pnatom.set(cx->names().proto);
+        } else {
+            ParseNode* key = member->pn_left;
+            if (key->isKind(PNK_NUMBER)) {
+                if (!emitNumberOp(key->pn_dval))
+                    return false;
+                isIndex = true;
+            } else if (key->isKind(PNK_OBJECT_PROPERTY_NAME) || key->isKind(PNK_STRING)) {
+                pnatom.set(key->pn_atom);
+            } else {
+                // Otherwise this is a computed property name which needs to
+                // be added dynamically.
+                obj.set(nullptr);
+                continue;
+            }
+        }
+
+        // Initialize elements with |undefined|.
+        if (!emit1(JSOP_UNDEFINED))
+            return false;
+
+        if (isIndex) {
+            obj.set(nullptr);
+            if (!emit1(JSOP_INITELEM))
+                return false;
+        } else {
+            uint32_t index;
+            if (!makeAtomIndex(pnatom, &index))
+                return false;
+
+            if (obj) {
+                MOZ_ASSERT(!obj->inDictionaryMode());
+                Rooted<jsid> id(cx, AtomToId(pnatom));
+                if (!NativeDefineProperty(cx, obj, id, UndefinedHandleValue, nullptr, nullptr,
+                                          JSPROP_ENUMERATE))
+                {
+                    return false;
+                }
+                if (obj->inDictionaryMode())
+                    obj.set(nullptr);
+            }
+
+            if (!emitIndex32(JSOP_INITPROP, index))
+                return false;
+        }
+    }
+
+    if (obj) {
+        // The object survived and has a predictable shape: update the
+        // original bytecode.
+        if (!replaceNewInitWithNewObject(obj, offset))
             return false;
     }
 
@@ -6238,6 +6379,9 @@ ParseNode::getConstantValue(ExclusiveContext* cx, AllowConstantObjects allowObje
       case PNK_NULL:
         vp.setNull();
         return true;
+      case PNK_RAW_UNDEFINED:
+        vp.setUndefined();
+        return true;
       case PNK_CALLSITEOBJ:
       case PNK_ARRAY: {
         unsigned count;
@@ -6277,8 +6421,8 @@ ParseNode::getConstantValue(ExclusiveContext* cx, AllowConstantObjects allowObje
         }
         MOZ_ASSERT(idx == count);
 
-        JSObject* obj = ObjectGroup::newArrayObject(cx, values.begin(), values.length(),
-                                                    newKind, arrayKind);
+        ArrayObject* obj = ObjectGroup::newArrayObject(cx, values.begin(), values.length(),
+                                                       newKind, arrayKind);
         if (!obj)
             return false;
 
@@ -6641,7 +6785,7 @@ BytecodeEmitter::emitLexicalScopeBody(ParseNode* body, EmitLineNumberNote emitLi
     }
 
     // Line notes were updated by emitLexicalScope.
-    return emitTree(body, emitLineNote);
+    return emitTree(body, ValueUsage::WantValue, emitLineNote);
 }
 
 // Using MOZ_NEVER_INLINE in here is a workaround for llvm.org/pr14047. See
@@ -6743,14 +6887,61 @@ BytecodeEmitter::emitRequireObjectCoercible()
         return false;
     if (!emit2(JSOP_PICK, 2))              // VAL REQUIREOBJECTCOERCIBLE UNDEFINED VAL
         return false;
-    if (!emitCall(JSOP_CALL, 1))           // VAL IGNORED
+    if (!emitCall(JSOP_CALL_IGNORES_RV, 1))// VAL IGNORED
         return false;
-    checkTypeSet(JSOP_CALL);
+    checkTypeSet(JSOP_CALL_IGNORES_RV);
 
     if (!emit1(JSOP_POP))                  // VAL
         return false;
 
     MOZ_ASSERT(depth == this->stackDepth);
+    return true;
+}
+
+bool
+BytecodeEmitter::emitCopyDataProperties(CopyOption option)
+{
+    DebugOnly<int32_t> depth = this->stackDepth;
+
+    uint32_t argc;
+    if (option == CopyOption::Filtered) {
+        MOZ_ASSERT(depth > 2);                 // TARGET SOURCE SET
+        argc = 3;
+
+        if (!emitAtomOp(cx->names().CopyDataProperties,
+                        JSOP_GETINTRINSIC))    // TARGET SOURCE SET COPYDATAPROPERTIES
+        {
+            return false;
+        }
+    } else {
+        MOZ_ASSERT(depth > 1);                 // TARGET SOURCE
+        argc = 2;
+
+        if (!emitAtomOp(cx->names().CopyDataPropertiesUnfiltered,
+                        JSOP_GETINTRINSIC))    // TARGET SOURCE COPYDATAPROPERTIES
+        {
+            return false;
+        }
+    }
+
+    if (!emit1(JSOP_UNDEFINED))                // TARGET SOURCE *SET COPYDATAPROPERTIES UNDEFINED
+        return false;
+    if (!emit2(JSOP_PICK, argc + 1))           // SOURCE *SET COPYDATAPROPERTIES UNDEFINED TARGET
+        return false;
+    if (!emit2(JSOP_PICK, argc + 1))           // *SET COPYDATAPROPERTIES UNDEFINED TARGET SOURCE
+        return false;
+    if (option == CopyOption::Filtered) {
+        if (!emit2(JSOP_PICK, argc + 1))       // COPYDATAPROPERTIES UNDEFINED TARGET SOURCE SET
+            return false;
+    }
+    if (!emitCall(JSOP_CALL_IGNORES_RV, argc)) // IGNORED
+        return false;
+    checkTypeSet(JSOP_CALL_IGNORES_RV);
+
+    if (!emit1(JSOP_POP))                      // -
+        return false;
+
+    MOZ_ASSERT(depth - int(argc) == this->stackDepth);
     return true;
 }
 
@@ -7265,12 +7456,14 @@ BytecodeEmitter::emitCStyleFor(ParseNode* pn, EmitterScope* headLexicalEmitterSc
         // scope, but we still need to emit code for the initializers.)
         if (!updateSourceCoordNotes(init->pn_pos.begin))
             return false;
-        if (!emitTree(init))
-            return false;
-
-        if (!init->isForLoopDeclaration()) {
+        if (init->isForLoopDeclaration()) {
+            if (!emitTree(init))
+                return false;
+        } else {
             // 'init' is an expression, not a declaration. emitTree left its
             // value on the stack.
+            if (!emitTree(init, ValueUsage::IgnoreValue))
+                return false;
             if (!emit1(JSOP_POP))
                 return false;
         }
@@ -7352,7 +7545,7 @@ BytecodeEmitter::emitCStyleFor(ParseNode* pn, EmitterScope* headLexicalEmitterSc
 
         if (!updateSourceCoordNotes(update->pn_pos.begin))
             return false;
-        if (!emitTree(update))
+        if (!emitTree(update, ValueUsage::IgnoreValue))
             return false;
         if (!emit1(JSOP_POP))
             return false;
@@ -7834,7 +8027,9 @@ BytecodeEmitter::emitFunction(ParseNode* pn, bool needsProto)
 
             Rooted<JSObject*> sourceObject(cx, script->sourceObject());
             Rooted<JSScript*> script(cx, JSScript::Create(cx, options, sourceObject,
-                                                          funbox->bufStart, funbox->bufEnd));
+                                                          funbox->bufStart, funbox->bufEnd,
+                                                          funbox->toStringStart,
+                                                          funbox->toStringEnd));
             if (!script)
                 return false;
 
@@ -8677,8 +8872,9 @@ BytecodeEmitter::emitStatement(ParseNode* pn)
 
     if (useful) {
         JSOp op = wantval ? JSOP_SETRVAL : JSOP_POP;
+        ValueUsage valueUsage = wantval ? ValueUsage::WantValue : ValueUsage::IgnoreValue;
         MOZ_ASSERT_IF(pn2->isKind(PNK_ASSIGN), pn2->isOp(JSOP_NOP));
-        if (!emitTree(pn2))
+        if (!emitTree(pn2, valueUsage))
             return false;
         if (!emit1(op))
             return false;
@@ -8704,13 +8900,13 @@ BytecodeEmitter::emitStatement(ParseNode* pn)
             }
 
             if (directive) {
-                if (!reportStrictWarning(pn2, JSMSG_CONTRARY_NONDIRECTIVE, directive))
+                if (!reportExtraWarning(pn2, JSMSG_CONTRARY_NONDIRECTIVE, directive))
                     return false;
             }
         } else {
             current->currentLine = parser->tokenStream.srcCoords.lineNum(pn2->pn_pos.begin);
             current->lastColumn = 0;
-            if (!reportStrictWarning(pn2, JSMSG_USELESS_EXPR))
+            if (!reportExtraWarning(pn2, JSMSG_USELESS_EXPR))
                 return false;
         }
     }
@@ -8978,7 +9174,8 @@ BytecodeEmitter::isRestParameter(ParseNode* pn, bool* result)
         if (bindings->nonPositionalFormalStart > 0) {
             // |paramName| can be nullptr when the rest destructuring syntax is
             // used: `function f(...[]) {}`.
-            JSAtom* paramName = bindings->names[bindings->nonPositionalFormalStart - 1].name();
+            JSAtom* paramName =
+                bindings->trailingNames[bindings->nonPositionalFormalStart - 1].name();
             *result = paramName && name == paramName;
             return true;
         }
@@ -9027,7 +9224,7 @@ BytecodeEmitter::emitOptimizeSpread(ParseNode* arg0, JumpList* jmp, bool* emitte
 }
 
 bool
-BytecodeEmitter::emitCallOrNew(ParseNode* pn)
+BytecodeEmitter::emitCallOrNew(ParseNode* pn, ValueUsage valueUsage /* = ValueUsage::WantValue */)
 {
     bool callop = pn->isKind(PNK_CALL) || pn->isKind(PNK_TAGGED_TEMPLATE);
     /*
@@ -9186,7 +9383,7 @@ BytecodeEmitter::emitCallOrNew(ParseNode* pn)
                 return false;
         }
 
-        if (!emitArray(args, argc, JSOP_SPREADCALLARRAY))
+        if (!emitArray(args, argc))
             return false;
 
         if (optCodeEmitted) {
@@ -9206,13 +9403,20 @@ BytecodeEmitter::emitCallOrNew(ParseNode* pn)
     }
 
     if (!spread) {
-        if (!emitCall(pn->getOp(), argc, pn))
-            return false;
+        if (pn->getOp() == JSOP_CALL && valueUsage == ValueUsage::IgnoreValue) {
+            if (!emitCall(JSOP_CALL_IGNORES_RV, argc, pn))
+                return false;
+            checkTypeSet(JSOP_CALL_IGNORES_RV);
+        } else {
+            if (!emitCall(pn->getOp(), argc, pn))
+                return false;
+            checkTypeSet(pn->getOp());
+        }
     } else {
         if (!emit1(pn->getOp()))
             return false;
+        checkTypeSet(pn->getOp());
     }
-    checkTypeSet(pn->getOp());
     if (pn->isOp(JSOP_EVAL) ||
         pn->isOp(JSOP_STRICTEVAL) ||
         pn->isOp(JSOP_SPREADEVAL) ||
@@ -9310,12 +9514,13 @@ BytecodeEmitter::emitLogical(ParseNode* pn)
 }
 
 bool
-BytecodeEmitter::emitSequenceExpr(ParseNode* pn)
+BytecodeEmitter::emitSequenceExpr(ParseNode* pn,
+                                  ValueUsage valueUsage /* = ValueUsage::WantValue */)
 {
     for (ParseNode* child = pn->pn_head; ; child = child->pn_next) {
         if (!updateSourceCoordNotes(child->pn_pos.begin))
             return false;
-        if (!emitTree(child))
+        if (!emitTree(child, child->pn_next ? ValueUsage::IgnoreValue : valueUsage))
             return false;
         if (!child->pn_next)
             break;
@@ -9378,7 +9583,8 @@ BytecodeEmitter::emitLabeledStatement(const LabeledStatement* pn)
 }
 
 bool
-BytecodeEmitter::emitConditionalExpression(ConditionalExpression& conditional)
+BytecodeEmitter::emitConditionalExpression(ConditionalExpression& conditional,
+                                           ValueUsage valueUsage /* = ValueUsage::WantValue */)
 {
     /* Emit the condition, then branch if false to the else part. */
     if (!emitTree(&conditional.condition()))
@@ -9388,13 +9594,13 @@ BytecodeEmitter::emitConditionalExpression(ConditionalExpression& conditional)
     if (!ifThenElse.emitCond())
         return false;
 
-    if (!emitTreeInBranch(&conditional.thenExpression()))
+    if (!emitTreeInBranch(&conditional.thenExpression(), valueUsage))
         return false;
 
     if (!ifThenElse.emitElse())
         return false;
 
-    if (!emitTreeInBranch(&conditional.elseExpression()))
+    if (!emitTreeInBranch(&conditional.elseExpression(), valueUsage))
         return false;
 
     if (!ifThenElse.emitEnd())
@@ -9423,6 +9629,22 @@ BytecodeEmitter::emitPropertyList(ParseNode* pn, MutableHandlePlainObject objp, 
             continue;
         }
 
+        if (propdef->isKind(PNK_SPREAD)) {
+            MOZ_ASSERT(type == ObjectLiteral);
+
+            if (!emit1(JSOP_DUP))
+                return false;
+
+            if (!emitTree(propdef->pn_kid))
+                return false;
+
+            if (!emitCopyDataProperties(CopyOption::Unfiltered))
+                return false;
+
+            objp.set(nullptr);
+            continue;
+        }
+
         bool extraPop = false;
         if (type == ClassBody && propdef->as<ClassMethod>().isStatic()) {
             extraPop = true;
@@ -9445,16 +9667,6 @@ BytecodeEmitter::emitPropertyList(ParseNode* pn, MutableHandlePlainObject objp, 
                 !propdef->as<ClassMethod>().isStatic())
             {
                 continue;
-            }
-
-            // The parser already checked for atoms representing indexes and
-            // used PNK_NUMBER instead, but also watch for ids which TI treats
-            // as indexes for simpliciation of downstream analysis.
-            jsid id = NameToId(key->pn_atom->asPropertyName());
-            if (id != IdToTypeId(id)) {
-                if (!emitTree(key))
-                    return false;
-                isIndex = true;
             }
         } else {
             if (!emitComputedPropertyName(key))
@@ -9536,8 +9748,7 @@ BytecodeEmitter::emitPropertyList(ParseNode* pn, MutableHandlePlainObject objp, 
                 MOZ_ASSERT(!IsHiddenInitOp(op));
                 MOZ_ASSERT(!objp->inDictionaryMode());
                 Rooted<jsid> id(cx, AtomToId(key->pn_atom));
-                RootedValue undefinedValue(cx, UndefinedValue());
-                if (!NativeDefineProperty(cx, objp, id, undefinedValue, nullptr, nullptr,
+                if (!NativeDefineProperty(cx, objp, id, UndefinedHandleValue, nullptr, nullptr,
                                           JSPROP_ENUMERATE))
                 {
                     return false;
@@ -9580,15 +9791,16 @@ BytecodeEmitter::emitObject(ParseNode* pn)
     if (!emitNewInit(JSProto_Object))
         return false;
 
-    /*
-     * Try to construct the shape of the object as we go, so we can emit a
-     * JSOP_NEWOBJECT with the final shape instead.
-     */
-    RootedPlainObject obj(cx);
-    // No need to do any guessing for the object kind, since we know exactly
-    // how many properties we plan to have.
+    // Try to construct the shape of the object as we go, so we can emit a
+    // JSOP_NEWOBJECT with the final shape instead.
+    // In the case of computed property names and indices, we cannot fix the
+    // shape at bytecode compile time. When the shape cannot be determined,
+    // |obj| is nulled out.
+
+    // No need to do any guessing for the object kind, since we know the upper
+    // bound of how many properties we plan to have.
     gc::AllocKind kind = gc::GetGCObjectKind(pn->pn_count);
-    obj = NewBuiltinClassInstance<PlainObject>(cx, kind, TenuredObject);
+    RootedPlainObject obj(cx, NewBuiltinClassInstance<PlainObject>(cx, kind, TenuredObject));
     if (!obj)
         return false;
 
@@ -9596,25 +9808,34 @@ BytecodeEmitter::emitObject(ParseNode* pn)
         return false;
 
     if (obj) {
-        /*
-         * The object survived and has a predictable shape: update the original
-         * bytecode.
-         */
-        ObjectBox* objbox = parser->newObjectBox(obj);
-        if (!objbox)
+        // The object survived and has a predictable shape: update the original
+        // bytecode.
+        if (!replaceNewInitWithNewObject(obj, offset))
             return false;
-
-        static_assert(JSOP_NEWINIT_LENGTH == JSOP_NEWOBJECT_LENGTH,
-                      "newinit and newobject must have equal length to edit in-place");
-
-        uint32_t index = objectList.add(objbox);
-        jsbytecode* code = this->code(offset);
-        code[0] = JSOP_NEWOBJECT;
-        code[1] = jsbytecode(index >> 24);
-        code[2] = jsbytecode(index >> 16);
-        code[3] = jsbytecode(index >> 8);
-        code[4] = jsbytecode(index);
     }
+
+    return true;
+}
+
+bool
+BytecodeEmitter::replaceNewInitWithNewObject(JSObject* obj, ptrdiff_t offset)
+{
+    ObjectBox* objbox = parser->newObjectBox(obj);
+    if (!objbox)
+        return false;
+
+    static_assert(JSOP_NEWINIT_LENGTH == JSOP_NEWOBJECT_LENGTH,
+                  "newinit and newobject must have equal length to edit in-place");
+
+    uint32_t index = objectList.add(objbox);
+    jsbytecode* code = this->code(offset);
+
+    MOZ_ASSERT(code[0] == JSOP_NEWINIT);
+    code[0] = JSOP_NEWOBJECT;
+    code[1] = jsbytecode(index >> 24);
+    code[2] = jsbytecode(index >> 16);
+    code[3] = jsbytecode(index >> 8);
+    code[4] = jsbytecode(index);
 
     return true;
 }
@@ -9677,11 +9898,11 @@ BytecodeEmitter::emitArrayLiteral(ParseNode* pn)
         }
     }
 
-    return emitArray(pn->pn_head, pn->pn_count, JSOP_NEWARRAY);
+    return emitArray(pn->pn_head, pn->pn_count);
 }
 
 bool
-BytecodeEmitter::emitArray(ParseNode* pn, uint32_t count, JSOp op)
+BytecodeEmitter::emitArray(ParseNode* pn, uint32_t count)
 {
 
     /*
@@ -9692,7 +9913,6 @@ BytecodeEmitter::emitArray(ParseNode* pn, uint32_t count, JSOp op)
      * to avoid dup'ing and popping the array as each element is added, as
      * JSOP_SETELEM/JSOP_SETPROP would do.
      */
-    MOZ_ASSERT(op == JSOP_NEWARRAY || op == JSOP_SPREADCALLARRAY);
 
     uint32_t nspread = 0;
     for (ParseNode* elt = pn; elt; elt = elt->pn_next) {
@@ -9713,7 +9933,7 @@ BytecodeEmitter::emitArray(ParseNode* pn, uint32_t count, JSOp op)
 
     // For arrays with spread, this is a very pessimistic allocation, the
     // minimum possible final size.
-    if (!emitUint32Operand(op, count - nspread))                    // ARRAY
+    if (!emitUint32Operand(JSOP_NEWARRAY, count - nspread))         // ARRAY
         return false;
 
     ParseNode* pn2 = pn;
@@ -10214,6 +10434,13 @@ BytecodeEmitter::emitClass(ParseNode* pn)
                 return false;
         }
     } else {
+        // In the case of default class constructors, emit the start and end
+        // offsets in the source buffer as source notes so that when we
+        // actually make the constructor during execution, we can give it the
+        // correct toString output.
+        if (!newSrcNote3(SRC_CLASS_SPAN, ptrdiff_t(pn->pn_pos.begin), ptrdiff_t(pn->pn_pos.end)))
+            return false;
+
         JSAtom *name = names ? names->innerBinding()->pn_atom : cx->names().empty;
         if (heritageExpression) {
             if (!emitAtomOp(name, JSOP_DERIVEDCONSTRUCTOR))
@@ -10268,7 +10495,8 @@ BytecodeEmitter::emitClass(ParseNode* pn)
 }
 
 bool
-BytecodeEmitter::emitTree(ParseNode* pn, EmitLineNumberNote emitLineNote)
+BytecodeEmitter::emitTree(ParseNode* pn, ValueUsage valueUsage /* = ValueUsage::WantValue */,
+                          EmitLineNumberNote emitLineNote /* = EMIT_LINENOTE */)
 {
     JS_CHECK_RECURSION(cx, return false);
 
@@ -10390,7 +10618,7 @@ BytecodeEmitter::emitTree(ParseNode* pn, EmitLineNumberNote emitLineNote)
         break;
 
       case PNK_COMMA:
-        if (!emitSequenceExpr(pn))
+        if (!emitSequenceExpr(pn, valueUsage))
             return false;
         break;
 
@@ -10412,7 +10640,7 @@ BytecodeEmitter::emitTree(ParseNode* pn, EmitLineNumberNote emitLineNote)
         break;
 
       case PNK_CONDITIONAL:
-        if (!emitConditionalExpression(pn->as<ConditionalExpression>()))
+        if (!emitConditionalExpression(pn->as<ConditionalExpression>(), valueUsage))
             return false;
         break;
 
@@ -10525,7 +10753,7 @@ BytecodeEmitter::emitTree(ParseNode* pn, EmitLineNumberNote emitLineNote)
       case PNK_CALL:
       case PNK_GENEXP:
       case PNK_SUPERCALL:
-        if (!emitCallOrNew(pn))
+        if (!emitCallOrNew(pn, valueUsage))
             return false;
         break;
 
@@ -10631,6 +10859,7 @@ BytecodeEmitter::emitTree(ParseNode* pn, EmitLineNumberNote emitLineNote)
       case PNK_TRUE:
       case PNK_FALSE:
       case PNK_NULL:
+      case PNK_RAW_UNDEFINED:
         if (!emit1(pn->getOp()))
             return false;
         break;
@@ -10682,28 +10911,31 @@ BytecodeEmitter::emitTree(ParseNode* pn, EmitLineNumberNote emitLineNote)
 }
 
 bool
-BytecodeEmitter::emitTreeInBranch(ParseNode* pn)
+BytecodeEmitter::emitTreeInBranch(ParseNode* pn,
+                                  ValueUsage valueUsage /* = ValueUsage::WantValue */)
 {
     // Code that may be conditionally executed always need their own TDZ
     // cache.
     TDZCheckCache tdzCache(this);
-    return emitTree(pn);
+    return emitTree(pn, valueUsage);
 }
 
 static bool
 AllocSrcNote(ExclusiveContext* cx, SrcNotesVector& notes, unsigned* index)
 {
-    // Start it off moderately large to avoid repeated resizings early on.
-    // ~99% of cases fit within 256 bytes.
-    if (notes.capacity() == 0 && !notes.reserve(256))
-        return false;
+    size_t oldLength = notes.length();
 
+    if (MOZ_UNLIKELY(oldLength + 1 > MaxSrcNotesLength)) {
+        ReportAllocationOverflow(cx);
+        return false;
+    }
+    
     if (!notes.growBy(1)) {
         ReportOutOfMemory(cx);
         return false;
     }
 
-    *index = notes.length() - 1;
+    *index = oldLength;
     return true;
 }
 
@@ -10829,6 +11061,10 @@ BytecodeEmitter::setSrcNoteOffset(unsigned index, unsigned which, ptrdiff_t offs
         /* Maybe this offset was already set to a four-byte value. */
         if (!(*sn & SN_4BYTE_OFFSET_FLAG)) {
             /* Insert three dummy bytes that will be overwritten shortly. */
+            if (MOZ_UNLIKELY(notes.length() + 3 > MaxSrcNotesLength)) {
+                ReportAllocationOverflow(cx);
+                return false;
+            }
             jssrcnote dummy = 0;
             if (!(sn = notes.insert(sn, dummy)) ||
                 !(sn = notes.insert(sn, dummy)) ||

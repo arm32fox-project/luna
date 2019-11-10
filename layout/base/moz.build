@@ -13,6 +13,9 @@ with Files('Display*'):
 with Files('FrameLayerBuilder.*'):
     BUG_COMPONENT = ('Core', 'Layout: View Rendering')
 
+with Files('LayoutConstants.*'):
+    BUG_COMPONENT = ('Core', 'Layout: View Rendering')
+
 with Files('LayerState.*'):
     BUG_COMPONENT = ('Core', 'Layout: View Rendering')
 
@@ -61,8 +64,9 @@ EXPORTS += [
     'DisplayItemScrollClip.h',
     'DisplayListClipState.h',
     'FrameLayerBuilder.h',
-    'FramePropertyTable.h',
+    'FrameProperties.h',
     'LayerState.h',
+    'LayoutConstants.h',
     'LayoutLogging.h',
     'nsArenaMemoryStats.h',
     'nsBidi.h',
@@ -126,7 +130,6 @@ UNIFIED_SOURCES += [
     'DisplayListClipState.cpp',
     'DottedCornerFinder.cpp',
     'FrameLayerBuilder.cpp',
-    'FramePropertyTable.cpp',
     'GeometryUtils.cpp',
     'LayoutLogging.cpp',
     'MaskLayerImageCache.cpp',

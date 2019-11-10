@@ -23,8 +23,6 @@
 #include "prenv.h"
 #include "nsXPCOMPrivate.h"
 
-#include "nsExceptionHandler.h"
-
 #include "nsDirectoryServiceDefs.h"
 #include "nsIFile.h"
 #include "nsPrintfCString.h"
@@ -32,7 +30,6 @@
 #include "mozilla/ClearOnShutdown.h"
 #include "mozilla/ipc/BrowserProcessSubThread.h"
 #include "mozilla/Omnijar.h"
-#include "mozilla/Telemetry.h"
 #include "ProtocolUtils.h"
 #include <sys/stat.h>
 
@@ -534,8 +531,6 @@ GeckoChildProcessHost::RunPerformAsyncLaunch(std::vector<std::string> aExtraOpts
     lock.Notify();
     CHROMIUM_LOG(ERROR) << "Failed to launch " <<
       XRE_ChildProcessTypeToString(mProcessType) << " subprocess";
-    Telemetry::Accumulate(Telemetry::SUBPROCESS_LAUNCH_FAILURE,
-      nsDependentCString(XRE_ChildProcessTypeToString(mProcessType)));
   }
   return ok;
 }
@@ -604,7 +599,7 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
   // and passing wstrings from one config to the other is unsafe.  So
   // we split the logic here.
 
-#if defined(OS_LINUX) || defined(OS_MACOSX) || defined(OS_BSD)
+#if defined(OS_LINUX) || defined(OS_MACOSX) || defined(OS_BSD) || defined(OS_SOLARIS)
   base::environment_map newEnvVars;
   ChildPrivileges privs = mPrivileges;
   if (privs == base::PRIVILEGES_DEFAULT) {
@@ -749,7 +744,7 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
   childArgv.push_back(childProcessType);
 
   base::LaunchApp(childArgv, mFileMap,
-#if defined(OS_LINUX) || defined(OS_MACOSX) || defined(OS_BSD)
+#if defined(OS_LINUX) || defined(OS_MACOSX) || defined(OS_BSD) || defined(OS_SOLARIS)
                   newEnvVars, privs,
 #endif
                   false, &process, arch);

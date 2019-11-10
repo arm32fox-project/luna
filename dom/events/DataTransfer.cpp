@@ -39,6 +39,7 @@
 #include "mozilla/dom/OSFileSystem.h"
 #include "mozilla/dom/Promise.h"
 #include "nsNetUtil.h"
+#include "nsReadableUtils.h"
 
 namespace mozilla {
 namespace dom {
@@ -57,7 +58,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(DataTransfer)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mItems)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mDragTarget)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mDragImage)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_CYCLE_COLLECTION_TRACE_WRAPPERCACHE(DataTransfer)
 
@@ -643,6 +643,13 @@ DataTransfer::PrincipalMaySetData(const nsAString& aType,
     if (aType.EqualsASCII(kFileMime) ||
         aType.EqualsASCII(kFilePromiseMime)) {
       NS_WARNING("Disallowing adding x-moz-file or x-moz-file-promize types to DataTransfer");
+      return false;
+    }
+    
+    // Disallow content from creating x-moz-place flavors, so that it cannot
+    // create fake Places smart queries exposing user data.
+    if (StringBeginsWith(aType, NS_LITERAL_STRING("text/x-moz-place"))) {
+      NS_WARNING("Disallowing adding moz-place types to DataTransfer");
       return false;
     }
   }

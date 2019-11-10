@@ -11,7 +11,8 @@
 #include <cmath>
 #include <float.h>
 
-#ifdef SOLARIS
+#ifdef XP_SOLARIS
+#include <math.h>
 #include <ieeefp.h>
 #endif
 

@@ -20,7 +20,7 @@
 #include <float.h>
 #endif
 
-#if defined(SOLARIS)
+#if defined(XP_SOLARIS)
 #include <ieeefp.h>
 #endif
 

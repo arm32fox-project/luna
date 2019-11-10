@@ -32,7 +32,6 @@ const SCRIPTS = [
   "browser/base/content/browser-addons.js",
   "browser/base/content/browser-ctrlTab.js",
   "browser/base/content/browser-customization.js",
-  "browser/base/content/browser-devedition.js",
   "browser/base/content/browser-feeds.js",
   "browser/base/content/browser-fullScreenAndPointerLock.js",
   "browser/base/content/browser-fullZoom.js",
@@ -48,8 +47,7 @@ const SCRIPTS = [
   "browser/base/content/browser-tabsintitlebar.js",
   "browser/base/content/browser-thumbnails.js",
   "browser/base/content/browser-trackingprotection.js",
-  "browser/base/content/browser-data-submission-info-bar.js",
-  "browser/base/content/browser-fxaccounts.js"
+  "browser/base/content/browser-data-submission-info-bar.js"
 ];
 
 module.exports = function(context) {

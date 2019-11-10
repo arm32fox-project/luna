@@ -210,6 +210,7 @@ const uint64_t kSixtyDaysInSeconds = 60 * 24 * 60 * 60;
 nsSiteSecurityService::nsSiteSecurityService()
   : mMaxMaxAge(kSixtyDaysInSeconds)
   , mUsePreloadList(true)
+  , mUseStsService(true)
   , mPreloadListTimeOffset(0)
 {
 }
@@ -239,6 +240,10 @@ nsSiteSecurityService::Init()
     "network.stricttransportsecurity.preloadlist", true);
   mozilla::Preferences::AddStrongObserver(this,
     "network.stricttransportsecurity.preloadlist");
+  mUseStsService = mozilla::Preferences::GetBool(
+    "network.stricttransportsecurity.enabled", true);
+  mozilla::Preferences::AddStrongObserver(this,
+    "network.stricttransportsecurity.enabled");
   mProcessPKPHeadersFromNonBuiltInRoots = mozilla::Preferences::GetBool(
     "security.cert_pinning.process_headers_from_non_builtin_roots", false);
   mozilla::Preferences::AddStrongObserver(this,
@@ -325,10 +330,16 @@ nsSiteSecurityService::SetHSTSState(uint32_t aType,
                                     uint32_t flags,
                                     SecurityPropertyState aHSTSState)
 {
-  // If max-age is zero, that's an indication to immediately remove the
-  // security state, so here's a shortcut.
-  if (!maxage) {
-    return RemoveState(aType, aSourceURI, flags);
+  // Exit early if STS not enabled
+  if (!mUseStsService) {
+    return NS_OK;
+  }
+
+  // If max-age is zero, the host is no longer considered HSTS. If the host was
+  // preloaded, we store an entry indicating that this host is not HSTS, causing
+  // the preloaded information to be ignored.
+  if (maxage == 0) {
+    return RemoveState(aType, aSourceURI, flags, true);
   }
 
   MOZ_ASSERT((aHSTSState == SecurityPropertySet ||
@@ -357,7 +368,7 @@ nsSiteSecurityService::SetHSTSState(uint32_t aType,
 
 NS_IMETHODIMP
 nsSiteSecurityService::RemoveState(uint32_t aType, nsIURI* aURI,
-                                   uint32_t aFlags)
+                                   uint32_t aFlags, bool force = false)
 {
    // Child processes are not allowed direct access to this.
    if (!XRE_IsParentProcess()) {
@@ -377,8 +388,9 @@ nsSiteSecurityService::RemoveState(uint32_t aType, nsIURI* aURI,
   mozilla::DataStorageType storageType = isPrivate
                                          ? mozilla::DataStorage_Private
                                          : mozilla::DataStorage_Persistent;
-  // If this host is in the preload list, we have to store a knockout entry.
-  if (GetPreloadListEntry(hostname.get())) {
+  // If this host is in the preload list, we have to store a knockout entry
+  // if it's explicitly forced to not be HSTS anymore
+  if (force && GetPreloadListEntry(hostname.get())) {
     SSSLOG(("SSS: storing knockout entry for %s", hostname.get()));
     SiteHSTSState siteState(0, SecurityPropertyKnockout, false);
     nsAutoCString stateString;
@@ -759,7 +771,10 @@ nsSiteSecurityService::ProcessPKPHeader(nsIURI* aSourceURI,
     return NS_ERROR_FAILURE;
   }
 
-  // if maxAge == 0 we must delete all state, for now no hole-punching
+  // If maxAge == 0, we remove dynamic HPKP state for this host. Due to
+  // architectural constraints, if this host was preloaded, any future lookups
+  // will use the preloaded state (i.e. we can't store a "this host is not HPKP"
+  // entry like we can for HSTS).
   if (maxAge == 0) {
     return RemoveState(aType, aSourceURI, aFlags);
   }
@@ -922,6 +937,13 @@ nsSiteSecurityService::IsSecureURI(uint32_t aType, nsIURI* aURI,
   nsAutoCString hostname;
   nsresult rv = GetHost(aURI, hostname);
   NS_ENSURE_SUCCESS(rv, rv);
+
+  // Exit early if STS not enabled
+  if (!mUseStsService) {
+    *aResult = false;
+    return NS_OK;
+  }
+
   /* An IP address never qualifies as a secure URI. */
   if (HostIsIPAddress(hostname.get())) {
     *aResult = false;
@@ -978,6 +1000,11 @@ nsSiteSecurityService::IsSecureHost(uint32_t aType, const char* aHost,
   *aResult = false;
   if (aCached) {
     *aCached = false;
+  }
+
+  // Exit early if checking HSTS and STS not enabled
+  if (!mUseStsService && aType == nsISiteSecurityService::HEADER_HSTS) {
+    return NS_OK;
   }
 
   /* An IP address never qualifies as a secure URI. */
@@ -1282,6 +1309,8 @@ nsSiteSecurityService::Observe(nsISupports *subject,
   if (strcmp(topic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID) == 0) {
     mUsePreloadList = mozilla::Preferences::GetBool(
       "network.stricttransportsecurity.preloadlist", true);
+    mUseStsService = mozilla::Preferences::GetBool(
+      "network.stricttransportsecurity.enabled", true);
     mPreloadListTimeOffset =
       mozilla::Preferences::GetInt("test.currentTimeOffsetSeconds", 0);
     mProcessPKPHeadersFromNonBuiltInRoots = mozilla::Preferences::GetBool(

@@ -24,7 +24,8 @@
 #include <stdio.h>
 
 #include "CaretAssociationHint.h"
-#include "FramePropertyTable.h"
+#include "FrameProperties.h"
+#include "LayoutConstants.h"
 #include "mozilla/layout/FrameChildList.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/WritingModes.h"
@@ -130,29 +131,11 @@ typedef uint32_t nsSplittableType;
 #define NS_FRAME_IS_NOT_SPLITTABLE(type)\
   (0 == ((type) & NS_FRAME_SPLITTABLE))
 
-#define NS_INTRINSIC_WIDTH_UNKNOWN nscoord_MIN
-
 //----------------------------------------------------------------------
 
 #define NS_SUBTREE_DIRTY(_frame)  \
   (((_frame)->GetStateBits() &      \
     (NS_FRAME_IS_DIRTY | NS_FRAME_HAS_DIRTY_CHILDREN)) != 0)
-
-/**
- * Constant used to indicate an unconstrained size.
- *
- * @see #Reflow()
- */
-#define NS_UNCONSTRAINEDSIZE NS_MAXSIZE
-
-#define NS_INTRINSICSIZE    NS_UNCONSTRAINEDSIZE
-#define NS_AUTOHEIGHT       NS_UNCONSTRAINEDSIZE
-// +1 is to avoid clamped huge margin values being processed as auto margins
-#define NS_AUTOMARGIN       (NS_UNCONSTRAINEDSIZE + 1)
-#define NS_AUTOOFFSET       NS_UNCONSTRAINEDSIZE
-// NOTE: there are assumptions all over that these have the same value, namely NS_UNCONSTRAINEDSIZE
-//       if any are changed to be a value other than NS_UNCONSTRAINEDSIZE
-//       at least update AdjustComputedHeight/Width and test ad nauseum
 
 // 1 million CSS pixels less than our max app unit measure.
 // For reflowing with an "infinite" available inline space per [css-sizing].
@@ -997,7 +980,7 @@ public:
 #define NS_DECLARE_FRAME_PROPERTY_WITH_DTOR_NEVER_CALLED(prop, type)  \
   static void AssertOnDestroyingProperty##prop(type*) {               \
     MOZ_ASSERT_UNREACHABLE("Frame property " #prop " should never "   \
-                           "be destroyed by the FramePropertyTable"); \
+                           "be destroyed by the FrameProperties class"); \
   }                                                                   \
   NS_DECLARE_FRAME_PROPERTY_WITH_DTOR(prop, type,                     \
                                       AssertOnDestroyingProperty##prop)
@@ -1005,8 +988,8 @@ public:
 #define NS_DECLARE_FRAME_PROPERTY_SMALL_VALUE(prop, type) \
   NS_DECLARE_FRAME_PROPERTY_WITHOUT_DTOR(prop, mozilla::SmallValueHolder<type>)
 
-  NS_DECLARE_FRAME_PROPERTY_WITHOUT_DTOR(IBSplitSibling, nsIFrame)
-  NS_DECLARE_FRAME_PROPERTY_WITHOUT_DTOR(IBSplitPrevSibling, nsIFrame)
+  NS_DECLARE_FRAME_PROPERTY_WITHOUT_DTOR(IBSplitSibling, nsContainerFrame)
+  NS_DECLARE_FRAME_PROPERTY_WITHOUT_DTOR(IBSplitPrevSibling, nsContainerFrame)
 
   NS_DECLARE_FRAME_PROPERTY_DELETABLE(NormalPositionProperty, nsPoint)
   NS_DECLARE_FRAME_PROPERTY_DELETABLE(ComputedOffsetProperty, nsMargin)
@@ -1059,7 +1042,7 @@ public:
 
   mozilla::FrameBidiData GetBidiData()
   {
-    return Properties().Get(BidiDataProperty());
+    return GetProperty(BidiDataProperty());
   }
 
   nsBidiLevel GetBaseLevel()
@@ -1073,7 +1056,7 @@ public:
   }
 
   nsTArray<nsIContent*>* GetGenConPseudos() {
-    return Properties().Get(GenConProperty());
+    return GetProperty(GenConProperty());
   }
 
   /**
@@ -1534,7 +1517,7 @@ public:
 
   bool RefusedAsyncAnimation() const
   {
-    return Properties().Get(RefusedAsyncAnimationProperty());
+    return GetProperty(RefusedAsyncAnimationProperty());
   }
 
   /**
@@ -2050,23 +2033,27 @@ public:
   /**
    * Return the horizontal components of padding, border, and margin
    * that contribute to the intrinsic width that applies to the parent.
+   * @param aPercentageBasis the percentage basis to use for padding/margin -
+   *   i.e. the Containing Block's inline-size
    */
   struct IntrinsicISizeOffsetData {
     nscoord hPadding, hBorder, hMargin;
-    float hPctPadding, hPctMargin;
 
     IntrinsicISizeOffsetData()
       : hPadding(0), hBorder(0), hMargin(0)
-      , hPctPadding(0.0f), hPctMargin(0.0f)
     {}
   };
-  virtual IntrinsicISizeOffsetData IntrinsicISizeOffsets() = 0;
+  virtual IntrinsicISizeOffsetData
+  IntrinsicISizeOffsets(nscoord aPercentageBasis = NS_UNCONSTRAINEDSIZE) = 0;
 
   /**
    * Return the bsize components of padding, border, and margin
    * that contribute to the intrinsic width that applies to the parent.
+   * @param aPercentageBasis the percentage basis to use for padding/margin -
+   *   i.e. the Containing Block's inline-size
    */
-  IntrinsicISizeOffsetData IntrinsicBSizeOffsets();
+  IntrinsicISizeOffsetData
+  IntrinsicBSizeOffsets(nscoord aPercentageBasis = NS_UNCONSTRAINEDSIZE);
 
   virtual mozilla::IntrinsicSize GetIntrinsicSize() = 0;
 
@@ -3061,9 +3048,53 @@ public:
     return mContent == aParentContent;
   }
 
-  FrameProperties Properties() const {
-    return FrameProperties(PresContext()->PropertyTable(), this);
-  }
+/**
+ * Support for reading and writing properties on the frame.
+ * These call through to the frame's FrameProperties object, if it
+ * exists, but avoid creating it if no property is ever set.
+ */
+template<typename T>
+FrameProperties::PropertyType<T>
+GetProperty(FrameProperties::Descriptor<T> aProperty,
+            bool* aFoundResult = nullptr) const
+{
+  return mProperties.Get(aProperty, aFoundResult);
+}
+
+template<typename T>
+bool HasProperty(FrameProperties::Descriptor<T> aProperty) const
+{
+    return mProperties.Has(aProperty);
+}
+
+template<typename T>
+void SetProperty(FrameProperties::Descriptor<T> aProperty,
+                 FrameProperties::PropertyType<T> aValue)
+{
+  mProperties.Set(aProperty, aValue, this);
+}
+
+template<typename T>
+FrameProperties::PropertyType<T>
+RemoveProperty(FrameProperties::Descriptor<T> aProperty,
+               bool* aFoundResult = nullptr)
+{
+  return mProperties.Remove(aProperty, aFoundResult);
+}
+
+template<typename T>
+void DeleteProperty(FrameProperties::Descriptor<T> aProperty)
+{
+  mProperties.Delete(aProperty, this);
+}
+
+void DeleteAllProperties()
+{
+  mProperties.DeleteAll(this);
+}
+
+// Reports size of the FrameProperties for this frame and its descendants
+size_t SizeOfFramePropertiesForTree(mozilla::MallocSizeOf aMallocSizeOf) const;
 
   /**
    * Return true if and only if this frame obeys visibility:hidden.
@@ -3423,7 +3454,7 @@ public:
    */
   bool FrameIsNonFirstInIBSplit() const {
     return (GetStateBits() & NS_FRAME_PART_OF_IBSPLIT) &&
-      FirstContinuation()->Properties().Get(nsIFrame::IBSplitPrevSibling());
+      FirstContinuation()->GetProperty(nsIFrame::IBSplitPrevSibling());
   }
 
   /**
@@ -3432,7 +3463,7 @@ public:
    */
   bool FrameIsNonLastInIBSplit() const {
     return (GetStateBits() & NS_FRAME_PART_OF_IBSPLIT) &&
-      FirstContinuation()->Properties().Get(nsIFrame::IBSplitSibling());
+      FirstContinuation()->GetProperty(nsIFrame::IBSplitSibling());
   }
 
   /**
@@ -3514,11 +3545,11 @@ private:
                                       DestroyPaintedPresShellList)
   
   nsTArray<nsWeakPtr>* PaintedPresShellList() {
-    nsTArray<nsWeakPtr>* list = Properties().Get(PaintedPresShellsProperty());
+    nsTArray<nsWeakPtr>* list = GetProperty(PaintedPresShellsProperty());
     
     if (!list) {
       list = new nsTArray<nsWeakPtr>();
-      Properties().Set(PaintedPresShellsProperty(), list);
+      SetProperty(PaintedPresShellsProperty(), list);
     }
     
     return list;
@@ -3534,6 +3565,11 @@ protected:
   }
 
   nsFrameState     mState;
+
+ /**
+  * List of properties attached to the frame.
+  */
+ FrameProperties  mProperties;
 
   // When there is an overflow area only slightly larger than mRect,
   // we store a set of four 1-byte deltas from the edges of mRect

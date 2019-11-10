@@ -93,16 +93,11 @@ GetObject(const MDefinition* ins)
       case MDefinition::Op_Elements:
       case MDefinition::Op_MaybeCopyElementsForWrite:
       case MDefinition::Op_MaybeToDoubleElement:
-      case MDefinition::Op_UnboxedArrayLength:
-      case MDefinition::Op_UnboxedArrayInitializedLength:
-      case MDefinition::Op_IncrementUnboxedArrayInitializedLength:
-      case MDefinition::Op_SetUnboxedArrayInitializedLength:
       case MDefinition::Op_TypedArrayLength:
       case MDefinition::Op_SetTypedObjectOffset:
       case MDefinition::Op_SetDisjointTypedElements:
       case MDefinition::Op_ArrayPopShift:
       case MDefinition::Op_ArrayPush:
-      case MDefinition::Op_ArraySlice:
       case MDefinition::Op_LoadTypedArrayElementHole:
       case MDefinition::Op_StoreTypedArrayElementHole:
       case MDefinition::Op_LoadFixedSlot:
@@ -115,8 +110,6 @@ GetObject(const MDefinition* ins)
       case MDefinition::Op_GuardObjectGroup:
       case MDefinition::Op_GuardObjectIdentity:
       case MDefinition::Op_GuardClass:
-      case MDefinition::Op_GuardUnboxedExpando:
-      case MDefinition::Op_LoadUnboxedExpando:
       case MDefinition::Op_LoadSlot:
       case MDefinition::Op_StoreSlot:
       case MDefinition::Op_InArray:
@@ -126,6 +119,7 @@ GetObject(const MDefinition* ins)
         object = ins->getOperand(0);
         break;
       case MDefinition::Op_GetPropertyCache:
+      case MDefinition::Op_CallGetProperty:
       case MDefinition::Op_LoadTypedArrayElementStatic:
       case MDefinition::Op_StoreTypedArrayElementStatic:
       case MDefinition::Op_GetDOMProperty:
@@ -148,6 +142,7 @@ GetObject(const MDefinition* ins)
       case MDefinition::Op_WasmLoadGlobalVar:
       case MDefinition::Op_WasmStoreGlobalVar:
       case MDefinition::Op_ArrayJoin:
+      case MDefinition::Op_ArraySlice:    
         return nullptr;
       default:
 #ifdef DEBUG

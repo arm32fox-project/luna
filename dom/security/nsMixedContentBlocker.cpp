@@ -35,7 +35,6 @@
 #include "nsISiteSecurityService.h"
 
 #include "mozilla/Logging.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/ipc/URIUtils.h"
 
@@ -814,17 +813,13 @@ nsMixedContentBlocker::ShouldLoad(bool aHadInsecureImageRedirect,
   //
   // We do not count requests aHadInsecureImageRedirect=true, since these are
   // just an artifact of the image caching system.
-  bool active = (classification == eMixedScript);
   if (!aHadInsecureImageRedirect) {
-    if (XRE_IsParentProcess()) {
-      AccumulateMixedContentHSTS(innerContentLocation, active);
-    } else {
+    if (!XRE_IsParentProcess()) {
       // Ask the parent process to do the same call
       mozilla::dom::ContentChild* cc = mozilla::dom::ContentChild::GetSingleton();
       if (cc) {
         mozilla::ipc::URIParams uri;
         SerializeURI(innerContentLocation, uri);
-        cc->SendAccumulateMixedContentHSTS(uri, active);
       }
     }
   }
@@ -977,50 +972,3 @@ enum MixedContentHSTSState {
   MCB_HSTS_ACTIVE_NO_HSTS    = 2,
   MCB_HSTS_ACTIVE_WITH_HSTS  = 3
 };
-
-// Record information on when HSTS would have made mixed content not mixed
-// content (regardless of whether it was actually blocked)
-void
-nsMixedContentBlocker::AccumulateMixedContentHSTS(nsIURI* aURI, bool aActive)
-{
-  // This method must only be called in the parent, because
-  // nsSiteSecurityService is only available in the parent
-  if (!XRE_IsParentProcess()) {
-    MOZ_ASSERT(false);
-    return;
-  }
-
-  bool hsts;
-  nsresult rv;
-  nsCOMPtr<nsISiteSecurityService> sss = do_GetService(NS_SSSERVICE_CONTRACTID, &rv);
-  if (NS_FAILED(rv)) {
-    return;
-  }
-  rv = sss->IsSecureURI(nsISiteSecurityService::HEADER_HSTS, aURI, 0, nullptr, &hsts);
-  if (NS_FAILED(rv)) {
-    return;
-  }
-
-  // states: would upgrade, hsts info cached
-  // active, passive
-  //
-  if (!aActive) {
-    if (!hsts) {
-      Telemetry::Accumulate(Telemetry::MIXED_CONTENT_HSTS,
-                            MCB_HSTS_PASSIVE_NO_HSTS);
-    }
-    else {
-      Telemetry::Accumulate(Telemetry::MIXED_CONTENT_HSTS,
-                            MCB_HSTS_PASSIVE_WITH_HSTS);
-    }
-  } else {
-    if (!hsts) {
-      Telemetry::Accumulate(Telemetry::MIXED_CONTENT_HSTS,
-                            MCB_HSTS_ACTIVE_NO_HSTS);
-    }
-    else {
-      Telemetry::Accumulate(Telemetry::MIXED_CONTENT_HSTS,
-                            MCB_HSTS_ACTIVE_WITH_HSTS);
-    }
-  }
-}

@@ -2947,11 +2947,11 @@ nsContentUtils::SplitQName(const nsIContent* aNamespaceResolver,
     if (*aNamespace == kNameSpaceID_Unknown)
       return NS_ERROR_FAILURE;
 
-    *aLocalName = NS_Atomize(Substring(colon + 1, end)).take();
+    *aLocalName = NS_AtomizeMainThread(Substring(colon + 1, end)).take();
   }
   else {
     *aNamespace = kNameSpaceID_None;
-    *aLocalName = NS_Atomize(aQName).take();
+    *aLocalName = NS_AtomizeMainThread(aQName).take();
   }
   NS_ENSURE_TRUE(aLocalName, NS_ERROR_OUT_OF_MEMORY);
   return NS_OK;
@@ -2976,7 +2976,8 @@ nsContentUtils::GetNodeInfoFromQName(const nsAString& aNamespaceURI,
     const char16_t* end;
     qName.EndReading(end);
 
-    nsCOMPtr<nsIAtom> prefix = NS_Atomize(Substring(qName.get(), colon));
+    nsCOMPtr<nsIAtom> prefix =
+      NS_AtomizeMainThread(Substring(qName.get(), colon));
 
     rv = aNodeInfoManager->GetNodeInfo(Substring(colon + 1, end), prefix,
                                        nsID, aNodeType, aNodeInfo);
@@ -3036,7 +3037,7 @@ nsContentUtils::SplitExpatName(const char16_t *aExpatName, nsIAtom **aPrefix,
     nameStart = (uriEnd + 1);
     if (nameEnd)  {
       const char16_t *prefixStart = nameEnd + 1;
-      *aPrefix = NS_Atomize(Substring(prefixStart, pos)).take();
+      *aPrefix = NS_AtomizeMainThread(Substring(prefixStart, pos)).take();
     }
     else {
       nameEnd = pos;
@@ -3049,7 +3050,7 @@ nsContentUtils::SplitExpatName(const char16_t *aExpatName, nsIAtom **aPrefix,
     nameEnd = pos;
     *aPrefix = nullptr;
   }
-  *aLocalName = NS_Atomize(Substring(nameStart, nameEnd)).take();
+  *aLocalName = NS_AtomizeMainThread(Substring(nameStart, nameEnd)).take();
 }
 
 // static
@@ -3887,7 +3888,8 @@ nsContentUtils::GetEventMessageAndAtom(const nsAString& aName,
   }
 
   *aEventMessage = eUnidentifiedEvent;
-  nsCOMPtr<nsIAtom> atom = NS_Atomize(NS_LITERAL_STRING("on") + aName);
+  nsCOMPtr<nsIAtom> atom =
+    NS_AtomizeMainThread(NS_LITERAL_STRING("on") + aName);
   sUserDefinedEvents->AppendObject(atom);
   mapping.mAtom = atom;
   mapping.mMessage = eUnidentifiedEvent;
@@ -3920,7 +3922,7 @@ nsContentUtils::GetEventMessageAndAtomForListener(const nsAString& aName,
     if (mapping.mMaybeSpecialSVGorSMILEvent) {
       // Try the atom version so that we should get the right message for
       // SVG/SMIL.
-      atom = NS_Atomize(NS_LITERAL_STRING("on") + aName);
+      atom = NS_AtomizeMainThread(NS_LITERAL_STRING("on") + aName);
       msg = GetEventMessage(atom);
     } else {
       atom = mapping.mAtom;
@@ -7597,6 +7599,24 @@ nsContentUtils::IsFileImage(nsIFile* aFile, nsACString& aType)
 }
 
 nsresult
+nsContentUtils::CalculateBufferSizeForImage(const uint32_t& aStride,
+                                            const IntSize& aImageSize,
+                                            const SurfaceFormat& aFormat,
+                                            size_t* aMaxBufferSize,
+                                            size_t* aUsedBufferSize)
+{
+  CheckedInt32 requiredBytes =
+    CheckedInt32(aStride) * CheckedInt32(aImageSize.height);
+  if (!requiredBytes.isValid()) {
+    return NS_ERROR_FAILURE;
+  }
+  *aMaxBufferSize = requiredBytes.value();
+  *aUsedBufferSize = *aMaxBufferSize - aStride + 
+                     (aImageSize.width * BytesPerPixel(aFormat));
+  return NS_OK;
+}
+
+nsresult
 nsContentUtils::DataTransferItemToImage(const IPCDataTransferItem& aItem,
                                         imgIContainer** aContainer)
 {
@@ -7610,6 +7630,22 @@ nsContentUtils::DataTransferItemToImage(const IPCDataTransferItem& aItem,
   }
 
   Shmem data = aItem.data().get_Shmem();
+
+  // Validate shared memory buffer size
+  size_t imageBufLen = 0;
+  size_t maxBufLen = 0;
+  nsresult rv = CalculateBufferSizeForImage(imageDetails.stride(),
+                                            size,
+                                            static_cast<SurfaceFormat>(
+                                              imageDetails.format()),
+                                            &maxBufLen,
+                                            &imageBufLen);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+  if (imageBufLen > data.Size<uint8_t>()) {
+    return NS_ERROR_FAILURE;
+  }
 
   RefPtr<DataSourceSurface> image =
       CreateDataSourceSurfaceFromData(size,
@@ -7950,19 +7986,18 @@ GetSurfaceDataImpl(mozilla::gfx::DataSourceSurface* aSurface,
     return GetSurfaceDataContext::NullValue();
   }
 
-  mozilla::gfx::IntSize size = aSurface->GetSize();
-  mozilla::CheckedInt32 requiredBytes =
-    mozilla::CheckedInt32(map.mStride) * mozilla::CheckedInt32(size.height);
-  if (!requiredBytes.isValid()) {
+  size_t bufLen = 0;
+  size_t maxBufLen = 0;
+  nsresult rv = nsContentUtils::CalculateBufferSizeForImage(map.mStride,
+                                                            aSurface->GetSize(),
+                                                            aSurface->GetFormat(),
+                                                            &maxBufLen,
+                                                            &bufLen);
+  if (NS_FAILED(rv)) {
+    // Release mapped memory
+    aSurface->Unmap();
     return GetSurfaceDataContext::NullValue();
   }
-
-  size_t maxBufLen = requiredBytes.value();
-  mozilla::gfx::SurfaceFormat format = aSurface->GetFormat();
-
-  // Surface data handling is totally nuts. This is the magic one needs to
-  // know to access the data.
-  size_t bufLen = maxBufLen - map.mStride + (size.width * BytesPerPixel(format));
 
   // nsDependentCString wants null-terminated string.
   typename GetSurfaceDataContext::ReturnType surfaceData = aContext.Allocate(maxBufLen + 1);
@@ -8443,12 +8478,9 @@ nsContentUtils::InternalContentPolicyTypeToExternalOrWorker(nsContentPolicyType 
 bool
 nsContentUtils::IsPreloadType(nsContentPolicyType aType)
 {
-  if (aType == nsIContentPolicy::TYPE_INTERNAL_SCRIPT_PRELOAD ||
-      aType == nsIContentPolicy::TYPE_INTERNAL_IMAGE_PRELOAD ||
-      aType == nsIContentPolicy::TYPE_INTERNAL_STYLESHEET_PRELOAD) {
-    return true;
-  }
-  return false;
+  return (aType == nsIContentPolicy::TYPE_INTERNAL_SCRIPT_PRELOAD ||
+          aType == nsIContentPolicy::TYPE_INTERNAL_IMAGE_PRELOAD ||
+          aType == nsIContentPolicy::TYPE_INTERNAL_STYLESHEET_PRELOAD);
 }
 
 nsresult
@@ -9786,4 +9818,20 @@ nsContentUtils::AttemptLargeAllocationLoad(nsIHttpChannel* aChannel)
   NS_ENSURE_SUCCESS(rv, false);
 
   return reloadSucceeded;
+}
+
+/* static */ bool
+nsContentUtils::IsLocalRefURL(const nsString& aString)
+{
+  // Find the first non-"C0 controls + space" character.
+  const char16_t* current = aString.get();
+  for (; *current != '\0'; current++) {
+    if (*current > 0x20) {
+      // if the first non-"C0 controls + space" character is '#', this is a
+      // local-ref URL.
+      return *current == '#';
+    }
+  }
+
+  return false;
 }

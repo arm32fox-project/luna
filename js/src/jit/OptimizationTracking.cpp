@@ -844,8 +844,6 @@ MaybeConstructorFromType(TypeSet::Type ty)
         return nullptr;
     ObjectGroup* obj = ty.group();
     TypeNewScript* newScript = obj->newScript();
-    if (!newScript && obj->maybeUnboxedLayout())
-        newScript = obj->unboxedLayout().newScript();
     return newScript ? newScript->function() : nullptr;
 }
 

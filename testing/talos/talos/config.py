@@ -123,8 +123,6 @@ DEFAULTS = dict(
         'extensions.blocklist.enabled': False,
         'extensions.blocklist.url':
             'http://127.0.0.1/extensions-dummy/blocklistURL',
-        'extensions.hotfix.url':
-            'http://127.0.0.1/extensions-dummy/hotfixURL',
         'extensions.update.enabled': False,
         'extensions.webservice.discoverURL':
             'http://127.0.0.1/extensions-dummy/discoveryURL',
@@ -153,7 +151,6 @@ DEFAULTS = dict(
         'browser.contentHandlers.types.3.uri': 'http://127.0.0.1/rss?url=%s',
         'browser.contentHandlers.types.4.uri': 'http://127.0.0.1/rss?url=%s',
         'browser.contentHandlers.types.5.uri': 'http://127.0.0.1/rss?url=%s',
-        'identity.fxaccounts.auth.uri': 'https://127.0.0.1/fxa-dummy/',
         'datareporting.healthreport.about.reportUrl':
             'http://127.0.0.1/abouthealthreport/',
         'datareporting.healthreport.documentServerURI':
@@ -176,7 +173,6 @@ DEFAULTS = dict(
         'devtools.debugger.remote-enabled': False,
         'devtools.theme': "light",
         'devtools.timeline.enabled': False,
-        'identity.fxaccounts.migrateToDevEdition': False,
         'media.libavcodec.allow-obsolete': True
     }
 )

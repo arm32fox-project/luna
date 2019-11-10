@@ -23,6 +23,7 @@
 #include "mozilla/AppProcessChecker.h"
 #include "mozilla/AutoRestore.h"
 #include "mozilla/Casting.h"
+#include "mozilla/CheckedInt.h"
 #include "mozilla/EndianUtils.h"
 #include "mozilla/ErrorNames.h"
 #include "mozilla/LazyIdleThread.h"
@@ -248,8 +249,6 @@ const char kFileManagerDirectoryNameSuffix[] = ".files";
 const char kSQLiteJournalSuffix[] = ".sqlite-journal";
 const char kSQLiteSHMSuffix[] = ".sqlite-shm";
 const char kSQLiteWALSuffix[] = ".sqlite-wal";
-
-const char kPrefIndexedDBEnabled[] = "dom.indexedDB.enabled";
 
 const char kPrefFileHandleEnabled[] = "dom.fileHandle.enabled";
 
@@ -784,29 +783,25 @@ MakeCompressedIndexDataValues(
 
     MOZ_ASSERT(!keyBuffer.IsEmpty());
 
-    // Don't let |infoLength| overflow.
-    if (NS_WARN_IF(UINT32_MAX - keyBuffer.Length() <
-                   CompressedByteCountForIndexId(info.mIndexId) +
-                   CompressedByteCountForNumber(keyBufferLength) +
-                   CompressedByteCountForNumber(sortKeyBufferLength))) {
-      IDB_REPORT_INTERNAL_ERR();
-      return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
-    }
-
-    const uint32_t infoLength =
-      CompressedByteCountForIndexId(info.mIndexId) +
+    const CheckedUint32 infoLength =
+      CheckedUint32(CompressedByteCountForIndexId(info.mIndexId)) +
       CompressedByteCountForNumber(keyBufferLength) +
       CompressedByteCountForNumber(sortKeyBufferLength) +
       keyBufferLength +
       sortKeyBufferLength;
-
-    // Don't let |blobDataLength| overflow.
-    if (NS_WARN_IF(UINT32_MAX - infoLength < blobDataLength)) {
+    // Don't let |infoLength| overflow.
+    if (NS_WARN_IF(!infoLength.isValid())) {
       IDB_REPORT_INTERNAL_ERR();
       return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
     }
 
-    blobDataLength += infoLength;
+    // Don't let |blobDataLength| overflow.
+    if (NS_WARN_IF(UINT32_MAX - infoLength.value() < blobDataLength)) {
+      IDB_REPORT_INTERNAL_ERR();
+      return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+    }
+
+    blobDataLength += infoLength.value();
   }
 
   UniqueFreePtr<uint8_t> blobData(
@@ -4134,7 +4129,6 @@ GetDatabaseFileURL(nsIFile* aDatabaseFile,
                    PersistenceType aPersistenceType,
                    const nsACString& aGroup,
                    const nsACString& aOrigin,
-                   uint32_t aTelemetryId,
                    nsIFileURL** aResult)
 {
   MOZ_ASSERT(aDatabaseFile);
@@ -4166,18 +4160,10 @@ GetDatabaseFileURL(nsIFile* aDatabaseFile,
   nsAutoCString type;
   PersistenceTypeToText(aPersistenceType, type);
 
-  nsAutoCString telemetryFilenameClause;
-  if (aTelemetryId) {
-    telemetryFilenameClause.AssignLiteral("&telemetryFilename=indexedDB-");
-    telemetryFilenameClause.AppendInt(aTelemetryId);
-    telemetryFilenameClause.AppendLiteral(".sqlite");
-  }
-
   rv = fileUrl->SetQuery(NS_LITERAL_CSTRING("persistenceType=") + type +
                          NS_LITERAL_CSTRING("&group=") + aGroup +
                          NS_LITERAL_CSTRING("&origin=") + aOrigin +
-                         NS_LITERAL_CSTRING("&cache=private") +
-                         telemetryFilenameClause);
+                         NS_LITERAL_CSTRING("&cache=private"));
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
   }
@@ -4427,7 +4413,6 @@ CreateStorageConnection(nsIFile* aDBFile,
                         PersistenceType aPersistenceType,
                         const nsACString& aGroup,
                         const nsACString& aOrigin,
-                        uint32_t aTelemetryId,
                         mozIStorageConnection** aConnection)
 {
   AssertIsOnIOThread();
@@ -4442,24 +4427,11 @@ CreateStorageConnection(nsIFile* aDBFile,
   nsresult rv;
   bool exists;
 
-  if (IndexedDatabaseManager::InLowDiskSpaceMode()) {
-    rv = aDBFile->Exists(&exists);
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-      return rv;
-    }
-
-    if (!exists) {
-      NS_WARNING("Refusing to create database because disk space is low!");
-      return NS_ERROR_DOM_INDEXEDDB_QUOTA_ERR;
-    }
-  }
-
   nsCOMPtr<nsIFileURL> dbFileUrl;
   rv = GetDatabaseFileURL(aDBFile,
                           aPersistenceType,
                           aGroup,
                           aOrigin,
-                          aTelemetryId,
                           getter_AddRefs(dbFileUrl));
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
@@ -4895,7 +4867,6 @@ GetStorageConnection(nsIFile* aDatabaseFile,
                      PersistenceType aPersistenceType,
                      const nsACString& aGroup,
                      const nsACString& aOrigin,
-                     uint32_t aTelemetryId,
                      mozIStorageConnection** aConnection)
 {
   MOZ_ASSERT(!NS_IsMainThread());
@@ -4923,7 +4894,6 @@ GetStorageConnection(nsIFile* aDatabaseFile,
                           aPersistenceType,
                           aGroup,
                           aOrigin,
-                          aTelemetryId,
                           getter_AddRefs(dbFileUrl));
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
@@ -4960,7 +4930,6 @@ GetStorageConnection(const nsAString& aDatabaseFilePath,
                      PersistenceType aPersistenceType,
                      const nsACString& aGroup,
                      const nsACString& aOrigin,
-                     uint32_t aTelemetryId,
                      mozIStorageConnection** aConnection)
 {
   MOZ_ASSERT(!NS_IsMainThread());
@@ -4979,7 +4948,6 @@ GetStorageConnection(const nsAString& aDatabaseFilePath,
                               aPersistenceType,
                               aGroup,
                               aOrigin,
-                              aTelemetryId,
                               aConnection);
 }
 
@@ -6301,7 +6269,6 @@ private:
   const nsCString mId;
   const nsString mFilePath;
   uint32_t mActiveMutableFileCount;
-  const uint32_t mTelemetryId;
   const PersistenceType mPersistenceType;
   const bool mFileHandleDisabled;
   const bool mChromeWriteAccessAllowed;
@@ -6318,7 +6285,6 @@ public:
            const Maybe<ContentParentId>& aOptionalContentParentId,
            const nsACString& aGroup,
            const nsACString& aOrigin,
-           uint32_t aTelemetryId,
            FullDatabaseMetadata* aMetadata,
            FileManager* aFileManager,
            already_AddRefed<DirectoryLock> aDirectoryLock,
@@ -6375,12 +6341,6 @@ public:
   Id() const
   {
     return mId;
-  }
-
-  uint32_t
-  TelemetryId() const
-  {
-    return mTelemetryId;
   }
 
   PersistenceType
@@ -7677,8 +7637,6 @@ class OpenDatabaseOp final
   // reference to its OpenDatabaseOp object so this is a weak pointer to avoid
   // cycles.
   VersionChangeOp* mVersionChangeOp;
-
-  uint32_t mTelemetryId;
 
 public:
   OpenDatabaseOp(Factory* aFactory,
@@ -10307,13 +10265,6 @@ typedef nsDataHashtable<nsIDHashKey, DatabaseLoggingInfo*>
 
 StaticAutoPtr<DatabaseLoggingInfoHashtable> gLoggingInfoHashtable;
 
-typedef nsDataHashtable<nsUint32HashKey, uint32_t> TelemetryIdHashtable;
-
-StaticAutoPtr<TelemetryIdHashtable> gTelemetryIdHashtable;
-
-// Protects all reads and writes to gTelemetryIdHashtable.
-StaticAutoPtr<Mutex> gTelemetryIdMutex;
-
 #ifdef DEBUG
 
 StaticRefPtr<DEBUGThreadSlower> gDEBUGThreadSlower;
@@ -10407,88 +10358,6 @@ DecreaseBusyCount()
     }
 #endif // DEBUG
   }
-}
-
-uint32_t
-TelemetryIdForFile(nsIFile* aFile)
-{
-  // May be called on any thread!
-
-  MOZ_ASSERT(aFile);
-  MOZ_ASSERT(gTelemetryIdMutex);
-
-  // The storage directory is structured like this:
-  //
-  //   <profile>/storage/<persistence>/<origin>/idb/<filename>.sqlite
-  //
-  // For the purposes of this function we're only concerned with the
-  // <persistence>, <origin>, and <filename> pieces.
-
-  nsString filename;
-  MOZ_ALWAYS_SUCCEEDS(aFile->GetLeafName(filename));
-
-  // Make sure we were given a database file.
-  NS_NAMED_LITERAL_STRING(sqliteExtension, ".sqlite");
-
-  MOZ_ASSERT(StringEndsWith(filename, sqliteExtension));
-
-  filename.Truncate(filename.Length() - sqliteExtension.Length());
-
-  // Get the "idb" directory.
-  nsCOMPtr<nsIFile> idbDirectory;
-  MOZ_ALWAYS_SUCCEEDS(aFile->GetParent(getter_AddRefs(idbDirectory)));
-
-  DebugOnly<nsString> idbLeafName;
-  MOZ_ASSERT(NS_SUCCEEDED(idbDirectory->GetLeafName(idbLeafName)));
-  MOZ_ASSERT(static_cast<nsString&>(idbLeafName).EqualsLiteral("idb"));
-
-  // Get the <origin> directory.
-  nsCOMPtr<nsIFile> originDirectory;
-  MOZ_ALWAYS_SUCCEEDS(
-    idbDirectory->GetParent(getter_AddRefs(originDirectory)));
-
-  nsString origin;
-  MOZ_ALWAYS_SUCCEEDS(originDirectory->GetLeafName(origin));
-
-  // Any databases in these directories are owned by the application and should
-  // not have their filenames masked. Hopefully they also appear in the
-  // Telemetry.cpp whitelist.
-  if (origin.EqualsLiteral("chrome") ||
-      origin.EqualsLiteral("moz-safe-about+home")) {
-    return 0;
-  }
-
-  // Get the <persistence> directory.
-  nsCOMPtr<nsIFile> persistenceDirectory;
-  MOZ_ALWAYS_SUCCEEDS(
-    originDirectory->GetParent(getter_AddRefs(persistenceDirectory)));
-
-  nsString persistence;
-  MOZ_ALWAYS_SUCCEEDS(persistenceDirectory->GetLeafName(persistence));
-
-  NS_NAMED_LITERAL_STRING(separator, "*");
-
-  uint32_t hashValue = HashString(persistence + separator +
-                                  origin + separator +
-                                  filename);
-
-  MutexAutoLock lock(*gTelemetryIdMutex);
-
-  if (!gTelemetryIdHashtable) {
-    gTelemetryIdHashtable = new TelemetryIdHashtable();
-  }
-
-  uint32_t id;
-  if (!gTelemetryIdHashtable->Get(hashValue, &id)) {
-    static uint32_t sNextId = 1;
-
-    // We're locked, no need for atomics.
-    id = sNextId++;
-
-    gTelemetryIdHashtable->Put(hashValue, id);
-  }
-
-  return id;
 }
 
 } // namespace
@@ -12270,7 +12139,6 @@ ConnectionPool::GetOrCreateConnection(const Database* aDatabase,
                            aDatabase->Type(),
                            aDatabase->Group(),
                            aDatabase->Origin(),
-                           aDatabase->TelemetryId(),
                            getter_AddRefs(storageConnection));
     if (NS_WARN_IF(NS_FAILED(rv))) {
       return rv;
@@ -14139,7 +14007,6 @@ Database::Database(Factory* aFactory,
                    const Maybe<ContentParentId>& aOptionalContentParentId,
                    const nsACString& aGroup,
                    const nsACString& aOrigin,
-                   uint32_t aTelemetryId,
                    FullDatabaseMetadata* aMetadata,
                    FileManager* aFileManager,
                    already_AddRefed<DirectoryLock> aDirectoryLock,
@@ -14156,7 +14023,6 @@ Database::Database(Factory* aFactory,
   , mId(aMetadata->mDatabaseId)
   , mFilePath(aMetadata->mFilePath)
   , mActiveMutableFileCount(0)
-  , mTelemetryId(aTelemetryId)
   , mPersistenceType(aMetadata->mCommonMetadata.persistenceType())
   , mFileHandleDisabled(aFileHandleDisabled)
   , mChromeWriteAccessAllowed(aChromeWriteAccessAllowed)
@@ -17396,8 +17262,7 @@ FileManager::InitDirectory(nsIFile* aDirectory,
                            nsIFile* aDatabaseFile,
                            PersistenceType aPersistenceType,
                            const nsACString& aGroup,
-                           const nsACString& aOrigin,
-                           uint32_t aTelemetryId)
+                           const nsACString& aOrigin)
 {
   AssertIsOnIOThread();
   MOZ_ASSERT(aDirectory);
@@ -17469,7 +17334,6 @@ FileManager::InitDirectory(nsIFile* aDirectory,
                                    aPersistenceType,
                                    aGroup,
                                    aOrigin,
-                                   aTelemetryId,
                                    getter_AddRefs(connection));
       if (NS_WARN_IF(NS_FAILED(rv))) {
         return rv;
@@ -17653,11 +17517,6 @@ QuotaClient::QuotaClient()
 {
   AssertIsOnBackgroundThread();
   MOZ_ASSERT(!sInstance, "We expect this to be a singleton!");
-  MOZ_ASSERT(!gTelemetryIdMutex);
-
-  // Always create this so that later access to gTelemetryIdHashtable can be
-  // properly synchronized.
-  gTelemetryIdMutex = new Mutex("IndexedDB gTelemetryIdMutex");
 
   sInstance = this;
 }
@@ -17666,13 +17525,7 @@ QuotaClient::~QuotaClient()
 {
   AssertIsOnBackgroundThread();
   MOZ_ASSERT(sInstance == this, "We expect this to be a singleton!");
-  MOZ_ASSERT(gTelemetryIdMutex);
   MOZ_ASSERT(!mMaintenanceThreadPool);
-
-  // No one else should be able to touch gTelemetryIdHashtable now that the
-  // QuotaClient has gone away.
-  gTelemetryIdHashtable = nullptr;
-  gTelemetryIdMutex = nullptr;
 
   sInstance = nullptr;
 }
@@ -17947,8 +17800,7 @@ QuotaClient::InitOrigin(PersistenceType aPersistenceType,
                                     initInfo.mDatabaseFile,
                                     aPersistenceType,
                                     aGroup,
-                                    aOrigin,
-                                    TelemetryIdForFile(initInfo.mDatabaseFile));
+                                    aOrigin);
     if (NS_WARN_IF(NS_FAILED(rv))) {
       return rv;
     }
@@ -19041,7 +18893,6 @@ DatabaseMaintenance::PerformMaintenanceOnDatabase()
                                      mPersistenceType,
                                      mGroup,
                                      mOrigin,
-                                     TelemetryIdForFile(databaseFile),
                                      getter_AddRefs(connection));
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return;
@@ -19237,23 +19088,6 @@ DatabaseMaintenance::DetermineMaintenanceAction(
   // track the values needed for the heuristics below.
   if (schemaVersion < MakeSchemaVersion(18, 0)) {
     *aMaintenanceAction = MaintenanceAction::Nothing;
-    return NS_OK;
-  }
-
-  bool lowDiskSpace = IndexedDatabaseManager::InLowDiskSpaceMode();
-
-  if (QuotaManager::IsRunningXPCShellTests()) {
-    // If we're running XPCShell then we want to test both the low disk space
-    // and normal disk space code paths so pick semi-randomly based on the
-    // current time.
-    lowDiskSpace = ((PR_Now() / PR_USEC_PER_MSEC) % 2) == 0;
-  }
-
-  // If we're low on disk space then the best we can hope for is that an
-  // incremental vacuum might free some space. That is a journaled operation so
-  // it may not be possible even then.
-  if (lowDiskSpace) {
-    *aMaintenanceAction = MaintenanceAction::IncrementalVacuum;
     return NS_OK;
   }
 
@@ -21172,16 +21006,6 @@ FactoryOp::CheckPermission(ContentParent* aContentParent,
       return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
     }
 
-    if (NS_WARN_IF(!Preferences::GetBool(kPrefIndexedDBEnabled, false))) {
-      if (aContentParent) {
-        // The DOM in the other process should have kept us from receiving any
-        // indexedDB messages so assume that the child is misbehaving.
-        aContentParent->KillHard("IndexedDB CheckPermission 1");
-      }
-
-      return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
-    }
-
     const ContentPrincipalInfo& contentPrincipalInfo =
       principalInfo.get_ContentPrincipalInfo();
     if (contentPrincipalInfo.attrs().mPrivateBrowsingId != 0) {
@@ -21668,7 +21492,6 @@ OpenDatabaseOp::OpenDatabaseOp(Factory* aFactory,
   , mMetadata(new FullDatabaseMetadata(aParams.metadata()))
   , mRequestedVersion(aParams.metadata().version())
   , mVersionChangeOp(nullptr)
-  , mTelemetryId(0)
 {
   if (mContentParent) {
     // This is a little scary but it looks safe to call this off the main thread
@@ -21777,8 +21600,6 @@ OpenDatabaseOp::DoDatabaseWork()
     return rv;
   }
 
-  mTelemetryId = TelemetryIdForFile(dbFile);
-
 #ifdef DEBUG
   nsString databaseFilePath;
   rv = dbFile->GetPath(databaseFilePath);
@@ -21809,7 +21630,6 @@ OpenDatabaseOp::DoDatabaseWork()
                                persistenceType,
                                mGroup,
                                mOrigin,
-                               mTelemetryId,
                                getter_AddRefs(connection));
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
@@ -22692,7 +22512,6 @@ OpenDatabaseOp::EnsureDatabaseActor()
                            mOptionalContentParentId,
                            mGroup,
                            mOrigin,
-                           mTelemetryId,
                            mMetadata,
                            mFileManager,
                            mDirectoryLock.forget(),
@@ -23869,32 +23688,38 @@ TransactionDatabaseOperationBase::SendPreprocessInfoOrResults(
   MOZ_ASSERT(mTransaction);
 
   if (NS_WARN_IF(IsActorDestroyed())) {
-    // Don't send any notifications if the actor was destroyed already.
+    // Normally we wouldn't need to send any notifications if the actor was
+    // already destroyed, but this can be a VersionChangeOp which needs to
+    // notify its parent operation (OpenDatabaseOp) about the failure.
+    // So SendFailureResult needs to be called even when the actor was
+    // destroyed.  Normal operations redundantly check if the actor was
+    // destroyed in SendSuccessResult and SendFailureResult, therefore it's
+    // ok to call it in all cases here.
     if (NS_SUCCEEDED(mResultCode)) {
       IDB_REPORT_INTERNAL_ERR();
       mResultCode = NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
     }
-  } else {
-    if (mTransaction->IsInvalidated() || mTransaction->IsAborted()) {
-      // Aborted transactions always see their requests fail with ABORT_ERR,
-      // even if the request succeeded or failed with another error.
-      mResultCode = NS_ERROR_DOM_INDEXEDDB_ABORT_ERR;
-    } else if (NS_SUCCEEDED(mResultCode)) {
-      if (aSendPreprocessInfo) {
-        // This should not release the IPDL reference.
-        mResultCode = SendPreprocessInfo();
-      } else {
-        // This may release the IPDL reference.
-        mResultCode = SendSuccessResult();
-      }
+  } else if (mTransaction->IsInvalidated() || mTransaction->IsAborted()) {
+    // Aborted transactions always see their requests fail with ABORT_ERR,
+    // even if the request succeeded or failed with another error.
+    mResultCode = NS_ERROR_DOM_INDEXEDDB_ABORT_ERR;
+  }
+  
+  if (NS_SUCCEEDED(mResultCode)) {
+    if (aSendPreprocessInfo) {
+      // This should not release the IPDL reference.
+      mResultCode = SendPreprocessInfo();
+    } else {
+      // This may release the IPDL reference.
+      mResultCode = SendSuccessResult();
     }
+  }
 
-    if (NS_FAILED(mResultCode)) {
-      // This should definitely release the IPDL reference.
-      if (!SendFailureResult(mResultCode)) {
-        // Abort the transaction.
-        mTransaction->Abort(mResultCode, /* aForce */ false);
-      }
+  if (NS_FAILED(mResultCode)) {
+    // This should definitely release the IPDL reference.
+    if (!SendFailureResult(mResultCode)) {
+      // Abort the transaction.
+      mTransaction->Abort(mResultCode, /* aForce */ false);
     }
   }
 
@@ -24379,11 +24204,6 @@ CreateFileOp::DoDatabaseWork()
                  "CreateFileOp::DoDatabaseWork",
                  js::ProfileEntry::Category::STORAGE);
 
-  if (NS_WARN_IF(IndexedDatabaseManager::InLowDiskSpaceMode())) {
-    NS_WARNING("Refusing to create file because disk space is low!");
-    return NS_ERROR_DOM_INDEXEDDB_QUOTA_ERR;
-  }
-
   if (NS_WARN_IF(QuotaManager::IsShuttingDown()) || !OperationMayProceed()) {
     IDB_REPORT_INTERNAL_ERR();
     return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
@@ -24523,10 +24343,6 @@ CreateObjectStoreOp::DoDatabaseWork(DatabaseConnection* aConnection)
   PROFILER_LABEL("IndexedDB",
                  "CreateObjectStoreOp::DoDatabaseWork",
                  js::ProfileEntry::Category::STORAGE);
-
-  if (NS_WARN_IF(IndexedDatabaseManager::InLowDiskSpaceMode())) {
-    return NS_ERROR_DOM_INDEXEDDB_QUOTA_ERR;
-  }
 
 #ifdef DEBUG
   {
@@ -24851,10 +24667,6 @@ RenameObjectStoreOp::DoDatabaseWork(DatabaseConnection* aConnection)
                  "RenameObjectStoreOp::DoDatabaseWork",
                  js::ProfileEntry::Category::STORAGE);
 
-  if (NS_WARN_IF(IndexedDatabaseManager::InLowDiskSpaceMode())) {
-    return NS_ERROR_DOM_INDEXEDDB_QUOTA_ERR;
-  }
-
 #ifdef DEBUG
   {
     // Make sure that we're not renaming an object store with the same name as
@@ -24944,7 +24756,6 @@ CreateIndexOp::InsertDataFromObjectStore(DatabaseConnection* aConnection)
 {
   MOZ_ASSERT(aConnection);
   aConnection->AssertIsOnConnectionThread();
-  MOZ_ASSERT(!IndexedDatabaseManager::InLowDiskSpaceMode());
   MOZ_ASSERT(mMaybeUniqueIndexTable);
 
   PROFILER_LABEL("IndexedDB",
@@ -24995,7 +24806,6 @@ CreateIndexOp::InsertDataFromObjectStoreInternal(
 {
   MOZ_ASSERT(aConnection);
   aConnection->AssertIsOnConnectionThread();
-  MOZ_ASSERT(!IndexedDatabaseManager::InLowDiskSpaceMode());
   MOZ_ASSERT(mMaybeUniqueIndexTable);
 
   DebugOnly<void*> storageConnection = aConnection->GetStorageConnection();
@@ -25071,10 +24881,6 @@ CreateIndexOp::DoDatabaseWork(DatabaseConnection* aConnection)
   PROFILER_LABEL("IndexedDB",
                  "CreateIndexOp::DoDatabaseWork",
                  js::ProfileEntry::Category::STORAGE);
-
-  if (NS_WARN_IF(IndexedDatabaseManager::InLowDiskSpaceMode())) {
-    return NS_ERROR_DOM_INDEXEDDB_QUOTA_ERR;
-  }
 
 #ifdef DEBUG
   {
@@ -25952,10 +25758,6 @@ RenameIndexOp::DoDatabaseWork(DatabaseConnection* aConnection)
                  "RenameIndexOp::DoDatabaseWork",
                  js::ProfileEntry::Category::STORAGE);
 
-  if (NS_WARN_IF(IndexedDatabaseManager::InLowDiskSpaceMode())) {
-    return NS_ERROR_DOM_INDEXEDDB_QUOTA_ERR;
-  }
-
 #ifdef DEBUG
   {
     // Make sure that we're not renaming an index with the same name as another
@@ -26439,10 +26241,6 @@ ObjectStoreAddOrPutRequestOp::DoDatabaseWork(DatabaseConnection* aConnection)
   PROFILER_LABEL("IndexedDB",
                  "ObjectStoreAddOrPutRequestOp::DoDatabaseWork",
                  js::ProfileEntry::Category::STORAGE);
-
-  if (NS_WARN_IF(IndexedDatabaseManager::InLowDiskSpaceMode())) {
-    return NS_ERROR_DOM_INDEXEDDB_QUOTA_ERR;
-  }
 
   DatabaseConnection::AutoSavepoint autoSave;
   nsresult rv = autoSave.Start(Transaction());

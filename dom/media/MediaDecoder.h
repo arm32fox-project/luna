@@ -440,16 +440,10 @@ private:
 
   void SetCDMProxy(CDMProxy* aProxy);
 
-  void EnsureTelemetryReported();
-
   static bool IsOggEnabled();
   static bool IsOpusEnabled();
   static bool IsWaveEnabled();
   static bool IsWebMEnabled();
-
-#ifdef MOZ_ANDROID_OMX
-  static bool IsAndroidMediaPluginEnabled();
-#endif
 
 #ifdef MOZ_WMF
   static bool IsWMFEnabled();
@@ -856,8 +850,6 @@ private:
   // download has ended. Called on the main thread only. aStatus is
   // the result from OnStopRequest.
   void NotifyDownloadEnded(nsresult aStatus);
-
-  bool mTelemetryReported;
 };
 
 } // namespace mozilla

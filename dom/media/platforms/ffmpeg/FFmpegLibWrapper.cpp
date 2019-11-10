@@ -7,6 +7,7 @@
 #include "MediaPrefs.h"
 #include "mozilla/PodOperations.h"
 #include "mozilla/Types.h"
+#include "PlatformDecoderModule.h"
 #include "prlink.h"
 
 #define AV_LOG_DEBUG    48
@@ -144,6 +145,8 @@ FFmpegLibWrapper::Link()
   AV_FUNC(avcodec_alloc_frame, (AV_FUNC_53 | AV_FUNC_54))
   AV_FUNC(avcodec_get_frame_defaults, (AV_FUNC_53 | AV_FUNC_54))
   AV_FUNC(avcodec_free_frame, AV_FUNC_54)
+  AV_FUNC(avcodec_send_packet, AV_FUNC_58)
+  AV_FUNC(avcodec_receive_frame, AV_FUNC_58)
   AV_FUNC(av_log_set_level, AV_FUNC_AVUTIL_ALL)
   AV_FUNC(av_malloc, AV_FUNC_AVUTIL_ALL)
   AV_FUNC(av_freep, AV_FUNC_AVUTIL_ALL)

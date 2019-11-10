@@ -75,21 +75,26 @@ GetUpdateLog()
 #endif
 
 static nsresult
-GetCurrentWorkingDir(char *buf, size_t size)
+GetCurrentWorkingDir(nsACString& aOutPath)
 {
   // Cannot use NS_GetSpecialDirectory because XPCOM is not yet initialized.
-  // This code is duplicated from xpcom/io/SpecialSystemDirectory.cpp:
-
+  
+  // Just in case junk has been passed in.
+  aOutPath.Truncate();
+  
 #if defined(XP_WIN)
   wchar_t wpath[MAX_PATH];
-  if (!_wgetcwd(wpath, size))
+  if (!_wgetcwd(wpath, ArrayLength(wpath)))
     return NS_ERROR_FAILURE;
-  NS_ConvertUTF16toUTF8 path(wpath);
-  strncpy(buf, path.get(), size);
+  CopyUTF16toUTF8(nsDependentString(wpath), aOutPath);
 #else
-  if(!getcwd(buf, size))
+  char path[MAXPATHLEN];
+  if (!getcwd(path, ArrayLength(path))) {
     return NS_ERROR_FAILURE;
+  }
+  aOutPath = path;
 #endif
+
   return NS_OK;
 }
 
@@ -212,10 +217,8 @@ GetStatusFileContents(nsIFile *statusFile, char (&buf)[Size])
 typedef enum {
   eNoUpdateAction,
   ePendingUpdate,
-  ePendingService,
   ePendingElevate,
   eAppliedUpdate,
-  eAppliedService,
 } UpdateStatus;
 
 /**
@@ -233,21 +236,13 @@ GetUpdateStatus(nsIFile* dir, nsCOMPtr<nsIFile> &statusFile)
     char buf[32];
     if (GetStatusFileContents(statusFile, buf)) {
       const char kPending[] = "pending";
-      const char kPendingService[] = "pending-service";
       const char kPendingElevate[] = "pending-elevate";
       const char kApplied[] = "applied";
-      const char kAppliedService[] = "applied-service";
       if (!strncmp(buf, kPendingElevate, sizeof(kPendingElevate) - 1)) {
         return ePendingElevate;
       }
-      if (!strncmp(buf, kPendingService, sizeof(kPendingService) - 1)) {
-        return ePendingService;
-      }
       if (!strncmp(buf, kPending, sizeof(kPending) - 1)) {
         return ePendingUpdate;
-      }
-      if (!strncmp(buf, kAppliedService, sizeof(kAppliedService) - 1)) {
-        return eAppliedService;
       }
       if (!strncmp(buf, kApplied, sizeof(kApplied) - 1)) {
         return eAppliedUpdate;
@@ -545,8 +540,8 @@ SwitchToUpdatedApp(nsIFile *greDir, nsIFile *updateDir,
     return;
 
   // Get the current working directory.
-  char workingDirPath[MAXPATHLEN];
-  rv = GetCurrentWorkingDir(workingDirPath, sizeof(workingDirPath));
+  nsAutoCString workingDirPath;
+  rv = GetCurrentWorkingDir(workingDirPath);
   if (NS_FAILED(rv))
     return;
 
@@ -575,7 +570,7 @@ SwitchToUpdatedApp(nsIFile *greDir, nsIFile *updateDir,
   argv[3] = (char*) applyToDir.get();
   argv[4] = (char*) pid.get();
   if (appArgc) {
-    argv[5] = workingDirPath;
+    argv[5] = (char*) workingDirPath.get();
     argv[6] = (char*) appFilePath.get();
     for (int i = 1; i < appArgc; ++i)
       argv[6 + i] = appArgv[i];
@@ -753,16 +748,13 @@ ApplyUpdate(nsIFile *greDir, nsIFile *updateDir, nsIFile *statusFile,
   }
 
   // Get the current working directory.
-  char workingDirPath[MAXPATHLEN];
-  rv = GetCurrentWorkingDir(workingDirPath, sizeof(workingDirPath));
+  nsAutoCString workingDirPath;
+  rv = GetCurrentWorkingDir(workingDirPath);
   if (NS_FAILED(rv))
     return;
 
   // We used to write out "Applying" to the update.status file here.
   // Instead we do this from within the updater application now.
-  // This is so that we don't overwrite the status of pending-service
-  // in the Windows case.  This change was made for all platforms so
-  // that it stays consistent across all OS.
 
   // On platforms where we are not calling execv, we may need to make the
   // updater executable wait for the calling process to exit.  Otherwise, the
@@ -799,7 +791,7 @@ ApplyUpdate(nsIFile *greDir, nsIFile *updateDir, nsIFile *statusFile,
   argv[3] = (char*) applyToDir.get();
   argv[4] = (char*) pid.get();
   if (restart && appArgc) {
-    argv[5] = workingDirPath;
+    argv[5] = (char*) workingDirPath.get();
     argv[6] = (char*) appFilePath.get();
     for (int i = 1; i < appArgc; ++i)
       argv[6 + i] = appArgv[i];
@@ -969,17 +961,15 @@ ProcessUpdates(nsIFile *greDir, nsIFile *appDir, nsIFile *updRootDir,
       }
       break;
     }
-    // Intentional fallthrough to ePendingUpdate and ePendingService.
+    // Intentional fallthrough to ePendingUpdate.
     MOZ_FALLTHROUGH;
   }
-  case ePendingUpdate:
-  case ePendingService: {
+  case ePendingUpdate: {
     ApplyUpdate(greDir, updatesDir, statusFile, appDir, argc, argv, restart,
                 isOSUpdate, osApplyToDir, pid);
     break;
   }
   case eAppliedUpdate:
-  case eAppliedService:
     // An update was staged and needs to be switched so the updated application
     // is used.
     SwitchToUpdatedApp(greDir, updatesDir, appDir, argc, argv);

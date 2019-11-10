@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2007 Henri Sivonen
  * Copyright (c) 2008-2015 Mozilla Foundation
+ * Copyright (c) 2019 Moonchild Productions
  *
  * Permission is hereby granted, free of charge, to any person obtaining a 
  * copy of this software and associated documentation files (the "Software"), 
@@ -21,17 +22,12 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-/*
- * THIS IS A GENERATED FILE. PLEASE DO NOT EDIT.
- * Please edit MetaScanner.java instead and regenerate.
- */
-
 #ifndef nsHtml5MetaScanner_h
 #define nsHtml5MetaScanner_h
 
 #include "nsIAtom.h"
 #include "nsHtml5AtomTable.h"
-#include "nsString.h"
+#include "nsHtml5String.h"
 #include "nsNameSpaceManager.h"
 #include "nsIContent.h"
 #include "nsTraceRefcnt.h"
@@ -76,8 +72,8 @@ class nsHtml5MetaScanner
   private:
     int32_t strBufLen;
     autoJArray<char16_t,int32_t> strBuf;
-    nsString* content;
-    nsString* charset;
+    nsHtml5String content;
+    nsHtml5String charset;
     int32_t httpEquivState;
     nsHtml5TreeBuilder* treeBuilder;
   public:
@@ -100,7 +96,7 @@ class nsHtml5MetaScanner
     bool handleTag();
     bool handleTagInner();
   protected:
-    bool tryCharset(nsString* encoding);
+    bool tryCharset(nsHtml5String encoding);
   public:
     static void initializeStatics();
     static void releaseStatics();

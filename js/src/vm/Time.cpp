@@ -11,9 +11,10 @@
 #include "mozilla/DebugOnly.h"
 #include "mozilla/MathAlgorithms.h"
 
-#ifdef SOLARIS
+#ifdef XP_SOLARIS
 #define _REENTRANT 1
 #endif
+
 #include <string.h>
 #include <time.h>
 
@@ -33,7 +34,7 @@
 
 #ifdef XP_UNIX
 
-#ifdef _SVID_GETTOD   /* Defined only on Solaris, see Solaris <sys/types.h> */
+#ifdef _SVID_GETTOD /* Defined only on Solaris, see Solaris <sys/types.h> */
 extern int gettimeofday(struct timeval* tv);
 #endif
 
@@ -49,11 +50,11 @@ PRMJ_Now()
 {
     struct timeval tv;
 
-#ifdef _SVID_GETTOD   /* Defined only on Solaris, see Solaris <sys/types.h> */
+#ifdef _SVID_GETTOD /* Defined only on Solaris, see Solaris <sys/types.h> */
     gettimeofday(&tv);
 #else
     gettimeofday(&tv, 0);
-#endif /* _SVID_GETTOD */
+#endif /* _SVID_GETTOD */    
 
     return int64_t(tv.tv_sec) * PRMJ_USEC_PER_SEC + int64_t(tv.tv_usec);
 }

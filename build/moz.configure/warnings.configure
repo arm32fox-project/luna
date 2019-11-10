@@ -101,10 +101,21 @@ check_and_add_gcc_warning('-Wno-error=coverage-mismatch', when='MOZ_PGO')
 # false positives during PGO
 check_and_add_gcc_warning('-Wno-error=free-nonheap-object', when='MOZ_PGO')
 
+# Would be a pain to fix all occurrences, for very little gain
+check_and_add_gcc_warning('-Wno-error=multistatement-macros')
+
 # We use mix of both POSIX and Win32 printf format across the tree, so format
 # warnings are useless on mingw.
 check_and_add_gcc_warning('-Wno-format',
                           when=depends(target)(lambda t: t.kernel == 'WINNT'))
+
+# Disable a warning with GCC 7+.
+# We are far from using C++17 and the impact of the warning will be
+# limited to a potential public ABI.
+# Currently only affecting js/
+check_and_add_gcc_warning('-Wno-noexcept-type', cxx_compiler,
+                          when=depends(build_project)
+                          (lambda build_project: build_project == 'js'))
 
 # Please keep these last in this file
 add_old_configure_assignment('_WARNINGS_CFLAGS', warnings_cflags)

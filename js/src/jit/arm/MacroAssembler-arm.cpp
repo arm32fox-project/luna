@@ -3462,8 +3462,8 @@ MacroAssemblerARMCompat::storePayload(const Value& val, const Address& dest)
     ScratchRegisterScope scratch(asMasm());
     SecondScratchRegisterScope scratch2(asMasm());
 
-    if (val.isMarkable())
-        ma_mov(ImmGCPtr(val.toMarkablePointer()), scratch);
+    if (val.isGCThing())
+        ma_mov(ImmGCPtr(val.toGCThing()), scratch);
     else
         ma_mov(Imm32(val.toNunboxPayload()), scratch);
     ma_str(scratch, ToPayload(dest), scratch2);
@@ -5012,7 +5012,10 @@ void
 MacroAssembler::patchCall(uint32_t callerOffset, uint32_t calleeOffset)
 {
     BufferOffset inst(callerOffset - 4);
-    as_bl(BufferOffset(calleeOffset).diffB<BOffImm>(inst), Always, inst);
+    BOffImm off = BufferOffset(calleeOffset).diffB<BOffImm>(inst);
+    MOZ_RELEASE_ASSERT(!off.isInvalid(),
+                       "Failed to insert necessary far jump islands");
+    as_bl(off, Always, inst);
 }
 
 CodeOffset

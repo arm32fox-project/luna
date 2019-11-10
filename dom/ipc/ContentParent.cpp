@@ -84,7 +84,6 @@
 #include "mozilla/ScopeExit.h"
 #include "mozilla/Services.h"
 #include "mozilla/StaticPtr.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/WebBrowserPersistDocumentParent.h"
 #include "mozilla/Unused.h"
 #include "nsAnonymousTemporaryFile.h"
@@ -229,11 +228,6 @@
 #include "Benchmark.h"
 
 static NS_DEFINE_CID(kCClipboardCID, NS_CLIPBOARD_CID);
-
-#if defined(XP_WIN)
-// e10s forced enable pref, defined in nsAppRunner.cpp
-extern const char* kForceEnableE10sPref;
-#endif
 
 using base::ChildPrivileges;
 using base::KillProcess;
@@ -1276,12 +1270,6 @@ ContentParent::Init()
   if (nsIPresShell::IsAccessibilityActive()) {
 #if !defined(XP_WIN)
       Unused << SendActivateA11y(0);
-#else
-    // On Windows we currently only enable a11y in the content process
-    // for testing purposes.
-    if (Preferences::GetBool(kForceEnableE10sPref, false)) {
-      Unused << SendActivateA11y(a11y::AccessibleWrap::GetContentProcessIdFor(ChildID()));
-    }
 #endif
   }
 #endif
@@ -1718,9 +1706,6 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
     props->SetPropertyAsUint64(NS_LITERAL_STRING("childID"), mChildID);
 
     if (AbnormalShutdown == why) {
-      Telemetry::Accumulate(Telemetry::SUBPROCESS_ABNORMAL_ABORT,
-                            NS_LITERAL_CSTRING("content"), 1);
-
       props->SetPropertyAsBool(NS_LITERAL_STRING("abnormal"), true);
     }
     nsAutoString cpId;
@@ -2076,21 +2061,18 @@ ContentParent::InitInternal(ProcessPriority aInitialPriority,
 
       Endpoint<PCompositorBridgeChild> compositor;
       Endpoint<PImageBridgeChild> imageBridge;
-      Endpoint<PVRManagerChild> vrBridge;
       Endpoint<PVideoDecoderManagerChild> videoManager;
 
       DebugOnly<bool> opened = gpm->CreateContentBridges(
         OtherPid(),
         &compositor,
         &imageBridge,
-        &vrBridge,
         &videoManager);
       MOZ_ASSERT(opened);
 
       Unused << SendInitRendering(
         Move(compositor),
         Move(imageBridge),
-        Move(vrBridge),
         Move(videoManager));
 
       gpm->AddListener(this);
@@ -2204,21 +2186,18 @@ ContentParent::OnCompositorUnexpectedShutdown()
 
   Endpoint<PCompositorBridgeChild> compositor;
   Endpoint<PImageBridgeChild> imageBridge;
-  Endpoint<PVRManagerChild> vrBridge;
   Endpoint<PVideoDecoderManagerChild> videoManager;
 
   DebugOnly<bool> opened = gpm->CreateContentBridges(
     OtherPid(),
     &compositor,
     &imageBridge,
-    &vrBridge,
     &videoManager);
   MOZ_ASSERT(opened);
 
   Unused << SendReinitRendering(
     Move(compositor),
     Move(imageBridge),
-    Move(vrBridge),
     Move(videoManager));
 }
 
@@ -2583,12 +2562,6 @@ ContentParent::Observe(nsISupports* aSubject,
       // accessibility gets initiated in chrome process.
 #if !defined(XP_WIN)
       Unused << SendActivateA11y(0);
-#else
-      // On Windows we currently only enable a11y in the content process
-      // for testing purposes.
-      if (Preferences::GetBool(kForceEnableE10sPref, false)) {
-        Unused << SendActivateA11y(a11y::AccessibleWrap::GetContentProcessIdFor(ChildID()));
-      }
 #endif
     } else {
       // If possible, shut down accessibility in content process when
@@ -3370,17 +3343,6 @@ ContentParent::RecvIsSecureURI(const uint32_t& type,
   }
   nsresult rv = sss->IsSecureURI(type, ourURI, flags, nullptr, isSecureURI);
   return NS_SUCCEEDED(rv);
-}
-
-bool
-ContentParent::RecvAccumulateMixedContentHSTS(const URIParams& aURI, const bool& aActive)
-{
-  nsCOMPtr<nsIURI> ourURI = DeserializeURI(aURI);
-  if (!ourURI) {
-    return false;
-  }
-  nsMixedContentBlocker::AccumulateMixedContentHSTS(ourURI, aActive);
-  return true;
 }
 
 bool
@@ -4772,20 +4734,4 @@ ContentParent::ForceTabPaint(TabParent* aTabParent, uint64_t aLayerObserverEpoch
     return;
   }
   ProcessHangMonitor::ForcePaint(mHangMonitorActor, aTabParent, aLayerObserverEpoch);
-}
-
-bool
-ContentParent::RecvAccumulateChildHistogram(
-                InfallibleTArray<Accumulation>&& aAccumulations)
-{
-  Telemetry::AccumulateChild(GeckoProcessType_Content, aAccumulations);
-  return true;
-}
-
-bool
-ContentParent::RecvAccumulateChildKeyedHistogram(
-                InfallibleTArray<KeyedAccumulation>&& aAccumulations)
-{
-  Telemetry::AccumulateChildKeyed(GeckoProcessType_Content, aAccumulations);
-  return true;
 }

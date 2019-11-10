@@ -276,6 +276,7 @@ DataChannelConnection::Destroy()
     LOG(("Deregistered %p from the SCTP stack.", static_cast<void *>(this)));
   }
 
+  mListener = nullptr;
   // Finish Destroy on STS thread to avoid bug 876167 - once that's fixed,
   // the usrsctp_close() calls can move back here (and just proxy the
   // disconnect_all())
@@ -1927,11 +1928,20 @@ DataChannelConnection::ReceiveCallback(struct socket* sock, void *data, size_t d
   if (!data) {
     usrsctp_close(sock); // SCTP has finished shutting down
   } else {
-    mLock.AssertCurrentThreadOwns();
+    bool locked = false;
+    if (!IsSTSThread()) {
+      mLock.Lock();
+      locked = true;
+    } else {
+      mLock.AssertCurrentThreadOwns();
+    }
     if (flags & MSG_NOTIFICATION) {
       HandleNotification(static_cast<union sctp_notification *>(data), datalen);
     } else {
       HandleMessage(data, datalen, ntohl(rcv.rcv_ppid), rcv.rcv_sid);
+    }
+    if (locked) {
+      mLock.Unlock();
     }
   }
   // sctp allocates 'data' with malloc(), and expects the receiver to free

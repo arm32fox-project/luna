@@ -1206,11 +1206,8 @@ nsDocumentViewer::PermitUnloadInternal(bool *aShouldPrompt,
     nsIDocument::PageUnloadingEventTimeStamp timestamp(mDocument);
 
     mInPermitUnload = true;
-    {
-      Telemetry::AutoTimer<Telemetry::HANDLE_BEFOREUNLOAD_MS> telemetryTimer;
-      EventDispatcher::DispatchDOMEvent(window, nullptr, event, mPresContext,
+    EventDispatcher::DispatchDOMEvent(window, nullptr, event, mPresContext,
                                         nullptr);
-    }
     mInPermitUnload = false;
   }
 
@@ -1275,7 +1272,6 @@ nsDocumentViewer::PermitUnloadInternal(bool *aShouldPrompt,
 
       nsAutoSyncOperation sync(mDocument);
       mInPermitUnloadPrompt = true;
-      mozilla::Telemetry::Accumulate(mozilla::Telemetry::ONBEFOREUNLOAD_PROMPT_COUNT, 1);
       rv = prompt->ConfirmEx(title, message, buttonFlags,
                              leaveLabel, stayLabel, nullptr, nullptr,
                              &dummy, &buttonPressed);
@@ -1290,15 +1286,12 @@ nsDocumentViewer::PermitUnloadInternal(bool *aShouldPrompt,
       // XXX: Are there other cases where prompts can abort? Is it ok to
       //      prevent unloading the page in those cases?
       if (NS_FAILED(rv)) {
-        mozilla::Telemetry::Accumulate(mozilla::Telemetry::ONBEFOREUNLOAD_PROMPT_ACTION, 2);
         *aPermitUnload = false;
         return NS_OK;
       }
 
       // Button 0 == leave, button 1 == stay
       *aPermitUnload = (buttonPressed == 0);
-      mozilla::Telemetry::Accumulate(mozilla::Telemetry::ONBEFOREUNLOAD_PROMPT_ACTION,
-        (*aPermitUnload ? 1 : 0));
       // If the user decided to go ahead, make sure not to prompt the user again
       // by toggling the internal prompting bool to false:
       if (*aPermitUnload) {
@@ -1393,10 +1386,7 @@ nsDocumentViewer::PageHide(bool aIsUnload)
 
     nsIDocument::PageUnloadingEventTimeStamp timestamp(mDocument);
 
-    {
-      Telemetry::AutoTimer<Telemetry::HANDLE_UNLOAD_MS> telemetryTimer;
-      EventDispatcher::Dispatch(window, mPresContext, &event, nullptr, &status);
-    }
+    EventDispatcher::Dispatch(window, mPresContext, &event, nullptr, &status);
   }
 
 #ifdef MOZ_XUL

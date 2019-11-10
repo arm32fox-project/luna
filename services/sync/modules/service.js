@@ -21,6 +21,7 @@ const KEYS_WBO = "keys";
 Cu.import("resource://gre/modules/Preferences.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Log.jsm");
+Cu.import("resource://services-common/utils.js");
 Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/engines/clients.js");
@@ -32,7 +33,6 @@ Cu.import("resource://services-sync/rest.js");
 Cu.import("resource://services-sync/stages/enginesync.js");
 Cu.import("resource://services-sync/stages/declined.js");
 Cu.import("resource://services-sync/status.js");
-Cu.import("resource://services-sync/telemetry.js");
 Cu.import("resource://services-sync/userapi.js");
 Cu.import("resource://services-sync/util.js");
 
@@ -64,13 +64,8 @@ Sync11Service.prototype = {
   storageURL: null,
   metaURL: null,
   cryptoKeyURL: null,
-  // The cluster URL comes via the ClusterManager object, which in the FxA
-  // world is ebbedded in the token returned from the token server.
-  _clusterURL: null,
 
-  get serverURL() {
-    return Svc.Prefs.get("serverURL");
-  },
+  get serverURL() Svc.Prefs.get("serverURL"),
   set serverURL(value) {
     if (!value.endsWith("/")) {
       value += "/";
@@ -80,20 +75,14 @@ Sync11Service.prototype = {
     if (value == this.serverURL)
       return;
 
+    // A new server most likely uses a different cluster, so clear that
     Svc.Prefs.set("serverURL", value);
-
-    // A new server most likely uses a different cluster, so clear that.
-    this._clusterURL = null;
+    Svc.Prefs.reset("clusterURL");
   },
 
-  get clusterURL() {
-    return this._clusterURL || "";
-  },
+  get clusterURL() Svc.Prefs.get("clusterURL", ""),
   set clusterURL(value) {
-    if (value != null && typeof value != "string") {
-      throw new Error("cluster must be a string, got " + (typeof value));
-    }
-    this._clusterURL = value;
+    Svc.Prefs.set("clusterURL", value);
     this._updateCachedURLs();
   },
 
@@ -171,16 +160,8 @@ Sync11Service.prototype = {
 
   _updateCachedURLs: function _updateCachedURLs() {
     // Nothing to cache yet if we don't have the building blocks
-    if (!this.clusterURL || !this.identity.username) {
-      // Also reset all other URLs used by Sync to ensure we aren't accidentally
-      // using one cached earlier - if there's no cluster URL any cached ones
-      // are invalid.
-      this.infoURL = undefined;
-      this.storageURL = undefined;
-      this.metaURL = undefined;
-      this.cryptoKeysURL = undefined;
+    if (!this.clusterURL || !this.identity.username)
       return;
-    }
 
     this._log.debug("Caching URLs under storage user base: " + this.userBaseURL);
 
@@ -359,7 +340,6 @@ Sync11Service.prototype = {
     }
 
     Svc.Obs.add("weave:service:setup-complete", this);
-    Svc.Obs.add("sync:collection_changed", this); // Pulled from FxAccountsCommon
     Svc.Prefs.observe("engine.", this);
 
     this.scheduler = new SyncScheduler(this);
@@ -472,7 +452,7 @@ Sync11Service.prototype = {
 
         this.engineManager.register(ns[engineName]);
       } catch (ex) {
-        this._log.warn("Could not register engine " + name, ex);
+        this._log.warn("Could not register engine " + name + ": ", ex);
       }
     }
 
@@ -486,13 +466,6 @@ Sync11Service.prototype = {
 
   observe: function observe(subject, topic, data) {
     switch (topic) {
-      // Ideally this observer should be in the SyncScheduler, but it would require
-      // some work to know about the sync specific engines. We should move this there once it does.
-      case "sync:collection_changed":
-        if (data.includes("clients")) {
-          this.sync([]); // [] = clients collection only
-        }
-        break;
       case "weave:service:setup-complete":
         let status = this._checkSetup();
         if (status != STATUS_DISABLED && status != CLIENT_NOT_CONFIGURED)
@@ -557,8 +530,7 @@ Sync11Service.prototype = {
     // Always check for errors; this is also where we look for X-Weave-Alert.
     this.errorHandler.checkServerError(info);
     if (!info.success) {
-      this._log.error("Aborting sync: failed to get collections.")
-      throw info;
+      throw "Aborting sync: failed to get collections.";
     }
     return info;
   },
@@ -675,13 +647,20 @@ Sync11Service.prototype = {
 
     } catch (ex) {
       // This means no keys are present, or there's a network error.
-      this._log.debug("Failed to fetch and verify keys", ex);
+      this._log.debug("Failed to fetch and verify keys: ", ex);
       this.errorHandler.checkServerError(ex);
       return false;
     }
   },
 
   verifyLogin: function verifyLogin(allow40XRecovery = true) {
+    // If the identity isn't ready it  might not know the username...
+    if (!this.identity.readyToAuthenticate) {
+      this._log.info("Not ready to authenticate in verifyLogin.");
+      this.status.login = LOGIN_FAILED_NOT_READY;
+      return false;
+    }
+
     if (!this.identity.username) {
       this._log.warn("No username in verifyLogin.");
       this.status.login = LOGIN_FAILED_NO_USERNAME;
@@ -753,12 +732,8 @@ Sync11Service.prototype = {
             return this.verifyLogin(false);
           }
 
-          // We must have the right cluster, but the server doesn't expect us.
-          // The implications of this depend on the identity being used - for
-          // the legacy identity, it's an authoritatively "incorrect password",
-          // (ie, LOGIN_FAILED_LOGIN_REJECTED) but for FxA it probably means
-          // "transient error fetching auth token".
-          this.status.login = this.identity.loginStatusFromVerification404();
+          // We must have the right cluster, but the server doesn't expect us
+          this.status.login = LOGIN_FAILED_LOGIN_REJECTED;
           return false;
 
         default:
@@ -769,7 +744,7 @@ Sync11Service.prototype = {
       }
     } catch (ex) {
       // Must have failed on some network issue
-      this._log.debug("verifyLogin failed", ex);
+      this._log.debug("verifyLogin failed: ", ex);
       this.status.login = LOGIN_FAILED_NETWORK_ERROR;
       this.errorHandler.checkServerError(ex);
       return false;
@@ -842,7 +817,7 @@ Sync11Service.prototype = {
     try {
       cb.wait();
     } catch (ex) {
-      this._log.debug("Password change failed", ex);
+      this._log.debug("Password change failed: ", ex);
       return false;
     }
 
@@ -888,7 +863,7 @@ Sync11Service.prototype = {
         try {
           engine.removeClientData();
         } catch(ex) {
-          this._log.warn(`Deleting client data for ${engine.name} failed`, ex);
+          this._log.warn("Deleting client data for " + engine.name + " failed:", ex);
         }
       }
       this._log.debug("Finished deleting client data.");
@@ -914,7 +889,6 @@ Sync11Service.prototype = {
     this._ignorePrefObserver = true;
     Svc.Prefs.resetBranch("");
     this._ignorePrefObserver = false;
-    this.clusterURL = null;
 
     Svc.Prefs.set("lastversion", WEAVE_VERSION);
 
@@ -931,22 +905,25 @@ Sync11Service.prototype = {
       return;
     }
 
-    try {
-      this.identity.finalize();
-      // an observer so the FxA migration code can take some action before
-      // the new identity is created.
-      Svc.Obs.notify("weave:service:start-over:init-identity");
-      this.identity.username = "";
-      this.status.__authManager = null;
-      this.identity = Status._authManager;
-      this._clusterManager = this.identity.createClusterManager(this);
-      Svc.Obs.notify("weave:service:start-over:finish");
-    } catch (err) {
-      this._log.error("startOver failed to re-initialize the identity manager: " + err);
-      // Still send the observer notification so the current state is
-      // reflected in the UI.
-      Svc.Obs.notify("weave:service:start-over:finish");
-    }
+    this.identity.finalize().then(
+      () => {
+        // an observer so the FxA migration code can take some action before
+        // the new identity is created.
+        Svc.Obs.notify("weave:service:start-over:init-identity");
+        this.identity.username = "";
+        this.status.__authManager = null;
+        this.identity = Status._authManager;
+        this._clusterManager = this.identity.createClusterManager(this);
+        Svc.Obs.notify("weave:service:start-over:finish");
+      }
+    ).then(null,
+      err => {
+        this._log.error("startOver failed to re-initialize the identity manager: " + err);
+        // Still send the observer notification so the current state is
+        // reflected in the UI.
+        Svc.Obs.notify("weave:service:start-over:finish");
+      }
+    );
   },
 
   persistLogin: function persistLogin() {
@@ -981,12 +958,8 @@ Sync11Service.prototype = {
       }
 
       // Ask the identity manager to explicitly login now.
-      this._log.info("Logging in the user.");
       let cb = Async.makeSpinningCallback();
-      this.identity.ensureLoggedIn().then(
-        () => cb(null),
-        err => cb(err || "ensureLoggedIn failed")
-      );
+      this.identity.ensureLoggedIn().then(cb, cb);
 
       // Just let any errors bubble up - they've more context than we do!
       cb.wait();
@@ -997,9 +970,9 @@ Sync11Service.prototype = {
           && (username || password || passphrase)) {
         Svc.Obs.notify("weave:service:setup-complete");
       }
+      this._log.info("Logging in the user.");
       this._updateCachedURLs();
 
-      this._log.info("User logged in successfully - verifying login.");
       if (!this.verifyLogin()) {
         // verifyLogin sets the failure states here.
         throw "Login failed: " + this.status.login;
@@ -1064,48 +1037,10 @@ Sync11Service.prototype = {
     }
   },
 
-  // Note: returns false if we failed for a reason other than the server not yet
-  // supporting the api.
-  _fetchServerConfiguration() {
-    if (Svc.Prefs.get("APILevel") >= 2) {
-      // This is similar to _fetchInfo, but with different error handling.
-      // Only supported by later sync implementations.
-
-      let infoURL = this.userBaseURL + "info/configuration";
-      this._log.debug("Fetching server configuration", infoURL);
-      let configResponse;
-      try {
-        configResponse = this.resource(infoURL).get();
-      } catch (ex) {
-        // This is probably a network or similar error.
-        this._log.warn("Failed to fetch info/configuration", ex);
-        this.errorHandler.checkServerError(ex);
-        return false;
-      }
-
-      if (configResponse.status == 404) {
-        // This server doesn't support the URL yet - that's OK.
-        this._log.debug("info/configuration returned 404 - using default upload semantics");
-      } else if (configResponse.status != 200) {
-        this._log.warn(`info/configuration returned ${configResponse.status} - using default configuration`);
-        this.errorHandler.checkServerError(configResponse);
-        return false;
-      } else {
-        this.serverConfiguration = configResponse.obj;
-      }
-      this._log.trace("info/configuration for this server", this.serverConfiguration);
-    }
-    return true;
-  },
-
   // Stuff we need to do after login, before we can really do
   // anything (e.g. key setup).
   _remoteSetup: function _remoteSetup(infoResponse) {
     let reset = false;
-
-    if (!this._fetchServerConfiguration()) {
-      return false;
-    }
 
     this._log.debug("Fetching global metadata record");
     let meta = this.recordManager.get(this.metaURL);
@@ -1133,7 +1068,7 @@ Sync11Service.prototype = {
         return false;
       }
 
-      if (this.recordManager.response.status == 404) {
+      if (!this.recordManager.response.success || !newMeta) {
         this._log.debug("No meta/global record on the server. Creating one.");
         newMeta = new WBORecord("meta", "global");
         newMeta.payload.syncID = this.syncID;
@@ -1143,16 +1078,10 @@ Sync11Service.prototype = {
         newMeta.isNew = true;
 
         this.recordManager.set(this.metaURL, newMeta);
-        let uploadRes = newMeta.upload(this.resource(this.metaURL));
-        if (!uploadRes.success) {
+        if (!newMeta.upload(this.resource(this.metaURL)).success) {
           this._log.warn("Unable to upload new meta/global. Failing remote setup.");
-          this.errorHandler.checkServerError(uploadRes);
           return false;
         }
-      } else if (!newMeta) {
-        this._log.warn("Unable to get meta/global. Failing remote setup.");
-        this.errorHandler.checkServerError(this.recordManager.response);
-        return false;
       } else {
         // If newMeta, then it stands to reason that meta != null.
         newMeta.isNew   = meta.isNew;
@@ -1293,9 +1222,9 @@ Sync11Service.prototype = {
     return reason;
   },
 
-  sync: function sync(engineNamesToSync) {
-    let dateStr = Utils.formatTimestamp(new Date());
-    this._log.debug("User-Agent: " + Utils.userAgent);
+  sync: function sync() {
+    let dateStr = new Date().toLocaleFormat(LOG_DATE_FORMAT);
+    this._log.debug("User-Agent: " + SyncStorageRequest.prototype.userAgent);
     this._log.info("Starting sync at " + dateStr);
     this._catch(function () {
       // Make sure we're logged in.
@@ -1309,60 +1238,50 @@ Sync11Service.prototype = {
       else {
         this._log.trace("In sync: no need to login.");
       }
-      return this._lockedSync(engineNamesToSync);
+      return this._lockedSync.apply(this, arguments);
     })();
   },
 
   /**
    * Sync up engines with the server.
    */
-  _lockedSync: function _lockedSync(engineNamesToSync) {
+  _lockedSync: function _lockedSync() {
     return this._lock("service.js: sync",
                       this._notify("sync", "", function onNotify() {
-
-      let histogram = Services.telemetry.getHistogramById("WEAVE_START_COUNT");
-      histogram.add(1);
 
       let synchronizer = new EngineSynchronizer(this);
       let cb = Async.makeSpinningCallback();
       synchronizer.onComplete = cb;
 
-      synchronizer.sync(engineNamesToSync);
+      synchronizer.sync();
       // wait() throws if the first argument is truthy, which is exactly what
       // we want.
       let result = cb.wait();
 
-      histogram = Services.telemetry.getHistogramById("WEAVE_COMPLETE_SUCCESS_COUNT");
-      histogram.add(1);
-
       // We successfully synchronized.
       // Check if the identity wants to pre-fetch a migration sentinel from
       // the server.
-      // Only supported by Sync server API level 2+
       // If we have no clusterURL, we are probably doing a node reassignment
       // so don't attempt to get it in that case.
-      if (Svc.Prefs.get("APILevel") >= 2 && this.clusterURL) {
-        this.identity.prefetchMigrationSentinel(this);
+      //if (this.clusterURL) {
+      //  this.identity.prefetchMigrationSentinel(this);
+      //}
+
+      // Now let's update our declined engines.
+      let meta = this.recordManager.get(this.metaURL);
+      if (!meta) {
+        this._log.warn("No meta/global; can't update declined state.");
+        return;
       }
 
-      // Now let's update our declined engines (but only if we have a metaURL;
-      // if Sync failed due to no node we will not have one)
-      if (this.metaURL) {
-        let meta = this.recordManager.get(this.metaURL);
-        if (!meta) {
-          this._log.warn("No meta/global; can't update declined state.");
-          return;
-        }
-
-        let declinedEngines = new DeclinedEngines(this);
-        let didChange = declinedEngines.updateDeclined(meta, this.engineManager);
-        if (!didChange) {
-          this._log.info("No change to declined engines. Not reuploading meta/global.");
-          return;
-        }
-
-        this.uploadMetaGlobal(meta);
+      let declinedEngines = new DeclinedEngines(this);
+      let didChange = declinedEngines.updateDeclined(meta, this.engineManager);
+      if (!didChange) {
+        this._log.info("No change to declined engines. Not reuploading meta/global.");
+        return;
       }
+
+      this.uploadMetaGlobal(meta);
     }))();
   },
 
@@ -1382,92 +1301,6 @@ Sync11Service.prototype = {
       throw response;
     }
     this.recordManager.set(this.metaURL, meta);
-  },
-
-  /**
-   * Get a migration sentinel for the Firefox Accounts migration.
-   * Returns a JSON blob - it is up to callers of this to make sense of the
-   * data.
-   *
-   * Returns a promise that resolves with the sentinel, or null.
-   */
-  getFxAMigrationSentinel: function() {
-    if (this._shouldLogin()) {
-      this._log.debug("In getFxAMigrationSentinel: should login.");
-      if (!this.login()) {
-        this._log.debug("Can't get migration sentinel: login returned false.");
-        return Promise.resolve(null);
-      }
-    }
-    if (!this.identity.syncKeyBundle) {
-      this._log.error("Can't get migration sentinel: no syncKeyBundle.");
-      return Promise.resolve(null);
-    }
-    try {
-      let collectionURL = this.storageURL + "meta/fxa_credentials";
-      let cryptoWrapper = this.recordManager.get(collectionURL);
-      if (!cryptoWrapper || !cryptoWrapper.payload) {
-        // nothing to decrypt - .decrypt is noisy in that case, so just bail
-        // now.
-        return Promise.resolve(null);
-      }
-      // If the payload has a sentinel it means we must have put back the
-      // decrypted version last time we were called.
-      if (cryptoWrapper.payload.sentinel) {
-        return Promise.resolve(cryptoWrapper.payload.sentinel);
-      }
-      // If decryption fails it almost certainly means the key is wrong - but
-      // it's not clear if we need to take special action for that case?
-      let payload = cryptoWrapper.decrypt(this.identity.syncKeyBundle);
-      // After decrypting the ciphertext is lost, so we just stash the
-      // decrypted payload back into the wrapper.
-      cryptoWrapper.payload = payload;
-      return Promise.resolve(payload.sentinel);
-    } catch (ex) {
-      this._log.error("Failed to fetch the migration sentinel: ${}", ex);
-      return Promise.resolve(null);
-    }
-  },
-
-  /**
-   * Set a migration sentinel for the Firefox Accounts migration.
-   * Accepts a JSON blob - it is up to callers of this to make sense of the
-   * data.
-   *
-   * Returns a promise that resolves with a boolean which indicates if the
-   * sentinel was successfully written.
-   */
-  setFxAMigrationSentinel: function(sentinel) {
-    if (this._shouldLogin()) {
-      this._log.debug("In setFxAMigrationSentinel: should login.");
-      if (!this.login()) {
-        this._log.debug("Can't set migration sentinel: login returned false.");
-        return Promise.resolve(false);
-      }
-    }
-    if (!this.identity.syncKeyBundle) {
-      this._log.error("Can't set migration sentinel: no syncKeyBundle.");
-      return Promise.resolve(false);
-    }
-    try {
-      let collectionURL = this.storageURL + "meta/fxa_credentials";
-      let cryptoWrapper = new CryptoWrapper("meta", "fxa_credentials");
-      cryptoWrapper.cleartext.sentinel = sentinel;
-
-      cryptoWrapper.encrypt(this.identity.syncKeyBundle);
-
-      let res = this.resource(collectionURL);
-      let response = res.put(cryptoWrapper.toJSON());
-
-      if (!response.success) {
-        throw response;
-      }
-      this.recordManager.set(collectionURL, cryptoWrapper);
-    } catch (ex) {
-      this._log.error("Failed to set the migration sentinel: ${}", ex);
-      return Promise.resolve(false);
-    }
-    return Promise.resolve(true);
   },
 
   /**
@@ -1555,7 +1388,6 @@ Sync11Service.prototype = {
    */
   wipeServer: function wipeServer(collections) {
     let response;
-    let histogram = Services.telemetry.getHistogramById("WEAVE_WIPE_SERVER_SUCCEEDED");
     if (!collections) {
       // Strip the trailing slash.
       let res = this.resource(this.storageURL.slice(0, -1));
@@ -1563,17 +1395,14 @@ Sync11Service.prototype = {
       try {
         response = res.delete();
       } catch (ex) {
-        this._log.debug("Failed to wipe server", ex);
-        histogram.add(false);
+        this._log.debug("Failed to wipe server: ", ex);
         throw ex;
       }
       if (response.status != 200 && response.status != 404) {
         this._log.debug("Aborting wipeServer. Server responded with " +
                         response.status + " response for " + this.storageURL);
-        histogram.add(false);
         throw response;
       }
-      histogram.add(true);
       return response.headers["x-weave-timestamp"];
     }
 
@@ -1583,15 +1412,13 @@ Sync11Service.prototype = {
       try {
         response = this.resource(url).delete();
       } catch (ex) {
-        this._log.debug("Failed to wipe '" + name + "' collection", ex);
-        histogram.add(false);
+        this._log.debug("Failed to wipe '" + name + "' collection: ", ex);
         throw ex;
       }
 
       if (response.status != 200 && response.status != 404) {
         this._log.debug("Aborting wipeServer. Server responded with " +
                         response.status + " response for " + url);
-        histogram.add(false);
         throw response;
       }
 
@@ -1599,7 +1426,7 @@ Sync11Service.prototype = {
         timestamp = response.headers["x-weave-timestamp"];
       }
     }
-    histogram.add(true);
+
     return timestamp;
   },
 
@@ -1623,7 +1450,7 @@ Sync11Service.prototype = {
     }
 
     // Fully wipe each engine if it's able to decrypt data
-    for (let engine of engines) {
+    for each (let engine in engines) {
       if (engine.canDecrypt()) {
         engine.wipeClient();
       }
@@ -1731,7 +1558,7 @@ Sync11Service.prototype = {
     return this.getStorageRequest(url).get(function onComplete(error) {
       // Note: 'this' is the request.
       if (error) {
-        this._log.debug("Failed to retrieve '" + info_type + "'", error);
+        this._log.debug("Failed to retrieve '" + info_type + "': ", error);
         return callback(error);
       }
       if (this.response.status != 200) {

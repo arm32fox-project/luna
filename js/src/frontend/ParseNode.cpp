@@ -190,6 +190,7 @@ PushNodeChildren(ParseNode* pn, NodeStack* stack)
       case PNK_TRUE:
       case PNK_FALSE:
       case PNK_NULL:
+      case PNK_RAW_UNDEFINED:
       case PNK_ELISION:
       case PNK_GENERATOR:
       case PNK_NUMBER:
@@ -685,6 +686,7 @@ NullaryNode::dump()
       case PNK_TRUE:  fprintf(stderr, "#true");  break;
       case PNK_FALSE: fprintf(stderr, "#false"); break;
       case PNK_NULL:  fprintf(stderr, "#null");  break;
+      case PNK_RAW_UNDEFINED: fprintf(stderr, "#undefined"); break;
 
       case PNK_NUMBER: {
         ToCStringBuf cbuf;
@@ -838,7 +840,7 @@ LexicalScopeNode::dump(int indent)
     if (!isEmptyScope()) {
         LexicalScope::Data* bindings = scopeBindings();
         for (uint32_t i = 0; i < bindings->length; i++) {
-            JSAtom* name = bindings->names[i].name();
+            JSAtom* name = bindings->trailingNames[i].name();
             JS::AutoCheckCannotGC nogc;
             if (name->hasLatin1Chars())
                 DumpName(name->latin1Chars(nogc), name->length());

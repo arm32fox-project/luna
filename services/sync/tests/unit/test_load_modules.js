@@ -9,7 +9,6 @@ const modules = [
   "engines/addons.js",
   "engines/bookmarks.js",
   "engines/clients.js",
-  "engines/extension-storage.js",
   "engines/forms.js",
   "engines/history.js",
   "engines/passwords.js",
@@ -20,6 +19,7 @@ const modules = [
   "jpakeclient.js",
   "keys.js",
   "main.js",
+  "notifications.js",
   "policies.js",
   "record.js",
   "resource.js",
@@ -37,7 +37,6 @@ const testingModules = [
   "fakeservices.js",
   "rotaryengine.js",
   "utils.js",
-  "fxa_utils.js",
 ];
 
 function run_test() {

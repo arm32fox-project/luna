@@ -61,7 +61,6 @@
 #include "mozilla/OperatorNewExtensions.h"
 #include "mozilla/PendingAnimationTracker.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/UniquePtr.h"
 #include "mozilla/Unused.h"
 #include "mozilla/gfx/gfxVars.h"
@@ -81,6 +80,8 @@
 #include "nsPluginFrame.h"
 #include "DisplayItemScrollClip.h"
 #include "nsSVGMaskFrame.h"
+#include "nsTableCellFrame.h"
+#include "nsTableColFrame.h"
 
 // GetCurrentTime is defined in winbase.h as zero argument macro forwarding to
 // GetTickCount().
@@ -667,7 +668,7 @@ nsDisplayListBuilder::AddAnimationsAndTransitionsToLayer(Layer* aLayer,
     // EffectCompositor needs to know that we refused to run this animation
     // asynchronously so that it will not throttle the main thread
     // animation.
-    aFrame->Properties().Set(nsIFrame::RefusedAsyncAnimationProperty(), true);
+    aFrame->SetProperty(nsIFrame::RefusedAsyncAnimationProperty(), true);
 
     // We need to schedule another refresh driver run so that EffectCompositor
     // gets a chance to unthrottle the animation.
@@ -903,15 +904,13 @@ void nsDisplayListBuilder::MarkOutOfFlowFrameForDisplay(nsIFrame* aDirtyFrame,
   const DisplayItemClip* oldClip = mClipState.GetClipForContainingBlockDescendants();
   const DisplayItemScrollClip* sc = mClipState.GetCurrentInnermostScrollClip();
   OutOfFlowDisplayData* data = new OutOfFlowDisplayData(oldClip, sc, dirty);
-  aFrame->Properties().Set(nsDisplayListBuilder::OutOfFlowDisplayDataProperty(), data);
+  aFrame->SetProperty(nsDisplayListBuilder::OutOfFlowDisplayDataProperty(), data);
 
   MarkFrameForDisplay(aFrame, aDirtyFrame);
 }
 
 static void UnmarkFrameForDisplay(nsIFrame* aFrame) {
-  nsPresContext* presContext = aFrame->PresContext();
-  presContext->PropertyTable()->
-    Delete(aFrame, nsDisplayListBuilder::OutOfFlowDisplayDataProperty());
+  aFrame->DeleteProperty(nsDisplayListBuilder::OutOfFlowDisplayDataProperty());
 
   for (nsIFrame* f = aFrame; f;
        f = nsLayoutUtils::GetParentOrPlaceholderFor(f)) {
@@ -1097,7 +1096,6 @@ void
 nsDisplayListBuilder::MarkFramesForDisplayList(nsIFrame* aDirtyFrame,
                                                const nsFrameList& aFrames,
                                                const nsRect& aDirtyRect) {
-  mFramesMarkedForDisplay.SetCapacity(mFramesMarkedForDisplay.Length() + aFrames.GetLength());
   for (nsIFrame* e : aFrames) {
     // Skip the AccessibleCaret frame when building no caret.
     if (!IsBuildingCaret()) {
@@ -1109,6 +1107,7 @@ nsDisplayListBuilder::MarkFramesForDisplayList(nsIFrame* aDirtyFrame,
         }
       }
     }
+    
     mFramesMarkedForDisplay.AppendElement(e);
     MarkOutOfFlowFrameForDisplay(aDirtyFrame, e, aDirtyRect);
   }
@@ -1857,7 +1856,6 @@ already_AddRefed<LayerManager> nsDisplayList::PaintRoot(nsDisplayListBuilder* aB
 
   RefPtr<ContainerLayer> root;
   {
-    PaintTelemetry::AutoRecord record(PaintTelemetry::Metric::Layerization);
     root = layerBuilder->
       BuildContainerLayerFor(aBuilder, layerManager, frame, nullptr, this,
                              containerParameters, nullptr);
@@ -2635,11 +2633,17 @@ nsDisplayBackgroundImage::AppendBackgroundItemsToTop(nsDisplayListBuilder* aBuil
                                                      const nsRect& aBackgroundRect,
                                                      nsDisplayList* aList,
                                                      bool aAllowWillPaintBorderOptimization,
-                                                     nsStyleContext* aStyleContext)
+                                                     nsStyleContext* aStyleContext,
+                                                     const nsRect& aBackgroundOriginRect,
+                                                     nsIFrame* aSecondaryReferenceFrame)
 {
   nsStyleContext* bgSC = aStyleContext;
   const nsStyleBackground* bg = nullptr;
   nsRect bgRect = aBackgroundRect + aBuilder->ToReferenceFrame(aFrame);
+  nsRect bgOriginRect = bgRect;
+  if (!aBackgroundOriginRect.IsEmpty()) {
+    bgOriginRect = aBackgroundOriginRect + aBuilder->ToReferenceFrame(aFrame);
+  }
   nsPresContext* presContext = aFrame->PresContext();
   bool isThemed = aFrame->IsThemed();
   if (!isThemed) {
@@ -2747,12 +2751,31 @@ nsDisplayBackgroundImage::AppendBackgroundItemsToTop(nsDisplayListBuilder* aBuil
     }
 
     nsDisplayList thisItemList;
-    nsDisplayBackgroundImage* bgItem =
-      new (aBuilder) nsDisplayBackgroundImage(aBuilder, aFrame, i, bgRect, bg);
-
+    nsDisplayBackgroundImage* bgItem;
+    if (aSecondaryReferenceFrame) {
+      bgItem =
+        new (aBuilder) nsDisplayTableBackgroundImage(aBuilder,
+                                                     aFrame,
+                                                     i,
+                                                     bgOriginRect,
+                                                     bg,
+                                                     aSecondaryReferenceFrame);
+    } else {
+      bgItem =
+        new (aBuilder) nsDisplayBackgroundImage(aBuilder, aFrame, i, bgOriginRect, bg);
+    }
     if (bgItem->ShouldFixToViewport(aBuilder)) {
-      thisItemList.AppendNewToTop(
-        nsDisplayFixedPosition::CreateForFixedBackground(aBuilder, aFrame, bgItem, i));
+      if (aSecondaryReferenceFrame) {
+        thisItemList.AppendNewToTop(
+          nsDisplayTableFixedPosition::CreateForFixedBackground(aBuilder,
+                                                                aSecondaryReferenceFrame,
+                                                                bgItem,
+                                                                i,
+                                                                aFrame));
+      } else {
+        thisItemList.AppendNewToTop(
+          nsDisplayFixedPosition::CreateForFixedBackground(aBuilder, aFrame, bgItem, i));
+      }
     } else {
       thisItemList.AppendNewToTop(bgItem);
     }
@@ -2893,7 +2916,7 @@ nsDisplayBackgroundImage::ImageLayerization
 nsDisplayBackgroundImage::ShouldCreateOwnLayer(nsDisplayListBuilder* aBuilder,
                                                LayerManager* aManager)
 {
-  nsIFrame* backgroundStyleFrame = nsCSSRendering::FindBackgroundStyleFrame(mFrame);
+  nsIFrame* backgroundStyleFrame = nsCSSRendering::FindBackgroundStyleFrame(StyleFrame());
   if (ActiveLayerTracker::IsBackgroundPositionAnimated(aBuilder,
                                                        backgroundStyleFrame)) {
     return WHENEVER_POSSIBLE;
@@ -3016,7 +3039,7 @@ nsDisplayBackgroundImage::ComputeVisibility(nsDisplayListBuilder* aBuilder,
 
 /* static */ nsRegion
 nsDisplayBackgroundImage::GetInsideClipRegion(nsDisplayItem* aItem,
-                                              uint8_t aClip,
+                                              StyleGeometryBox aClip,
                                               const nsRect& aRect,
                                               const nsRect& aBackgroundRect)
 {
@@ -3030,10 +3053,10 @@ nsDisplayBackgroundImage::GetInsideClipRegion(nsDisplayItem* aItem,
   if (frame->GetType() == nsGkAtoms::canvasFrame) {
     nsCanvasFrame* canvasFrame = static_cast<nsCanvasFrame*>(frame);
     clipRect = canvasFrame->CanvasArea() + aItem->ToReferenceFrame();
-  } else if (aClip == NS_STYLE_IMAGELAYER_CLIP_PADDING ||
-             aClip == NS_STYLE_IMAGELAYER_CLIP_CONTENT) {
+  } else if (aClip == StyleGeometryBox::Padding ||
+             aClip == StyleGeometryBox::Content) {
     nsMargin border = frame->GetUsedBorder();
-    if (aClip == NS_STYLE_IMAGELAYER_CLIP_CONTENT) {
+    if (aClip == StyleGeometryBox::Content) {
       border += frame->GetUsedPadding();
     }
     border.ApplySkipSides(frame->GetSkipSides());
@@ -3066,7 +3089,7 @@ nsDisplayBackgroundImage::GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
     if (layer.mImage.IsOpaque() && layer.mBlendMode == NS_STYLE_BLEND_NORMAL &&
         layer.mRepeat.mXRepeat != NS_STYLE_IMAGELAYER_REPEAT_SPACE &&
         layer.mRepeat.mYRepeat != NS_STYLE_IMAGELAYER_REPEAT_SPACE &&
-        layer.mClip != NS_STYLE_IMAGELAYER_CLIP_TEXT) {
+        layer.mClip != StyleGeometryBox::Text) {
       result = GetInsideClipRegion(this, layer.mClip, mBounds, mBackgroundRect);
     }
   }
@@ -3145,25 +3168,25 @@ nsDisplayBackgroundImage::PaintInternal(nsDisplayListBuilder* aBuilder,
   CheckForBorderItem(this, flags);
 
   gfxContext* ctx = aCtx->ThebesContext();
-  uint8_t clip = mBackgroundStyle->mImage.mLayers[mLayer].mClip;
+  StyleGeometryBox clip = mBackgroundStyle->mImage.mLayers[mLayer].mClip;
 
-  if (clip == NS_STYLE_IMAGELAYER_CLIP_TEXT) {
-    if (!GenerateAndPushTextMask(mFrame, aCtx, mBackgroundRect, aBuilder)) {
+  if (clip == StyleGeometryBox::Text) {
+    if (!GenerateAndPushTextMask(StyleFrame(), aCtx, mBackgroundRect, aBuilder)) {
       return;
     }
   }
 
   nsCSSRendering::PaintBGParams params =
-    nsCSSRendering::PaintBGParams::ForSingleLayer(*mFrame->PresContext(),
+    nsCSSRendering::PaintBGParams::ForSingleLayer(*StyleFrame()->PresContext(),
                                                   *aCtx,
                                                   aBounds, mBackgroundRect,
-                                                  mFrame, flags, mLayer,
+                                                  StyleFrame(), flags, mLayer,
                                                   CompositionOp::OP_OVER);
   params.bgClipRect = aClipRect;
   image::DrawResult result =
     nsCSSRendering::PaintBackground(params);
 
-  if (clip == NS_STYLE_IMAGELAYER_CLIP_TEXT) {
+  if (clip == StyleGeometryBox::Text) {
     ctx->PopGroupAndBlend();
   }
 
@@ -3257,6 +3280,27 @@ nsDisplayBackgroundImage::GetPerFrameKey()
 {
   return (mLayer << nsDisplayItem::TYPE_BITS) |
     nsDisplayItem::GetPerFrameKey();
+}
+
+nsDisplayTableBackgroundImage::nsDisplayTableBackgroundImage(nsDisplayListBuilder* aBuilder,
+                                                             nsIFrame* aFrame,
+                                                             uint32_t aLayer,
+                                                             const nsRect& aBackgroundRect,
+                                                             const nsStyleBackground* aBackgroundStyle,
+                                                             nsIFrame* aCellFrame)
+  : nsDisplayBackgroundImage(aBuilder, aFrame, aLayer, aBackgroundRect, aBackgroundStyle)
+  , mStyleFrame(aFrame)
+  , mTableType(GetTableTypeFromFrame(mStyleFrame))
+{
+  mFrame = aCellFrame;
+}
+
+bool
+nsDisplayTableBackgroundImage::IsInvalid(nsRect& aRect)
+{
+  bool result = mStyleFrame ? mStyleFrame->IsInvalid(aRect) : false;
+  aRect += ToReferenceFrame();
+  return result;
 }
 
 nsDisplayThemedBackground::nsDisplayThemedBackground(nsDisplayListBuilder* aBuilder,
@@ -3585,8 +3629,8 @@ nsDisplayBackgroundColor::Paint(nsDisplayListBuilder* aBuilder,
     nsLayoutUtils::RectToGfxRect(mBackgroundRect,
                                  mFrame->PresContext()->AppUnitsPerDevPixel());
 
-  uint8_t clip = mBackgroundStyle->mImage.mLayers[0].mClip;
-  if (clip == NS_STYLE_IMAGELAYER_CLIP_TEXT) {
+  StyleGeometryBox clip = mBackgroundStyle->mImage.mLayers[0].mClip;
+  if (clip == StyleGeometryBox::Text) {
     if (!GenerateAndPushTextMask(mFrame, aCtx, mBackgroundRect, aBuilder)) {
       return;
     }
@@ -3620,7 +3664,7 @@ nsDisplayBackgroundColor::GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
 
 
   const nsStyleImageLayers::Layer& bottomLayer = mBackgroundStyle->BottomLayer();
-  if (bottomLayer.mClip == NS_STYLE_IMAGELAYER_CLIP_TEXT) {
+  if (bottomLayer.mClip == StyleGeometryBox::Text) {
     return nsRegion();
   }
 
@@ -3810,12 +3854,14 @@ nsDisplayLayerEventRegions::AddFrame(nsDisplayListBuilder* aBuilder,
     // region on scrollbar frames that won't be placed in their own layer. See
     // bug 1213324 for details.
     mDispatchToContentHitRegion.Or(mDispatchToContentHitRegion, borderBox);
+    mDispatchToContentHitRegion.SimplifyOutward(8);
   } else if (aFrame->GetType() == nsGkAtoms::objectFrame) {
     // If the frame is a plugin frame and wants to handle wheel events as
     // default action, we should add the frame to dispatch-to-content region.
     nsPluginFrame* pluginFrame = do_QueryFrame(aFrame);
     if (pluginFrame && pluginFrame->WantsToHandleWheelEventAsDefaultAction()) {
       mDispatchToContentHitRegion.Or(mDispatchToContentHitRegion, borderBox);
+      mDispatchToContentHitRegion.SimplifyOutward(8);
     }
   }
 
@@ -3852,6 +3898,7 @@ nsDisplayLayerEventRegions::AddFrame(nsDisplayListBuilder* aBuilder,
     }
     if (alreadyHadRegions) {
       mDispatchToContentHitRegion.OrWith(CombinedTouchActionRegion());
+      mDispatchToContentHitRegion.SimplifyOutward(8);
     }
   }
 }
@@ -3861,6 +3908,7 @@ nsDisplayLayerEventRegions::AddInactiveScrollPort(const nsRect& aRect)
 {
   mHitRegion.Or(mHitRegion, aRect);
   mDispatchToContentHitRegion.Or(mDispatchToContentHitRegion, aRect);
+  mDispatchToContentHitRegion.SimplifyOutward(8);
 }
 
 bool
@@ -5272,6 +5320,51 @@ bool nsDisplayFixedPosition::TryMerge(nsDisplayItem* aItem) {
   return true;
 }
 
+TableType
+GetTableTypeFromFrame(nsIFrame* aFrame)
+{
+  nsIAtom* type = aFrame->GetType();
+  if (type == nsGkAtoms::tableFrame) {
+    return TableType::TABLE;
+  } else if (type == nsGkAtoms::tableColFrame) {
+    return TableType::TABLE_COL;
+  } else if (type == nsGkAtoms::tableColGroupFrame) {
+    return TableType::TABLE_COL_GROUP;
+  } else if (type == nsGkAtoms::tableRowFrame) {
+    return TableType::TABLE_ROW;
+  } else if (type == nsGkAtoms::tableRowGroupFrame) {
+    return TableType::TABLE_ROW_GROUP;
+  } else if (type == nsGkAtoms::tableCellFrame) {
+    return TableType::TABLE_CELL;
+  } else {
+    MOZ_ASSERT_UNREACHABLE("Invalid frame.");
+    return TableType::TABLE;
+  }
+}
+
+nsDisplayTableFixedPosition::nsDisplayTableFixedPosition(nsDisplayListBuilder* aBuilder,
+                                                         nsIFrame* aFrame,
+                                                         nsDisplayList* aList,
+                                                         uint32_t aIndex,
+                                                         nsIFrame* aAncestorFrame)
+  : nsDisplayFixedPosition(aBuilder, aFrame, aList, aIndex)
+  , mTableType(GetTableTypeFromFrame(aAncestorFrame))
+{
+}
+
+/* static */ nsDisplayTableFixedPosition*
+nsDisplayTableFixedPosition::CreateForFixedBackground(nsDisplayListBuilder* aBuilder,
+                                                      nsIFrame* aFrame,
+                                                      nsDisplayBackgroundImage* aImage,
+                                                      uint32_t aIndex,
+                                                      nsIFrame* aAncestorFrame)
+{
+  nsDisplayList temp;
+  temp.AppendToTop(aImage);
+
+  return new (aBuilder) nsDisplayTableFixedPosition(aBuilder, aFrame, &temp, aIndex + 1, aAncestorFrame);
+}
+
 nsDisplayStickyPosition::nsDisplayStickyPosition(nsDisplayListBuilder* aBuilder,
                                                  nsIFrame* aFrame,
                                                  nsDisplayList* aList)
@@ -5708,7 +5801,7 @@ nsDisplayTransform::GetDeltaToTransformOrigin(const nsIFrame* aFrame,
   }
 
   /* Allows us to access dimension getters by index. */
-  float coords[2];
+  float transformOrigin[2];
   TransformReferenceBox::DimensionGetter dimensionGetter[] =
     { &TransformReferenceBox::Width, &TransformReferenceBox::Height };
   TransformReferenceBox::DimensionGetter offsetGetter[] =
@@ -5718,33 +5811,33 @@ nsDisplayTransform::GetDeltaToTransformOrigin(const nsIFrame* aFrame,
     /* If the transform-origin specifies a percentage, take the percentage
      * of the size of the box.
      */
-    const nsStyleCoord &coord = display->mTransformOrigin[index];
-    if (coord.GetUnit() == eStyleUnit_Calc) {
-      const nsStyleCoord::Calc *calc = coord.GetCalcValue();
-      coords[index] =
+    const nsStyleCoord &originValue = display->mTransformOrigin[index];
+    if (originValue.GetUnit() == eStyleUnit_Calc) {
+      const nsStyleCoord::Calc *calc = originValue.GetCalcValue();
+      transformOrigin[index] =
         NSAppUnitsToFloatPixels((refBox.*dimensionGetter[index])(), aAppUnitsPerPixel) *
           calc->mPercent +
         NSAppUnitsToFloatPixels(calc->mLength, aAppUnitsPerPixel);
-    } else if (coord.GetUnit() == eStyleUnit_Percent) {
-      coords[index] =
+    } else if (originValue.GetUnit() == eStyleUnit_Percent) {
+      transformOrigin[index] =
         NSAppUnitsToFloatPixels((refBox.*dimensionGetter[index])(), aAppUnitsPerPixel) *
-        coord.GetPercentValue();
+        originValue.GetPercentValue();
     } else {
-      MOZ_ASSERT(coord.GetUnit() == eStyleUnit_Coord, "unexpected unit");
-      coords[index] =
-        NSAppUnitsToFloatPixels(coord.GetCoordValue(), aAppUnitsPerPixel);
+      MOZ_ASSERT(originValue.GetUnit() == eStyleUnit_Coord, "unexpected unit");
+      transformOrigin[index] =
+        NSAppUnitsToFloatPixels(originValue.GetCoordValue(), aAppUnitsPerPixel);
     }
 
     if (aFrame->GetStateBits() & NS_FRAME_SVG_LAYOUT) {
       // SVG frames (unlike other frames) have a reference box that can be (and
       // typically is) offset from the TopLeft() of the frame. We need to
       // account for that here.
-      coords[index] +=
+      transformOrigin[index] +=
         NSAppUnitsToFloatPixels((refBox.*offsetGetter[index])(), aAppUnitsPerPixel);
     }
   }
 
-  return Point3D(coords[0], coords[1],
+  return Point3D(transformOrigin[0], transformOrigin[1],
                  NSAppUnitsToFloatPixels(display->mTransformOrigin[2].GetCoordValue(),
                                          aAppUnitsPerPixel));
 }
@@ -5917,6 +6010,17 @@ nsDisplayTransform::GetResultingTransformMatrixInternal(const FrameTransformProp
     frame && frame->IsSVGTransformed(&svgTransform, &transformFromSVGParent);
   bool hasTransformFromSVGParent =
     hasSVGTransforms && !transformFromSVGParent.IsIdentity();
+
+  bool shouldRound = true;
+
+  // An SVG frame should not have its translation rounded.
+  // Note it's possible that the SVG frame doesn't have an SVG
+  // transform but only has a CSS transform.
+  if (frame && frame->HasAnyStateBits(NS_FRAME_SVG_LAYOUT) &&
+      !(frame->GetType() == nsGkAtoms::svgOuterSVGAnonChildFrame)) {
+    shouldRound = false;
+  }
+  
   /* Transformed frames always have a transform, or are preserving 3d (and might still have perspective!) */
   if (aProperties.mTransformList) {
     result = nsStyleTransformMatrix::ReadTransforms(aProperties.mTransformList->mHead,
@@ -5994,7 +6098,7 @@ nsDisplayTransform::GetResultingTransformMatrixInternal(const FrameTransformProp
     // Otherwise we need to manually translate into our parent's coordinate
     // space.
     if (frame->IsTransformed()) {
-      nsLayoutUtils::PostTranslate(result, frame->GetPosition(), aAppUnitsPerPixel, !hasSVGTransforms);
+      nsLayoutUtils::PostTranslate(result, frame->GetPosition(), aAppUnitsPerPixel, shouldRound);
     }
     Matrix4x4 parent =
       GetResultingTransformMatrixInternal(props,
@@ -6005,7 +6109,7 @@ nsDisplayTransform::GetResultingTransformMatrixInternal(const FrameTransformProp
   }
 
   if (aFlags & OFFSET_BY_ORIGIN) {
-    nsLayoutUtils::PostTranslate(result, aOrigin, aAppUnitsPerPixel, !hasSVGTransforms);
+    nsLayoutUtils::PostTranslate(result, aOrigin, aAppUnitsPerPixel, shouldRound);
   }
 
   return result;
@@ -7453,106 +7557,3 @@ nsDisplayFilter::PrintEffects(nsACString& aTo)
   aTo += ")";
 }
 #endif
-
-namespace mozilla {
-
-uint32_t PaintTelemetry::sPaintLevel = 0;
-uint32_t PaintTelemetry::sMetricLevel = 0;
-EnumeratedArray<PaintTelemetry::Metric,
-                PaintTelemetry::Metric::COUNT,
-                double> PaintTelemetry::sMetrics;
-
-PaintTelemetry::AutoRecordPaint::AutoRecordPaint()
-{
-  // Don't record nested paints.
-  if (sPaintLevel++ > 0) {
-    return;
-  }
-
-  // Reset metrics for a new paint.
-  for (auto& metric : sMetrics) {
-    metric = 0.0;
-  }
-  mStart = TimeStamp::Now();
-}
-
-PaintTelemetry::AutoRecordPaint::~AutoRecordPaint()
-{
-  MOZ_ASSERT(sPaintLevel != 0);
-  if (--sPaintLevel > 0) {
-    return;
-  }
-
-  // If we're in multi-process mode, don't include paint times for the parent
-  // process.
-  if (gfxVars::BrowserTabsRemoteAutostart() && XRE_IsParentProcess()) {
-    return;
-  }
-
-  double totalMs = (TimeStamp::Now() - mStart).ToMilliseconds();
-
-  // Record the total time.
-  Telemetry::Accumulate(Telemetry::CONTENT_PAINT_TIME, static_cast<uint32_t>(totalMs));
-
-  // If the total time was >= 16ms, then it's likely we missed a frame due to
-  // painting. In this case we'll gather some detailed metrics below.
-  if (totalMs <= 16.0) {
-    return;
-  }
-
-  auto record = [=](const char* aKey, double aDurationMs) -> void {
-    MOZ_ASSERT(aDurationMs <= totalMs);
-
-    uint32_t amount = static_cast<int32_t>((aDurationMs / totalMs) * 100.0);
-
-    nsDependentCString key(aKey);
-    Telemetry::Accumulate(Telemetry::CONTENT_LARGE_PAINT_PHASE_WEIGHT, key, amount);
-  };
-
-  double dlMs = sMetrics[Metric::DisplayList];
-  double flbMs = sMetrics[Metric::Layerization];
-  double rMs = sMetrics[Metric::Rasterization];
-
-  // Record all permutations since aggregation makes it difficult to
-  // correlate. For example we can't derive "flb+r" from "dl" because we
-  // don't know the total time associated with a bucket entry. So we just
-  // play it safe and include everything. We can however derive "other" time
-  // from the final permutation.
-  record("dl", dlMs);
-  record("flb", flbMs);
-  record("r", rMs);
-  record("dl,flb", dlMs + flbMs);
-  record("dl,r", dlMs + rMs);
-  record("flb,r", flbMs + rMs);
-  record("dl,flb,r", dlMs + flbMs + rMs);
-}
-
-PaintTelemetry::AutoRecord::AutoRecord(Metric aMetric)
- : mMetric(aMetric)
-{
-  // Don't double-record anything nested.
-  if (sMetricLevel++ > 0) {
-    return;
-  }
-
-  // Don't record inside nested paints, or outside of paints.
-  if (sPaintLevel != 1) {
-    return;
-  }
-
-  mStart = TimeStamp::Now();
-}
-
-PaintTelemetry::AutoRecord::~AutoRecord()
-{
-  MOZ_ASSERT(sMetricLevel != 0);
-
-  sMetricLevel--;
-  if (mStart.IsNull()) {
-    return;
-  }
-
-  sMetrics[mMetric] += (TimeStamp::Now() - mStart).ToMilliseconds();
-}
-
-} // namespace mozilla

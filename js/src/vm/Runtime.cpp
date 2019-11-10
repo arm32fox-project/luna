@@ -34,7 +34,6 @@
 #include "jsnativestack.h"
 #include "jsobj.h"
 #include "jsscript.h"
-#include "jswatchpoint.h"
 #include "jswin.h"
 #include "jswrapper.h"
 
@@ -147,7 +146,6 @@ JSRuntime::JSRuntime(JSRuntime* parentRuntime)
     updateChildRuntimeCount(parentRuntime),
 #endif
     interrupt_(false),
-    telemetryCallback(nullptr),
     handlingSegFault(false),
     handlingJitInterrupt_(false),
     interruptCallbackDisabled(false),
@@ -452,19 +450,6 @@ JSRuntime::destroyRuntime()
 }
 
 void
-JSRuntime::addTelemetry(int id, uint32_t sample, const char* key)
-{
-    if (telemetryCallback)
-        (*telemetryCallback)(id, sample, key);
-}
-
-void
-JSRuntime::setTelemetryCallback(JSRuntime* rt, JSAccumulateTelemetryDataCallback callback)
-{
-    rt->telemetryCallback = callback;
-}
-
-void
 JSRuntime::addSizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf, JS::RuntimeSizes* rtSizes)
 {
     // Several tables in the runtime enumerated below can be used off thread.
@@ -603,7 +588,7 @@ JSRuntime::requestInterrupt(InterruptMode mode)
         // Atomics.wait().
         fx.lock();
         if (fx.isWaiting())
-            fx.wake(FutexRuntime::WakeForJSInterrupt);
+            fx.notify(FutexRuntime::NotifyForJSInterrupt);
         fx.unlock();
         InterruptRunningJitCode(this);
     }

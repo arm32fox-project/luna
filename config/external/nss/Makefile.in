@@ -44,12 +44,13 @@ endif
 HAVE_FREEBL_LIBS = 1
 
 # SunOS SPARC
+
 ifeq ($(OS_ARCH), SunOS)
 ifneq (86,$(findstring 86,$(OS_TEST)))
 ifdef HAVE_64BIT_BUILD
-HAVE_FREEBL_LIBS =
+HAVE_FREEBL_LIBS = 
 HAVE_FREEBL_LIBS_64 = 1
-else
+else 
 HAVE_FREEBL_LIBS =
 HAVE_FREEBL_LIBS_32FPU = 1
 HAVE_FREEBL_LIBS_32INT64 = 1
@@ -333,7 +334,7 @@ INSTALL_TARGETS += NSS_DIST_DLL
 
 ifeq ($(OS_ARCH)_$(1), SunOS_softokn3)
 # has to use copy mode on Solaris, see #665509
-$(DIST)/bin/$(DLL_PREFIX)softokn3$(DLL_SUFFIX): INSTALL := $(INSTALL) -t
+$(DIST)/bin/$(DLL_PREFIX)softokn3$(DLL_SUFFIX): INSTALL := $(NSINSTALL) -t
 endif
 
 NSS_SDK_LIB_FILES := \

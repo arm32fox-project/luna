@@ -10,6 +10,7 @@
 #include "nsIStreamListener.h"
 #include "nsCDefaultURIFixup.h"
 #include "nsIURIFixup.h"
+#include "nsIImageLoadingContent.h"
 
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/TabChild.h"
@@ -90,6 +91,78 @@ nsContentSecurityManager::AllowTopLevelNavigationToDataURI(nsIChannel* aChannel)
                                   "BlockTopLevelDataURINavigation",
                                   params, ArrayLength(params));
   return false;
+}
+
+/* static */ nsresult
+nsContentSecurityManager::CheckFTPSubresourceLoad(nsIChannel* aChannel)
+{
+  // We dissallow using FTP resources as a subresource almost everywhere.
+  // The only valid way to use FTP resources is loading it as
+  // a top level document.
+  
+  // Override blocking if the pref is set to allow.
+  if (!mozilla::net::nsIOService::BlockFTPSubresources()) {
+    return NS_OK;
+  }
+
+  nsCOMPtr<nsILoadInfo> loadInfo = aChannel->GetLoadInfo();
+  if (!loadInfo) {
+    return NS_OK;
+  }
+
+  nsContentPolicyType type = loadInfo->GetExternalContentPolicyType();
+
+  // Allow save-as download of FTP files on HTTP pages.
+  if (type == nsIContentPolicy::TYPE_SAVEAS_DOWNLOAD) {
+    return NS_OK;
+  }
+
+  // Allow direct document requests
+  if (type == nsIContentPolicy::TYPE_DOCUMENT) {
+    return NS_OK;
+  }
+
+  nsCOMPtr<nsIURI> uri;
+  nsresult rv = NS_GetFinalChannelURI(aChannel, getter_AddRefs(uri));
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!uri) {
+    return NS_OK;
+  }
+
+  // Allow if it's not the FTP protocol
+  bool isFtpURI = (NS_SUCCEEDED(uri->SchemeIs("ftp", &isFtpURI)) && isFtpURI);
+  if (!isFtpURI) {
+    return NS_OK;
+  }
+
+  // Allow loading FTP subresources in top-level FTP documents.
+  nsIPrincipal* triggeringPrincipal = loadInfo->TriggeringPrincipal();
+  nsCOMPtr<nsIURI> tURI;
+  triggeringPrincipal->GetURI(getter_AddRefs(tURI));
+  bool isTrigFtpURI = (NS_SUCCEEDED(tURI->SchemeIs("ftp", &isTrigFtpURI)) && isTrigFtpURI);
+  if (isTrigFtpURI) {
+    return NS_OK;
+  }
+
+  // If we get here, the request is blocked and should be reported.
+  nsCOMPtr<nsIDocument> doc;
+  if (nsINode* node = loadInfo->LoadingNode()) {
+    doc = node->OwnerDoc();
+  }
+
+  nsAutoCString spec;
+  uri->GetSpec(spec);
+  NS_ConvertUTF8toUTF16 specUTF16(NS_UnescapeURL(spec));
+  const char16_t* params[] = { specUTF16.get() };
+
+  nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
+                                  NS_LITERAL_CSTRING("FTP_URI_BLOCKED"),
+                                  doc,
+                                  nsContentUtils::eSECURITY_PROPERTIES,
+                                  "BlockSubresourceFTP",
+                                  params, ArrayLength(params));
+
+  return NS_ERROR_CONTENT_BLOCKED;
 }
 
 static nsresult
@@ -574,6 +647,10 @@ nsContentSecurityManager::doContentSecurityCheck(nsIChannel* aChannel,
   rv = DoContentSecurityChecks(aChannel, loadInfo);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  // Apply this after CSP checks to allow CSP reporting.
+  rv = CheckFTPSubresourceLoad(aChannel);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   // now lets set the initalSecurityFlag for subsequent calls
   loadInfo->SetInitialSecurityCheckDone(true);
 
@@ -591,6 +668,9 @@ nsContentSecurityManager::AsyncOnChannelRedirect(nsIChannel* aOldChannel,
   // Are we enforcing security using LoadInfo?
   if (loadInfo && loadInfo->GetEnforceSecurity()) {
     nsresult rv = CheckChannel(aNewChannel);
+    if (NS_SUCCEEDED(rv)) {
+      rv = CheckFTPSubresourceLoad(aNewChannel);
+    }
     if (NS_FAILED(rv)) {
       aOldChannel->Cancel(rv);
       return rv;
@@ -722,6 +802,8 @@ nsContentSecurityManager::CheckChannel(nsIChannel* aChannel)
     // within nsCorsListenerProxy
     rv = DoCheckLoadURIChecks(uri, loadInfo);
     NS_ENSURE_SUCCESS(rv, rv);
+    // TODO: Bug 1371237
+    // consider calling SetBlockedRequest in nsContentSecurityManager::CheckChannel
   }
 
   return NS_OK;

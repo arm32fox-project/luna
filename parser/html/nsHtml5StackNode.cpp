@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2007 Henri Sivonen
  * Copyright (c) 2007-2011 Mozilla Foundation
+ * Copyright (c) 2019 Moonchild Productions
  *
  * Permission is hereby granted, free of charge, to any person obtaining a 
  * copy of this software and associated documentation files (the "Software"), 
@@ -21,16 +22,11 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-/*
- * THIS IS A GENERATED FILE. PLEASE DO NOT EDIT.
- * Please edit StackNode.java instead and regenerate.
- */
-
 #define nsHtml5StackNode_cpp__
 
 #include "nsIAtom.h"
 #include "nsHtml5AtomTable.h"
-#include "nsString.h"
+#include "nsHtml5String.h"
 #include "nsNameSpaceManager.h"
 #include "nsIContent.h"
 #include "nsTraceRefcnt.h"

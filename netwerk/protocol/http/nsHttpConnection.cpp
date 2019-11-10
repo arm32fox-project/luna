@@ -19,7 +19,6 @@
 
 #include "ASpdySession.h"
 #include "mozilla/ChaosMode.h"
-#include "mozilla/Telemetry.h"
 #include "nsHttpConnection.h"
 #include "nsHttpHandler.h"
 #include "nsHttpPipeline.h"
@@ -105,18 +104,12 @@ nsHttpConnection::~nsHttpConnection()
     if (!mEverUsedSpdy) {
         LOG(("nsHttpConnection %p performed %d HTTP/1.x transactions\n",
              this, mHttp1xTransactionCount));
-        Telemetry::Accumulate(Telemetry::HTTP_REQUEST_PER_CONN,
-                              mHttp1xTransactionCount);
     }
 
     if (mTotalBytesRead) {
         uint32_t totalKBRead = static_cast<uint32_t>(mTotalBytesRead >> 10);
         LOG(("nsHttpConnection %p read %dkb on connection spdy=%d\n",
              this, totalKBRead, mEverUsedSpdy));
-        Telemetry::Accumulate(mEverUsedSpdy ?
-                              Telemetry::SPDY_KBREAD_PER_CONN :
-                              Telemetry::HTTP_KBREAD_PER_CONN,
-                              totalKBRead);
     }
     if (mForceSendTimer) {
         mForceSendTimer->Cancel();
@@ -482,21 +475,6 @@ nsHttpConnection::EnsureNPNComplete(nsresult &aOut0RTTWriteHandshakeValue,
 
         int16_t tlsVersion;
         ssl->GetSSLVersionUsed(&tlsVersion);
-        // Send the 0RTT telemetry only for tls1.3
-        if (tlsVersion > nsISSLSocketControl::TLS_VERSION_1_2) {
-            Telemetry::Accumulate(Telemetry::TLS_EARLY_DATA_NEGOTIATED,
-                (!mEarlyDataNegotiated) ? TLS_EARLY_DATA_NOT_AVAILABLE
-                    : ((mWaitingFor0RTTResponse) ? TLS_EARLY_DATA_AVAILABLE_AND_USED
-                                                 : TLS_EARLY_DATA_AVAILABLE_BUT_NOT_USED));
-            if (mWaitingFor0RTTResponse) {
-                Telemetry::Accumulate(Telemetry::TLS_EARLY_DATA_ACCEPTED,
-                                      earlyDataAccepted);
-            }
-            if (earlyDataAccepted) {
-                Telemetry::Accumulate(Telemetry::TLS_EARLY_DATA_BYTES_WRITTEN,
-                                      mContentBytesWritten0RTT);
-            }
-        }
         mWaitingFor0RTTResponse = false;
 
         if (!earlyDataAccepted) {
@@ -518,8 +496,6 @@ nsHttpConnection::EnsureNPNComplete(nsresult &aOut0RTTWriteHandshakeValue,
               StartSpdy(mSpdySession->SpdyVersion());
           }
         }
-
-        Telemetry::Accumulate(Telemetry::SPDY_NPN_CONNECT, UsingSpdy());
     }
 
 npnComplete:
@@ -559,16 +535,16 @@ npnComplete:
     return true;
 }
 
-void
+nsresult
 nsHttpConnection::OnTunnelNudged(TLSFilterTransaction *trans)
 {
     MOZ_ASSERT(PR_GetCurrentThread() == gSocketThread);
     LOG(("nsHttpConnection::OnTunnelNudged %p\n", this));
     if (trans != mTLSFilter) {
-        return;
+        return NS_OK;
     }
     LOG(("nsHttpConnection::OnTunnelNudged %p Calling OnSocketWritable\n", this));
-    OnSocketWritable();
+    return OnSocketWritable();
 }
 
 // called on the socket thread
@@ -663,7 +639,9 @@ nsHttpConnection::Activate(nsAHttpTransaction *trans, uint32_t caps, int32_t pri
     }
 
     if (mTLSFilter) {
-        mTLSFilter->SetProxiedTransaction(trans);
+        RefPtr<NullHttpTransaction> baseTrans(do_QueryReferent(mWeakTrans));
+        rv = mTLSFilter->SetProxiedTransaction(trans, baseTrans);
+        NS_ENSURE_SUCCESS(rv, rv);
         mTransaction = mTLSFilter;
     }
 
@@ -2003,7 +1981,7 @@ nsHttpConnection::OnSocketReadable()
             // negotiation are known (which is determined from the write path).
             // If the server speaks SPDY it is likely the readable data here is
             // a spdy settings frame and without NPN it would be misinterpreted
-            // as HTTP/*
+            // as HTTP
 
             LOG(("nsHttpConnection::OnSocketReadable %p return due to inactive "
                  "tunnel setup but incomplete NPN state\n", this));
@@ -2043,12 +2021,14 @@ nsHttpConnection::OnSocketReadable()
 }
 
 void
-nsHttpConnection::SetupSecondaryTLS()
+nsHttpConnection::SetupSecondaryTLS(nsAHttpTransaction *aSpdyConnectTransaction)
 {
     MOZ_ASSERT(PR_GetCurrentThread() == gSocketThread);
     MOZ_ASSERT(!mTLSFilter);
-    LOG(("nsHttpConnection %p SetupSecondaryTLS %s %d\n",
-         this, mConnInfo->Origin(), mConnInfo->OriginPort()));
+    LOG(("nsHttpConnection %p SetupSecondaryTLS %s %d "
+         "aSpdyConnectTransaction=%p\n",
+         this, mConnInfo->Origin(), mConnInfo->OriginPort(),
+         aSpdyConnectTransaction));
 
     nsHttpConnectionInfo *ci = nullptr;
     if (mTransaction) {
@@ -2065,6 +2045,7 @@ nsHttpConnection::SetupSecondaryTLS()
     if (mTransaction) {
         mTransaction = mTLSFilter;
     }
+    mWeakTrans = do_GetWeakReference(aSpdyConnectTransaction);
 }
 
 void

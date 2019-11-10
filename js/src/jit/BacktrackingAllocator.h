@@ -108,8 +108,9 @@ class Requirement
         }
 
         MOZ_ASSERT(newRequirement.kind() == Requirement::REGISTER);
-        if (kind() == Requirement::FIXED)
+        if (kind() == Requirement::FIXED) {
             return allocation().isRegister();
+        }
 
         *this = newRequirement;
         return true;
@@ -353,10 +354,12 @@ class LiveRange : public TempObject
     // Comparator for use in range splay trees.
     static int compare(LiveRange* v0, LiveRange* v1) {
         // LiveRange includes 'from' but excludes 'to'.
-        if (v0->to() <= v1->from())
+        if (v0->to() <= v1->from()) {
             return -1;
-        if (v0->from() >= v1->to())
+        }
+        if (v0->from() >= v1->to()) {
             return 1;
+        }
         return 0;
     }
 };
@@ -478,34 +481,31 @@ class LiveBundle : public TempObject
 class VirtualRegister
 {
     // Instruction which defines this register.
-    LNode* ins_;
+    LNode* ins_ = nullptr;
 
     // Definition in the instruction for this register.
-    LDefinition* def_;
+    LDefinition* def_ = nullptr;
 
     // All live ranges for this register. These may overlap each other, and are
     // ordered by their start position.
     InlineForwardList<LiveRange::RegisterLink> ranges_;
 
     // Whether def_ is a temp or an output.
-    bool isTemp_;
+    bool isTemp_ = false;
 
     // Whether this vreg is an input for some phi. This use is not reflected in
     // any range on the vreg.
-    bool usedByPhi_;
+    bool usedByPhi_ = false;
 
     // If this register's definition is MUST_REUSE_INPUT, whether a copy must
     // be introduced before the definition that relaxes the policy.
-    bool mustCopyInput_;
+    bool mustCopyInput_ = false;
 
     void operator=(const VirtualRegister&) = delete;
     VirtualRegister(const VirtualRegister&) = delete;
 
   public:
-    explicit VirtualRegister()
-    {
-        // Note: This class is zeroed before it is constructed.
-    }
+    VirtualRegister() = default;
 
     void init(LNode* ins, LDefinition* def, bool isTemp) {
         MOZ_ASSERT(!ins_);
@@ -645,10 +645,12 @@ class BacktrackingAllocator : protected RegisterAllocator
 
         // Comparator for use in splay tree.
         static int compare(CallRange* v0, CallRange* v1) {
-            if (v0->range.to <= v1->range.from)
+            if (v0->range.to <= v1->range.from) {
                 return -1;
-            if (v0->range.from >= v1->range.to)
+            }
+            if (v0->range.from >= v1->range.to) {
                 return 1;
+            }
             return 0;
         }
     };
@@ -747,35 +749,42 @@ class BacktrackingAllocator : protected RegisterAllocator
 
     MOZ_MUST_USE bool moveInput(LInstruction* ins, LiveRange* from, LiveRange* to,
                                 LDefinition::Type type) {
-        if (from->bundle()->allocation() == to->bundle()->allocation())
+        if (from->bundle()->allocation() == to->bundle()->allocation()) {
             return true;
+        }
         LMoveGroup* moves = getInputMoveGroup(ins);
         return addMove(moves, from, to, type);
     }
 
     MOZ_MUST_USE bool moveAfter(LInstruction* ins, LiveRange* from, LiveRange* to,
                                 LDefinition::Type type) {
-        if (from->bundle()->allocation() == to->bundle()->allocation())
+        if (from->bundle()->allocation() == to->bundle()->allocation()) {
             return true;
+        }
         LMoveGroup* moves = getMoveGroupAfter(ins);
         return addMove(moves, from, to, type);
     }
 
     MOZ_MUST_USE bool moveAtExit(LBlock* block, LiveRange* from, LiveRange* to,
                                  LDefinition::Type type) {
-        if (from->bundle()->allocation() == to->bundle()->allocation())
+        if (from->bundle()->allocation() == to->bundle()->allocation()) {
             return true;
+        }
         LMoveGroup* moves = block->getExitMoveGroup(alloc());
         return addMove(moves, from, to, type);
     }
 
     MOZ_MUST_USE bool moveAtEntry(LBlock* block, LiveRange* from, LiveRange* to,
                                   LDefinition::Type type) {
-        if (from->bundle()->allocation() == to->bundle()->allocation())
+        if (from->bundle()->allocation() == to->bundle()->allocation()) {
             return true;
+        }
         LMoveGroup* moves = block->getEntryMoveGroup(alloc());
         return addMove(moves, from, to, type);
     }
+
+    MOZ_MUST_USE bool moveAtEdge(LBlock* predecessor, LBlock* successor, LiveRange* from,
+                                 LiveRange* to, LDefinition::Type type);
 
     // Debugging methods.
     void dumpAllocations();

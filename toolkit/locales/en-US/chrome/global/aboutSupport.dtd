@@ -45,6 +45,7 @@ This is likely the same like id.heading in crashes.dtd. -->
 <!ENTITY aboutSupport.appBasicsUpdateHistory "Update History">
 <!ENTITY aboutSupport.appBasicsShowUpdateHistory "Show Update History">
 
+<!ENTITY aboutSupport.appBasicsBinary "Application Binary">
 <!ENTITY aboutSupport.appBasicsProfileDir "Profile Directory">
 <!-- LOCALIZATION NOTE (aboutSupport.appBasicsProfileDirWinMac):
 This is the Windows- and Mac-specific variant of aboutSupport.appBasicsProfileDir.
@@ -62,8 +63,6 @@ Windows/Mac use the term "Folder" instead of "Directory" -->
 <!ENTITY aboutSupport.appBasicsServiceWorkers "Registered Service Workers">
 
 <!ENTITY aboutSupport.appBasicsProfiles "Profiles">
-
-<!ENTITY aboutSupport.appBasicsMultiProcessSupport "Multiprocess Windows">
 
 <!ENTITY aboutSupport.appBasicsSafeMode "Safe Mode">
 

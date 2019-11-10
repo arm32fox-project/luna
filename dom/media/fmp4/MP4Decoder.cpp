@@ -83,10 +83,6 @@ MP4Decoder::CanHandleMediaType(const MediaContentType& aType,
   const bool isMP4Audio = aType.GetMIMEType().EqualsASCII("audio/mp4") ||
                           aType.GetMIMEType().EqualsASCII("audio/x-m4a");
   const bool isMP4Video =
-  // On B2G, treat 3GPP as MP4 when Gonk PDM is available.
-#ifdef MOZ_GONK_MEDIACODEC
-      aType.GetMIMEType().EqualsASCII(VIDEO_3GPP) ||
-#endif
       aType.GetMIMEType().EqualsASCII("video/mp4") ||
       aType.GetMIMEType().EqualsASCII("video/quicktime") ||
       aType.GetMIMEType().EqualsASCII("video/x-m4v");
@@ -139,6 +135,14 @@ MP4Decoder::CanHandleMediaType(const MediaContentType& aType,
             NS_LITERAL_CSTRING("audio/flac"), aType));
         continue;
       }
+#ifdef MOZ_AV1
+      if (IsAV1CodecString(codec)) {
+        trackInfos.AppendElement(
+          CreateTrackInfoWithMIMETypeAndContentTypeExtraParameters(
+            NS_LITERAL_CSTRING("video/av1"), aType));
+        continue;
+      }
+#endif
       // Note: Only accept H.264 in a video content type, not in an audio
       // content type.
       if (IsWhitelistedH264Codec(codec) && isMP4Video) {
@@ -168,7 +172,8 @@ bool
 MP4Decoder::IsH264(const nsACString& aMimeType)
 {
   return aMimeType.EqualsLiteral("video/mp4") ||
-         aMimeType.EqualsLiteral("video/avc");
+         aMimeType.EqualsLiteral("video/avc") ||
+	 aMimeType.EqualsLiteral("video/webm; codecs=avc1");
 }
 
 /* static */

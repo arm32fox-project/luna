@@ -7,6 +7,7 @@
 
 #include "DocAccessible-inl.h"
 #include "DocAccessibleChild.h"
+#include "nsEventShell.h"
 #include "TextLeafAccessible.h"
 #include "TextUpdater.h"
 
@@ -16,6 +17,7 @@
 
 using namespace mozilla;
 using namespace mozilla::a11y;
+using namespace mozilla::dom;
 
 ////////////////////////////////////////////////////////////////////////////////
 // NotificationCollector
@@ -591,7 +593,6 @@ void
 NotificationController::WillRefresh(mozilla::TimeStamp aTime)
 {
   PROFILER_LABEL_FUNC(js::ProfileEntry::Category::OTHER);
-  Telemetry::AutoTimer<Telemetry::A11Y_UPDATE_TIME> updateTimer;
 
   // If the document accessible that notification collector was created for is
   // now shut down, don't process notifications anymore.

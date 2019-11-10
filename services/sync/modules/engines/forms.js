@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-this.EXPORTED_SYMBOLS = ['FormEngine', 'FormRec', 'FormValidator'];
+this.EXPORTED_SYMBOLS = ['FormEngine', 'FormRec'];
 
 var Cc = Components.classes;
 var Ci = Components.interfaces;
@@ -14,10 +14,9 @@ Cu.import("resource://services-sync/record.js");
 Cu.import("resource://services-common/async.js");
 Cu.import("resource://services-sync/util.js");
 Cu.import("resource://services-sync/constants.js");
-Cu.import("resource://services-sync/collection_validator.js");
 Cu.import("resource://gre/modules/Log.jsm");
 
-const FORMS_TTL = 3 * 365 * 24 * 60 * 60;   // Three years in seconds.
+const FORMS_TTL = 5184000; // 60 days
 
 this.FormRec = function FormRec(collection, id) {
   CryptoWrapper.call(this, collection, id);
@@ -37,24 +36,20 @@ var FormWrapper = {
   _getEntryCols: ["fieldname", "value"],
   _guidCols:     ["guid"],
 
-  _promiseSearch: function(terms, searchData) {
-    return new Promise(resolve => {
-      let results = [];
-      let callbacks = {
-        handleResult(result) {
-          results.push(result);
-        },
-        handleCompletion(reason) {
-          resolve(results);
-        }
-      };
-      Svc.FormHistory.search(terms, searchData, callbacks);
-    })
-  },
-
   // Do a "sync" search by spinning the event loop until it completes.
   _searchSpinningly: function(terms, searchData) {
-    return Async.promiseSpinningly(this._promiseSearch(terms, searchData));
+    let results = [];
+    let cb = Async.makeSpinningCallback();
+    let callbacks = {
+      handleResult: function(result) {
+        results.push(result);
+      },
+      handleCompletion: function(reason) {
+        cb(null, results);
+      }
+    };
+    Svc.FormHistory.search(terms, searchData, callbacks);
+    return cb.wait();
   },
 
   _updateSpinningly: function(changes) {
@@ -114,9 +109,7 @@ FormEngine.prototype = {
 
   syncPriority: 6,
 
-  get prefName() {
-    return "history";
-  },
+  get prefName() "history",
 
   _findDupe: function _findDupe(item) {
     return FormWrapper.getGUID(item.name, item.value);
@@ -235,6 +228,7 @@ FormTracker.prototype = {
     if (this.ignoreAll) {
       return;
     }
+
     switch (topic) {
       case "satchel-storage-changed":
         if (data == "formhistory-add" || data == "formhistory-remove") {
@@ -250,56 +244,3 @@ FormTracker.prototype = {
     this.score += SCORE_INCREMENT_MEDIUM;
   },
 };
-
-
-class FormsProblemData extends CollectionProblemData {
-  getSummary() {
-    // We don't support syncing deleted form data, so "clientMissing" isn't a problem
-    return super.getSummary().filter(entry =>
-      entry.name !== "clientMissing");
-  }
-}
-
-class FormValidator extends CollectionValidator {
-  constructor() {
-    super("forms", "id", ["name", "value"]);
-  }
-
-  emptyProblemData() {
-    return new FormsProblemData();
-  }
-
-  getClientItems() {
-    return FormWrapper._promiseSearch(["guid", "fieldname", "value"], {});
-  }
-
-  normalizeClientItem(item) {
-    return {
-      id: item.guid,
-      guid: item.guid,
-      name: item.fieldname,
-      fieldname: item.fieldname,
-      value: item.value,
-      original: item,
-    };
-  }
-
-  normalizeServerItem(item) {
-    let res = Object.assign({
-      guid: item.id,
-      fieldname: item.name,
-      original: item,
-    }, item);
-    // Missing `name` or `value` causes the getGUID call to throw
-    if (item.name !== undefined && item.value !== undefined) {
-      let guid = FormWrapper.getGUID(item.name, item.value);
-      if (guid) {
-        res.guid = guid;
-        res.id = guid;
-        res.duped = true;
-      }
-    }
-
-    return res;
-  }
-}

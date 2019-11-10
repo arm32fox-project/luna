@@ -20,6 +20,7 @@
 #include "gc/Zone.h"
 #include "vm/Runtime.h"
 
+
 namespace js {
 
 bool
@@ -136,6 +137,9 @@ PerformanceMonitoring::start()
 bool
 PerformanceMonitoring::commit()
 {
+    // Maximal initialization size, in elements for the vector of groups.
+    static const size_t MAX_GROUPS_INIT_CAPACITY = 1024;
+
 #if !defined(MOZ_HAVE_RDTSC)
     // The AutoStopwatch is only executed if `MOZ_HAVE_RDTSC`.
     return false;
@@ -152,12 +156,23 @@ PerformanceMonitoring::commit()
         return true;
     }
 
-    PerformanceGroupVector recentGroups;
-    recentGroups_.swap(recentGroups);
+    // The move operation is generally constant time, unless
+    // `recentGroups_.length()` is very small, in which case
+    // it's fast just because it's small.
+    PerformanceGroupVector recentGroups(Move(recentGroups_));
+    recentGroups_ = PerformanceGroupVector(); // Reconstruct after `Move`.
 
     bool success = true;
     if (stopwatchCommitCallback)
         success = stopwatchCommitCallback(iteration_, recentGroups, stopwatchCommitClosure);
+
+    // Heuristic: we expect to have roughly the same number of groups as in
+    // the previous iteration.
+    const size_t capacity = recentGroups.capacity() < MAX_GROUPS_INIT_CAPACITY ?
+                            recentGroups.capacity() :
+                            MAX_GROUPS_INIT_CAPACITY;
+    success = recentGroups_.reserve(capacity)
+            && success;
 
     // Reset immediately, to make sure that we're not hit by the end
     // of a nested event loop (which would cause `commit` to be called
@@ -227,7 +242,7 @@ AutoStopwatch::AutoStopwatch(JSContext* cx MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IM
     MOZ_GUARD_OBJECT_NOTIFIER_INIT;
 
     JSCompartment* compartment = cx_->compartment();
-    if (compartment->scheduledForDestruction)
+    if (MOZ_UNLIKELY(compartment->scheduledForDestruction))
         return;
 
     JSRuntime* runtime = cx_->runtime();
@@ -266,11 +281,11 @@ AutoStopwatch::~AutoStopwatch()
     }
 
     JSCompartment* compartment = cx_->compartment();
-    if (compartment->scheduledForDestruction)
+    if (MOZ_UNLIKELY(compartment->scheduledForDestruction))
         return;
 
     JSRuntime* runtime = cx_->runtime();
-    if (iteration_ != runtime->performanceMonitoring.iteration()) {
+    if (MOZ_UNLIKELY(iteration_ != runtime->performanceMonitoring.iteration())) {
         // We have entered a nested event loop at some point.
         // Any information we may have is obsolete.
         return;
@@ -319,11 +334,6 @@ AutoStopwatch::exit()
             const uint64_t cyclesEnd = getCycles(runtime);
             cyclesDelta = cyclesEnd - cyclesStart_; // Always >= 0 by definition of `getCycles`.
         }
-#if WINVER >= 0x600
-        updateTelemetry(cpuStart_, cpuEnd);
-#elif defined(__linux__)
-        updateTelemetry(cpuStart_, cpuEnd);
-#endif // WINVER >= 0x600 || _linux__
     }
 
     uint64_t CPOWTimeDelta = 0;
@@ -333,17 +343,6 @@ AutoStopwatch::exit()
         CPOWTimeDelta = getDelta(CPOWTimeEnd, CPOWTimeStart_);
     }
     return addToGroups(cyclesDelta, CPOWTimeDelta);
-}
-
-void
-AutoStopwatch::updateTelemetry(const cpuid_t& cpuStart_, const cpuid_t& cpuEnd)
-{
-  JSRuntime* runtime = cx_->runtime();
-
-    if (isSameCPU(cpuStart_, cpuEnd))
-        runtime->performanceMonitoring.testCpuRescheduling.stayed += 1;
-    else
-        runtime->performanceMonitoring.testCpuRescheduling.moved += 1;
 }
 
 PerformanceGroup*
@@ -635,13 +634,6 @@ JS_PUBLIC_API(bool)
 GetStopwatchIsMonitoringCPOW(JSContext* cx)
 {
     return cx->performanceMonitoring.isMonitoringCPOW();
-}
-
-JS_PUBLIC_API(void)
-GetPerfMonitoringTestCpuRescheduling(JSContext* cx, uint64_t* stayed, uint64_t* moved)
-{
-    *stayed = cx->performanceMonitoring.testCpuRescheduling.stayed;
-    *moved = cx->performanceMonitoring.testCpuRescheduling.moved;
 }
 
 JS_PUBLIC_API(void)

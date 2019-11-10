@@ -2306,7 +2306,7 @@ jit::RemoveUnmarkedBlocks(MIRGenerator* mir, MIRGraph& graph, uint32_t numMarked
         // bailout.
         for (PostorderIterator it(graph.poBegin()); it != graph.poEnd();) {
             MBasicBlock* block = *it++;
-            if (!block->isMarked())
+            if (block->isMarked())
                 continue;
 
             FlagAllOperandsAsHavingRemovedUses(mir, block);
@@ -3127,6 +3127,15 @@ ExtractMathSpace(MDefinition* ins)
     MOZ_MAKE_COMPILER_ASSUME_IS_UNREACHABLE("Unknown TruncateKind");
 }
 
+static bool MonotoneAdd(int32_t lhs, int32_t rhs) {
+  return (lhs >= 0 && rhs >= 0) || (lhs <= 0 && rhs <= 0);
+}
+
+static bool MonotoneSub(int32_t lhs, int32_t rhs) {
+  return (lhs >= 0 && rhs <= 0) || (lhs <= 0 && rhs >= 0);
+}
+
+
 // Extract a linear sum from ins, if possible (otherwise giving the sum 'ins + 0').
 SimpleLinearSum
 jit::ExtractLinearSum(MDefinition* ins, MathSpace space)
@@ -3168,10 +3177,12 @@ jit::ExtractLinearSum(MDefinition* ins, MathSpace space)
     // Check if this is of the form <SUM> + n or n + <SUM>.
     if (ins->isAdd()) {
         int32_t constant;
-        if (space == MathSpace::Modulo)
+        if (space == MathSpace::Modulo) {
             constant = lsum.constant + rsum.constant;
-        else if (!SafeAdd(lsum.constant, rsum.constant, &constant))
+        } else if (!SafeAdd(lsum.constant, rsum.constant, &constant) ||
+                   !MonotoneAdd(lsum.constant, rsum.constant)) {
             return SimpleLinearSum(ins, 0);
+        }
         return SimpleLinearSum(lsum.term ? lsum.term : rsum.term, constant);
     }
 
@@ -3179,10 +3190,12 @@ jit::ExtractLinearSum(MDefinition* ins, MathSpace space)
     // Check if this is of the form <SUM> - n.
     if (lsum.term) {
         int32_t constant;
-        if (space == MathSpace::Modulo)
+        if (space == MathSpace::Modulo) {
             constant = lsum.constant - rsum.constant;
-        else if (!SafeSub(lsum.constant, rsum.constant, &constant))
+        } else if (!SafeSub(lsum.constant, rsum.constant, &constant) ||
+                   !MonotoneSub(lsum.constant, rsum.constant)) {
             return SimpleLinearSum(ins, 0);
+        }
         return SimpleLinearSum(lsum.term, constant);
     }
 
@@ -3502,8 +3515,6 @@ PassthroughOperand(MDefinition* def)
         return def->toConvertElementsToDoubles()->elements();
     if (def->isMaybeCopyElementsForWrite())
         return def->toMaybeCopyElementsForWrite()->object();
-    if (def->isConvertUnboxedObjectToNative())
-        return def->toConvertUnboxedObjectToNative()->object();
     return nullptr;
 }
 
@@ -3994,7 +4005,7 @@ jit::ConvertLinearInequality(TempAllocator& alloc, MBasicBlock* block, const Lin
 }
 
 static bool
-AnalyzePoppedThis(JSContext* cx, ObjectGroup* group,
+AnalyzePoppedThis(JSContext* cx, DPAConstraintInfo& constraintInfo, ObjectGroup* group,
                   MDefinition* thisValue, MInstruction* ins, bool definitelyExecuted,
                   HandlePlainObject baseobj,
                   Vector<TypeNewScript::Initializer>* initializerList,
@@ -4035,7 +4046,12 @@ AnalyzePoppedThis(JSContext* cx, ObjectGroup* group,
             return true;
 
         RootedId id(cx, NameToId(setprop->name()));
-        if (!AddClearDefiniteGetterSetterForPrototypeChain(cx, group, id)) {
+        bool added = false;
+        if (!AddClearDefiniteGetterSetterForPrototypeChain(cx, constraintInfo,
+                                                           group, id, &added)) {
+            return false;
+        }
+        if (!added) {
             // The prototype chain already contains a getter/setter for this
             // property, or type information is too imprecise.
             return true;
@@ -4044,7 +4060,7 @@ AnalyzePoppedThis(JSContext* cx, ObjectGroup* group,
         // Add the property to the object, being careful not to update type information.
         DebugOnly<unsigned> slotSpan = baseobj->slotSpan();
         MOZ_ASSERT(!baseobj->containsPure(id));
-        if (!baseobj->addDataProperty(cx, id, baseobj->slotSpan(), JSPROP_ENUMERATE))
+        if (!NativeObject::addDataProperty(cx, baseobj, id, baseobj->slotSpan(), JSPROP_ENUMERATE))
             return false;
         MOZ_ASSERT(baseobj->slotSpan() != slotSpan);
         MOZ_ASSERT(!baseobj->inDictionaryMode());
@@ -4095,7 +4111,12 @@ AnalyzePoppedThis(JSContext* cx, ObjectGroup* group,
         if (!baseobj->lookup(cx, id) && !accessedProperties->append(get->name()))
             return false;
 
-        if (!AddClearDefiniteGetterSetterForPrototypeChain(cx, group, id)) {
+        bool added = false;
+        if (!AddClearDefiniteGetterSetterForPrototypeChain(cx, constraintInfo,
+                                                           group, id, &added)) {
+            return false;
+        }
+        if (!added) {
             // The |this| value can escape if any property reads it does go
             // through a getter.
             return true;
@@ -4121,8 +4142,11 @@ CmpInstructions(const void* a, const void* b)
 }
 
 bool
-jit::AnalyzeNewScriptDefiniteProperties(JSContext* cx, JSFunction* fun,
-                                        ObjectGroup* group, HandlePlainObject baseobj,
+jit::AnalyzeNewScriptDefiniteProperties(JSContext* cx,
+                                        DPAConstraintInfo& constraintInfo,
+                                        HandleFunction fun,
+                                        ObjectGroup* group,
+                                        HandlePlainObject baseobj,
                                         Vector<TypeNewScript::Initializer>* initializerList)
 {
     MOZ_ASSERT(cx->zone()->types.activeAnalysis);
@@ -4131,7 +4155,7 @@ jit::AnalyzeNewScriptDefiniteProperties(JSContext* cx, JSFunction* fun,
     // which will definitely be added to the created object before it has a
     // chance to escape and be accessed elsewhere.
 
-    RootedScript script(cx, fun->getOrCreateScript(cx));
+    RootedScript script(cx, JSFunction::getOrCreateScript(cx, fun));
     if (!script)
         return false;
 
@@ -4282,7 +4306,7 @@ jit::AnalyzeNewScriptDefiniteProperties(JSContext* cx, JSFunction* fun,
 
         bool handled = false;
         size_t slotSpan = baseobj->slotSpan();
-        if (!AnalyzePoppedThis(cx, group, thisValue, ins, definitelyExecuted,
+        if (!AnalyzePoppedThis(cx, constraintInfo, group, thisValue, ins, definitelyExecuted,
                                baseobj, initializerList, &accessedProperties, &handled))
         {
             return false;
@@ -4301,7 +4325,6 @@ jit::AnalyzeNewScriptDefiniteProperties(JSContext* cx, JSFunction* fun,
         // contingent on the correct frames being inlined. Add constraints to
         // invalidate the definite properties if additional functions could be
         // called at the inline frame sites.
-        Vector<MBasicBlock*> exitBlocks(cx);
         for (MBasicBlockIterator block(graph.begin()); block != graph.end(); block++) {
             // Inlining decisions made after the last new property was added to
             // the object don't need to be frozen.
@@ -4309,9 +4332,11 @@ jit::AnalyzeNewScriptDefiniteProperties(JSContext* cx, JSFunction* fun,
                 break;
             if (MResumePoint* rp = block->callerResumePoint()) {
                 if (block->numPredecessors() == 1 && block->getPredecessor(0) == rp->block()) {
-                    JSScript* script = rp->block()->info().script();
-                    if (!AddClearDefiniteFunctionUsesInScript(cx, group, script, block->info().script()))
+                    JSScript* caller = rp->block()->info().script();
+                    JSScript* callee = block->info().script();
+                    if (!constraintInfo.addInliningConstraint(caller, callee)) {
                         return false;
+                    }
                 }
             }
         }

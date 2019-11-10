@@ -32,7 +32,7 @@
 #endif
 #endif
 
-#if defined(SOLARIS)
+#ifdef XP_SOLARIS
 #include <sys/resource.h>
 #include <ucontext.h>
 #endif
@@ -198,7 +198,7 @@ static void fpehandler(int signum, siginfo_t *si, void *context)
   *mxcsr &= ~SSE_STATUS_FLAGS; /* clear all pending SSE exceptions */
 #endif
 #endif
-#ifdef SOLARIS
+#ifdef XP_SOLARIS
   ucontext_t *uc = (ucontext_t *)context;
 
 #if defined(__i386)
@@ -286,7 +286,7 @@ void InstallSignalHandlers(const char *aProgname)
   }
 #endif
 
-#if defined(SOLARIS)
+#ifdef XP_SOLARIS
 #define NOFILES 512
 
     // Boost Solaris file descriptors
@@ -308,7 +308,8 @@ void InstallSignalHandlers(const char *aProgname)
 #endif //DEBUG
 	    }
     }
-#endif //SOLARIS
+#endif //XP_SOLARIS
+
 
 #if defined(MOZ_WIDGET_GTK) && (GLIB_MAJOR_VERSION > 2 || (GLIB_MAJOR_VERSION == 2 && GLIB_MINOR_VERSION >= 6))
   const char *assertString = PR_GetEnv("XPCOM_DEBUG_BREAK");

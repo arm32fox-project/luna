@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2007 Henri Sivonen
  * Copyright (c) 2008-2011 Mozilla Foundation
+ * Copyright (c) 2019 Moonchild Productions
  *
  * Permission is hereby granted, free of charge, to any person obtaining a 
  * copy of this software and associated documentation files (the "Software"), 
@@ -21,16 +22,11 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-/*
- * THIS IS A GENERATED FILE. PLEASE DO NOT EDIT.
- * Please edit HtmlAttributes.java instead and regenerate.
- */
-
 #define nsHtml5HtmlAttributes_cpp__
 
 #include "nsIAtom.h"
 #include "nsHtml5AtomTable.h"
-#include "nsString.h"
+#include "nsHtml5String.h"
 #include "nsNameSpaceManager.h"
 #include "nsIContent.h"
 #include "nsTraceRefcnt.h"
@@ -58,11 +54,11 @@
 nsHtml5HtmlAttributes* nsHtml5HtmlAttributes::EMPTY_ATTRIBUTES = nullptr;
 
 nsHtml5HtmlAttributes::nsHtml5HtmlAttributes(int32_t mode)
-  : mode(mode),
-    length(0),
-    names(jArray<nsHtml5AttributeName*,int32_t>::newJArray(8)),
-    values(jArray<nsString*,int32_t>::newJArray(8)),
-    lines(jArray<int32_t,int32_t>::newJArray(8))
+  : mode(mode)
+  , length(0)
+  , names(jArray<nsHtml5AttributeName*, int32_t>::newJArray(8))
+  , values(jArray<nsHtml5String, int32_t>::newJArray(8))
+  , lines(jArray<int32_t, int32_t>::newJArray(8))
 {
   MOZ_COUNT_CTOR(nsHtml5HtmlAttributes);
 }
@@ -85,7 +81,7 @@ nsHtml5HtmlAttributes::getIndex(nsHtml5AttributeName* name)
   return -1;
 }
 
-nsString* 
+nsHtml5String 
 nsHtml5HtmlAttributes::getValue(nsHtml5AttributeName* name)
 {
   int32_t index = getIndex(name);
@@ -123,7 +119,7 @@ nsHtml5HtmlAttributes::getPrefixNoBoundsCheck(int32_t index)
   return names[index]->getPrefix(mode);
 }
 
-nsString* 
+nsHtml5String 
 nsHtml5HtmlAttributes::getValueNoBoundsCheck(int32_t index)
 {
   MOZ_ASSERT(index < length && index >= 0, "Index out of bounds");
@@ -145,14 +141,17 @@ nsHtml5HtmlAttributes::getLineNoBoundsCheck(int32_t index)
 }
 
 void 
-nsHtml5HtmlAttributes::addAttribute(nsHtml5AttributeName* name, nsString* value, int32_t line)
+nsHtml5HtmlAttributes::addAttribute(nsHtml5AttributeName* name,
+                                    nsHtml5String value,
+                                    int32_t line)
 {
   if (names.length == length) {
     int32_t newLen = length << 1;
     jArray<nsHtml5AttributeName*,int32_t> newNames = jArray<nsHtml5AttributeName*,int32_t>::newJArray(newLen);
     nsHtml5ArrayCopy::arraycopy(names, newNames, names.length);
     names = newNames;
-    jArray<nsString*,int32_t> newValues = jArray<nsString*,int32_t>::newJArray(newLen);
+    jArray<nsHtml5String, int32_t> newValues =
+      jArray<nsHtml5String, int32_t>::newJArray(newLen);
     nsHtml5ArrayCopy::arraycopy(values, newValues, values.length);
     values = newValues;
     jArray<int32_t,int32_t> newLines = jArray<int32_t,int32_t>::newJArray(newLen);
@@ -171,7 +170,7 @@ nsHtml5HtmlAttributes::clear(int32_t m)
   for (int32_t i = 0; i < length; i++) {
     names[i]->release();
     names[i] = nullptr;
-    nsHtml5Portability::releaseString(values[i]);
+    values[i].Release();
     values[i] = nullptr;
   }
   length = 0;
@@ -181,7 +180,7 @@ nsHtml5HtmlAttributes::clear(int32_t m)
 void 
 nsHtml5HtmlAttributes::releaseValue(int32_t i)
 {
-  nsHtml5Portability::releaseString(values[i]);
+  values[i].Release();
 }
 
 void 

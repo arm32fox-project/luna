@@ -15,15 +15,23 @@ AC_SUBST(MOZ_PHOENIX_EXTENSIONS)
 dnl Optional parts of the build.
 
 dnl ========================================================
-dnl = Disable the status bar code
+dnl = Disable Sync
 dnl ========================================================
-MOZ_ARG_DISABLE_BOOL(browser-statusbar,
-[  --disable-browser-statusbar           Disable Browser Status bar],
-    MOZ_BROWSER_STATUSBAR=,
-    MOZ_BROWSER_STATUSBAR=1)
+MOZ_ARG_DISABLE_BOOL(sync,
+[  --disable-sync           Disable Sync],
+    MOZ_SERVICES_SYNC=,
+    MOZ_SERVICES_SYNC=1)
 
-if test -n "$MOZ_BROWSER_STATUSBAR"; then
-    AC_DEFINE(MOZ_BROWSER_STATUSBAR)
+dnl ========================================================
+dnl = Disable Lightweight Themes
+dnl ========================================================
+MOZ_ARG_DISABLE_BOOL(personas,
+[  --disable-personas           Disable lightweight theme support],
+    MOZ_PERSONAS=,
+    MOZ_PERSONAS=1)
+
+if test -n "$MOZ_PERSONAS"; then
+    AC_DEFINE(MOZ_PERSONAS)
 fi
 
-AC_SUBST(MOZ_BROWSER_STATUSBAR)
+AC_SUBST(MOZ_PERSONAS)

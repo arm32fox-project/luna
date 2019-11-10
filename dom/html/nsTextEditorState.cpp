@@ -47,7 +47,6 @@
 #include "mozilla/dom/HTMLInputElement.h"
 #include "nsNumberControlFrame.h"
 #include "nsFrameSelection.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/layers/ScrollInputMethods.h"
 
 using namespace mozilla;
@@ -585,9 +584,6 @@ nsTextInputSelectionImpl::CompleteScroll(bool aForward)
   if (!mScrollFrame)
     return NS_ERROR_NOT_INITIALIZED;
 
-  mozilla::Telemetry::Accumulate(mozilla::Telemetry::SCROLL_INPUT_METHODS,
-      (uint32_t) ScrollInputMethod::MainThreadCompleteScroll);
-
   mScrollFrame->ScrollBy(nsIntPoint(0, aForward ? 1 : -1),
                          nsIScrollableFrame::WHOLE,
                          nsIScrollableFrame::INSTANT);
@@ -640,9 +636,6 @@ nsTextInputSelectionImpl::ScrollPage(bool aForward)
   if (!mScrollFrame)
     return NS_ERROR_NOT_INITIALIZED;
 
-  mozilla::Telemetry::Accumulate(mozilla::Telemetry::SCROLL_INPUT_METHODS,
-      (uint32_t) ScrollInputMethod::MainThreadScrollPage);
-
   mScrollFrame->ScrollBy(nsIntPoint(0, aForward ? 1 : -1),
                          nsIScrollableFrame::PAGES,
                          nsIScrollableFrame::SMOOTH);
@@ -655,9 +648,6 @@ nsTextInputSelectionImpl::ScrollLine(bool aForward)
   if (!mScrollFrame)
     return NS_ERROR_NOT_INITIALIZED;
 
-  mozilla::Telemetry::Accumulate(mozilla::Telemetry::SCROLL_INPUT_METHODS,
-      (uint32_t) ScrollInputMethod::MainThreadScrollLine);
-
   mScrollFrame->ScrollBy(nsIntPoint(0, aForward ? 1 : -1),
                          nsIScrollableFrame::LINES,
                          nsIScrollableFrame::SMOOTH);
@@ -669,9 +659,6 @@ nsTextInputSelectionImpl::ScrollCharacter(bool aRight)
 {
   if (!mScrollFrame)
     return NS_ERROR_NOT_INITIALIZED;
-
-  mozilla::Telemetry::Accumulate(mozilla::Telemetry::SCROLL_INPUT_METHODS,
-      (uint32_t) ScrollInputMethod::MainThreadScrollCharacter);
 
   mScrollFrame->ScrollBy(nsIntPoint(aRight ? 1 : -1, 0),
                          nsIScrollableFrame::LINES,
@@ -2268,7 +2255,11 @@ nsTextEditorState::UpdatePlaceholderText(bool aNotify)
 
   nsCOMPtr<nsIContent> content = do_QueryInterface(mTextCtrlElement);
   content->GetAttr(kNameSpaceID_None, nsGkAtoms::placeholder, placeholderValue);
-  nsContentUtils::RemoveNewlines(placeholderValue);
+  if (mTextCtrlElement->IsTextArea()) { // <textarea>s preserve newlines...
+    nsContentUtils::PlatformToDOMLineBreaks(placeholderValue);
+  } else { // ...<input>s don't
+    nsContentUtils::RemoveNewlines(placeholderValue);
+  }
   NS_ASSERTION(mPlaceholderDiv->GetFirstChild(), "placeholder div has no child");
   mPlaceholderDiv->GetFirstChild()->SetText(placeholderValue, aNotify);
 }

@@ -55,7 +55,6 @@
 #include "nsDocShell.h"
 #include "nsISimpleEnumerator.h"
 #include "nsJSEnvironment.h"
-#include "mozilla/Telemetry.h"
 #include "gfxPrefs.h"
 #include "BackgroundChild.h"
 #include "mozilla/ipc/PBackgroundChild.h"
@@ -143,11 +142,7 @@ public:
   {
   }
 
-  virtual ~RefreshDriverTimer()
-  {
-    MOZ_ASSERT(mContentRefreshDrivers.Length() == 0, "Should have removed all content refresh drivers from here by now!");
-    MOZ_ASSERT(mRootRefreshDrivers.Length() == 0, "Should have removed all root refresh drivers from here by now!");
-  }
+  NS_INLINE_DECL_REFCOUNTING(RefreshDriverTimer)
 
   virtual void AddRefreshDriver(nsRefreshDriver* aDriver)
   {
@@ -253,6 +248,12 @@ public:
   }
 
 protected:
+  virtual ~RefreshDriverTimer()
+  {
+    MOZ_ASSERT(mContentRefreshDrivers.Length() == 0, "Should have removed all content refresh drivers from here by now!");
+    MOZ_ASSERT(mRootRefreshDrivers.Length() == 0, "Should have removed all root refresh drivers from here by now!");
+  }
+
   virtual void StartTimer() = 0;
   virtual void StopTimer() = 0;
   virtual void ScheduleNextTick(TimeStamp aNowTime) = 0;
@@ -335,10 +336,11 @@ protected:
   nsTArray<RefPtr<nsRefreshDriver> > mRootRefreshDrivers;
 
   // useful callback for nsITimer-based derived classes, here
-  // bacause of c++ protected shenanigans
+  // because of c++ protected shenanigans
   static void TimerTick(nsITimer* aTimer, void* aClosure)
   {
-    RefreshDriverTimer *timer = static_cast<RefreshDriverTimer*>(aClosure);
+    RefPtr<RefreshDriverTimer> timer = 
+      static_cast<RefreshDriverTimer*>(aClosure);
     timer->Tick();
   }
 };
@@ -459,9 +461,7 @@ public:
 private:
   // Since VsyncObservers are refCounted, but the RefreshDriverTimer are
   // explicitly shutdown. We create an inner class that has the VsyncObserver
-  // and is shutdown when the RefreshDriverTimer is deleted. The alternative is
-  // to (a) make all RefreshDriverTimer RefCounted or (b) use different
-  // VsyncObserver types.
+  // and is shutdown when the RefreshDriverTimer is deleted.
   class RefreshDriverVsyncObserver final : public VsyncObserver
   {
   public:
@@ -478,6 +478,9 @@ private:
 
     bool NotifyVsync(TimeStamp aVsyncTimestamp) override
     {
+      // IMPORTANT: All paths through this method MUST hold a strong ref on
+      // |this| for the duration of the TickRefreshDriver callback.
+
       if (!NS_IsMainThread()) {
         MOZ_ASSERT(XRE_IsParentProcess());
         // Compress vsync notifications such that only 1 may run at a time
@@ -498,6 +501,7 @@ private:
                                           aVsyncTimestamp);
         NS_DispatchToMainThread(vsyncEvent);
       } else {
+        RefPtr<RefreshDriverVsyncObserver> kungFuDeathGrip(this);
         TickRefreshDriver(aVsyncTimestamp);
       }
 
@@ -519,54 +523,10 @@ private:
   private:
     ~RefreshDriverVsyncObserver() = default;
 
-    void RecordTelemetryProbes(TimeStamp aVsyncTimestamp)
-    {
-      MOZ_ASSERT(NS_IsMainThread());
-    #ifndef ANDROID  /* bug 1142079 */
-      if (XRE_IsParentProcess()) {
-        TimeDuration vsyncLatency = TimeStamp::Now() - aVsyncTimestamp;
-        uint32_t sample = (uint32_t)vsyncLatency.ToMilliseconds();
-        Telemetry::Accumulate(Telemetry::FX_REFRESH_DRIVER_CHROME_FRAME_DELAY_MS,
-                              sample);
-        Telemetry::Accumulate(Telemetry::FX_REFRESH_DRIVER_SYNC_SCROLL_FRAME_DELAY_MS,
-                              sample);
-        RecordJank(sample);
-      } else if (mVsyncRate != TimeDuration::Forever()) {
-        TimeDuration contentDelay = (TimeStamp::Now() - mLastChildTick) - mVsyncRate;
-        if (contentDelay.ToMilliseconds() < 0 ){
-          // Vsyncs are noisy and some can come at a rate quicker than
-          // the reported hardware rate. In those cases, consider that we have 0 delay.
-          contentDelay = TimeDuration::FromMilliseconds(0);
-        }
-        uint32_t sample = (uint32_t)contentDelay.ToMilliseconds();
-        Telemetry::Accumulate(Telemetry::FX_REFRESH_DRIVER_CONTENT_FRAME_DELAY_MS,
-                              sample);
-        Telemetry::Accumulate(Telemetry::FX_REFRESH_DRIVER_SYNC_SCROLL_FRAME_DELAY_MS,
-                              sample);
-        RecordJank(sample);
-      } else {
-        // Request the vsync rate from the parent process. Might be a few vsyncs
-        // until the parent responds.
-        mVsyncRate = mVsyncRefreshDriverTimer->mVsyncChild->GetVsyncRate();
-      }
-    #endif
-    }
-
-    void RecordJank(uint32_t aJankMS)
-    {
-      uint32_t duration = 1 /* ms */;
-      for (size_t i = 0;
-           i < mozilla::ArrayLength(sJankLevels) && duration < aJankMS;
-           ++i, duration *= 2) {
-        sJankLevels[i]++;
-      }
-    }
-
     void TickRefreshDriver(TimeStamp aVsyncTimestamp)
     {
       MOZ_ASSERT(NS_IsMainThread());
 
-      RecordTelemetryProbes(aVsyncTimestamp);
       if (XRE_IsParentProcess()) {
         MonitorAutoLock lock(mRefreshTickLock);
         aVsyncTimestamp = mRecentVsync;
@@ -580,7 +540,9 @@ private:
       // the scheduled TickRefreshDriver() runs. Check mVsyncRefreshDriverTimer
       // before use.
       if (mVsyncRefreshDriverTimer) {
-        mVsyncRefreshDriverTimer->RunRefreshDrivers(aVsyncTimestamp);
+        RefPtr<VsyncRefreshDriverTimer> timer = mVsyncRefreshDriverTimer;
+        timer->RunRefreshDrivers(aVsyncTimestamp);
+        // Note: mVsyncRefreshDriverTimer might be null now.
       }
     }
 
@@ -833,7 +795,8 @@ protected:
 
   static void TimerTickOne(nsITimer* aTimer, void* aClosure)
   {
-    InactiveRefreshDriverTimer *timer = static_cast<InactiveRefreshDriverTimer*>(aClosure);
+    RefPtr<InactiveRefreshDriverTimer> timer = 
+      static_cast<InactiveRefreshDriverTimer*>(aClosure);
     timer->TickOne();
   }
 
@@ -885,8 +848,8 @@ NS_IMPL_ISUPPORTS(VsyncChildCreateCallback, nsIIPCBackgroundChildCreateCallback)
 
 } // namespace mozilla
 
-static RefreshDriverTimer* sRegularRateTimer;
-static InactiveRefreshDriverTimer* sThrottledRateTimer;
+static StaticRefPtr<RefreshDriverTimer> sRegularRateTimer;
+static StaticRefPtr<InactiveRefreshDriverTimer> sThrottledRateTimer;
 
 #ifdef XP_WIN
 static int32_t sHighPrecisionTimerRequests = 0;
@@ -968,8 +931,6 @@ GetFirstFrameDelay(imgIRequest* req)
 nsRefreshDriver::Shutdown()
 {
   // clean up our timers
-  delete sRegularRateTimer;
-  delete sThrottledRateTimer;
 
   sRegularRateTimer = nullptr;
   sThrottledRateTimer = nullptr;
@@ -2008,7 +1969,6 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
     mViewManagerFlushIsPending = false;
     RefPtr<nsViewManager> vm = mPresContext->GetPresShell()->GetViewManager();
     {
-      PaintTelemetry::AutoRecordPaint record;
       vm->ProcessPendingUpdates();
     }
 
@@ -2026,10 +1986,6 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
 
     notifyGC = true;
   }
-
-#ifndef ANDROID  /* bug 1142079 */
-  mozilla::Telemetry::AccumulateTimeDelta(mozilla::Telemetry::REFRESH_DRIVER_TICK, mTickStart);
-#endif
 
   nsTObserverArray<nsAPostRefreshObserver*>::ForwardIterator iter(mPostRefreshObservers);
   while (iter.HasMore()) {
@@ -2237,16 +2193,15 @@ nsRefreshDriver::PVsyncActorCreated(VsyncChild* aVsyncChild)
 {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(!XRE_IsParentProcess());
-  auto* vsyncRefreshDriverTimer =
-      new VsyncRefreshDriverTimer(aVsyncChild);
+  RefPtr<RefreshDriverTimer> vsyncRefreshDriverTimer =
+    new VsyncRefreshDriverTimer(aVsyncChild);
 
   // If we are using software timer, swap current timer to
   // VsyncRefreshDriverTimer.
   if (sRegularRateTimer) {
     sRegularRateTimer->SwapRefreshDrivers(vsyncRefreshDriverTimer);
-    delete sRegularRateTimer;
   }
-  sRegularRateTimer = vsyncRefreshDriverTimer;
+  sRegularRateTimer = vsyncRefreshDriverTimer.forget();
 }
 
 void

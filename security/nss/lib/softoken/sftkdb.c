@@ -530,6 +530,7 @@ sftk_signTemplate(PLArenaPool *arena, SFTKDBHandle *handle,
                 goto loser;
             }
             rv = sftkdb_SignAttribute(arena, &keyHandle->passwordKey,
+                                      keyHandle->defaultIterationCount,
                                       objectID, template[i].type,
                                       &plainText, &signText);
             PZ_Unlock(keyHandle->passwordLock);
@@ -663,6 +664,7 @@ sftk_ExtractTemplate(PLArenaPool *arena, SFTKObject *object,
                     break;
                 }
                 rv = sftkdb_EncryptAttribute(arena, &handle->passwordKey,
+                                             handle->defaultIterationCount,
                                              &plainText, &cipherText);
                 PZ_Unlock(handle->passwordLock);
                 if (rv == SECSuccess) {
@@ -1591,7 +1593,8 @@ static const CK_ATTRIBUTE_TYPE known_attributes[] = {
     CKA_TRUST_EMAIL_PROTECTION, CKA_TRUST_IPSEC_END_SYSTEM,
     CKA_TRUST_IPSEC_TUNNEL, CKA_TRUST_IPSEC_USER, CKA_TRUST_TIME_STAMPING,
     CKA_TRUST_STEP_UP_APPROVED, CKA_CERT_SHA1_HASH, CKA_CERT_MD5_HASH,
-    CKA_NETSCAPE_DB, CKA_NETSCAPE_TRUST, CKA_NSS_OVERRIDE_EXTENSIONS
+    CKA_NETSCAPE_DB, CKA_NETSCAPE_TRUST, CKA_NSS_OVERRIDE_EXTENSIONS,
+    CKA_PUBLIC_KEY_INFO
 };
 
 static unsigned int known_attributes_size = sizeof(known_attributes) /
@@ -2758,7 +2761,7 @@ sftk_DBInit(const char *configdir, const char *certPrefix,
                     (sftkdb_HasPasswordSet(*keyDB) == SECSuccess) ? PR_TRUE : PR_FALSE;
                 /* if the password on the key db is NULL, kick off our update
                  * chain of events */
-                sftkdb_CheckPassword((*keyDB), "", &tokenRemoved);
+                sftkdb_CheckPasswordNull((*keyDB), &tokenRemoved);
             } else {
                 /* we don't have a key DB, update the certificate DB now */
                 sftkdb_Update(*certDB, NULL);

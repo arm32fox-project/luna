@@ -12,7 +12,6 @@ var Cu = Components.utils;
 Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://gre/modules/Log.jsm");
 Cu.import("resource://services-sync/identity.js");
-Cu.import("resource://services-sync/browserid_identity.js");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://services-common/async.js");
 
@@ -28,9 +27,12 @@ this.Status = {
     let service = Components.classes["@mozilla.org/weave/service;1"]
                     .getService(Components.interfaces.nsISupports)
                     .wrappedJSObject;
-    let idClass = service.fxAccountsEnabled ? BrowserIDManager : IdentityManager;
+    let idClass = IdentityManager;
     this.__authManager = new idClass();
-    this.__authManager.initialize();
+    // .initialize returns a promise, so we need to spin until it resolves.
+    let cb = Async.makeSpinningCallback();
+    this.__authManager.initialize().then(cb, cb);
+    cb.wait();
     return this.__authManager;
   },
 
@@ -123,12 +125,7 @@ this.Status = {
   resetSync: function resetSync() {
     // Logger setup.
     let logPref = PREFS_BRANCH + "log.logger.status";
-    let logLevel = "Trace";
-    try {
-      logLevel = Services.prefs.getCharPref(logPref);
-    } catch (ex) {
-      // Use default.
-    }
+    let logLevel = Services.prefs.getCharPref(logPref, "Trace");
     this._log.level = Log.Level[logLevel];
 
     this._log.info("Resetting Status.");

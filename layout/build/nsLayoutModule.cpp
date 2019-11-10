@@ -35,6 +35,7 @@
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
 #include "nsIScriptNameSpaceManager.h"
+#include "nsIScriptError.h"
 #include "nsISelection.h"
 #include "nsCaret.h"
 #include "nsPlainTextSerializer.h"
@@ -192,6 +193,8 @@ static void Shutdown();
 #include "mozilla/dom/PresentationDeviceManager.h"
 #include "mozilla/dom/PresentationTCPSessionTransport.h"
 
+#include "nsScriptError.h"
+
 #include "mozilla/TextInputProcessor.h"
 
 using namespace mozilla;
@@ -204,7 +207,6 @@ using mozilla::dom::UDPSocketChild;
 using mozilla::dom::time::TimeService;
 using mozilla::net::StreamingProtocolControllerService;
 using mozilla::gmp::GeckoMediaPluginService;
-using mozilla::dom::NotificationTelemetryService;
 
 #define NS_EDITORCOMMANDTABLE_CID \
 { 0x4f5e62b8, 0xd659, 0x4156, \
@@ -292,7 +294,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(TextInputProcessor)
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsIPresentationService,
                                          NS_CreatePresentationService)
 NS_GENERIC_FACTORY_CONSTRUCTOR(PresentationTCPSessionTransport)
-NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(NotificationTelemetryService, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(PushNotifier)
 
 //-----------------------------------------------------------------------------
@@ -562,6 +563,8 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(UDPSocketChild)
 
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(GeckoMediaPluginService, GeckoMediaPluginService::GetGeckoMediaPluginService)
 
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsScriptError)
+
 #ifdef ACCESSIBILITY
 #include "xpcAccessibilityService.h"
 
@@ -657,7 +660,6 @@ NS_DEFINE_NAMED_CID(NS_TEXTEDITOR_CID);
 NS_DEFINE_NAMED_CID(DOMREQUEST_SERVICE_CID);
 NS_DEFINE_NAMED_CID(QUOTAMANAGER_SERVICE_CID);
 NS_DEFINE_NAMED_CID(SERVICEWORKERMANAGER_CID);
-NS_DEFINE_NAMED_CID(NOTIFICATIONTELEMETRYSERVICE_CID);
 NS_DEFINE_NAMED_CID(PUSHNOTIFIER_CID);
 
 NS_DEFINE_NAMED_CID(WORKERDEBUGGERMANAGER_CID);
@@ -722,6 +724,8 @@ NS_DEFINE_NAMED_CID(PRESENTATION_DEVICE_MANAGER_CID);
 NS_DEFINE_NAMED_CID(PRESENTATION_TCP_SESSION_TRANSPORT_CID);
 
 NS_DEFINE_NAMED_CID(TEXT_INPUT_PROCESSOR_CID);
+
+NS_DEFINE_NAMED_CID(NS_SCRIPTERROR_CID);
 
 static nsresult
 CreateWindowCommandTableConstructor(nsISupports *aOuter,
@@ -925,7 +929,6 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
   { &kDOMREQUEST_SERVICE_CID, false, nullptr, DOMRequestServiceConstructor },
   { &kQUOTAMANAGER_SERVICE_CID, false, nullptr, QuotaManagerServiceConstructor },
   { &kSERVICEWORKERMANAGER_CID, false, nullptr, ServiceWorkerManagerConstructor },
-  { &kNOTIFICATIONTELEMETRYSERVICE_CID, false, nullptr, NotificationTelemetryServiceConstructor },
   { &kPUSHNOTIFIER_CID, false, nullptr, PushNotifierConstructor },
   { &kWORKERDEBUGGERMANAGER_CID, true, nullptr, WorkerDebuggerManagerConstructor },
   { &kNS_AUDIOCHANNELAGENT_CID, true, nullptr, AudioChannelAgentConstructor },
@@ -982,6 +985,7 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
   { &kPRESENTATION_DEVICE_MANAGER_CID, false, nullptr, PresentationDeviceManagerConstructor },
   { &kPRESENTATION_TCP_SESSION_TRANSPORT_CID, false, nullptr, PresentationTCPSessionTransportConstructor },
   { &kTEXT_INPUT_PROCESSOR_CID, false, nullptr, TextInputProcessorConstructor },
+  { &kNS_SCRIPTERROR_CID, false, nullptr, nsScriptErrorConstructor },
   { nullptr }
 };
 
@@ -1057,7 +1061,6 @@ static const mozilla::Module::ContractIDEntry kLayoutContracts[] = {
   { DOMREQUEST_SERVICE_CONTRACTID, &kDOMREQUEST_SERVICE_CID },
   { QUOTAMANAGER_SERVICE_CONTRACTID, &kQUOTAMANAGER_SERVICE_CID },
   { SERVICEWORKERMANAGER_CONTRACTID, &kSERVICEWORKERMANAGER_CID },
-  { NOTIFICATIONTELEMETRYSERVICE_CONTRACTID, &kNOTIFICATIONTELEMETRYSERVICE_CID },
   { PUSHNOTIFIER_CONTRACTID, &kPUSHNOTIFIER_CID },
   { WORKERDEBUGGERMANAGER_CONTRACTID, &kWORKERDEBUGGERMANAGER_CID },
   { NS_AUDIOCHANNELAGENT_CONTRACTID, &kNS_AUDIOCHANNELAGENT_CID },
@@ -1114,6 +1117,7 @@ static const mozilla::Module::ContractIDEntry kLayoutContracts[] = {
   { PRESENTATION_DEVICE_MANAGER_CONTRACTID, &kPRESENTATION_DEVICE_MANAGER_CID },
   { PRESENTATION_TCP_SESSION_TRANSPORT_CONTRACTID, &kPRESENTATION_TCP_SESSION_TRANSPORT_CID },
   { "@mozilla.org/text-input-processor;1", &kTEXT_INPUT_PROCESSOR_CID },
+  { NS_SCRIPTERROR_CONTRACTID, &kNS_SCRIPTERROR_CID },
   { nullptr }
 };
 
@@ -1132,7 +1136,6 @@ static const mozilla::Module::CategoryEntry kLayoutCategories[] = {
   CONTENTDLF_CATEGORIES
   { "profile-after-change", "PresentationDeviceManager", PRESENTATION_DEVICE_MANAGER_CONTRACTID },
   { "profile-after-change", "PresentationService", PRESENTATION_SERVICE_CONTRACTID },
-  { "profile-after-change", "Notification Telemetry Service", NOTIFICATIONTELEMETRYSERVICE_CONTRACTID },
   { nullptr }
 };
 

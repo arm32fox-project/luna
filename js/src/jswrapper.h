@@ -136,7 +136,7 @@ class JS_FRIEND_API(Wrapper) : public BaseProxyHandler
     static JSObject* New(JSContext* cx, JSObject* obj, const Wrapper* handler,
                          const WrapperOptions& options = WrapperOptions());
 
-    static JSObject* Renew(JSContext* cx, JSObject* existing, JSObject* obj, const Wrapper* handler);
+    static JSObject* Renew(JSObject* existing, JSObject* obj, const Wrapper* handler);
 
     static const Wrapper* wrapperHandler(JSObject* wrapper);
 
@@ -270,6 +270,8 @@ class JS_FRIEND_API(OpaqueCrossCompartmentWrapper) : public CrossCompartmentWrap
     virtual bool getBuiltinClass(JSContext* cx, HandleObject wrapper, ESClass* cls) const override;
     virtual bool isArray(JSContext* cx, HandleObject obj,
                          JS::IsArrayAnswer* answer) const override;
+    virtual bool hasInstance(JSContext* cx, HandleObject wrapper,
+                             MutableHandleValue v, bool* bp) const override;
     virtual const char* className(JSContext* cx, HandleObject wrapper) const override;
     virtual JSString* fun_toString(JSContext* cx, HandleObject proxy, unsigned indent) const override;
 
@@ -312,13 +314,6 @@ class JS_FRIEND_API(SecurityWrapper) : public Base
     virtual bool isArray(JSContext* cx, HandleObject wrapper, JS::IsArrayAnswer* answer) const override;
     virtual bool regexp_toShared(JSContext* cx, HandleObject proxy, RegExpGuard* g) const override;
     virtual bool boxedValue_unbox(JSContext* cx, HandleObject proxy, MutableHandleValue vp) const override;
-
-    // Allow isCallable and isConstructor. They used to be class-level, and so could not be guarded
-    // against.
-
-    virtual bool watch(JSContext* cx, JS::HandleObject proxy, JS::HandleId id,
-                       JS::HandleObject callable) const override;
-    virtual bool unwatch(JSContext* cx, JS::HandleObject proxy, JS::HandleId id) const override;
 
     /*
      * Allow our subclasses to select the superclass behavior they want without

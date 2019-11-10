@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2007 Henri Sivonen
  * Copyright (c) 2008-2011 Mozilla Foundation
+ * Copyright (c) 2019 Moonchild Productions
  *
  * Permission is hereby granted, free of charge, to any person obtaining a 
  * copy of this software and associated documentation files (the "Software"), 
@@ -21,17 +22,12 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-/*
- * THIS IS A GENERATED FILE. PLEASE DO NOT EDIT.
- * Please edit HtmlAttributes.java instead and regenerate.
- */
-
 #ifndef nsHtml5HtmlAttributes_h
 #define nsHtml5HtmlAttributes_h
 
 #include "nsIAtom.h"
 #include "nsHtml5AtomTable.h"
-#include "nsString.h"
+#include "nsHtml5String.h"
 #include "nsNameSpaceManager.h"
 #include "nsIContent.h"
 #include "nsTraceRefcnt.h"
@@ -64,21 +60,23 @@ class nsHtml5HtmlAttributes
     int32_t mode;
     int32_t length;
     autoJArray<nsHtml5AttributeName*,int32_t> names;
-    autoJArray<nsString*,int32_t> values;
+    autoJArray<nsHtml5String, int32_t> values;
     autoJArray<int32_t,int32_t> lines;
   public:
     explicit nsHtml5HtmlAttributes(int32_t mode);
     ~nsHtml5HtmlAttributes();
     int32_t getIndex(nsHtml5AttributeName* name);
-    nsString* getValue(nsHtml5AttributeName* name);
+    nsHtml5String getValue(nsHtml5AttributeName* name);
     int32_t getLength();
     nsIAtom* getLocalNameNoBoundsCheck(int32_t index);
     int32_t getURINoBoundsCheck(int32_t index);
     nsIAtom* getPrefixNoBoundsCheck(int32_t index);
-    nsString* getValueNoBoundsCheck(int32_t index);
+    nsHtml5String getValueNoBoundsCheck(int32_t index);
     nsHtml5AttributeName* getAttributeNameNoBoundsCheck(int32_t index);
     int32_t getLineNoBoundsCheck(int32_t index);
-    void addAttribute(nsHtml5AttributeName* name, nsString* value, int32_t line);
+    void addAttribute(nsHtml5AttributeName* name,
+                      nsHtml5String value,
+                      int32_t line);
     void clear(int32_t m);
     void releaseValue(int32_t i);
     void clearWithoutReleasingContents();

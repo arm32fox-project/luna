@@ -27,23 +27,6 @@ DataOffset(const IntPoint& aPoint, int32_t aStride, SurfaceFormat aFormat)
   return data;
 }
 
-static bool
-CheckUploadBounds(const IntSize& aDst, const IntSize& aSrc, const IntPoint& aOffset)
-{
-  if (aOffset.x < 0 || aOffset.y < 0 ||
-      aOffset.x >= aSrc.width ||
-      aOffset.y >= aSrc.height) {
-    MOZ_ASSERT_UNREACHABLE("Offset outside source bounds");
-    return false;
-  }
-  if (aDst.width > (aSrc.width - aOffset.x) ||
-      aDst.height > (aSrc.height - aOffset.y)) {
-    MOZ_ASSERT_UNREACHABLE("Source has insufficient data");
-    return false;
-  }
-  return true;
-}
-
 static GLint GetAddressAlignment(ptrdiff_t aAddress)
 {
     if (!(aAddress & 0x7)) {
@@ -178,7 +161,22 @@ TexSubImage2DWithoutUnpackSubimage(GLContext* gl,
     // isn't supported. We make a copy of the texture data we're using,
     // such that we're using the whole row of data in the copy. This turns
     // out to be more efficient than uploading row-by-row; see bug 698197.
-    unsigned char* newPixels = new (fallible) unsigned char[width*height*pixelsize];
+
+    // Width and height are never more than 16384. At 16Ki*16Ki, 4Bpp is 1GiB, but
+    // if we allow 8Bpp (16-bit channels, or higher) here, that's 2GiB+, which would
+    // overflow on 32-bit.
+    MOZ_ASSERT(width <= 16384);
+    MOZ_ASSERT(height <= 16384);
+    MOZ_ASSERT(pixelsize < 8);
+
+    const auto size = CheckedInt<size_t>(width) * height * pixelsize;
+    if (!size.isValid()) {
+      // This should never happen, but we use a defensive check.
+      MOZ_ASSERT_UNREACHABLE("Unacceptable size calculated.!");
+      return;
+    }
+
+    unsigned char* newPixels = new (fallible) unsigned char[size.value()];
 
     if (newPixels) {
         unsigned char* rowDest = newPixels;
@@ -303,7 +301,22 @@ TexImage2DHelper(GLContext* gl,
             GLsizei paddedWidth = RoundUpPow2((uint32_t)width);
             GLsizei paddedHeight = RoundUpPow2((uint32_t)height);
 
-            GLvoid* paddedPixels = new unsigned char[paddedWidth * paddedHeight * pixelsize];
+            // Width and height are never more than 16384. At 16Ki*16Ki, 4Bpp
+            // is 1GiB, but if we allow 8Bpp (or higher) here, that's 2GiB,
+            // which would overflow on 32-bit.
+            MOZ_ASSERT(width <= 16384);
+            MOZ_ASSERT(height <= 16384);
+            MOZ_ASSERT(pixelsize < 8);
+
+            const auto size =
+                CheckedInt<size_t>(paddedWidth) * paddedHeight * pixelsize;
+            if (!size.isValid()) {
+              // This should never happen, but we use a defensive check.
+              MOZ_ASSERT_UNREACHABLE("Unacceptable size calculated.!");
+              return;
+            }
+
+            GLvoid* paddedPixels = new unsigned char[size.value()];
 
             // Pad out texture data to be in a POT sized buffer for uploading to
             // a POT sized texture
@@ -392,7 +405,6 @@ TexImage2DHelper(GLContext* gl,
 SurfaceFormat
 UploadImageDataToTexture(GLContext* gl,
                          unsigned char* aData,
-                         const gfx::IntSize& aDataSize,
                          int32_t aStride,
                          SurfaceFormat aFormat,
                          const nsIntRegion& aDstRegion,
@@ -483,11 +495,15 @@ UploadImageDataToTexture(GLContext* gl,
             surfaceFormat = SurfaceFormat::A8;
             break;
         default:
-            NS_ASSERTION(false, "Unhandled image surface format!");
+            MOZ_ASSERT_UNREACHABLE("Unhandled image surface format!");
     }
 
     if (aOutUploadSize) {
         *aOutUploadSize = 0;
+    }
+
+    if (surfaceFormat == gfx::SurfaceFormat::UNKNOWN) {
+      return gfx::SurfaceFormat::UNKNOWN;
     }
 
     if (aNeedInit || !CanUploadSubTextures(gl)) {
@@ -516,10 +532,6 @@ UploadImageDataToTexture(GLContext* gl,
         // Upload each rect in the region to the texture
         for (auto iter = aDstRegion.RectIter(); !iter.Done(); iter.Next()) {
             const IntRect& rect = iter.Get();
-            if (!CheckUploadBounds(rect.Size(), aDataSize, rect.TopLeft())) {
-                return SurfaceFormat::UNKNOWN;
-            }
-
             const unsigned char* rectData =
                 aData + DataOffset(rect.TopLeft(), aStride, aFormat);
 
@@ -556,17 +568,10 @@ UploadSurfaceToTexture(GLContext* gl,
 
     int32_t stride = aSurface->Stride();
     SurfaceFormat format = aSurface->GetFormat();
-    gfx::IntSize size = aSurface->GetSize();
-    if (!CheckUploadBounds(aSize, size, aSrcPoint)) {
-        return SurfaceFormat::UNKNOWN;
-    }
-
     unsigned char* data = aSurface->GetData() +
         DataOffset(aSrcPoint, stride, format);
-    size.width -= aSrcPoint.x;
-    size.height -= aSrcPoint.y;
 
-    return UploadImageDataToTexture(gl, data, size, stride, format,
+    return UploadImageDataToTexture(gl, data, stride, format,
                                     aDstRegion, aTexture, aSize,
                                     aOutUploadSize, aNeedInit,
                                     aTextureUnit, aTextureTarget);

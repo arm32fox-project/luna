@@ -200,7 +200,7 @@ public:
     STREAM_LOG(LogLevel::Debug, ("Starting system thread"));
     profiler_register_thread("MediaStreamGraph", &aLocal);
     LIFECYCLE_LOG("Starting a new system driver for graph %p\n",
-                  mDriver->mGraphImpl);
+                  mDriver->mGraphImpl.get());
 
     RefPtr<GraphDriver> previousDriver;
     {
@@ -236,7 +236,7 @@ private:
 void
 ThreadedDriver::Start()
 {
-  LIFECYCLE_LOG("Starting thread for a SystemClockDriver  %p\n", mGraphImpl);
+  LIFECYCLE_LOG("Starting thread for a SystemClockDriver  %p\n", mGraphImpl.get());
   Unused << NS_WARN_IF(mThread);
   if (!mThread) { // Ensure we haven't already started it
     nsCOMPtr<nsIRunnable> event = new MediaStreamGraphInitThreadRunnable(this);
@@ -623,16 +623,12 @@ AudioCallbackDriver::Init()
   cubeb* cubebContext = CubebUtils::GetCubebContext();
   if (!cubebContext) {
     NS_WARNING("Could not get cubeb context.");
-    if (!mFromFallback) {
-      CubebUtils::ReportCubebStreamInitFailure(true);
-    }
     return;
   }
 
   cubeb_stream_params output;
   cubeb_stream_params input;
   uint32_t latency_frames;
-  bool firstStream = CubebUtils::GetFirstStream();
 
   MOZ_ASSERT(!NS_IsMainThread(),
       "This is blocking and should never run on the main thread.");
@@ -710,18 +706,11 @@ AudioCallbackDriver::Init()
       NS_WARNING_ASSERTION(
         rv == CUBEB_OK,
         "Could not set the audio stream volume in GraphDriver.cpp");
-      CubebUtils::ReportCubebBackendUsed();
     } else {
 #ifdef MOZ_WEBRTC
       StaticMutexAutoUnlock unlock(AudioInputCubeb::Mutex());
 #endif
       NS_WARNING("Could not create a cubeb stream for MediaStreamGraph, falling back to a SystemClockDriver");
-      // Only report failures when we're not coming from a driver that was
-      // created itself as a fallback driver because of a previous audio driver
-      // failure.
-      if (!mFromFallback) {
-        CubebUtils::ReportCubebStreamInitFailure(firstStream);
-      }
       // Fall back to a driver using a normal thread. If needed,
       // the graph will try to re-open an audio stream later.
       MonitorAutoLock lock(GraphImpl()->GetMonitor());
@@ -761,7 +750,7 @@ AudioCallbackDriver::Destroy()
 void
 AudioCallbackDriver::Resume()
 {
-  STREAM_LOG(LogLevel::Debug, ("Resuming audio threads for MediaStreamGraph %p", mGraphImpl));
+  STREAM_LOG(LogLevel::Debug, ("Resuming audio threads for MediaStreamGraph %p", mGraphImpl.get()));
   if (cubeb_stream_start(mAudioStream) != CUBEB_OK) {
     NS_WARNING("Could not start cubeb stream for MSG.");
   }
@@ -830,7 +819,9 @@ AudioCallbackDriver::Revive()
     mGraphImpl->SetCurrentDriver(NextDriver());
     NextDriver()->Start();
   } else {
-    STREAM_LOG(LogLevel::Debug, ("Starting audio threads for MediaStreamGraph %p from a new thread.", mGraphImpl));
+    STREAM_LOG(LogLevel::Debug,
+               ("Starting audio threads for MediaStreamGraph %p from a new thread.",
+                mGraphImpl.get()));
     RefPtr<AsyncCubebTask> initEvent =
       new AsyncCubebTask(this, AsyncCubebOperation::INIT);
     initEvent->Dispatch();

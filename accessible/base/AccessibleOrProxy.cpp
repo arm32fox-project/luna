@@ -5,6 +5,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "AccessibleOrProxy.h"
+#include "DocAccessible.h"
+
+using namespace mozilla::a11y;
 
 AccessibleOrProxy
 AccessibleOrProxy::Parent() const

@@ -30,7 +30,6 @@
 #include "mozilla/gfx/2D.h"          // for DrawTarget
 #include "mozilla/gfx/Point.h"          // for IntSize
 #include "mozilla/gfx/Rect.h"          // for IntSize
-#include "VRManager.h"                  // for VRManager
 #include "mozilla/ipc/Transport.h"      // for Transport
 #include "mozilla/layers/APZCTreeManager.h"  // for APZCTreeManager
 #include "mozilla/layers/APZCTreeManagerParent.h"  // for APZCTreeManagerParent
@@ -52,7 +51,6 @@
 #include "mozilla/layout/RenderFrameParent.h"
 #include "mozilla/media/MediaSystemResourceService.h" // for MediaSystemResourceService
 #include "mozilla/mozalloc.h"           // for operator new, etc
-#include "mozilla/Telemetry.h"
 #ifdef MOZ_WIDGET_GTK
 #include "basic/X11BasicCompositor.h" // for X11BasicCompositor
 #endif
@@ -73,7 +71,6 @@
 #include "mozilla/Hal.h"
 #include "mozilla/HalTypes.h"
 #include "mozilla/StaticPtr.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/VsyncDispatcher.h"
 #if defined(XP_WIN) || defined(MOZ_WIDGET_GTK)
 #include "VsyncSource.h"
@@ -475,17 +472,12 @@ CompositorVsyncScheduler::Composite(TimeStamp aVsyncTimestamp)
   }
 
   DispatchTouchEvents(aVsyncTimestamp);
-  DispatchVREvents(aVsyncTimestamp);
 
   if (mNeedsComposite || mAsapScheduling) {
     mNeedsComposite = 0;
     mLastCompose = aVsyncTimestamp;
     ComposeToTarget(nullptr);
     mVsyncNotificationsSkipped = 0;
-
-    TimeDuration compositeFrameTotal = TimeStamp::Now() - aVsyncTimestamp;
-    mozilla::Telemetry::Accumulate(mozilla::Telemetry::COMPOSITE_FRAME_ROUNDTRIP_TIME,
-                                   compositeFrameTotal.ToMilliseconds());
   } else if (mVsyncNotificationsSkipped++ > gfxPrefs::CompositorUnobserveCount()) {
     UnobserveVsync();
   }
@@ -543,15 +535,6 @@ CompositorVsyncScheduler::UnobserveVsync()
 void
 CompositorVsyncScheduler::DispatchTouchEvents(TimeStamp aVsyncTimestamp)
 {
-}
-
-void
-CompositorVsyncScheduler::DispatchVREvents(TimeStamp aVsyncTimestamp)
-{
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
-
-  VRManager* vm = VRManager::Get();
-  vm->NotifyVsync(aVsyncTimestamp);
 }
 
 void
@@ -1305,7 +1288,6 @@ CompositorBridgeParent::CompositeToTarget(DrawTarget* aTarget, const gfx::IntRec
   }
   mCompositor->SetCompositionTime(TimeStamp());
 
-  mozilla::Telemetry::AccumulateTimeDelta(mozilla::Telemetry::COMPOSITE_TIME, start);
   profiler_tracing("Paint", "Composite", TRACING_INTERVAL_END);
 }
 
@@ -1660,19 +1642,6 @@ CompositorBridgeParent::NewCompositor(const nsTArray<LayersBackend>& aBackendHin
         failureReason = "SUCCESS";
       }
 
-      // should only report success here
-      if (aBackendHints[i] == LayersBackend::LAYERS_OPENGL){
-        Telemetry::Accumulate(Telemetry::OPENGL_COMPOSITING_FAILURE_ID, failureReason);
-      }
-#ifdef XP_WIN
-      else if (aBackendHints[i] == LayersBackend::LAYERS_D3D9){
-        Telemetry::Accumulate(Telemetry::D3D9_COMPOSITING_FAILURE_ID, failureReason);
-      }
-      else if (aBackendHints[i] == LayersBackend::LAYERS_D3D11){
-        Telemetry::Accumulate(Telemetry::D3D11_COMPOSITING_FAILURE_ID, failureReason);
-      }
-#endif
-
       compositor->SetCompositorID(mCompositorID);
       return compositor;
     }
@@ -1681,18 +1650,15 @@ CompositorBridgeParent::NewCompositor(const nsTArray<LayersBackend>& aBackendHin
     if (aBackendHints[i] == LayersBackend::LAYERS_OPENGL){
       gfxCriticalNote << "[OPENGL] Failed to init compositor with reason: "
                       << failureReason.get();
-      Telemetry::Accumulate(Telemetry::OPENGL_COMPOSITING_FAILURE_ID, failureReason);
     }
 #ifdef XP_WIN
     else if (aBackendHints[i] == LayersBackend::LAYERS_D3D9){
       gfxCriticalNote << "[D3D9] Failed to init compositor with reason: "
                       << failureReason.get();
-      Telemetry::Accumulate(Telemetry::D3D9_COMPOSITING_FAILURE_ID, failureReason);
     }
     else if (aBackendHints[i] == LayersBackend::LAYERS_D3D11){
       gfxCriticalNote << "[D3D11] Failed to init compositor with reason: "
                       << failureReason.get();
-      Telemetry::Accumulate(Telemetry::D3D11_COMPOSITING_FAILURE_ID, failureReason);
     }
 #endif
   }

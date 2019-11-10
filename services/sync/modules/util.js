@@ -19,13 +19,6 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm", this);
 Cu.import("resource://gre/modules/osfile.jsm", this);
 Cu.import("resource://gre/modules/Task.jsm", this);
 
-// FxAccountsCommon.js doesn't use a "namespace", so create one here.
-XPCOMUtils.defineLazyGetter(this, "FxAccountsCommon", function() {
-  let FxAccountsCommon = {};
-  Cu.import("resource://gre/modules/FxAccountsCommon.js", FxAccountsCommon);
-  return FxAccountsCommon;
-});
-
 /*
  * Utility functions
  */
@@ -35,6 +28,8 @@ this.Utils = {
   // In the ideal world, references to these would be removed.
   nextTick: CommonUtils.nextTick,
   namedTimer: CommonUtils.namedTimer,
+  exceptionStr: CommonUtils.exceptionStr,
+  stackTrace: CommonUtils.stackTrace,
   makeURI: CommonUtils.makeURI,
   encodeUTF8: CommonUtils.encodeUTF8,
   decodeUTF8: CommonUtils.decodeUTF8,
@@ -52,32 +47,12 @@ this.Utils = {
   digestBytes: CryptoUtils.digestBytes,
   sha1: CryptoUtils.sha1,
   sha1Base32: CryptoUtils.sha1Base32,
-  sha256: CryptoUtils.sha256,
   makeHMACKey: CryptoUtils.makeHMACKey,
   makeHMACHasher: CryptoUtils.makeHMACHasher,
   hkdfExpand: CryptoUtils.hkdfExpand,
   pbkdf2Generate: CryptoUtils.pbkdf2Generate,
   deriveKeyFromPassphrase: CryptoUtils.deriveKeyFromPassphrase,
   getHTTPMACSHA1Header: CryptoUtils.getHTTPMACSHA1Header,
-
-  /**
-   * The string to use as the base User-Agent in Sync requests.
-   * This string will look something like
-   *
-   *   Firefox/49.0a1 (Windows NT 6.1; WOW64; rv:46.0) FxSync/1.51.0.20160516142357.desktop
-   */
-  _userAgent: null,
-  get userAgent() {
-    if (!this._userAgent) {
-      let hph = Cc["@mozilla.org/network/protocol;1?name=http"].getService(Ci.nsIHttpProtocolHandler);
-      this._userAgent =
-        Services.appinfo.name + "/" + Services.appinfo.version +  // Product.
-        " (" + hph.oscpu + ")" +                                  // (oscpu)
-        " FxSync/" + WEAVE_VERSION + "." +                        // Sync.
-        Services.appinfo.appBuildID + ".";                        // Build.
-    }
-    return this._userAgent + Svc.Prefs.get("client.type", "desktop");
-  },
 
   /**
    * Wrap a function to catch all exceptions and log them
@@ -95,7 +70,7 @@ this.Utils = {
         return func.call(thisArg);
       }
       catch(ex) {
-        thisArg._log.debug("Exception calling " + (func.name || "anonymous function"), ex);
+        thisArg._log.debug("Exception: ", ex);
         if (exceptionCallback) {
           return exceptionCallback.call(thisArg, ex);
         }
@@ -271,14 +246,14 @@ this.Utils = {
    */
   base32ToFriendly: function base32ToFriendly(input) {
     return input.toLowerCase()
-                .replace(/l/g, '8')
-                .replace(/o/g, '9');
+                .replace("l", '8', "g")
+                .replace("o", '9', "g");
   },
 
   base32FromFriendly: function base32FromFriendly(input) {
     return input.toUpperCase()
-                .replace(/8/g, 'L')
-                .replace(/9/g, 'O');
+                .replace("8", 'L', "g")
+                .replace("9", 'O', "g");
   },
 
   /**
@@ -346,10 +321,17 @@ this.Utils = {
    *        could not be loaded, the first argument will be undefined.
    */
   jsonLoad: Task.async(function*(filePath, that, callback) {
-    let path = OS.Path.join(OS.Constants.Path.profileDir, "weave", filePath + ".json");
+    let path;
+    try {
+      path = OS.Path.normalize(OS.Path.join(OS.Constants.Path.profileDir, "weave", filePath + ".json"));
+    } catch (e) {
+      if (that._log) {
+        that._log.debug("Path join error: " + e);
+      }
+    }
 
     if (that._log) {
-      that._log.trace("Loading json from disk: " + filePath);
+      that._log.trace("Loading json from disk: " + path);
     }
 
     let json;
@@ -366,8 +348,9 @@ this.Utils = {
         }
       }
     }
-
-    callback.call(that, json);
+    if (callback) {
+      callback.call(that, json);
+    }
   }),
 
   /**
@@ -410,52 +393,6 @@ this.Utils = {
       callback.call(that, error);
     }
   }),
-
-  /**
-   * Move a json file in the profile directory. Will fail if a file exists at the
-   * destination.
-   *
-   * @returns a promise that resolves to undefined on success, or rejects on failure
-   *
-   * @param aFrom
-   *        Current path to the JSON file saved on disk, relative to profileDir/weave
-   *        .json will be appended to the file name.
-   * @param aTo
-   *        New path to the JSON file saved on disk, relative to profileDir/weave
-   *        .json will be appended to the file name.
-   * @param that
-   *        Object to use for logging
-   */
-  jsonMove(aFrom, aTo, that) {
-    let pathFrom = OS.Path.join(OS.Constants.Path.profileDir, "weave",
-                                ...(aFrom + ".json").split("/"));
-    let pathTo = OS.Path.join(OS.Constants.Path.profileDir, "weave",
-                              ...(aTo + ".json").split("/"));
-    if (that._log) {
-      that._log.trace("Moving " + pathFrom + " to " + pathTo);
-    }
-    return OS.File.move(pathFrom, pathTo, { noOverwrite: true });
-  },
-
-  /**
-   * Removes a json file in the profile directory.
-   *
-   * @returns a promise that resolves to undefined on success, or rejects on failure
-   *
-   * @param filePath
-   *        Current path to the JSON file saved on disk, relative to profileDir/weave
-   *        .json will be appended to the file name.
-   * @param that
-   *        Object to use for logging
-   */
-  jsonRemove(filePath, that) {
-    let path = OS.Path.join(OS.Constants.Path.profileDir, "weave",
-                            ...(filePath + ".json").split("/"));
-    if (that._log) {
-      that._log.trace("Deleting " + path);
-    }
-    return OS.File.remove(path, { ignoreAbsent: true });
-  },
 
   getErrorString: function Utils_getErrorString(error, args) {
     try {
@@ -543,7 +480,7 @@ this.Utils = {
 
     // 20-char sync key.
     if (pp.length == 23 &&
-        [5, 11, 17].every(i => pp[i] == '-')) {
+        [5, 11, 17].every(function(i) pp[i] == '-')) {
 
       return pp.slice(0, 5) + pp.slice(6, 11)
              + pp.slice(12, 17) + pp.slice(18, 23);
@@ -551,7 +488,7 @@ this.Utils = {
 
     // "Modern" 26-char key.
     if (pp.length == 31 &&
-        [1, 7, 13, 19, 25].every(i => pp[i] == '-')) {
+        [1, 7, 13, 19, 25].every(function(i) pp[i] == '-')) {
 
       return pp.slice(0, 1) + pp.slice(2, 7)
              + pp.slice(8, 13) + pp.slice(14, 19)
@@ -663,9 +600,6 @@ this.Utils = {
    */
   getSyncCredentialsHosts: function() {
     let result = new Set(this.getSyncCredentialsHostsLegacy());
-    for (let host of this.getSyncCredentialsHostsFxA()) {
-      result.add(host);
-    }
     return result;
   },
 
@@ -675,18 +609,6 @@ this.Utils = {
   getSyncCredentialsHostsLegacy: function() {
     // the legacy sync host
     return new Set([PWDMGR_HOST]);
-  },
-
-  /*
-   * Get the FxA identity hosts.
-   */
-  getSyncCredentialsHostsFxA: function() {
-    let result = new Set();
-    // the FxA host
-    result.add(FxAccountsCommon.FXA_PWDMGR_HOST);
-    // We used to include the FxA hosts (hence the Set() result) but we now
-    // don't give them special treatment (hence the Set() with exactly 1 item)
-    return result;
   },
 
   getDefaultDeviceName() {
@@ -720,32 +642,6 @@ this.Utils = {
       Cc["@mozilla.org/network/protocol;1?name=http"].getService(Ci.nsIHttpProtocolHandler).oscpu;
 
     return Str.sync.get("client.name2", [user, appName, system]);
-  },
-
-  getDeviceName() {
-    const deviceName = Svc.Prefs.get("client.name", "");
-
-    if (deviceName === "") {
-      return this.getDefaultDeviceName();
-    }
-
-    return deviceName;
-  },
-
-  getDeviceType() {
-    return Svc.Prefs.get("client.type", DEVICE_TYPE_DESKTOP);
-  },
-
-  formatTimestamp(date) {
-    // Format timestamp as: "%Y-%m-%d %H:%M:%S"
-    let year = String(date.getFullYear());
-    let month = String(date.getMonth() + 1).padStart(2, "0");
-    let day = String(date.getDate()).padStart(2, "0");
-    let hours = String(date.getHours()).padStart(2, "0");
-    let minutes = String(date.getMinutes()).padStart(2, "0");
-    let seconds = String(date.getSeconds()).padStart(2, "0");
-
-    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
   }
 };
 

@@ -32,7 +32,6 @@ XPCOMUtils.defineLazyServiceGetter(this, "AlertsService", "@mozilla.org/alerts-s
   ["ContentPrefServiceParent", "resource://gre/modules/ContentPrefServiceParent.jsm"],
   ["ContentSearch", "resource:///modules/ContentSearch.jsm"],
   ["DateTimePickerHelper", "resource://gre/modules/DateTimePickerHelper.jsm"],
-  ["DirectoryLinksProvider", "resource:///modules/DirectoryLinksProvider.jsm"],
   ["Feeds", "resource:///modules/Feeds.jsm"],
   ["FileUtils", "resource://gre/modules/FileUtils.jsm"],
   ["FormValidationHandler", "resource:///modules/FormValidationHandler.jsm"],
@@ -143,6 +142,7 @@ BrowserGlue.prototype = {
     Services.prefs.savePrefFile(null);
   },
 
+#ifdef MOZ_SERVICES_SYNC
   _setSyncAutoconnectDelay: function BG__setSyncAutoconnectDelay() {
     // Assume that a non-zero value for services.sync.autoconnectDelay should override
     if (Services.prefs.prefHasUserValue("services.sync.autoconnectDelay")) {
@@ -164,6 +164,7 @@ BrowserGlue.prototype = {
     Cu.import("resource://services-sync/main.js");
     Weave.Service.scheduler.delayedAutoConnect(delay);
   },
+#endif
 
   // nsIObserver implementation
   observe: function BG_observe(subject, topic, data) {
@@ -210,18 +211,14 @@ BrowserGlue.prototype = {
           this._setPrefToSaveSession();
         }
         break;
+#ifdef MOZ_SERVICES_SYNC
       case "weave:service:ready":
         this._setSyncAutoconnectDelay();
         break;
-      case "fxaccounts:onverified":
-        this._showSyncStartedDoorhanger();
-        break;
-      case "fxaccounts:device_disconnected":
-        this._onDeviceDisconnected();
-        break;
-      case "weave:engine:clients:display-uris":
-        this._onDisplaySyncURIs(subject);
-        break;
+      case "weave:engine:clients:display-uri":
+        this._onDisplaySyncURI(subject);
+         break;
+#endif
       case "session-save":
         this._setPrefToSaveSession(true);
         subject.QueryInterface(Ci.nsISupportsPRBool);
@@ -428,10 +425,10 @@ BrowserGlue.prototype = {
       os.addObserver(this, "browser-lastwindow-close-requested", false);
       os.addObserver(this, "browser-lastwindow-close-granted", false);
     }
+#ifdef MOZ_SERVICES_SYNC
     os.addObserver(this, "weave:service:ready", false);
-    os.addObserver(this, "fxaccounts:onverified", false);
-    os.addObserver(this, "fxaccounts:device_disconnected", false);
-    os.addObserver(this, "weave:engine:clients:display-uris", false);
+    os.addObserver(this, "weave:engine:clients:display-uri", false);
+#endif
     os.addObserver(this, "session-save", false);
     os.addObserver(this, "places-init-complete", false);
     this._isPlacesInitObserver = true;
@@ -479,10 +476,10 @@ BrowserGlue.prototype = {
       os.removeObserver(this, "browser-lastwindow-close-requested");
       os.removeObserver(this, "browser-lastwindow-close-granted");
     }
+#ifdef MOZ_SERVICES_SYNC
     os.removeObserver(this, "weave:service:ready");
-    os.removeObserver(this, "fxaccounts:onverified");
-    os.removeObserver(this, "fxaccounts:device_disconnected");
-    os.removeObserver(this, "weave:engine:clients:display-uris");
+    os.removeObserver(this, "weave:engine:clients:display-uri");
+#endif
     os.removeObserver(this, "session-save");
     if (this._bookmarksBackupIdleTime) {
       this._idleService.removeIdleObserver(this, this._bookmarksBackupIdleTime);
@@ -657,9 +654,7 @@ BrowserGlue.prototype = {
     webrtcUI.init();
     AboutHome.init();
 
-    DirectoryLinksProvider.init();
     NewTabUtils.init();
-    NewTabUtils.links.addProvider(DirectoryLinksProvider);
     AboutNewTab.init();
 
     NewTabMessages.init();
@@ -680,19 +675,6 @@ BrowserGlue.prototype = {
 
     // Ensure we keep track of places/pw-mananager undo by init'ing this early.
     Cu.import("resource:///modules/AutoMigrate.jsm");
-
-    if (!AppConstants.RELEASE_OR_BETA) {
-      let themeName = gBrowserBundle.GetStringFromName("deveditionTheme.name");
-      let vendorShortName = gBrandBundle.GetStringFromName("vendorShortName");
-
-      LightweightThemeManager.addBuiltInTheme({
-        id: "firefox-devedition@mozilla.org",
-        name: themeName,
-        headerURL: "resource:///chrome/browser/content/browser/defaultthemes/devedition.header.png",
-        iconURL: "resource:///chrome/browser/content/browser/defaultthemes/devedition.icon.png",
-        author: vendorShortName,
-      });
-    }
 
     TabCrashHandler.init();
 
@@ -963,10 +945,7 @@ BrowserGlue.prototype = {
     // Offer to reset a user's profile if it hasn't been used for 60 days.
     const OFFER_PROFILE_RESET_INTERVAL_MS = 60 * 24 * 60 * 60 * 1000;
     let lastUse = Services.appinfo.replacedLockTime;
-    let disableResetPrompt = false;
-    try {
-      disableResetPrompt = Services.prefs.getBoolPref("browser.disableResetPrompt");
-    } catch (e) {}
+    let disableResetPrompt = Services.prefs.getBoolPref("browser.disableResetPrompt", false);
 
     if (!disableResetPrompt && lastUse &&
         Date.now() - lastUse >= OFFER_PROFILE_RESET_INTERVAL_MS) {
@@ -1062,10 +1041,6 @@ BrowserGlue.prototype = {
 
   // All initial windows have opened.
   _onWindowsRestored: function BG__onWindowsRestored() {
-    if (AppConstants.MOZ_DEV_EDITION) {
-      this._createExtraDefaultProfile();
-    }
-
     this._initServiceDiscovery();
 
     // Show update notification, if needed.
@@ -1080,24 +1055,19 @@ BrowserGlue.prototype = {
 
     // For any add-ons that were installed disabled and can be enabled offer
     // them to the user.
-    let win = RecentWindow.getMostRecentBrowserWindow();
-    AddonManager.getAllAddons(addons => {
-      for (let addon of addons) {
-        // If this add-on has already seen (or seen is undefined for non-XPI
-        // add-ons) then skip it.
-        if (addon.seen !== false) {
-          continue;
-        }
+    let changedIDs = AddonManager.getStartupChanges(AddonManager.STARTUP_CHANGE_INSTALLED);
+    if (changedIDs.length > 0) {
+      let win = RecentWindow.getMostRecentBrowserWindow();
+      AddonManager.getAddonsByIDs(changedIDs, function(aAddons) {
+        aAddons.forEach(function(aAddon) {
+          // If the add-on isn't user disabled or can't be enabled then skip it.
+          if (!aAddon.userDisabled || !(aAddon.permissions & AddonManager.PERM_CAN_ENABLE))
+            return;
 
-        // If this add-on cannot be enabled (either already enabled or
-        // appDisabled) then skip it.
-        if (!(addon.permissions & AddonManager.PERM_CAN_ENABLE)) {
-          continue;
-        }
-
-        win.openUILinkIn("about:newaddon?id=" + addon.id, "tab");
-      }
-    });
+          win.openUILinkIn("about:newaddon?id=" + aAddon.id, "tab");
+        })
+      });
+    }
 
     let signingRequired;
     if (AppConstants.MOZ_REQUIRE_SIGNING) {
@@ -1110,6 +1080,11 @@ BrowserGlue.prototype = {
       let disabledAddons = AddonManager.getStartupChanges(AddonManager.STARTUP_CHANGE_DISABLED);
       AddonManager.getAddonsByIDs(disabledAddons, (addons) => {
         for (let addon of addons) {
+          // WEs return null, skip.
+          if (!addon) {
+            continue;
+          }
+          
           if (addon.type == "experiment")
             continue;
 
@@ -1199,40 +1174,6 @@ BrowserGlue.prototype = {
     }
 
     E10SAccessibilityCheck.onWindowsRestored();
-  },
-
-  _createExtraDefaultProfile: function () {
-    if (!AppConstants.MOZ_DEV_EDITION) {
-      return;
-    }
-    // If Developer Edition is the only installed Firefox version and no other
-    // profiles are present, create a second one for use by other versions.
-    // This helps Firefox versions earlier than 35 avoid accidentally using the
-    // unsuitable Developer Edition profile.
-    let profileService = Cc["@mozilla.org/toolkit/profile-service;1"]
-                         .getService(Ci.nsIToolkitProfileService);
-    let profileCount = profileService.profileCount;
-    if (profileCount == 1 && profileService.selectedProfile.name != "default") {
-      let newProfile;
-      try {
-        newProfile = profileService.createProfile(null, "default");
-        profileService.defaultProfile = newProfile;
-        profileService.flush();
-      } catch (e) {
-        Cu.reportError("Could not create profile 'default': " + e);
-      }
-      if (newProfile) {
-        // We don't want a default profile with Developer Edition settings, an
-        // empty profile directory will do. The profile service of the other
-        // Firefox will populate it with its own stuff.
-        let newProfilePath = newProfile.rootDir.path;
-        OS.File.removeDir(newProfilePath).then(() => {
-          return OS.File.makeDir(newProfilePath);
-        }).then(null, e => {
-          Cu.reportError("Could not empty profile 'default': " + e);
-        });
-      }
-    }
   },
 
   _onQuitRequest: function BG__onQuitRequest(aCancelQuit, aQuitType) {
@@ -1507,10 +1448,7 @@ BrowserGlue.prototype = {
     } catch (ex) {}
 
     // Support legacy bookmarks.html format for apps that depend on that format.
-    let autoExportHTML = false;
-    try {
-      autoExportHTML = Services.prefs.getBoolPref("browser.bookmarks.autoExportHTML");
-    } catch (ex) {} // Do not export.
+    let autoExportHTML = Services.prefs.getBoolPref("browser.bookmarks.autoExportHTML", false);  // Do not export.
     if (autoExportHTML) {
       // Sqlite.jsm and Places shutdown happen at profile-before-change, thus,
       // to be on the safe side, this should run earlier.
@@ -1580,10 +1518,7 @@ BrowserGlue.prototype = {
         // An import operation is about to run.
         // Don't try to recreate smart bookmarks if autoExportHTML is true or
         // smart bookmarks are disabled.
-        let smartBookmarksVersion = 0;
-        try {
-          smartBookmarksVersion = Services.prefs.getIntPref("browser.places.smartBookmarksVersion");
-        } catch (ex) {}
+        let smartBookmarksVersion = Services.prefs.getIntPref("browser.places.smartBookmarksVersion", 0);
         if (!autoExportHTML && smartBookmarksVersion != -1)
           Services.prefs.setIntPref("browser.places.smartBookmarksVersion", 0);
 
@@ -1934,10 +1869,7 @@ BrowserGlue.prototype = {
       // Refactor urlbar suggestion preferences to make it extendable and
       // allow new suggestion types (e.g: search suggestions).
       let types = ["history", "bookmark", "openpage"];
-      let defaultBehavior = 0;
-      try {
-        defaultBehavior = Services.prefs.getIntPref("browser.urlbar.default.behavior");
-      } catch (ex) {}
+      let defaultBehavior = Services.prefs.getIntPref("browser.urlbar.default.behavior", 0);
       try {
         let autocompleteEnabled = Services.prefs.getBoolPref("browser.urlbar.autocomplete.enabled");
         if (!autocompleteEnabled) {
@@ -1990,26 +1922,16 @@ BrowserGlue.prototype = {
 
     if (currentUIVersion < 30) {
       // Convert old devedition theme pref to lightweight theme storage
-      let lightweightThemeSelected = false;
-      let selectedThemeID = null;
-      try {
-        lightweightThemeSelected = Services.prefs.prefHasUserValue("lightweightThemes.selectedThemeID");
-        selectedThemeID = Services.prefs.getCharPref("lightweightThemes.selectedThemeID");
-      } catch (e) {}
+      let lightweightThemeSelected = Services.prefs.prefHasUserValue("lightweightThemes.selectedThemeID", false);
+      let selectedThemeID = Services.prefs.getCharPref("lightweightThemes.selectedThemeID", "");
 
       let defaultThemeSelected = false;
       try {
          defaultThemeSelected = Services.prefs.getCharPref("general.skins.selectedSkin") == "classic/1.0";
       } catch (e) {}
 
-      // If we are on the devedition channel, the devedition theme is on by
-      // default.  But we need to handle the case where they didn't want it
-      // applied, and unapply the theme.
-      let userChoseToNotUseDeveditionTheme =
-        !defaultThemeSelected ||
-        (lightweightThemeSelected && selectedThemeID != "firefox-devedition@mozilla.org");
-
-      if (userChoseToNotUseDeveditionTheme && selectedThemeID == "firefox-devedition@mozilla.org") {
+      // If we have the dev edition theme selected, reset it.
+      if (selectedThemeID == "firefox-devedition@mozilla.org") {
         Services.prefs.setCharPref("lightweightThemes.selectedThemeID", "");
       }
 
@@ -2145,10 +2067,7 @@ BrowserGlue.prototype = {
     const MAX_RESULTS = 10;
 
     // Get current smart bookmarks version.  If not set, create them.
-    let smartBookmarksCurrentVersion = 0;
-    try {
-      smartBookmarksCurrentVersion = Services.prefs.getIntPref(SMART_BOOKMARKS_PREF);
-    } catch (ex) {}
+    let smartBookmarksCurrentVersion = Services.prefs.getIntPref(SMART_BOOKMARKS_PREF, 0);
 
     // If version is current, or smart bookmarks are disabled, bail out.
     if (smartBookmarksCurrentVersion == -1 ||
@@ -2274,90 +2193,29 @@ BrowserGlue.prototype = {
     chromeWindow.openPreferences(...args);
   },
 
+#ifdef MOZ_SERVICES_SYNC
   /**
-   * Called as an observer when Sync's "display URIs" notification is fired.
+   * Called as an observer when Sync's "display URI" notification is fired.
    *
-   * We open the received URIs in background tabs.
+   * We open the received URI in a background tab.
+   *
+   * Eventually, this will likely be replaced by a more robust tab syncing
+   * feature. This functionality is considered somewhat evil by UX because it
+   * opens a new tab automatically without any prompting. However, it is a
+   * lesser evil than sending a tab to a specific device (from e.g. Fennec)
+   * and having nothing happen on the receiving end.
    */
-  _onDisplaySyncURIs: function _onDisplaySyncURIs(data) {
+  _onDisplaySyncURI: function _onDisplaySyncURI(data) {
     try {
+      let tabbrowser = RecentWindow.getMostRecentBrowserWindow({private: false}).gBrowser;
+
       // The payload is wrapped weirdly because of how Sync does notifications.
-      const URIs = data.wrappedJSObject.object;
-
-      const findWindow = () => RecentWindow.getMostRecentBrowserWindow({private: false});
-
-      // win can be null, but it's ok, we'll assign it later in openTab()
-      let win = findWindow();
-
-      const openTab = URI => {
-        let tab;
-        if (!win) {
-          Services.appShell.hiddenDOMWindow.open(URI.uri);
-          win = findWindow();
-          tab = win.gBrowser.tabs[0];
-        } else {
-          tab = win.gBrowser.addTab(URI.uri);
-        }
-        tab.setAttribute("attention", true);
-        return tab;
-      };
-
-      const firstTab = openTab(URIs[0]);
-      URIs.slice(1).forEach(URI => openTab(URI));
-
-      let title, body;
-      const deviceName = Weave.Service.clientsEngine.getClientName(URIs[0].clientId);
-      const bundle = Services.strings.createBundle("chrome://browser/locale/accounts.properties");
-      if (URIs.length == 1) {
-        // Due to bug 1305895, tabs from iOS may not have device information, so
-        // we have separate strings to handle those cases. (See Also
-        // unnamedTabsArrivingNotificationNoDevice.body below)
-        if (deviceName) {
-          title = bundle.formatStringFromName("tabArrivingNotificationWithDevice.title", [deviceName], 1);
-        } else {
-          title = bundle.GetStringFromName("tabArrivingNotification.title");
-        }
-        // Use the page URL as the body. We strip the fragment and query to
-        // reduce size, and also format it the same way that the url bar would.
-        body = URIs[0].uri.replace(/[?#].*$/, "");
-        if (win.gURLBar) {
-          body = win.gURLBar.trimValue(body);
-        }
-      } else {
-        title = bundle.GetStringFromName("tabsArrivingNotification.title");
-        const allSameDevice = URIs.every(URI => URI.clientId == URIs[0].clientId);
-        const unknownDevice = allSameDevice && !deviceName;
-        let tabArrivingBody;
-        if (unknownDevice) {
-          tabArrivingBody = "unnamedTabsArrivingNotificationNoDevice.body";
-        } else if (allSameDevice) {
-          tabArrivingBody = "unnamedTabsArrivingNotification2.body";
-        } else {
-          tabArrivingBody = "unnamedTabsArrivingNotificationMultiple2.body"
-        }
-
-        body = bundle.GetStringFromName(tabArrivingBody);
-        body = PluralForm.get(URIs.length, body);
-        body = body.replace("#1", URIs.length);
-        body = body.replace("#2", deviceName);
-      }
-
-      const clickCallback = (subject, topic, data) => {
-        if (topic == "alertclickcallback") {
-          win.gBrowser.selectedTab = firstTab;
-        }
-      }
-
-      // Specify an icon because on Windows no icon is shown at the moment
-      let imageURL;
-      if (AppConstants.platform == "win") {
-        imageURL = "chrome://branding/content/icon64.png";
-      }
-      AlertsService.showAlertNotification(imageURL, title, body, true, null, clickCallback);
+      tabbrowser.addTab(data.wrappedJSObject.object.uri);
     } catch (ex) {
-      Cu.reportError("Error displaying tab(s) received by Sync: " + ex);
+      Cu.reportError("Error displaying tab received by Sync: " + ex);
     }
   },
+#endif
 
   _onDeviceDisconnected() {
     let bundle = Services.strings.createBundle("chrome://browser/locale/accounts.properties");

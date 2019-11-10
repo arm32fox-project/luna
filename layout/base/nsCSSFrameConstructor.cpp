@@ -492,9 +492,8 @@ static nsContainerFrame* GetIBSplitSibling(nsIFrame* aFrame)
 
   // We only store the "ib-split sibling" annotation with the first
   // frame in the continuation chain. Walk back to find that frame now.
-  return static_cast<nsContainerFrame*>
-    (aFrame->FirstContinuation()->
-       Properties().Get(nsIFrame::IBSplitSibling()));
+  return aFrame->FirstContinuation()->
+           GetProperty(nsIFrame::IBSplitSibling());
 }
 
 static nsContainerFrame* GetIBSplitPrevSibling(nsIFrame* aFrame)
@@ -503,9 +502,8 @@ static nsContainerFrame* GetIBSplitPrevSibling(nsIFrame* aFrame)
 
   // We only store the ib-split sibling annotation with the first
   // frame in the continuation chain. Walk back to find that frame now.
-  return static_cast<nsContainerFrame*>
-    (aFrame->FirstContinuation()->
-       Properties().Get(nsIFrame::IBSplitPrevSibling()));
+  return aFrame->FirstContinuation()->
+           GetProperty(nsIFrame::IBSplitPrevSibling());
 }
 
 static nsContainerFrame*
@@ -526,7 +524,7 @@ GetLastIBSplitSibling(nsIFrame* aFrame, bool aReturnEmptyTrailingInline)
 }
 
 static void
-SetFrameIsIBSplit(nsContainerFrame* aFrame, nsIFrame* aIBSplitSibling)
+SetFrameIsIBSplit(nsContainerFrame* aFrame, nsContainerFrame* aIBSplitSibling)
 {
   NS_PRECONDITION(aFrame, "bad args!");
 
@@ -547,9 +545,8 @@ SetFrameIsIBSplit(nsContainerFrame* aFrame, nsIFrame* aIBSplitSibling)
 
     // Store the ib-split sibling (if we were given one) with the
     // first frame in the flow.
-    FramePropertyTable* props = aFrame->PresContext()->PropertyTable();
-    props->Set(aFrame, nsIFrame::IBSplitSibling(), aIBSplitSibling);
-    props->Set(aIBSplitSibling, nsIFrame::IBSplitPrevSibling(), aFrame);
+    aFrame->SetProperty(nsIFrame::IBSplitSibling(), aIBSplitSibling);
+    aIBSplitSibling->SetProperty(nsIFrame::IBSplitPrevSibling(), aFrame);
   }
 }
 
@@ -6075,11 +6072,11 @@ AddGenConPseudoToFrame(nsIFrame* aOwnerFrame, nsIContent* aContent)
   NS_ASSERTION(nsLayoutUtils::IsFirstContinuationOrIBSplitSibling(aOwnerFrame),
                "property should only be set on first continuation/ib-sibling");
 
-  FrameProperties props = aOwnerFrame->Properties();
-  nsIFrame::ContentArray* value = props.Get(nsIFrame::GenConProperty());
+  nsIFrame::ContentArray* value =
+    aOwnerFrame->GetProperty(nsIFrame::GenConProperty());
   if (!value) {
     value = new nsIFrame::ContentArray;
-    props.Set(nsIFrame::GenConProperty(), value);
+    aOwnerFrame->SetProperty(nsIFrame::GenConProperty(), value);
   }
   value->AppendElement(aContent);
 }
@@ -7021,8 +7018,11 @@ nsCSSFrameConstructor::MaybeConstructLazily(Operation aOperation,
                                             nsIContent* aContainer,
                                             nsIContent* aChild)
 {
+  // XXXmats no lazy frames for display:contents direct descendants yet
+  // (Mozilla bug 979782).
   if (mPresShell->GetPresContext()->IsChrome() || !aContainer ||
-      aContainer->IsInNativeAnonymousSubtree() || aContainer->IsXULElement()) {
+      aContainer->IsInNativeAnonymousSubtree() || aContainer->IsXULElement() ||
+      GetDisplayContentsStyleFor(aContainer)) {
     return false;
   }
 
@@ -7056,6 +7056,10 @@ nsCSSFrameConstructor::MaybeConstructLazily(Operation aOperation,
   // ignore anonymous children (eg framesets) make this complicated. So we set
   // these two booleans if we encounter these situations and unset them if we
   // hit a node with a leaf frame.
+  //
+  // Also, it's fine if one of the nodes without primary frame is a display:
+  // contents node except if it's the direct ancestor of the children we're
+  // recreating frames for.
   bool noPrimaryFrame = false;
   bool needsFrameBitSet = false;
 #endif
@@ -7065,17 +7069,14 @@ nsCSSFrameConstructor::MaybeConstructLazily(Operation aOperation,
     if (content->GetPrimaryFrame() && content->GetPrimaryFrame()->IsLeaf()) {
       noPrimaryFrame = needsFrameBitSet = false;
     }
-    if (!noPrimaryFrame && !content->GetPrimaryFrame()) {
+    if (!noPrimaryFrame && !content->GetPrimaryFrame() &&
+        !GetDisplayContentsStyleFor(content)) {
       noPrimaryFrame = true;
     }
     if (!needsFrameBitSet && content->HasFlag(NODE_NEEDS_FRAME)) {
       needsFrameBitSet = true;
     }
 #endif
-    // XXXmats no lazy frames for display:contents descendants yet (bug 979782).
-    if (GetDisplayContentsStyleFor(content)) {
-      return false;
-    }
     content->SetFlags(NODE_DESCENDANTS_NEED_FRAMES);
     content = content->GetFlattenedTreeParent();
   }

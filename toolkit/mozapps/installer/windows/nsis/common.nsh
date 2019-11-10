@@ -5218,21 +5218,6 @@
               StrCpy $AddStartMenuSC "1"
             ${EndIf}
 
-            ReadINIStr $R8 $R7 "Install" "TaskbarShortcut"
-            ${If} $R8 == "false"
-              StrCpy $AddTaskbarSC "0"
-            ${Else}
-              StrCpy $AddTaskbarSC "1"
-            ${EndIf}
-
-            ReadINIStr $R8 $R7 "Install" "MaintenanceService"
-            ${If} $R8 == "false"
-              StrCpy $InstallMaintenanceService "0"
-            ${Else}
-              ; Installing the service always requires elevation.
-              ${ElevateUAC}
-            ${EndIf}
-
             !ifndef NO_STARTMENU_DIR
               ReadINIStr $R8 $R7 "Install" "StartMenuDirectoryName"
               ${If} $R8 != ""
@@ -5592,21 +5577,6 @@
       StrCpy $INSTDIR "$R9"
 !endif
 
-      ; If the user doesn't have write access to the installation directory set
-      ; the installation directory to a subdirectory of the All Users application
-      ; directory and if the user can't write to that location set the installation
-      ; directory to a subdirectory of the users local application directory
-      ; (e.g. non-roaming).
-      ${CanWriteToInstallDir} $R9
-      StrCmp "$R9" "false" +1 finish_check_install_dir
-
-      SetShellVarContext all      ; Set SHCTX to All Users
-      StrCpy $INSTDIR "$APPDATA\${BrandFullName}\"
-      ${CanWriteToInstallDir} $R9
-      StrCmp "$R9" "false" +2 +1
-      StrCpy $INSTDIR "$LOCALAPPDATA\${BrandFullName}\"
-
-      finish_check_install_dir:
       IfFileExists "$INSTDIR" +3 +1
       Pop $R9
       Return

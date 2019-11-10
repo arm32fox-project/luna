@@ -34,6 +34,7 @@
 #include "frontend/Parser.h"
 #include "gc/Policy.h"
 #include "js/MemoryMetrics.h"
+#include "vm/SelfHosting.h"
 #include "vm/StringBuffer.h"
 #include "vm/Time.h"
 #include "vm/TypedArrayObject.h"
@@ -249,14 +250,14 @@ typedef Vector<AsmJSImport, 0, SystemAllocPolicy> AsmJSImportVector;
 // case the function is toString()ed.
 class AsmJSExport
 {
-    uint32_t funcIndex_;
+    uint32_t funcIndex_ = 0;
 
     // All fields are treated as cacheable POD:
-    uint32_t startOffsetInModule_;  // Store module-start-relative offsets
-    uint32_t endOffsetInModule_;    // so preserved by serialization.
+    uint32_t startOffsetInModule_ = 0;  // Store module-start-relative offsets
+    uint32_t endOffsetInModule_ = 0;    // so preserved by serialization.
 
   public:
-    AsmJSExport() { PodZero(this); }
+    AsmJSExport() = default;
     AsmJSExport(uint32_t funcIndex, uint32_t startOffsetInModule, uint32_t endOffsetInModule)
       : funcIndex_(funcIndex),
         startOffsetInModule_(startOffsetInModule),
@@ -288,12 +289,12 @@ enum class CacheResult
 
 struct AsmJSMetadataCacheablePod
 {
-    uint32_t                numFFIs;
-    uint32_t                srcLength;
-    uint32_t                srcLengthWithRightBrace;
-    bool                    usesSimd;
+    uint32_t                numFFIs = 0;
+    uint32_t                srcLength = 0;
+    uint32_t                srcLengthWithRightBrace = 0;
+    bool                    usesSimd = false;
 
-    AsmJSMetadataCacheablePod() { PodZero(this); }
+    AsmJSMetadataCacheablePod() = default;
 };
 
 struct js::AsmJSMetadata : Metadata, AsmJSMetadataCacheablePod
@@ -318,6 +319,7 @@ struct js::AsmJSMetadata : Metadata, AsmJSMetadataCacheablePod
     // Function constructor, this will be the first character in the function
     // source. Otherwise, it will be the opening parenthesis of the arguments
     // list.
+    uint32_t                toStringStart;
     uint32_t                srcStart;
     uint32_t                srcBodyStart;
     bool                    strict;
@@ -1758,6 +1760,7 @@ class MOZ_STACK_CLASS ModuleValidator
         if (!asmJSMetadata_)
             return false;
 
+        asmJSMetadata_->toStringStart = moduleFunctionNode_->pn_funbox->toStringStart;
         asmJSMetadata_->srcStart = moduleFunctionNode_->pn_body->pn_pos.begin;
         asmJSMetadata_->srcBodyStart = parser_.tokenStream.currentToken().pos.end;
         asmJSMetadata_->strict = parser_.pc->sc()->strict() &&
@@ -3248,10 +3251,9 @@ CheckModuleLevelName(ModuleValidator& m, ParseNode* usepn, PropertyName* name)
 static bool
 CheckFunctionHead(ModuleValidator& m, ParseNode* fn)
 {
-    JSFunction* fun = FunctionObject(fn);
     if (fn->pn_funbox->hasRest())
         return m.fail(fn, "rest args not allowed");
-    if (fun->isExprBody())
+    if (fn->pn_funbox->isExprBody())
         return m.fail(fn, "expression closures not allowed");
     if (fn->pn_funbox->hasDestructuringArgs)
         return m.fail(fn, "destructuring args not allowed");
@@ -7049,19 +7051,20 @@ ParseFunction(ModuleValidator& m, ParseNode** fnOut, unsigned* line)
     TokenStream& tokenStream = m.tokenStream();
 
     tokenStream.consumeKnownToken(TOK_FUNCTION, TokenStream::Operand);
+    uint32_t toStringStart = tokenStream.currentToken().pos.begin;
     *line = tokenStream.srcCoords.lineNum(tokenStream.currentToken().pos.end);
 
     TokenKind tk;
     if (!tokenStream.getToken(&tk, TokenStream::Operand))
         return false;
-    if (tk != TOK_NAME && tk != TOK_YIELD)
+    if (!TokenKindIsPossibleIdentifier(tk))
         return false;  // The regular parser will throw a SyntaxError, no need to m.fail.
 
     RootedPropertyName name(m.cx(), m.parser().bindingIdentifier(YieldIsName));
     if (!name)
         return false;
 
-    ParseNode* fn = m.parser().handler.newFunctionDefinition();
+    ParseNode* fn = m.parser().handler.newFunctionStatement();
     if (!fn)
         return false;
 
@@ -7071,7 +7074,7 @@ ParseFunction(ModuleValidator& m, ParseNode** fnOut, unsigned* line)
 
     ParseContext* outerpc = m.parser().pc;
     Directives directives(outerpc);
-    FunctionBox* funbox = m.parser().newFunctionBox(fn, fun, directives, NotGenerator,
+    FunctionBox* funbox = m.parser().newFunctionBox(fn, fun, toStringStart, directives, NotGenerator,
                                                     SyncFunction, /* tryAnnexB = */ false);
     if (!funbox)
         return false;
@@ -7463,6 +7466,20 @@ GetDataProperty(JSContext* cx, HandleValue objVal, ImmutablePropertyNamePtr fiel
 }
 
 static bool
+HasObjectValueOfMethodPure(JSObject* obj, JSContext* cx)
+{
+    Value v;
+    if (!GetPropertyPure(cx, obj, NameToId(cx->names().valueOf), &v))
+        return false;
+
+    JSFunction* fun;
+    if (!IsFunctionObject(v, &fun))
+        return false;
+
+    return IsSelfHostedFunctionWithName(fun, cx->names().Object_valueOf);
+}
+
+static bool
 HasPureCoercion(JSContext* cx, HandleValue v)
 {
     // Unsigned SIMD types are not allowed in function signatures.
@@ -7476,10 +7493,10 @@ HasPureCoercion(JSContext* cx, HandleValue v)
     // coercions are not observable and coercion via ToNumber/ToInt32
     // definitely produces NaN/0. We should remove this special case later once
     // most apps have been built with newer Emscripten.
-    jsid toString = NameToId(cx->names().toString);
     if (v.toObject().is<JSFunction>() &&
-        HasObjectValueOf(&v.toObject(), cx) &&
-        ClassMethodIsNative(cx, &v.toObject().as<JSFunction>(), &JSFunction::class_, toString, fun_toString))
+        HasNoToPrimitiveMethodPure(&v.toObject(), cx) &&
+        HasObjectValueOfMethodPure(&v.toObject(), cx) &&
+        HasNativeMethodPure(&v.toObject(), cx->names().toString, fun_toString, cx))
     {
         return true;
     }
@@ -8054,7 +8071,7 @@ HandleInstantiationFailure(JSContext* cx, CallArgs args, const AsmJSMetadata& me
         return false;
     }
 
-    uint32_t begin = metadata.srcStart;
+    uint32_t begin = metadata.toStringStart;
     uint32_t end = metadata.srcEndAfterCurly();
     Rooted<JSFlatString*> src(cx, source->substringDontDeflate(cx, begin, end));
     if (!src)
@@ -8085,7 +8102,7 @@ HandleInstantiationFailure(JSContext* cx, CallArgs args, const AsmJSMetadata& me
     SourceBufferHolder::Ownership ownership = stableChars.maybeGiveOwnershipToCaller()
                                               ? SourceBufferHolder::GiveOwnership
                                               : SourceBufferHolder::NoOwnership;
-    SourceBufferHolder srcBuf(chars, stableChars.twoByteRange().length(), ownership);
+    SourceBufferHolder srcBuf(chars, end - begin, ownership);
     if (!frontend::CompileStandaloneFunction(cx, &fun, options, srcBuf, Nothing()))
         return false;
 
@@ -8537,6 +8554,7 @@ LookupAsmJSModuleInCache(ExclusiveContext* cx, AsmJSParser& parser, bool* loaded
         return true;
 
     // See AsmJSMetadata comment as well as ModuleValidator::init().
+    asmJSMetadata->toStringStart = parser.pc->functionBox()->toStringStart;
     asmJSMetadata->srcStart = parser.pc->functionBox()->functionNode->pn_body->pn_pos.begin;
     asmJSMetadata->srcBodyStart = parser.tokenStream.currentToken().pos.end;
     asmJSMetadata->strict = parser.pc->sc()->strict() && !parser.pc->sc()->hasExplicitUseStrict();
@@ -8834,7 +8852,7 @@ js::AsmJSModuleToString(JSContext* cx, HandleFunction fun, bool addParenToLambda
     MOZ_ASSERT(IsAsmJSModule(fun));
 
     const AsmJSMetadata& metadata = AsmJSModuleFunctionToModule(fun).metadata().asAsmJS();
-    uint32_t begin = metadata.srcStart;
+    uint32_t begin = metadata.toStringStart;
     uint32_t end = metadata.srcEndAfterCurly();
     ScriptSource* source = metadata.scriptSource.get();
 
@@ -8843,17 +8861,15 @@ js::AsmJSModuleToString(JSContext* cx, HandleFunction fun, bool addParenToLambda
     if (addParenToLambda && fun->isLambda() && !out.append("("))
         return nullptr;
 
-    if (!out.append("function "))
-        return nullptr;
-
-    if (fun->explicitName() && !out.append(fun->explicitName()))
-        return nullptr;
-
     bool haveSource = source->hasSourceData();
     if (!haveSource && !JSScript::loadSource(cx, source, &haveSource))
         return nullptr;
 
     if (!haveSource) {
+        if (!out.append("function "))
+            return nullptr;
+        if (fun->explicitName() && !out.append(fun->explicitName()))
+            return nullptr;
         if (!out.append("() {\n    [sourceless code]\n}"))
             return nullptr;
     } else {

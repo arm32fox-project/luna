@@ -59,8 +59,8 @@
 #ifdef XP_WIN32
 @BINPATH@/uninstall/helper.exe
 #endif
-#ifdef MOZ_UPDATER
 @RESPATH@/update.locale
+#ifdef MOZ_UPDATER
 @RESPATH@/updater.ini
 #endif
 
@@ -141,13 +141,6 @@
 @RESPATH@/run-mozilla.sh
 #endif
 #endif
-#ifdef XP_WIN
-#ifdef _AMD64_
-@BINPATH@/@DLL_PREFIX@qipcap64@DLL_SUFFIX@
-#else
-@BINPATH@/@DLL_PREFIX@qipcap@DLL_SUFFIX@
-#endif
-#endif
 
 ; [Components]
 @RESPATH@/components/*
@@ -213,11 +206,6 @@
 #endif
 
 #ifdef MOZ_DEVTOOLS
-; [Webide Files]
-@RESPATH@/browser/chrome/webide@JAREXT@
-@RESPATH@/browser/chrome/webide.manifest
-@RESPATH@/browser/@PREF_DIR@/webide-prefs.js
-
 ; DevTools
 @RESPATH@/browser/chrome/devtools@JAREXT@
 @RESPATH@/browser/chrome/devtools.manifest
@@ -238,6 +226,7 @@
 
 ; [Default Preferences]
 ; All the pref files must be part of base to prevent migration bugs
+@RESPATH@/browser/defaults/permissions
 @RESPATH@/browser/@PREF_DIR@/palemoon.js
 @RESPATH@/browser/@PREF_DIR@/palemoon-branding.js
 @RESPATH@/greprefs.js
@@ -248,8 +237,10 @@
 ; gre location for now.
 @RESPATH@/defaults/pref/channel-prefs.js
 
+#ifdef MOZ_SERVICES_SYNC
 ; Services (gre) prefs
 @RESPATH@/defaults/pref/services-sync.js
+#endif
 
 ; [Layout Engine Resources]
 ; Style Sheets, Graphics and other Resources used by the layout engine.
@@ -305,6 +296,13 @@
 #ifndef MOZ_SYSTEM_NSS
 #if defined(XP_LINUX) && !defined(ANDROID)
 @BINPATH@/@DLL_PREFIX@freeblpriv3@DLL_SUFFIX@
+#elif defined(XP_SOLARIS) && defined(SPARC64)
+@BINPATH@/@DLL_PREFIX@freebl_64fpu_3@DLL_SUFFIX@
+@BINPATH@/@DLL_PREFIX@freebl_64int_3@DLL_SUFFIX@
+#elif defined(XP_SOLARIS) && defined(SPARC)
+@BINPATH@/@DLL_PREFIX@freebl_32fpu_3@DLL_SUFFIX@
+@BINPATH@/@DLL_PREFIX@freebl_32int64_3@DLL_SUFFIX@
+@BINPATH@/@DLL_PREFIX@freebl3@DLL_SUFFIX@
 #else
 @BINPATH@/@DLL_PREFIX@freebl3@DLL_SUFFIX@
 #endif
@@ -322,13 +320,6 @@
 #endif
 @RESPATH@/chrome/pippki@JAREXT@
 @RESPATH@/chrome/pippki.manifest
-
-; for Solaris SPARC
-#ifdef SOLARIS
-bin/libfreebl_32fpu_3.so
-bin/libfreebl_32int_3.so
-bin/libfreebl_32int64_3.so
-#endif
 
 ; [Updater]
 ;

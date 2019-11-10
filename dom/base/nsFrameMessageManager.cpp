@@ -32,7 +32,6 @@
 #include "mozilla/CycleCollectedJSContext.h"
 #include "mozilla/IntentionalCrash.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/dom/File.h"
 #include "mozilla/dom/MessagePort.h"
 #include "mozilla/dom/nsIContentParent.h"
@@ -133,7 +132,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsFrameMessageManager)
   }
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mChildManagers)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mParentManager)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsFrameMessageManager)
@@ -707,17 +705,8 @@ nsFrameMessageManager::SendRpcMessage(const nsAString& aMessageName,
 static bool
 AllowMessage(size_t aDataLength, const nsAString& aMessageName)
 {
-  static const size_t kMinTelemetryMessageSize = 8192;
-
-  if (aDataLength < kMinTelemetryMessageSize) {
-    return true;
-  }
-
   NS_ConvertUTF16toUTF8 messageName(aMessageName);
   messageName.StripChars("0123456789");
-
-  Telemetry::Accumulate(Telemetry::MESSAGE_MANAGER_MESSAGE_SIZE2, messageName,
-                        aDataLength);
 
   // A message includes more than structured clone data, so subtract
   // 20KB to make it more likely that a message within this bound won't
@@ -726,9 +715,6 @@ AllowMessage(size_t aDataLength, const nsAString& aMessageName)
   if (aDataLength < kMaxMessageSize) {
     return true;
   }
-
-  Telemetry::Accumulate(Telemetry::REJECTED_MESSAGE_MANAGER_MESSAGE,
-                        messageName);
 
   return false;
 }
@@ -2248,7 +2234,6 @@ nsSameProcessAsyncMessageBase::Init(const nsAString& aMessage,
                                     nsIPrincipal* aPrincipal)
 {
   if (!mData.Copy(aData)) {
-    Telemetry::Accumulate(Telemetry::IPC_SAME_PROCESS_MESSAGE_COPY_OOM_KB, aData.DataLength());
     return NS_ERROR_OUT_OF_MEMORY;
   }
 

@@ -210,6 +210,7 @@ js::Nursery::disable()
         return;
     updateNumChunks(0);
     currentEnd_ = 0;
+    position_ = 0;
     runtime()->gc.storeBuffer.disable();
 }
 
@@ -530,7 +531,6 @@ js::Nursery::collect(JSRuntime* rt, JS::gcreason::Reason reason)
     // the nursery is full, look for object groups that are getting promoted
     // excessively and try to pretenure them.
     maybeStartProfile(ProfileKey::Pretenure);
-    uint32_t pretenureCount = 0;
     if (promotionRate > 0.8 || reason == JS::gcreason::FULL_STORE_BUFFER) {
         JSContext* cx = rt->contextFromMainThread();
         for (auto& entry : tenureCounts.entries) {
@@ -539,7 +539,6 @@ js::Nursery::collect(JSRuntime* rt, JS::gcreason::Reason reason)
                 if (group->canPreTenure()) {
                     AutoCompartment ac(cx, group->compartment());
                     group->setShouldPreTenure(cx);
-                    pretenureCount++;
                 }
             }
         }
@@ -556,12 +555,6 @@ js::Nursery::collect(JSRuntime* rt, JS::gcreason::Reason reason)
     minorGcCount_++;
 
     int64_t totalTime = profileTimes_[ProfileKey::Total];
-    rt->addTelemetry(JS_TELEMETRY_GC_MINOR_US, totalTime);
-    rt->addTelemetry(JS_TELEMETRY_GC_MINOR_REASON, reason);
-    if (totalTime > 1000)
-        rt->addTelemetry(JS_TELEMETRY_GC_MINOR_REASON_LONG, reason);
-    rt->addTelemetry(JS_TELEMETRY_GC_NURSERY_BYTES, sizeOfHeapCommitted());
-    rt->addTelemetry(JS_TELEMETRY_GC_PRETENURE_COUNT, pretenureCount);
 
     rt->gc.stats.endNurseryCollection(reason);
     TraceMinorGCEnd();

@@ -591,6 +591,7 @@
            lxstat_name = "_lxstat";
            fxstat_name = "_fxstat";
          } else {
+
            // Linux, all widths
            xstat_name = "__xstat";
            lxstat_name = "__lxstat";

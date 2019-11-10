@@ -430,7 +430,7 @@ IDBCursor::Continue(JSContext* aCx,
   }
 
   Key key;
-  aRv = key.SetFromJSVal(aCx, aKey);
+  aRv = key.SetFromJSVal(aCx, aKey, /* aCallGetters */ true);
   if (aRv.Failed()) {
     return;
   }
@@ -536,7 +536,7 @@ IDBCursor::ContinuePrimaryKey(JSContext* aCx,
   }
 
   Key key;
-  aRv = key.SetFromJSVal(aCx, aKey);
+  aRv = key.SetFromJSVal(aCx, aKey, /* aCallGetters */ true);
   if (aRv.Failed()) {
     return;
   }
@@ -558,7 +558,7 @@ IDBCursor::ContinuePrimaryKey(JSContext* aCx,
   }
 
   Key primaryKey;
-  aRv = primaryKey.SetFromJSVal(aCx, aPrimaryKey);
+  aRv = primaryKey.SetFromJSVal(aCx, aPrimaryKey, /* aCallGetters */ true);
   if (aRv.Failed()) {
     return;
   }
@@ -718,7 +718,7 @@ IDBCursor::Update(JSContext* aCx, JS::Handle<JS::Value> aValue,
     const KeyPath& keyPath = objectStore->GetKeyPath();
     Key key;
 
-    aRv = keyPath.ExtractKey(aCx, aValue, key);
+    aRv = keyPath.ExtractKey(aCx, aValue, key, /* aCallGetters */ false);
     if (aRv.Failed()) {
       return nullptr;
     }
@@ -948,7 +948,6 @@ NS_INTERFACE_MAP_END
 NS_IMPL_CYCLE_COLLECTION_CLASS(IDBCursor)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(IDBCursor)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mRequest)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mSourceObjectStore)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mSourceIndex)

@@ -86,17 +86,6 @@ exports.menuitems = [
     },
     checkbox: true
   },
-  { id: "menu_webide",
-    l10nKey: "webide",
-    disabled: true,
-    oncommand() {
-      gDevToolsBrowser.openWebIDE();
-    },
-    key: {
-      id: "webide",
-      modifiers: "shift"
-    }
-  },
   { id: "menu_browserToolbox",
     l10nKey: "browserToolboxMenu",
     disabled: true,
@@ -189,7 +178,8 @@ exports.menuitems = [
     l10nKey: "getMoreDevtoolsCmd",
     oncommand(event) {
       let window = event.target.ownerDocument.defaultView;
-      window.openUILinkIn("https://addons.mozilla.org/firefox/collections/mozilla/webdeveloper/", "tab");
+      let getMoreURL = Services.prefs.getCharPref("browser.getdevtools.url");
+      window.openUILinkIn(getMoreURL, "tab");
     }
   },
 ];

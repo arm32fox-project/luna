@@ -85,7 +85,6 @@
 #include "mozilla/AsyncEventDispatcher.h"
 #include "mozilla/EventDispatcher.h"
 #include "mozilla/EventStates.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/dom/HTMLObjectElementBinding.h"
 #include "mozilla/dom/HTMLSharedObjectElement.h"
 #include "nsChannelClassifier.h"
@@ -716,11 +715,13 @@ nsObjectLoadingContent::UnbindFromTree(bool aDeep, bool aNullParent)
     ///             would keep the docshell around, but trash the frameloader
     UnloadObject();
   }
-  nsIDocument* doc = thisContent->GetComposedDoc();
-  if (doc && doc->IsActive()) {
-    nsCOMPtr<nsIRunnable> ev = new nsSimplePluginEvent(doc,
-                                                       NS_LITERAL_STRING("PluginRemoved"));
-    NS_DispatchToCurrentThread(ev);
+  if (mType == eType_Plugin) {
+    nsIDocument* doc = thisContent->GetComposedDoc();
+    if (doc && doc->IsActive()) {
+      nsCOMPtr<nsIRunnable> ev = new nsSimplePluginEvent(doc,
+                                                         NS_LITERAL_STRING("PluginRemoved"));
+      NS_DispatchToCurrentThread(ev);
+    }
   }
 }
 
@@ -1149,7 +1150,6 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest,
         NS_LITERAL_STRING(" since it was found on an internal Firefox blocklist.");
       console->LogStringMessage(message.get());
     }
-    Telemetry::Accumulate(Telemetry::PLUGIN_BLOCKED_FOR_STABILITY, 1);
     mContentBlockingEnabled = true;
     return NS_ERROR_FAILURE;
   } else if (status == NS_ERROR_TRACKING_URI) {
@@ -1565,7 +1565,6 @@ nsObjectLoadingContent::MaybeRewriteYoutubeEmbed(nsIURI* aURI, nsIURI* aBaseURI,
   }
 
   if (uri.Find("enablejsapi=1", true, 0, -1) != kNotFound) {
-    Telemetry::Accumulate(Telemetry::YOUTUBE_NONREWRITABLE_EMBED_SEEN, 1);
     return;
   }
 
@@ -1585,11 +1584,6 @@ nsObjectLoadingContent::MaybeRewriteYoutubeEmbed(nsIURI* aURI, nsIURI* aBaseURI,
     }
   }
 
-  // If we've made it this far, we've got a rewritable embed. Log it in
-  // telemetry.
-  Telemetry::Accumulate(Telemetry::YOUTUBE_REWRITABLE_EMBED_SEEN, 1);
-
-  // If we're pref'd off, return after telemetry has been logged.
   if (!Preferences::GetBool(kPrefYoutubeRewrite)) {
     return;
   }
@@ -3634,6 +3628,14 @@ nsObjectLoadingContent::HasGoodFallback() {
       }
     }
 
+    // RULE "nosrc":
+    // Use fallback content if the object has not specified a src URI.
+    if (rulesList[i].EqualsLiteral("nosrc")) {
+      if (!mOriginalURI) {
+        return true;
+      }
+    }
+
     // RULE "adobelink":
     // Don't use fallback content when it has a link to adobe's website.
     if (rulesList[i].EqualsLiteral("adobelink")) {
@@ -3800,8 +3802,6 @@ nsObjectLoadingContent::LegacyCall(JSContext* aCx,
     aRv.Throw(NS_ERROR_FAILURE);
     return;
   }
-
-  Telemetry::Accumulate(Telemetry::PLUGIN_CALLED_DIRECTLY, true);
 }
 
 void

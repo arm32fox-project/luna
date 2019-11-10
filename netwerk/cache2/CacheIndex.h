@@ -662,9 +662,6 @@ public:
   // Returns cache size in kB.
   static nsresult GetCacheSize(uint32_t *_retval);
 
-  // Returns number of entry files in the cache
-  static nsresult GetEntryFileCount(uint32_t *_retval);
-
   // Synchronously returns the disk occupation and number of entries per-context.
   // Callable on any thread.
   static nsresult GetCacheStats(nsILoadContextInfo *aInfo, uint32_t *aSize, uint32_t *aCount);
@@ -917,8 +914,6 @@ private:
 
   // Memory reporting (private part)
   size_t SizeOfExcludingThisInternal(mozilla::MallocSizeOf mallocSizeOf) const;
-
-  void ReportHashStats();
 
   static mozilla::StaticRefPtr<CacheIndex> gInstance;
   static StaticMutex sLock;

@@ -15,7 +15,6 @@
 #include "jsgc.h"
 #include "jsobj.h"
 #include "jsprf.h"
-#include "jswatchpoint.h"
 #include "jsweakmap.h"
 #include "jswrapper.h"
 
@@ -113,7 +112,7 @@ JS_SplicePrototype(JSContext* cx, HandleObject obj, HandleObject proto)
     }
 
     Rooted<TaggedProto> tagged(cx, TaggedProto(proto));
-    return obj->splicePrototype(cx, obj->getClass(), tagged);
+    return JSObject::splicePrototype(cx, obj, obj->getClass(), tagged);
 }
 
 JS_FRIEND_API(JSObject*)
@@ -269,9 +268,9 @@ js::GetBuiltinClass(JSContext* cx, HandleObject obj, ESClass* cls)
     if (MOZ_UNLIKELY(obj->is<ProxyObject>()))
         return Proxy::getBuiltinClass(cx, obj, cls);
 
-    if (obj->is<PlainObject>() || obj->is<UnboxedPlainObject>())
+    if (obj->is<PlainObject>())
         *cls = ESClass::Object;
-    else if (obj->is<ArrayObject>() || obj->is<UnboxedArrayObject>())
+    else if (obj->is<ArrayObject>())
         *cls = ESClass::Array;
     else if (obj->is<NumberObject>())
         *cls = ESClass::Number;
@@ -543,11 +542,6 @@ js::SetPreserveWrapperCallback(JSContext* cx, PreserveWrapperCallback callback)
     cx->preserveWrapperCallback = callback;
 }
 
-/*
- * The below code is for temporary telemetry use. It can be removed when
- * sufficient data has been harvested.
- */
-
 namespace js {
 // Defined in vm/GlobalObject.cpp.
 extern size_t sSetProtoCalled;
@@ -584,7 +578,6 @@ void
 js::TraceWeakMaps(WeakMapTracer* trc)
 {
     WeakMapBase::traceAllMappings(trc);
-    WatchpointMap::traceAll(trc);
 }
 
 extern JS_FRIEND_API(bool)
@@ -641,12 +634,6 @@ JS_FRIEND_API(JSLinearString*)
 js::StringToLinearStringSlow(JSContext* cx, JSString* str)
 {
     return str->ensureLinear(cx);
-}
-
-JS_FRIEND_API(void)
-JS_SetAccumulateTelemetryCallback(JSContext* cx, JSAccumulateTelemetryDataCallback callback)
-{
-    cx->setTelemetryCallback(cx, callback);
 }
 
 JS_FRIEND_API(JSObject*)

@@ -130,7 +130,7 @@ windowsZones:table(nofallback){
             CN{"Asia/Urumqi"}
             IO{"Indian/Chagos"}
             KG{"Asia/Bishkek"}
-            KZ{"Asia/Almaty Asia/Qyzylorda"}
+            KZ{"Asia/Almaty Asia/Qostanay"}
             ZZ{"Etc/GMT-6"}
         }
         "Central Brazilian Standard Time"{
@@ -287,7 +287,7 @@ windowsZones:table(nofallback){
         }
         "GTB Standard Time"{
             001{"Europe/Bucharest"}
-            CY{"Asia/Nicosia"}
+            CY{"Asia/Nicosia Asia/Famagusta"}
             GR{"Europe/Athens"}
             RO{"Europe/Bucharest"}
         }
@@ -371,7 +371,6 @@ windowsZones:table(nofallback){
         }
         "Magallanes Standard Time"{
             001{"America/Punta_Arenas"}
-            AQ{"Antarctica/Palmer"}
             CL{"America/Punta_Arenas"}
         }
         "Marquesas Standard Time"{
@@ -479,6 +478,10 @@ windowsZones:table(nofallback){
             001{"America/Asuncion"}
             PY{"America/Asuncion"}
         }
+        "Qyzylorda Standard Time"{
+            001{"Asia/Qyzylorda"}
+            KZ{"Asia/Qyzylorda"}
+        }
         "Romance Standard Time"{
             001{"Europe/Paris"}
             BE{"Europe/Brussels"}
@@ -500,12 +503,12 @@ windowsZones:table(nofallback){
         }
         "Russian Standard Time"{
             001{"Europe/Moscow"}
-            RU{"Europe/Moscow Europe/Kirov Europe/Volgograd"}
+            RU{"Europe/Moscow Europe/Kirov"}
             UA{"Europe/Simferopol"}
         }
         "SA Eastern Standard Time"{
             001{"America/Cayenne"}
-            AQ{"Antarctica/Rothera"}
+            AQ{"Antarctica/Rothera Antarctica/Palmer"}
             BR{
                 "America/Fortaleza America/Belem America/Maceio America/Recife Americ"
                 "a/Santarem"
@@ -580,12 +583,17 @@ windowsZones:table(nofallback){
             001{"Pacific/Apia"}
             WS{"Pacific/Apia"}
         }
+        "Sao Tome Standard Time"{
+            001{"Africa/Sao_Tome"}
+            ST{"Africa/Sao_Tome"}
+        }
         "Saratov Standard Time"{
             001{"Europe/Saratov"}
             RU{"Europe/Saratov"}
         }
         "Singapore Standard Time"{
             001{"Asia/Singapore"}
+            AQ{"Antarctica/Casey"}
             BN{"Asia/Brunei"}
             ID{"Asia/Makassar"}
             MY{"Asia/Kuala_Lumpur Asia/Kuching"}
@@ -654,7 +662,6 @@ windowsZones:table(nofallback){
         }
         "Turkey Standard Time"{
             001{"Europe/Istanbul"}
-            CY{"Asia/Famagusta"}
             TR{"Europe/Istanbul"}
         }
         "Turks And Caicos Standard Time"{
@@ -728,9 +735,12 @@ windowsZones:table(nofallback){
             001{"Asia/Vladivostok"}
             RU{"Asia/Vladivostok Asia/Ust-Nera"}
         }
+        "Volgograd Standard Time"{
+            001{"Europe/Volgograd"}
+            RU{"Europe/Volgograd"}
+        }
         "W. Australia Standard Time"{
             001{"Australia/Perth"}
-            AQ{"Antarctica/Casey"}
             AU{"Australia/Perth"}
         }
         "W. Central Africa Standard Time"{
@@ -746,7 +756,6 @@ windowsZones:table(nofallback){
             GQ{"Africa/Malabo"}
             NE{"Africa/Niamey"}
             NG{"Africa/Lagos"}
-            ST{"Africa/Sao_Tome"}
             TD{"Africa/Ndjamena"}
             TN{"Africa/Tunis"}
             ZZ{"Etc/GMT-1"}

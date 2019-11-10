@@ -20,6 +20,7 @@
 #include "mozilla/gfx/2D.h"
 #include "mozilla/LinkedList.h"
 #include "mozilla/UniquePtr.h"
+#include "mozilla/WeakPtr.h"
 #include "nsCycleCollectionNoteChild.h"
 #include "nsICanvasRenderingContextInternal.h"
 #include "nsLayoutUtils.h"
@@ -275,8 +276,9 @@ struct TexImageSourceAdapter final : public TexImageSource
         mPboOffset = pboOffset;
     }
 
-    TexImageSourceAdapter(const dom::ImageBitmap* imageBitmap, ErrorResult*) {
+    TexImageSourceAdapter(const dom::ImageBitmap* imageBitmap, ErrorResult* out_error) {
         mImageBitmap = imageBitmap;
+        mOut_error = out_error;
     }
 
     TexImageSourceAdapter(const dom::ImageData* imageData, ErrorResult*) {
@@ -298,6 +300,7 @@ class WebGLContext
     , public WebGLContextUnchecked
     , public WebGLRectangleObject
     , public nsWrapperCache
+    , public SupportsWeakPtr<WebGLContext>
 {
     friend class ScopedDrawHelper;
     friend class ScopedDrawWithTransformFeedback;
@@ -341,6 +344,7 @@ public:
 
     NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(WebGLContext,
                                                            nsIDOMWebGLRenderingContext)
+    MOZ_DECLARE_WEAKREFERENCE_TYPENAME(WebGLContext)
 
     virtual JSObject* WrapObject(JSContext* cx, JS::Handle<JSObject*> givenProto) override = 0;
 
@@ -655,9 +659,6 @@ public:
     void LinkProgram(WebGLProgram& prog);
     void PixelStorei(GLenum pname, GLint param);
     void PolygonOffset(GLfloat factor, GLfloat units);
-
-    already_AddRefed<layers::SharedSurfaceTextureClient> GetVRFrame();
-    bool StartVRPresentation();
 
     ////
 

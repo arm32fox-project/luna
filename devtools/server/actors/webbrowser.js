@@ -30,9 +30,6 @@ loader.lazyRequireGetter(this, "WorkerActorList", "devtools/server/actors/worker
 loader.lazyRequireGetter(this, "ServiceWorkerRegistrationActorList", "devtools/server/actors/worker", true);
 loader.lazyRequireGetter(this, "ProcessActorList", "devtools/server/actors/process", true);
 loader.lazyImporter(this, "AddonManager", "resource://gre/modules/AddonManager.jsm");
-#ifdef MOZ_WEBEXTENSIONS
-loader.lazyImporter(this, "ExtensionContent", "resource://gre/modules/ExtensionContent.jsm");
-#endif
 
 // Assumptions on events module:
 // events needs to be dispatched synchronously,
@@ -983,21 +980,6 @@ TabActor.prototype = {
     }
     return null;
   },
-
-#ifdef MOZ_WEBEXTENSIONS
-  /**
-   * Getter for the WebExtensions ContentScript globals related to the
-   * current tab content's DOM window.
-   */
-  get webextensionsContentScriptGlobals() {
-    // Ignore xpcshell runtime which spawn TabActors without a window.
-    if (this.window) {
-      return ExtensionContent.getContentScriptGlobalsForWindow(this.window);
-    }
-
-    return [];
-  },
-#endif
 
   /**
    * Getter for the list of all content DOM windows in this tabActor

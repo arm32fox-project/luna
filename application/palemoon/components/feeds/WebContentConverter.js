@@ -63,7 +63,7 @@ const PREF_SELECTED_WEB = "browser.feeds.handlers.webservice";
 const PREF_SELECTED_ACTION = "browser.feeds.handler";
 const PREF_SELECTED_READER = "browser.feeds.handler.default";
 const PREF_HANDLER_EXTERNAL_PREFIX = "network.protocol-handler.external";
-const PREF_ALLOW_DIFFERENT_HOST = "goanna.handlerService.allowRegisterFromDifferentHost";
+const PREF_ALLOW_DIFFERENT_HOST = "gecko.handlerService.allowRegisterFromDifferentHost";
 
 const STRING_BUNDLE_URI = "chrome://browser/locale/feeds/subscribe.properties";
 
@@ -436,13 +436,8 @@ WebContentConverterRegistrar.prototype = {
 
     // check if it is in the black list
     var pb = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch);
-    var allowed;
-    try {
-      allowed = pb.getBoolPref(PREF_HANDLER_EXTERNAL_PREFIX + "." + aProtocol);
-    }
-    catch (e) {
-      allowed = pb.getBoolPref(PREF_HANDLER_EXTERNAL_PREFIX + "-default");
-    }
+    var allowed = pb.getBoolPref(PREF_HANDLER_EXTERNAL_PREFIX + "." + aProtocol,
+      pb.getBoolPref(PREF_HANDLER_EXTERNAL_PREFIX + "-default"));
     if (!allowed) {
       // XXX this should be a "security exception" according to spec
       throw("Not allowed to register a protocol handler for " + aProtocol);

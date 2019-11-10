@@ -7,7 +7,7 @@
  * https://wicg.github.io/IntersectionObserver/
  */
 
-[ProbablyShortLivingObject, Pref="dom.IntersectionObserver.enabled"]
+[ProbablyShortLivingObject, Pref="dom.intersectionObserver.enabled"]
 interface IntersectionObserverEntry {
   [Constant]
   readonly attribute DOMHighResTimeStamp time;
@@ -18,6 +18,8 @@ interface IntersectionObserverEntry {
   [Constant]
   readonly attribute DOMRectReadOnly intersectionRect;
   [Constant]
+  readonly attribute boolean isIntersecting;
+  [Constant]
   readonly attribute double intersectionRatio;
   [Constant]
   readonly attribute Element target;
@@ -25,7 +27,7 @@ interface IntersectionObserverEntry {
 
 [Constructor(IntersectionCallback intersectionCallback,
              optional IntersectionObserverInit options),
- Pref="dom.IntersectionObserver.enabled"]
+ Pref="dom.intersectionObserver.enabled"]
 interface IntersectionObserver {
   [Constant]
   readonly attribute Element? root;

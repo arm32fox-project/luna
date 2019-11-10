@@ -9,6 +9,7 @@
 
 #include "nsIBaseWindow.h"
 #include "nsIDocShellTreeOwner.h"
+#include "nsIContentInlines.h"
 #include "nsIDocument.h"
 #include "nsIDOMHTMLDocument.h"
 #include "nsIDOMHTMLElement.h"
@@ -23,6 +24,7 @@
 #include "nsISelectionPrivate.h"
 #include "nsISelectionController.h"
 #include "nsISimpleEnumerator.h"
+#include "nsXBLPrototypeBinding.h"
 #include "mozilla/dom/TouchEvent.h"
 #include "mozilla/EventListenerManager.h"
 #include "mozilla/EventStateManager.h"

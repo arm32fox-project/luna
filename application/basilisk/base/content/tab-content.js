@@ -9,9 +9,6 @@ var {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-#ifdef MOZ_WEBEXTENSIONS
-Cu.import("resource://gre/modules/ExtensionContent.jsm");
-#endif
 
 XPCOMUtils.defineLazyModuleGetter(this, "E10SUtils",
   "resource:///modules/E10SUtils.jsm");
@@ -23,6 +20,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "AboutReader",
   "resource://gre/modules/AboutReader.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "ReaderMode",
   "resource://gre/modules/ReaderMode.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "Readerable",
+  "resource://gre/modules/Readerable.jsm");
 XPCOMUtils.defineLazyGetter(this, "SimpleServiceDiscovery", function() {
   let ssdp = Cu.import("resource://gre/modules/SimpleServiceDiscovery.jsm", {}).SimpleServiceDiscovery;
   // Register targets
@@ -339,7 +338,7 @@ var AboutReaderListener = {
    * painted is not going to work.
    */
   updateReaderButton: function(forceNonArticle) {
-    if (!ReaderMode.isEnabledForParseOnLoad || this.isAboutReader ||
+    if (!Readerable.isEnabledForParseOnLoad || this.isAboutReader ||
         !content || !(content.document instanceof content.HTMLDocument) ||
         content.document.mozSyntheticDocument) {
       return;
@@ -378,7 +377,7 @@ var AboutReaderListener = {
     this.cancelPotentialPendingReadabilityCheck();
     // Only send updates when there are articles; there's no point updating with
     // |false| all the time.
-    if (ReaderMode.isProbablyReaderable(content.document)) {
+    if (Readerable.isProbablyReaderable(content.document)) {
       sendAsyncMessage("Reader:UpdateReaderButton", { isArticle: true });
     } else if (forceNonArticle) {
       sendAsyncMessage("Reader:UpdateReaderButton", { isArticle: false });
@@ -557,13 +556,6 @@ var PageStyleHandler = {
   },
 };
 PageStyleHandler.init();
-
-// Keep a reference to the translation content handler to avoid it it being GC'ed.
-var trHandler = null;
-if (Services.prefs.getBoolPref("browser.translation.detectLanguage")) {
-  Cu.import("resource:///modules/translation/TranslationContentHandler.jsm");
-  trHandler = new TranslationContentHandler(global, docShell);
-}
 
 function gKeywordURIFixup(fixupInfo) {
   fixupInfo.QueryInterface(Ci.nsIURIFixupInfo);
@@ -895,41 +887,6 @@ var RefreshBlocker = {
 };
 
 RefreshBlocker.init();
-
-var UserContextIdNotifier = {
-  init() {
-    addEventListener("DOMWindowCreated", this);
-  },
-
-  uninit() {
-    removeEventListener("DOMWindowCreated", this);
-  },
-
-  handleEvent(aEvent) {
-    // When the window is created, we want to inform the tabbrowser about
-    // the userContextId in use in order to update the UI correctly.
-    // Just because we cannot change the userContextId from an active docShell,
-    // we don't need to check DOMContentLoaded again.
-    this.uninit();
-
-    // We use the docShell because content.document can have been loaded before
-    // setting the originAttributes.
-    let loadContext = docShell.QueryInterface(Ci.nsILoadContext);
-    let userContextId = loadContext.originAttributes.userContextId;
-
-    sendAsyncMessage("Browser:WindowCreated", { userContextId });
-  }
-};
-
-UserContextIdNotifier.init();
-
-#ifdef MOZ_WEBEXTENSIONS
-ExtensionContent.init(this);
-addEventListener("unload", () => {
-  ExtensionContent.uninit(this);
-  RefreshBlocker.uninit();
-});
-#endif
 
 addMessageListener("AllowScriptsToClose", () => {
   content.QueryInterface(Ci.nsIInterfaceRequestor)

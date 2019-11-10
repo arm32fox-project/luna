@@ -105,46 +105,6 @@ JS_TraceShapeCycleCollectorChildren(JS::CallbackTracer* trc, JS::GCCellPtr shape
 extern JS_FRIEND_API(void)
 JS_TraceObjectGroupCycleCollectorChildren(JS::CallbackTracer* trc, JS::GCCellPtr group);
 
-enum {
-    JS_TELEMETRY_GC_REASON,
-    JS_TELEMETRY_GC_IS_ZONE_GC,
-    JS_TELEMETRY_GC_MS,
-    JS_TELEMETRY_GC_BUDGET_MS,
-    JS_TELEMETRY_GC_ANIMATION_MS,
-    JS_TELEMETRY_GC_MAX_PAUSE_MS,
-    JS_TELEMETRY_GC_MARK_MS,
-    JS_TELEMETRY_GC_SWEEP_MS,
-    JS_TELEMETRY_GC_COMPACT_MS,
-    JS_TELEMETRY_GC_MARK_ROOTS_MS,
-    JS_TELEMETRY_GC_MARK_GRAY_MS,
-    JS_TELEMETRY_GC_SLICE_MS,
-    JS_TELEMETRY_GC_SLOW_PHASE,
-    JS_TELEMETRY_GC_MMU_50,
-    JS_TELEMETRY_GC_RESET,
-    JS_TELEMETRY_GC_RESET_REASON,
-    JS_TELEMETRY_GC_INCREMENTAL_DISABLED,
-    JS_TELEMETRY_GC_NON_INCREMENTAL,
-    JS_TELEMETRY_GC_NON_INCREMENTAL_REASON,
-    JS_TELEMETRY_GC_SCC_SWEEP_TOTAL_MS,
-    JS_TELEMETRY_GC_SCC_SWEEP_MAX_PAUSE_MS,
-    JS_TELEMETRY_GC_MINOR_REASON,
-    JS_TELEMETRY_GC_MINOR_REASON_LONG,
-    JS_TELEMETRY_GC_MINOR_US,
-    JS_TELEMETRY_GC_NURSERY_BYTES,
-    JS_TELEMETRY_GC_PRETENURE_COUNT,
-    JS_TELEMETRY_DEPRECATED_LANGUAGE_EXTENSIONS_IN_CONTENT,
-    JS_TELEMETRY_DEPRECATED_LANGUAGE_EXTENSIONS_IN_ADDONS,
-    JS_TELEMETRY_ADDON_EXCEPTIONS,
-    JS_TELEMETRY_AOT_USAGE,
-    JS_TELEMETRY_END
-};
-
-typedef void
-(*JSAccumulateTelemetryDataCallback)(int id, uint32_t sample, const char* key);
-
-extern JS_FRIEND_API(void)
-JS_SetAccumulateTelemetryCallback(JSContext* cx, JSAccumulateTelemetryDataCallback callback);
-
 extern JS_FRIEND_API(bool)
 JS_GetIsSecureContext(JSCompartment* compartment);
 
@@ -1456,9 +1416,6 @@ struct MOZ_STACK_CLASS JS_FRIEND_API(ErrorReport)
     bool populateUncaughtExceptionReportUTF8(JSContext* cx, ...);
     bool populateUncaughtExceptionReportUTF8VA(JSContext* cx, va_list ap);
 
-    // Reports exceptions from add-on scopes to telementry.
-    void ReportAddonExceptionToTelementry(JSContext* cx);
-
     // We may have a provided JSErrorReport, so need a way to represent that.
     JSErrorReport* reportp;
 
@@ -2153,30 +2110,6 @@ JS_FRIEND_API(void*)
 JS_GetDataViewData(JSObject* obj, const JS::AutoCheckCannotGC&);
 
 namespace js {
-
-/**
- * Add a watchpoint -- in the Object.prototype.watch sense -- to |obj| for the
- * property |id|, using the callable object |callable| as the function to be
- * called for notifications.
- *
- * This is an internal function exposed -- temporarily -- only so that DOM
- * proxies can be watchable.  Don't use it!  We'll soon kill off the
- * Object.prototype.{,un}watch functions, at which point this will go too.
- */
-extern JS_FRIEND_API(bool)
-WatchGuts(JSContext* cx, JS::HandleObject obj, JS::HandleId id, JS::HandleObject callable);
-
-/**
- * Remove a watchpoint -- in the Object.prototype.watch sense -- from |obj| for
- * the property |id|.
- *
- * This is an internal function exposed -- temporarily -- only so that DOM
- * proxies can be watchable.  Don't use it!  We'll soon kill off the
- * Object.prototype.{,un}watch functions, at which point this will go too.
- */
-extern JS_FRIEND_API(bool)
-UnwatchGuts(JSContext* cx, JS::HandleObject obj, JS::HandleId id);
-
 namespace jit {
 
 enum class InlinableNative : uint16_t;
@@ -2297,6 +2230,7 @@ struct JSJitInfo {
         Method,
         StaticMethod,
         InlinableNative,
+        IgnoresReturnValueNative,
         // Must be last
         OpTypeCount
     };
@@ -2388,7 +2322,12 @@ struct JSJitInfo {
         JSJitMethodOp method;
         /** A DOM static method, used for Promise wrappers */
         JSNative staticMethod;
+        JSNative ignoresReturnValueMethod;
     };
+
+    static unsigned offsetOfIgnoresReturnValueNative() {
+        return offsetof(JSJitInfo, ignoresReturnValueMethod);
+    }
 
     union {
         uint16_t protoID;

@@ -7,6 +7,16 @@
 
 #include "mozilla/Casting.h"
 #include "mozilla/MemoryReporting.h"
+#include "mozilla/IntegerTypeTraits.h"
+#include "mozilla/Span.h"
+
+// Solaris defines pid_t to be long on ILP32 and int on LP64. I checked in 
+// sys/types.h. AMD64 and SPARC64 builds don't need this fix at all, 
+// while all 32-bit builds do.
+
+#if defined(XP_SOLARIS) && !defined(__LP64__)
+#include <unistd.h>
+#endif
 
 #ifndef MOZILLA_INTERNAL_API
 #error Cannot use internal string classes without MOZILLA_INTERNAL_API defined. Use the frozen header nsStringAPI.h instead.
@@ -585,6 +595,17 @@ public:
     const char* fmt = aRadix == 10 ? "%d" : aRadix == 8 ? "%o" : "%x";
     AppendPrintf(fmt, aInteger);
   }
+#if defined(XP_SOLARIS) && !defined(__LP64__)
+  void AppendInt(pid_t aInteger)
+  { 
+   AppendPrintf("%lu", aInteger);
+  }
+  void AppendInt(pid_t aInteger, int aRadix)
+  {
+    const char* fmt = aRadix == 10 ? "%lu" : aRadix == 8 ? "%lo" : "%lx";
+    AppendPrintf(fmt, aInteger);
+  }
+#endif  
   void AppendInt(uint32_t aInteger)
   {
     AppendPrintf("%u", aInteger);
@@ -798,6 +819,68 @@ public:
   }
 #endif
 
+  /**
+   * Span integration
+   */
+
+  operator mozilla::Span<char_type>()
+  {
+    return mozilla::MakeSpan(BeginWriting(), Length());
+  }
+
+  operator mozilla::Span<const char_type>() const
+  {
+    return mozilla::MakeSpan(BeginReading(), Length());
+  }
+
+  void Append(mozilla::Span<const char_type> aSpan)
+  {
+    auto len = aSpan.Length();
+    MOZ_RELEASE_ASSERT(len <= mozilla::MaxValue<size_type>::value);
+    Append(aSpan.Elements(), len);
+  }
+
+  MOZ_MUST_USE bool Append(mozilla::Span<const char_type> aSpan,
+                           const fallible_t& aFallible)
+  {
+    auto len = aSpan.Length();
+    if (len > mozilla::MaxValue<size_type>::value) {
+      return false;
+    }
+    return Append(aSpan.Elements(), len, aFallible);
+  }
+
+#if !defined(CharT_is_PRUnichar)
+  operator mozilla::Span<uint8_t>()
+  {
+    return mozilla::MakeSpan(reinterpret_cast<uint8_t*>(BeginWriting()),
+                             Length());
+  }
+
+  operator mozilla::Span<const uint8_t>() const
+  {
+    return mozilla::MakeSpan(reinterpret_cast<const uint8_t*>(BeginReading()),
+                             Length());
+  }
+
+  void Append(mozilla::Span<const uint8_t> aSpan)
+  {
+    auto len = aSpan.Length();
+    MOZ_RELEASE_ASSERT(len <= mozilla::MaxValue<size_type>::value);
+    Append(reinterpret_cast<const char*>(aSpan.Elements()), len);
+  }
+
+  MOZ_MUST_USE bool Append(mozilla::Span<const uint8_t> aSpan,
+                           const fallible_t& aFallible)
+  {
+    auto len = aSpan.Length();
+    if (len > mozilla::MaxValue<size_type>::value) {
+      return false;
+    }
+    return Append(
+      reinterpret_cast<const char*>(aSpan.Elements()), len, aFallible);
+  }
+#endif
 
   /**
    * string data is never null, but can be marked void.  if true, the
@@ -1184,3 +1267,22 @@ operator>(const nsTSubstring_CharT::base_string_type& aLhs,
 {
   return Compare(aLhs, aRhs) > 0;
 }
+
+/**
+ * Span integration
+ */
+namespace mozilla {
+
+inline Span<CharT>
+MakeSpan(nsTSubstring_CharT& aString)
+{
+  return aString;
+}
+
+inline Span<const CharT>
+MakeSpan(const nsTSubstring_CharT& aString)
+{
+  return aString;
+}
+
+} // namespace mozilla

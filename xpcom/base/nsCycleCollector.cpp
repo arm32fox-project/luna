@@ -185,7 +185,6 @@
 #include "mozilla/AutoGlobalTimelineMarker.h"
 #include "mozilla/Likely.h"
 #include "mozilla/PoisonIOInterposer.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/ThreadLocal.h"
 
 using namespace mozilla;
@@ -527,15 +526,6 @@ public:
 #else
 #define CC_GRAPH_ASSERT(b)
 #endif
-
-#define CC_TELEMETRY(_name, _value)                                            \
-    PR_BEGIN_MACRO                                                             \
-    if (NS_IsMainThread()) {                                                   \
-      Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR##_name, _value);        \
-    } else {                                                                   \
-      Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_WORKER##_name, _value); \
-    }                                                                          \
-    PR_END_MACRO
 
 enum NodeColor { black, white, grey };
 
@@ -2275,7 +2265,7 @@ CCGraphBuilder::BuildGraph(SliceBudget& aBudget)
     SetFirstChild();
 
     if (pi->mParticipant) {
-      nsresult rv = pi->mParticipant->Traverse(pi->mPointer, *this);
+      nsresult rv = pi->mParticipant->TraverseNativeAndJS(pi->mPointer, *this);
       MOZ_RELEASE_ASSERT(!NS_FAILED(rv), "Cycle collector Traverse method failed");
     }
 
@@ -2549,7 +2539,7 @@ static bool
 MayHaveChild(void* aObj, nsCycleCollectionParticipant* aCp)
 {
   ChildFinder cf;
-  aCp->Traverse(aObj, cf);
+  aCp->TraverseNativeAndJS(aObj, cf);
   return cf.MayHaveChild();
 }
 
@@ -2606,7 +2596,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(JSPurpleBuffer)
   CycleCollectionNoteChild(cb, tmp, "self");
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 #define NS_TRACE_SEGMENTED_ARRAY(_field, _type)                               \
@@ -2843,6 +2832,11 @@ nsCycleCollector::ForgetSkippable(bool aRemoveChildlessNodes,
 {
   CheckThreadSafety();
 
+  // Avoid this when we're aleady dealing with snow-white objects.
+  if (mFreeingSnowWhite) {
+    return;
+  }
+
   mozilla::Maybe<mozilla::AutoGlobalTimelineMarker> marker;
   if (NS_IsMainThread()) {
     marker.emplace("nsCycleCollector::ForgetSkippable", MarkerStackRequest::NO_STACK);
@@ -2966,7 +2960,6 @@ nsCycleCollector::ScanWeakMaps()
 
   if (failed) {
     MOZ_ASSERT(false, "Ran out of memory in ScanWeakMaps");
-    CC_TELEMETRY(_OOM, true);
   }
 }
 
@@ -3109,7 +3102,6 @@ nsCycleCollector::ScanIncrementalRoots()
 
   if (failed) {
     NS_ASSERTION(false, "Ran out of memory in ScanIncrementalRoots");
-    CC_TELEMETRY(_OOM, true);
   }
 }
 
@@ -3171,7 +3163,6 @@ nsCycleCollector::ScanBlackNodes()
 
   if (failed) {
     NS_ASSERTION(false, "Ran out of memory in ScanBlackNodes");
-    CC_TELEMETRY(_OOM, true);
   }
 }
 
@@ -3500,8 +3491,6 @@ nsCycleCollector::FixGrayBits(bool aForceGC, TimeLog& aTimeLog)
     aTimeLog.Checkpoint("FixWeakMappingGrayBits");
 
     bool needGC = !mJSContext->AreGCGrayBitsValid();
-    // Only do a telemetry ping for non-shutdown CCs.
-    CC_TELEMETRY(_NEED_GC, needGC);
     if (!needGC) {
       return;
     }
@@ -3537,9 +3526,9 @@ nsCycleCollector::CleanupAfterCollection()
   mGraph.Clear();
   timeLog.Checkpoint("CleanupAfterCollection::mGraph.Clear()");
 
+#ifdef COLLECT_TIME_DEBUG
   uint32_t interval =
     (uint32_t)((TimeStamp::Now() - mCollectionStart).ToMilliseconds());
-#ifdef COLLECT_TIME_DEBUG
   printf("cc: total cycle collector time was %ums in %u slices\n", interval,
          mResults.mNumSlices);
   printf("cc: visited %u ref counted and %u GCed objects, freed %d ref counted and %d GCed objects",
@@ -3552,12 +3541,6 @@ nsCycleCollector::CleanupAfterCollection()
   }
   printf(".\ncc: \n");
 #endif
-
-  CC_TELEMETRY( , interval);
-  CC_TELEMETRY(_VISITED_REF_COUNTED, mResults.mVisitedRefCounted);
-  CC_TELEMETRY(_VISITED_GCED, mResults.mVisitedGCed);
-  CC_TELEMETRY(_COLLECTED, mWhiteNodeCount);
-  timeLog.Checkpoint("CleanupAfterCollection::telemetry");
 
   if (mJSContext) {
     mJSContext->FinalizeDeferredThings(mResults.mAnyManual

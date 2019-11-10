@@ -49,7 +49,6 @@
 #include "mozilla/storage.h"
 #include "mozilla/AutoRestore.h"
 #include "mozilla/FileUtils.h"
-#include "mozilla/Telemetry.h"
 #include "nsIAppsService.h"
 #include "mozIApplication.h"
 #include "mozIApplicationClearPrivateDataParams.h"
@@ -119,15 +118,6 @@ static const char kPrefMaxCookiesPerHost[]    = "network.cookie.maxPerHost";
 static const char kPrefCookiePurgeAge[]       = "network.cookie.purgeAge";
 static const char kPrefThirdPartySession[]    = "network.cookie.thirdparty.sessionOnly";
 static const char kCookieLeaveSecurityAlone[] = "network.cookie.leave-secure-alone";
-
-// For telemetry COOKIE_LEAVE_SECURE_ALONE
-#define BLOCKED_SECURE_SET_FROM_HTTP 0
-#define BLOCKED_DOWNGRADE_SECURE     1
-#define DOWNGRADE_SECURE_FROM_SECURE 2
-#define EVICTED_NEWER_INSECURE       3
-#define EVICTED_OLDEST_COOKIE        4
-#define EVICTED_PREFERRED_COOKIE     5
-#define EVICTING_SECURE_BLOCKED      6
 
 static void
 bindCookieParameters(mozIStorageBindingParamsArray *aParamsArray,
@@ -954,19 +944,14 @@ nsCookieService::TryInitDB(bool aRecreateDB)
     NS_ENSURE_SUCCESS(rv, RESULT_FAILURE);
   }
 
-  // This block provides scope for the Telemetry AutoTimer
-  {
-    Telemetry::AutoTimer<Telemetry::MOZ_SQLITE_COOKIES_OPEN_READAHEAD_MS>
-      telemetry;
-    ReadAheadFile(mDefaultDBState->cookieFile);
+  ReadAheadFile(mDefaultDBState->cookieFile);
 
-    // open a connection to the cookie database, and only cache our connection
-    // and statements upon success. The connection is opened unshared to eliminate
-    // cache contention between the main and background threads.
-    rv = mStorageService->OpenUnsharedDatabase(mDefaultDBState->cookieFile,
-      getter_AddRefs(mDefaultDBState->dbConn));
-    NS_ENSURE_SUCCESS(rv, RESULT_RETRY);
-  }
+  // open a connection to the cookie database, and only cache our connection
+  // and statements upon success. The connection is opened unshared to eliminate
+  // cache contention between the main and background threads.
+  rv = mStorageService->OpenUnsharedDatabase(mDefaultDBState->cookieFile,
+    getter_AddRefs(mDefaultDBState->dbConn));
+  NS_ENSURE_SUCCESS(rv, RESULT_RETRY);
 
   // Set up our listeners.
   mDefaultDBState->insertListener = new InsertCookieDBListener(mDefaultDBState);
@@ -3316,20 +3301,8 @@ nsCookieService::SetCookieInternal(nsIURI                        *aHostURI,
   // so we can handle them separately.
   bool newCookie = ParseAttributes(aCookieHeader, cookieAttributes);
 
-  // Collect telemetry on how often secure cookies are set from non-secure
-  // origins, and vice-versa.
-  //
-  // 0 = nonsecure and "http:"
-  // 1 = nonsecure and "https:"
-  // 2 = secure and "http:"
-  // 3 = secure and "https:"
   bool isHTTPS;
   nsresult rv = aHostURI->SchemeIs("https", &isHTTPS);
-  if (NS_SUCCEEDED(rv)) {
-    Telemetry::Accumulate(Telemetry::COOKIE_SCHEME_SECURITY,
-                          ((cookieAttributes.isSecure)? 0x02 : 0x00) |
-                          ((isHTTPS)? 0x01 : 0x00));
-  }
 
   int64_t currentTimeInUsec = PR_Now();
 
@@ -3480,8 +3453,6 @@ nsCookieService::AddInternal(const nsCookieKey             &aKey,
   if (mLeaveSecureAlone && aCookie->IsSecure() && !isSecure) {
     COOKIE_LOGFAILURE(SET_COOKIE, aHostURI, aCookieHeader,
       "non-https cookie can't set secure flag");
-    Telemetry::Accumulate(Telemetry::COOKIE_LEAVE_SECURE_ALONE,
-                          BLOCKED_SECURE_SET_FROM_HTTP);
     return;
   }
   nsListIter exactIter;
@@ -3502,14 +3473,7 @@ nsCookieService::AddInternal(const nsCookieKey             &aKey,
       if (!isSecure) {
         COOKIE_LOGFAILURE(SET_COOKIE, aHostURI, aCookieHeader,
            "cookie can't save because older cookie is secure cookie but newer cookie is non-secure cookie");
-        Telemetry::Accumulate(Telemetry::COOKIE_LEAVE_SECURE_ALONE,
-                              BLOCKED_DOWNGRADE_SECURE);
         return;
-      } else {
-        // A secure site is allowed to downgrade a secure cookie
-        // but we want to measure anyway
-        Telemetry::Accumulate(Telemetry::COOKIE_LEAVE_SECURE_ALONE,
-                              DOWNGRADE_SECURE_FROM_SECURE);
       }
     }
   }
@@ -3609,8 +3573,6 @@ nsCookieService::AddInternal(const nsCookieKey             &aKey,
           // It's valid to evict a secure cookie for another secure cookie.
           oldestCookieTime = FindStaleCookie(entry, currentTime, aHostURI, Some(true), iter);
         } else {
-          Telemetry::Accumulate(Telemetry::COOKIE_LEAVE_SECURE_ALONE,
-                                EVICTING_SECURE_BLOCKED);
           COOKIE_LOGEVICTED(aCookie,
             "Too many cookies for this domain and the new cookie is not a secure cookie");
           return;
@@ -3620,9 +3582,6 @@ nsCookieService::AddInternal(const nsCookieKey             &aKey,
       MOZ_ASSERT(iter.entry);
 
       oldCookie = iter.Cookie();
-      if (oldestCookieTime > 0 && mLeaveSecureAlone) {
-        TelemetryForEvictingStaleCookie(oldCookie, oldestCookieTime);
-      }
 
       // remove the oldest cookie from the domain
       RemoveCookieFromList(iter);
@@ -4645,25 +4604,6 @@ nsCookieService::FindStaleCookie(nsCookieEntry *aEntry,
   }
 
   return actualOldestCookieTime;
-}
-
-void
-nsCookieService::TelemetryForEvictingStaleCookie(nsCookie *aEvicted,
-                                                 int64_t oldestCookieTime)
-{
-  // We need to record the evicting cookie to telemetry.
-  if (!aEvicted->IsSecure()) {
-    if (aEvicted->LastAccessed() > oldestCookieTime) {
-      Telemetry::Accumulate(Telemetry::COOKIE_LEAVE_SECURE_ALONE,
-                            EVICTED_NEWER_INSECURE);
-    } else {
-      Telemetry::Accumulate(Telemetry::COOKIE_LEAVE_SECURE_ALONE,
-                            EVICTED_OLDEST_COOKIE);
-    }
-  } else {
-    Telemetry::Accumulate(Telemetry::COOKIE_LEAVE_SECURE_ALONE,
-                          EVICTED_PREFERRED_COOKIE);
-  }
 }
 
 // count the number of cookies stored by a particular host. this is provided by the

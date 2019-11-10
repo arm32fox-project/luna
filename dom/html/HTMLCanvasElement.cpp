@@ -42,7 +42,6 @@
 #include "nsRefreshDriver.h"
 #include "nsStreamUtils.h"
 #include "ActiveLayerTracker.h"
-#include "VRManagerChild.h"
 #include "WebGL1Context.h"
 #include "WebGL2Context.h"
 
@@ -358,7 +357,6 @@ NS_IMPL_ISUPPORTS(HTMLCanvasElementObserver, nsIObserver)
 HTMLCanvasElement::HTMLCanvasElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo),
     mResetLayer(true) ,
-    mVRPresentationActive(false),
     mWriteOnly(false)
 {}
 
@@ -554,17 +552,23 @@ HTMLCanvasElement::CopyInnerTo(Element* aDest)
     HTMLCanvasElement* dest = static_cast<HTMLCanvasElement*>(aDest);
     dest->mOriginalCanvas = this;
 
-    nsCOMPtr<nsISupports> cxt;
-    dest->GetContext(NS_LITERAL_STRING("2d"), getter_AddRefs(cxt));
-    RefPtr<CanvasRenderingContext2D> context2d =
-      static_cast<CanvasRenderingContext2D*>(cxt.get());
-    if (context2d && !mPrintCallback) {
-      CanvasImageSource source;
-      source.SetAsHTMLCanvasElement() = this;
-      ErrorResult err;
-      context2d->DrawImage(source,
-                           0.0, 0.0, err);
-      rv = err.StealNSResult();
+    // We make sure that the canvas is not zero sized since that would cause
+    // the DrawImage call below to return an error, which would cause printing
+    // to fail.
+    nsIntSize size = GetWidthHeight();
+    if (size.height > 0 && size.width > 0) {
+      nsCOMPtr<nsISupports> cxt;
+      dest->GetContext(NS_LITERAL_STRING("2d"), getter_AddRefs(cxt));
+      RefPtr<CanvasRenderingContext2D> context2d =
+        static_cast<CanvasRenderingContext2D*>(cxt.get());
+      if (context2d && !mPrintCallback) {
+        CanvasImageSource source;
+        source.SetAsHTMLCanvasElement() = this;
+        ErrorResult err;
+        context2d->DrawImage(source,
+                             0.0, 0.0, err);
+        rv = err.StealNSResult();
+      }
     }
   }
   return rv;
@@ -1002,7 +1006,7 @@ HTMLCanvasElement::GetSize()
 }
 
 bool
-HTMLCanvasElement::IsWriteOnly()
+HTMLCanvasElement::IsWriteOnly() const
 {
   return mWriteOnly;
 }
@@ -1111,7 +1115,7 @@ HTMLCanvasElement::GetCanvasLayer(nsDisplayListBuilder* aBuilder,
   static uint8_t sOffscreenCanvasLayerUserDataDummy = 0;
 
   if (mCurrentContext) {
-    return mCurrentContext->GetCanvasLayer(aBuilder, aOldLayer, aManager, mVRPresentationActive);
+    return mCurrentContext->GetCanvasLayer(aBuilder, aOldLayer, aManager);
   }
 
   if (mOffscreenCanvas) {
@@ -1439,43 +1443,6 @@ HTMLCanvasElement::InvalidateFromAsyncCanvasRenderer(AsyncCanvasRenderer *aRende
   }
 
   element->InvalidateCanvasContent(nullptr);
-}
-
-void
-HTMLCanvasElement::StartVRPresentation()
-{
-  WebGLContext* webgl = static_cast<WebGLContext*>(GetContextAtIndex(0));
-  if (!webgl) {
-    return;
-  }
-
-  if (!webgl->StartVRPresentation()) {
-    return;
-  }
-
-  mVRPresentationActive = true;
-}
-
-void
-HTMLCanvasElement::StopVRPresentation()
-{
-  mVRPresentationActive = false;
-}
-
-already_AddRefed<layers::SharedSurfaceTextureClient>
-HTMLCanvasElement::GetVRFrame()
-{
-  if (GetCurrentContextType() != CanvasContextType::WebGL1 &&
-      GetCurrentContextType() != CanvasContextType::WebGL2) {
-    return nullptr;
-  }
-
-  WebGLContext* webgl = static_cast<WebGLContext*>(GetContextAtIndex(0));
-  if (!webgl) {
-    return nullptr;
-  }
-
-  return webgl->GetVRFrame();
 }
 
 } // namespace dom

@@ -17,15 +17,9 @@ AC_SUBST(MC_BASILISK)
 dnl Optional parts of the build.
 
 dnl ========================================================
-dnl = Disable WebExtensions
+dnl = Disable Sync
 dnl ========================================================
-MOZ_ARG_DISABLE_BOOL(webextensions,
-[  --disable-webextensions            Disable WebExtensions],
-    MOZ_WEBEXTENSIONS=,
-    MOZ_WEBEXTENSIONS=1)
-
-if test -n "$MOZ_WEBEXTENSIONS"; then
-    AC_DEFINE(MOZ_WEBEXTENSIONS)
-fi
-
-AC_SUBST(MOZ_WEBEXTENSIONS)
+MOZ_ARG_DISABLE_BOOL(sync,
+[  --disable-sync           Disable Sync],
+    MOZ_SERVICES_SYNC=,
+    MOZ_SERVICES_SYNC=1)

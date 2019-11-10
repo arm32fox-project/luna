@@ -201,28 +201,92 @@ ErrorObject::classes[JSEXN_ERROR_LIMIT] = {
     IMPLEMENT_ERROR_CLASS(RuntimeError)
 };
 
-JSErrorReport*
-js::CopyErrorReport(JSContext* cx, JSErrorReport* report)
+size_t
+ExtraMallocSize(JSErrorReport* report)
+{
+    if (report->linebuf())
+	/*
+	 * Mozilla bug 1352449. Count with null
+	 * terminator and alignment. See CopyExtraData for
+	 * the details about alignment.
+	 */    
+        return (report->linebufLength() + 1) * sizeof(char16_t) + 1;
+
+    return 0;
+}
+
+size_t
+ExtraMallocSize(JSErrorNotes::Note* note)
+{
+    return 0;
+}
+
+bool
+CopyExtraData(JSContext* cx, uint8_t** cursor, JSErrorReport* copy, JSErrorReport* report)
+{
+    if (report->linebuf()) {
+	/*
+	 * Make sure cursor is properly aligned for char16_t for platforms
+	 * which need it and it's at the end of the buffer on exit.
+	 */
+	size_t alignment_backlog = 0;
+        if (size_t(*cursor) % 2)
+	    (*cursor)++;
+        else
+	    alignment_backlog = 1;	
+
+        size_t linebufSize = (report->linebufLength() + 1) * sizeof(char16_t);
+        const char16_t* linebufCopy = (const char16_t*)(*cursor);
+        js_memcpy(*cursor, report->linebuf(), linebufSize);
+        *cursor += linebufSize + alignment_backlog;
+        copy->initBorrowedLinebuf(linebufCopy, report->linebufLength(), report->tokenOffset());
+    }
+
+    /* Copy non-pointer members. */
+    copy->isMuted = report->isMuted;
+    copy->exnType = report->exnType;
+
+    /* Note that this is before it gets flagged with JSREPORT_EXCEPTION */
+    copy->flags = report->flags;
+
+    /* Deep copy notes. */
+    if (report->notes) {
+        auto copiedNotes = report->notes->copy(cx);
+        if (!copiedNotes)
+            return false;
+        copy->notes = Move(copiedNotes);
+    } else {
+        copy->notes.reset(nullptr);
+    }
+
+    return true;
+}
+
+bool
+CopyExtraData(JSContext* cx, uint8_t** cursor, JSErrorNotes::Note* copy, JSErrorNotes::Note* report)
+{
+    return true;
+}
+
+template <typename T>
+static T*
+CopyErrorHelper(JSContext* cx, T* report)
 {
     /*
-     * We use a single malloc block to make a deep copy of JSErrorReport with
+     * We use a single malloc block to make a deep copy of JSErrorReport or
+     * JSErrorNotes::Note, except JSErrorNotes linked from JSErrorReport with
      * the following layout:
-     *   JSErrorReport
+     *   JSErrorReport or JSErrorNotes::Note
      *   char array with characters for message_
-     *   char16_t array with characters for linebuf
      *   char array with characters for filename
+     *   char16_t array with characters for linebuf (only for JSErrorReport)
      * Such layout together with the properties enforced by the following
      * asserts does not need any extra alignment padding.
      */
-    JS_STATIC_ASSERT(sizeof(JSErrorReport) % sizeof(const char*) == 0);
+    JS_STATIC_ASSERT(sizeof(T) % sizeof(const char*) == 0);
     JS_STATIC_ASSERT(sizeof(const char*) % sizeof(char16_t) == 0);
 
-#define JS_CHARS_SIZE(chars) ((js_strlen(chars) + 1) * sizeof(char16_t))
-
     size_t filenameSize = report->filename ? strlen(report->filename) + 1 : 0;
-    size_t linebufSize = 0;
-    if (report->linebuf())
-        linebufSize = (report->linebufLength() + 1) * sizeof(char16_t);
     size_t messageSize = 0;
     if (report->message())
         messageSize = strlen(report->message().c_str()) + 1;
@@ -231,13 +295,13 @@ js::CopyErrorReport(JSContext* cx, JSErrorReport* report)
      * The mallocSize can not overflow since it represents the sum of the
      * sizes of already allocated objects.
      */
-    size_t mallocSize = sizeof(JSErrorReport) + messageSize + linebufSize + filenameSize;
+    size_t mallocSize = sizeof(T) + messageSize + filenameSize + ExtraMallocSize(report);
     uint8_t* cursor = cx->pod_calloc<uint8_t>(mallocSize);
     if (!cursor)
         return nullptr;
 
-    JSErrorReport* copy = (JSErrorReport*)cursor;
-    cursor += sizeof(JSErrorReport);
+    T* copy = new (cursor) T();
+    cursor += sizeof(T);
 
     if (report->message()) {
         copy->initBorrowedMessage((const char*)cursor);
@@ -245,31 +309,38 @@ js::CopyErrorReport(JSContext* cx, JSErrorReport* report)
         cursor += messageSize;
     }
 
-    if (report->linebuf()) {
-        const char16_t* linebufCopy = (const char16_t*)cursor;
-        js_memcpy(cursor, report->linebuf(), linebufSize);
-        cursor += linebufSize;
-        copy->initBorrowedLinebuf(linebufCopy, report->linebufLength(), report->tokenOffset());
-    }
-
     if (report->filename) {
         copy->filename = (const char*)cursor;
         js_memcpy(cursor, report->filename, filenameSize);
+        cursor += filenameSize;
     }
-    MOZ_ASSERT(cursor + filenameSize == (uint8_t*)copy + mallocSize);
+
+    if (!CopyExtraData(cx, &cursor, copy, report)) {
+        /* js_delete calls destructor for T and js_free for pod_calloc. */
+        js_delete(copy);
+        return nullptr;
+    }
+
+    MOZ_ASSERT(cursor == (uint8_t*)copy + mallocSize);
 
     /* Copy non-pointer members. */
-    copy->isMuted = report->isMuted;
     copy->lineno = report->lineno;
     copy->column = report->column;
     copy->errorNumber = report->errorNumber;
-    copy->exnType = report->exnType;
 
-    /* Note that this is before it gets flagged with JSREPORT_EXCEPTION */
-    copy->flags = report->flags;
-
-#undef JS_CHARS_SIZE
     return copy;
+}
+
+JSErrorNotes::Note*
+js::CopyErrorNote(JSContext* cx, JSErrorNotes::Note* note)
+{
+    return CopyErrorHelper(cx, note);
+}
+
+JSErrorReport*
+js::CopyErrorReport(JSContext* cx, JSErrorReport* report)
+{
+    return CopyErrorHelper(cx, report);
 }
 
 struct SuppressErrorsGuard
@@ -322,7 +393,7 @@ exn_finalize(FreeOp* fop, JSObject* obj)
 {
     MOZ_ASSERT(fop->maybeOffMainThread());
     if (JSErrorReport* report = obj->as<ErrorObject>().getErrorReport())
-        fop->free_(report);
+        fop->delete_(report);
 }
 
 JSErrorReport*
@@ -512,14 +583,17 @@ ErrorObject::createProto(JSContext* cx, JSProtoKey key)
 {
     JSExnType type = ExnTypeFromProtoKey(key);
 
-    if (type == JSEXN_ERR)
-        return cx->global()->createBlankPrototype(cx, &ErrorObject::protoClasses[JSEXN_ERR]);
+    if (type == JSEXN_ERR) {
+        return GlobalObject::createBlankPrototype(cx, cx->global(),
+                                                  &ErrorObject::protoClasses[JSEXN_ERR]);
+    }
 
     RootedObject protoProto(cx, GlobalObject::getOrCreateErrorPrototype(cx, cx->global()));
     if (!protoProto)
         return nullptr;
 
-    return cx->global()->createBlankPrototypeInheriting(cx, &ErrorObject::protoClasses[type],
+    return GlobalObject::createBlankPrototypeInheriting(cx, cx->global(),
+                                                        &ErrorObject::protoClasses[type],
                                                         protoProto);
 }
 
@@ -586,6 +660,7 @@ js::ErrorToException(JSContext* cx, JSErrorReport* reportp,
     const JSErrorFormatString* errorString = callback(userRef, errorNumber);
     JSExnType exnType = errorString ? static_cast<JSExnType>(errorString->exnType) : JSEXN_ERR;
     MOZ_ASSERT(exnType < JSEXN_LIMIT);
+    MOZ_ASSERT(exnType != JSEXN_NOTE);
 
     if (exnType == JSEXN_WARN) {
         // werror must be enabled, so we use JSEXN_ERR.
@@ -669,7 +744,7 @@ ErrorReportToString(JSContext* cx, JSErrorReport* reportp)
      */
     JSExnType type = static_cast<JSExnType>(reportp->exnType);
     RootedString str(cx);
-    if (type != JSEXN_WARN)
+    if (type != JSEXN_WARN && type != JSEXN_NOTE)
         str = ClassName(GetExceptionProtoKey(type), cx);
 
     /*
@@ -707,67 +782,6 @@ ErrorReport::~ErrorReport()
 {
 }
 
-void
-ErrorReport::ReportAddonExceptionToTelementry(JSContext* cx)
-{
-    MOZ_ASSERT(exnObject);
-    RootedObject unwrapped(cx, UncheckedUnwrap(exnObject));
-    MOZ_ASSERT(unwrapped, "UncheckedUnwrap failed?");
-
-    // There is not much we can report if the exception is not an ErrorObject, let's ignore those.
-    if (!unwrapped->is<ErrorObject>())
-        return;
-
-    Rooted<ErrorObject*> errObj(cx, &unwrapped->as<ErrorObject>());
-    RootedObject stack(cx, errObj->stack());
-
-    // Let's ignore TOP level exceptions. For regular add-ons those will not be reported anyway,
-    // for SDK based once it should not be a valid case either.
-    // At this point the frame stack is unwound but the exception object stored the stack so let's
-    // use that for getting the function name.
-    if (!stack)
-        return;
-
-    JSCompartment* comp = stack->compartment();
-    JSAddonId* addonId = comp->creationOptions().addonIdOrNull();
-
-    // We only want to send the report if the scope that just have thrown belongs to an add-on.
-    // Let's check the compartment of the youngest function on the stack, to determine that.
-    if (!addonId)
-        return;
-
-    RootedString funnameString(cx);
-    JS::SavedFrameResult result = GetSavedFrameFunctionDisplayName(cx, stack, &funnameString);
-    // AccessDenied should never be the case here for add-ons but let's not risk it.
-    JSAutoByteString bytes;
-    const char* funname = nullptr;
-    bool denied = result == JS::SavedFrameResult::AccessDenied;
-    funname = denied ? "unknown"
-                     : funnameString ? AtomToPrintableString(cx,
-                                                             &funnameString->asAtom(),
-                                                             &bytes)
-                                     : "anonymous";
-
-    UniqueChars addonIdChars(JS_EncodeString(cx, addonId));
-
-    const char* filename = nullptr;
-    if (reportp && reportp->filename) {
-        filename = strrchr(reportp->filename, '/');
-        if (filename)
-            filename++;
-    }
-    if (!filename) {
-        filename = "FILE_NOT_FOUND";
-    }
-    char histogramKey[64];
-    SprintfLiteral(histogramKey, "%s %s %s %u",
-                   addonIdChars.get(),
-                   funname,
-                   filename,
-                   (reportp ? reportp->lineno : 0) );
-    cx->runtime()->addTelemetry(JS_TELEMETRY_ADDON_EXCEPTIONS, 1, histogramKey);
-}
-
 bool
 ErrorReport::init(JSContext* cx, HandleValue exn,
                   SniffingBehavior sniffingBehavior)
@@ -786,10 +800,6 @@ ErrorReport::init(JSContext* cx, HandleValue exn,
                                       JSMSG_ERR_DURING_THROW);
             return false;
         }
-
-        // Let's see if the exception is from add-on code, if so, it should be reported
-        // to telementry.
-        ReportAddonExceptionToTelementry(cx);
     }
 
 

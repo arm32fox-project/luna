@@ -22,25 +22,17 @@ DIRS += [
 if CONFIG['MOZ_JETPACK']:
     DIRS += ['jetpack']
 
-if CONFIG['MOZ_WEBEXTENSIONS']:
-    DIRS += ['mozapps/webextensions']
-else:
-    DIRS += ['mozapps/extensions']
+DIRS += ['mozapps/extensions']
 
 if CONFIG['MOZ_UPDATER'] and CONFIG['MOZ_WIDGET_TOOLKIT'] != 'android':
     DIRS += ['mozapps/update']
 
-if CONFIG['MOZ_MAINTENANCE_SERVICE'] or CONFIG['MOZ_UPDATER'] and CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
+if CONFIG['MOZ_UPDATER'] and CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
 # Including mozapps/update/common-standalone allows the maintenance service
 # to be built so the maintenance service can be used for things other than
 # updating applications.
     DIRS += [
         'mozapps/update/common-standalone',
-    ]
-
-if CONFIG['MOZ_MAINTENANCE_SERVICE']:
-    DIRS += [
-        'components/maintenanceservice'
     ]
 
 DIRS += ['xre']
@@ -53,10 +45,6 @@ elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
     DIRS += ['system/windowsproxy']
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'android':
     DIRS += ['system/androidproxy']
-
-TEST_HARNESS_FILES.testing.mochitest.browser.toolkit.crashreporter.test.browser += [
-    'crashreporter/test/browser/crashreport.sjs',
-]
 
 with Files('mozapps/installer/windows/*'):
     BUG_COMPONENT = ('Toolkit', 'NSIS Installer')

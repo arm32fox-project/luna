@@ -47,7 +47,6 @@
 #include "nsSVGEffects.h"
 #include "prenv.h"
 #include "ScopedGLHelpers.h"
-#include "VRManagerChild.h"
 #include "mozilla/layers/TextureClientSharedSurface.h"
 
 // Local
@@ -825,10 +824,6 @@ NS_IMETHODIMP
 WebGLContext::SetDimensions(int32_t signedWidth, int32_t signedHeight)
 {
     if (signedWidth < 0 || signedHeight < 0) {
-        if (!gl) {
-            Telemetry::Accumulate(Telemetry::CANVAS_WEBGL_FAILURE_ID,
-                                  NS_LITERAL_CSTRING("FEATURE_FAILURE_WEBGL_SIZE"));
-        }
         GenerateWarning("Canvas size is too large (seems like a negative value wrapped)");
         return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -884,12 +879,6 @@ WebGLContext::SetDimensions(int32_t signedWidth, int32_t signedHeight)
         return NS_OK;
     }
 
-    nsCString failureId = NS_LITERAL_CSTRING("FEATURE_FAILURE_WEBGL_UNKOWN");
-    auto autoTelemetry = mozilla::MakeScopeExit([&] {
-        Telemetry::Accumulate(Telemetry::CANVAS_WEBGL_FAILURE_ID,
-                              failureId);
-    });
-
     // End of early return cases.
     // At this point we know that we're not just resizing an existing context,
     // we are initializing a new context.
@@ -911,7 +900,6 @@ WebGLContext::SetDimensions(int32_t signedWidth, int32_t signedHeight)
     // resource handles created from older context generations.
     if (!(mGeneration + 1).isValid()) {
         // exit without changing the value of mGeneration
-        failureId = NS_LITERAL_CSTRING("FEATURE_FAILURE_WEBGL_TOO_MANY");
         const nsLiteralCString text("Too many WebGL contexts created this run.");
         ThrowEvent_WebGLContextCreationError(text);
         return NS_ERROR_FAILURE;
@@ -928,11 +916,6 @@ WebGLContext::SetDimensions(int32_t signedWidth, int32_t signedHeight)
     disabled |= gfxPlatform::InSafeMode();
 
     if (disabled) {
-        if (gfxPlatform::InSafeMode()) {
-            failureId = NS_LITERAL_CSTRING("FEATURE_FAILURE_WEBGL_SAFEMODE");
-        } else {
-            failureId = NS_LITERAL_CSTRING("FEATURE_FAILURE_WEBGL_DISABLED");
-        }
         const nsLiteralCString text("WebGL is currently disabled.");
         ThrowEvent_WebGLContextCreationError(text);
         return NS_ERROR_FAILURE;
@@ -945,7 +928,6 @@ WebGLContext::SetDimensions(int32_t signedWidth, int32_t signedHeight)
     if (mOptions.failIfMajorPerformanceCaveat) {
         nsCOMPtr<nsIGfxInfo> gfxInfo = services::GetGfxInfo();
         if (!HasAcceleratedLayers(gfxInfo)) {
-            failureId = NS_LITERAL_CSTRING("FEATURE_FAILURE_WEBGL_PERF_CAVEAT");
             const nsLiteralCString text("failIfMajorPerformanceCaveat: Compositor is not"
                                         " hardware-accelerated.");
             ThrowEvent_WebGLContextCreationError(text);
@@ -961,12 +943,9 @@ WebGLContext::SetDimensions(int32_t signedWidth, int32_t signedHeight)
     if (!CreateAndInitGL(forceEnabled, &failReasons)) {
         nsCString text("WebGL creation failed: ");
         for (const auto& cur : failReasons) {
-            Telemetry::Accumulate(Telemetry::CANVAS_WEBGL_FAILURE_ID, cur.key);
-
             text.AppendASCII("\n* ");
             text.Append(cur.info);
         }
-        failureId = NS_LITERAL_CSTRING("FEATURE_FAILURE_REASON");
         ThrowEvent_WebGLContextCreationError(text);
         return NS_ERROR_FAILURE;
     }
@@ -978,7 +957,6 @@ WebGLContext::SetDimensions(int32_t signedWidth, int32_t signedHeight)
             DestroyResourcesAndContext();
             MOZ_ASSERT(!gl);
 
-            failureId = NS_LITERAL_CSTRING("FEATURE_FAILURE_WEBGL_PERF_WARP");
             const nsLiteralCString text("failIfMajorPerformanceCaveat: Driver is not"
                                         " hardware-accelerated.");
             ThrowEvent_WebGLContextCreationError(text);
@@ -992,7 +970,6 @@ WebGLContext::SetDimensions(int32_t signedWidth, int32_t signedHeight)
             DestroyResourcesAndContext();
             MOZ_ASSERT(!gl);
 
-            failureId = NS_LITERAL_CSTRING("FEATURE_FAILURE_WEBGL_DXGL_INTEROP2");
             const nsLiteralCString text("Caveat: WGL without DXGLInterop2.");
             ThrowEvent_WebGLContextCreationError(text);
             return NS_ERROR_FAILURE;
@@ -1001,7 +978,6 @@ WebGLContext::SetDimensions(int32_t signedWidth, int32_t signedHeight)
     }
 
     if (!ResizeBackbuffer(width, height)) {
-        failureId = NS_LITERAL_CSTRING("FEATURE_FAILURE_WEBGL_BACKBUFFER");
         const nsLiteralCString text("Initializing WebGL backbuffer failed.");
         ThrowEvent_WebGLContextCreationError(text);
         return NS_ERROR_FAILURE;
@@ -1085,7 +1061,6 @@ WebGLContext::SetDimensions(int32_t signedWidth, int32_t signedHeight)
 
     //////
 
-    failureId = NS_LITERAL_CSTRING("SUCCESS");
     return NS_OK;
 }
 
@@ -2261,84 +2236,6 @@ WebGLContext::GetUnpackSize(bool isFunc3D, uint32_t width, uint32_t height,
     totalBytes += usedBytesPerRow;
 
     return totalBytes;
-}
-
-already_AddRefed<layers::SharedSurfaceTextureClient>
-WebGLContext::GetVRFrame()
-{
-    if (!mLayerIsMirror) {
-        /**
-         * Do not allow VR frame submission until a mirroring canvas layer has
-         * been returned by GetCanvasLayer
-         */
-        return nullptr;
-    }
-
-    VRManagerChild* vrmc = VRManagerChild::Get();
-    if (!vrmc) {
-        return nullptr;
-    }
-
-    /**
-     * Swap buffers as though composition has occurred.
-     * We will then share the resulting front buffer to be submitted to the VR
-     * compositor.
-     */
-    BeginComposition();
-    EndComposition();
-
-    gl::GLScreenBuffer* screen = gl->Screen();
-    if (!screen) {
-        return nullptr;
-    }
-
-    RefPtr<SharedSurfaceTextureClient> sharedSurface = screen->Front();
-    if (!sharedSurface) {
-        return nullptr;
-    }
-
-    if (sharedSurface && sharedSurface->GetAllocator() != vrmc) {
-        RefPtr<SharedSurfaceTextureClient> dest =
-        screen->Factory()->NewTexClient(sharedSurface->GetSize());
-        if (!dest) {
-            return nullptr;
-        }
-        gl::SharedSurface* destSurf = dest->Surf();
-        destSurf->ProducerAcquire();
-        SharedSurface::ProdCopy(sharedSurface->Surf(), dest->Surf(),
-                                screen->Factory());
-        destSurf->ProducerRelease();
-
-        return dest.forget();
-    }
-
-  return sharedSurface.forget();
-}
-
-bool
-WebGLContext::StartVRPresentation()
-{
-    VRManagerChild* vrmc = VRManagerChild::Get();
-    if (!vrmc) {
-        return false;
-    }
-    gl::GLScreenBuffer* screen = gl->Screen();
-    if (!screen) {
-        return false;
-    }
-    gl::SurfaceCaps caps = screen->mCaps;
-
-    UniquePtr<gl::SurfaceFactory> factory =
-        gl::GLScreenBuffer::CreateFactory(gl,
-            caps,
-            vrmc,
-            vrmc->GetBackendType(),
-            TextureFlags::ORIGIN_BOTTOM_LEFT);
-
-    if (factory) {
-        screen->Morph(Move(factory));
-    }
-    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

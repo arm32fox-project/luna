@@ -53,13 +53,20 @@ var gEditUIVisible = true;
 
 // Smart getter for the findbar.  If you don't wish to force the creation of
 // the findbar, check gFindBarInitialized first.
+var gFindBarInitialized = false;
+XPCOMUtils.defineLazyGetter(window, "gFindBar", function() {
+  let XULNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
+  let findbar = document.createElementNS(XULNS, "findbar");
+  findbar.id = "FindToolbar";
 
-this.__defineGetter__("gFindBar", function() {
-  return window.gBrowser.getFindBar();
-});
+  let browserBottomBox = document.getElementById("browser-bottombox");
+  browserBottomBox.insertBefore(findbar, browserBottomBox.firstChild);
 
-this.__defineGetter__("gFindBarInitialized", function() {
-  return window.gBrowser.isFindBarInitialized();
+  // Force a style flush to ensure that our binding is attached.
+  findbar.clientTop;
+  findbar.browser = gBrowser.mCurrentBrowser;
+  window.gFindBarInitialized = true;
+  return findbar;
 });
 
 XPCOMUtils.defineLazyModuleGetter(this, "BrowserUtils",
@@ -405,6 +412,10 @@ var gURLBarSettings = {
   },
 
   writePlaceholder: function() {
+    if (!gURLBar) {
+      return;
+    }
+
     let attribute = "placeholder";
     let prefs = this.prefSuggests.map(pref => {
       return this.prefSuggest + pref;
@@ -969,6 +980,7 @@ var gBrowserInit = {
     CombinedStopReload.init();
     allTabs.readPref();
     TabsOnTop.init();
+    AudioIndicator.init();
     gPrivateBrowsingUI.init();
     TabsInTitlebar.init();
     retrieveToolbarIconsizesFromTheme();
@@ -1139,7 +1151,7 @@ var gBrowserInit = {
 
     // Setup click-and-hold gestures access to the session history
     // menus if global click-and-hold isn't turned on
-    if (!getBoolPref("ui.click_hold_context_menus", false))
+    if (!Services.prefs.getBoolPref("ui.click_hold_context_menus", false))
       SetClickAndHoldHandlers();
 
     // Initialize the full zoom setting.
@@ -1204,9 +1216,11 @@ var gBrowserInit = {
     placesContext.addEventListener("popuphiding", updateEditUIVisibility, false);
 #endif
 
+#ifdef MOZ_PERSONAS
     gBrowser.mPanelContainer.addEventListener("InstallBrowserTheme", LightWeightThemeWebInstaller, false, true);
     gBrowser.mPanelContainer.addEventListener("PreviewBrowserTheme", LightWeightThemeWebInstaller, false, true);
     gBrowser.mPanelContainer.addEventListener("ResetBrowserThemePreview", LightWeightThemeWebInstaller, false, true);
+#endif
 
     // Bug 666808 - AeroPeek support for e10s
     if (!gMultiProcessBrowser) {
@@ -1357,6 +1371,8 @@ var gBrowserInit = {
     BookmarkingUI.uninit();
 
     TabsOnTop.uninit();
+    
+    AudioIndicator.uninit();
 
     TabsInTitlebar.uninit();
     
@@ -1773,7 +1789,7 @@ function BrowserGoHome(aEvent) {
   case "tabshifted":
   case "tab":
     urls = homePage.split("|");
-    var loadInBackground = getBoolPref("browser.tabs.loadBookmarksInBackground", false);
+    var loadInBackground = Services.prefs.getBoolPref("browser.tabs.loadBookmarksInBackground", false);
     gBrowser.loadTabs(urls, loadInBackground);
     break;
   case "window":
@@ -2414,24 +2430,27 @@ function BrowserOnAboutPageLoad(doc) {
   /* === about:home === */
 
   if (doc.documentURI.toLowerCase() == "about:home") {
-    let ss = Components.classes["@mozilla.org/browser/sessionstore;1"].
-             getService(Components.interfaces.nsISessionStore);
-    if (ss.canRestoreLastSession &&
-        !PrivateBrowsingUtils.isWindowPrivate(window))
-      doc.getElementById("launcher").setAttribute("session", "true");
+    if (!PrivateBrowsingUtils.isWindowPrivate(window)) {
+      let wrapper = {};
+      Cu.import("resource:///modules/sessionstore/SessionStore.jsm", wrapper);
+      let ss = wrapper.SessionStore;
+      ss.promiseInitialized.then(function() {
+        if (ss.canRestoreLastSession) {
+          doc.getElementById("launcher").setAttribute("session", "true");
+        }
+      }).then(null, function onError(x) {
+        Cu.reportError("Error in SessionStore init while processing 'about:home': " + x);
+      });
+    }
 
     // Inject search engine and snippets URL.
     let docElt = doc.documentElement;
-    // set the following attributes BEFORE searchEngineURL, which triggers to
-    // show the snippets when it's set.
-    docElt.setAttribute("snippetsURL", AboutHomeUtils.snippetsURL);
     if (AboutHomeUtils.showKnowYourRights) {
       docElt.setAttribute("showKnowYourRights", "true");
       // Set pref to indicate we've shown the notification.
       let currentVersion = Services.prefs.getIntPref("browser.rights.version");
       Services.prefs.setBoolPref("browser.rights." + currentVersion + ".shown", true);
     }
-    docElt.setAttribute("snippetsVersion", AboutHomeUtils.snippetsVersion);
 
     function updateSearchEngine() {
       let engine = AboutHomeUtils.defaultSearchEngine;
@@ -2439,7 +2458,7 @@ function BrowserOnAboutPageLoad(doc) {
       docElt.setAttribute("searchEnginePostData", engine.postDataString || "");
       docElt.setAttribute("searchEngineURL", engine.searchURL);
     }
-    updateSearchEngine();
+    Services.search.init(updateSearchEngine);
 
     // Listen for the event that's triggered when the user changes search engine.
     // At this point we simply reload about:home to reflect the change.
@@ -2464,7 +2483,7 @@ function BrowserOnAboutPageLoad(doc) {
       docElt.setAttribute("searchEnginePostData", engine.postDataString || "");
       docElt.setAttribute("searchEngineURL", engine.searchURL);
     }
-    updateSearchEngine();
+    Services.search.init(updateSearchEngine);
 
     // Listen for the event that's triggered when the user changes search engine.
     // At this point we simply reload about:newtab to reflect the change.
@@ -2644,6 +2663,11 @@ function getWebNavigation()
 }
 
 function BrowserReloadWithFlags(reloadFlags) {
+  
+  // Reset DOS mitigation for auth prompts when user initiates a reload.
+  let browser = gBrowser.selectedBrowser;
+  delete browser.authPromptCounter;
+  
   /* First, we'll try to use the session history object to reload so
    * that framesets are handled properly. If we're in a special
    * window (such as view-source) that has no session history, fall
@@ -3029,7 +3053,9 @@ const DOMLinkHandler = {
                 /^(?:https?|ftp):/i.test(link.href) &&
                 !PrivateBrowsingUtils.isWindowPrivate(window)) {
               var engine = { title: link.title, href: link.href };
-              BrowserSearch.addEngine(engine, link.ownerDocument);
+              Services.search.init(function () {
+                BrowserSearch.addEngine(engine, link.ownerDocument);
+              });
               searchAdded = true;
             }
           }
@@ -3378,7 +3404,7 @@ function BrowserCustomizeToolbar() {
   TabsInTitlebar.allowedBy("customizing-toolbars", false);
 
   var customizeURL = "chrome://global/content/customizeToolbar.xul";
-  gCustomizeSheet = getBoolPref("toolbar.customization.usesheet", false);
+  gCustomizeSheet = Services.prefs.getBoolPref("toolbar.customization.usesheet", false);
 
   if (gCustomizeSheet) {
     let sheetFrame = document.createElement("iframe");
@@ -3447,6 +3473,7 @@ function BrowserToolboxCustomizeDone(aToolboxChanged) {
 
   // Update the urlbar
   if (gURLBar) {
+    gURLBarSettings.writePlaceholder();
     URLBarSetURI();
     XULBrowserWindow.asyncUpdateUI();
     BookmarkingUI.updateStarState();
@@ -3462,7 +3489,7 @@ function BrowserToolboxCustomizeDone(aToolboxChanged) {
   cmd.removeAttribute("disabled");
 
   // make sure to re-enable click-and-hold
-  if (!getBoolPref("ui.click_hold_context_menus", false))
+  if (!Services.prefs.getBoolPref("ui.click_hold_context_menus", false))
     SetClickAndHoldHandlers();
 
   gBrowser.selectedBrowser.focus();
@@ -4389,7 +4416,13 @@ nsBrowserAccess.prototype = {
 
   openURI: function (aURI, aOpener, aWhere, aContext) {
     var newWindow = null;
-    var isExternal = (aContext == Ci.nsIBrowserDOMWindow.OPEN_EXTERNAL);
+    var isExternal = !!(aContext & Ci.nsIBrowserDOMWindow.OPEN_EXTERNAL);
+
+    if (aOpener && isExternal) {
+      Cu.reportError("nsBrowserAccess.openURI did not expect an opener to be " +
+                     "passed if the context is OPEN_EXTERNAL.");
+      throw Cr.NS_ERROR_FAILURE;
+    }
 
     if (isExternal && aURI && aURI.schemeIs("chrome")) {
       dump("use -chrome command-line option to load external chrome urls\n");
@@ -4446,14 +4479,15 @@ nsBrowserAccess.prototype = {
         }
 
         let loadInBackground = gPrefService.getBoolPref("browser.tabs.loadDivertedInBackground");
-        let referrer = aOpener ? makeURI(aOpener.location.href) : null;
+        let openerWindow = (aContext & Ci.nsIBrowserDOMWindow.OPEN_NO_OPENER) ? null : aOpener;
 
         let tab = win.gBrowser.loadOneTab(aURI ? aURI.spec : "about:blank", {
                                           triggeringPrincipal: triggeringPrincipal,
                                           referrerURI: referrer,
                                           referrerPolicy: referrerPolicy,
                                           fromExternal: isExternal,
-                                          inBackground: loadInBackground});
+                                          inBackground: loadInBackground,
+                                          opener: openerWindow });
         let browser = win.gBrowser.getBrowserForTab(tab);
 
         if (gPrefService.getBoolPref("browser.tabs.noWindowActivationOnExternal")) {
@@ -4581,6 +4615,42 @@ function setToolbarVisibility(toolbar, isVisible) {
 
   if (isVisible)
     ToolbarIconColor.inferFromText();
+}
+
+var AudioIndicator = {
+  init: function () {
+    Services.prefs.addObserver(this._prefName, this, false);
+    this.syncUI();
+  },
+
+  uninit: function () {
+    Services.prefs.removeObserver(this._prefName, this);
+  },
+
+  toggle: function () {
+    this.enabled = !Services.prefs.getBoolPref(this._prefName);
+  },
+
+  syncUI: function () {
+    document.getElementById("context_toggleMuteTab").setAttribute("hidden", this.enabled);
+    document.getElementById("key_toggleMute").setAttribute("disabled", this.enabled);
+  },
+
+  get enabled () {
+    return !Services.prefs.getBoolPref(this._prefName);
+  },
+
+  set enabled (val) {
+    Services.prefs.setBoolPref(this._prefName, !!val);
+    return val;
+  },
+
+  observe: function (subject, topic, data) {
+    if (topic == "nsPref:changed")
+      this.syncUI();
+  },
+
+  _prefName: "browser.tabs.showAudioPlayingIcon"
 }
 
 var TabsOnTop = {
@@ -5272,9 +5342,6 @@ function handleDroppedLink(event, urlOrLinks, name)
 
   let lastLocationChange = gBrowser.selectedBrowser.lastLocationChange;
 
-  let userContextId = gBrowser.selectedBrowser
-                      .getAttribute("usercontextid") || 0;
-
   let inBackground = Services.prefs.getBoolPref("browser.tabs.loadInBackground");
   if (event.shiftKey)
     inBackground = !inBackground;
@@ -5293,7 +5360,6 @@ function handleDroppedLink(event, urlOrLinks, name)
         replace: true,
         allowThirdPartyFixup: false,
         postDatas,
-        userContextId,
       });
     }
   });
@@ -7007,6 +7073,17 @@ function restoreLastSession() {
 
 var TabContextMenu = {
   contextTab: null,
+  _updateToggleMuteMenuItem(aTab, aConditionFn) {
+    ["muted", "soundplaying"].forEach(attr => {
+      if (!aConditionFn || aConditionFn(attr)) {
+        if (aTab.hasAttribute(attr)) {
+          aTab.toggleMuteMenuItem.setAttribute(attr, "true");
+        } else {
+          aTab.toggleMuteMenuItem.removeAttribute(attr);
+        }
+      }
+    });
+  },
   updateContextMenu: function updateContextMenu(aPopupMenu) {
     this.contextTab = aPopupMenu.triggerNode.localName == "tab" ?
                       aPopupMenu.triggerNode : gBrowser.selectedTab;
@@ -7053,6 +7130,35 @@ var TabContextMenu = {
     bookmarkAllTabs.hidden = this.contextTab.pinned;
     if (!bookmarkAllTabs.hidden)
       PlacesCommandHook.updateBookmarkAllTabsCommand();
+
+    // Adjust the state of the toggle mute menu item.
+    let toggleMute = document.getElementById("context_toggleMuteTab");
+    if (this.contextTab.hasAttribute("muted")) {
+      toggleMute.label = gNavigatorBundle.getString("unmuteTab.label");
+      toggleMute.accessKey = gNavigatorBundle.getString("unmuteTab.accesskey");
+    } else {
+      toggleMute.label = gNavigatorBundle.getString("muteTab.label");
+      toggleMute.accessKey = gNavigatorBundle.getString("muteTab.accesskey");
+    }
+    
+    this.contextTab.toggleMuteMenuItem = toggleMute;
+    this._updateToggleMuteMenuItem(this.contextTab);
+
+    this.contextTab.addEventListener("TabAttrModified", this, false);
+    aPopupMenu.addEventListener("popuphiding", this, false);
+  },
+  handleEvent(aEvent) {
+    switch (aEvent.type) {
+      case "popuphiding":
+        gBrowser.removeEventListener("TabAttrModified", this);
+        aEvent.target.removeEventListener("popuphiding", this);
+        break;
+      case "TabAttrModified":
+        let tab = aEvent.target;
+        this._updateToggleMuteMenuItem(tab,
+          attr => aEvent.detail.changed.indexOf(attr) >= 0);
+        break;
+    }
   }
 };
 
@@ -7221,14 +7327,6 @@ var MousePosTracker = {
     }
   }
 };
-
-function focusNextFrame(event) {
-  let fm = Services.focus;
-  let dir = event.shiftKey ? fm.MOVEFOCUS_BACKWARDDOC : fm.MOVEFOCUS_FORWARDDOC;
-  let element = fm.moveFocus(window, null, dir, fm.FLAG_BYKEY);
-  if (element.ownerDocument == document)
-    focusAndSelectUrlBar();
-}
 
 var BrowserChromeTest = {
   _cb: null,

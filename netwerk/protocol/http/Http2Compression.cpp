@@ -292,12 +292,6 @@ Http2BaseCompressor::Http2BaseCompressor()
 
 Http2BaseCompressor::~Http2BaseCompressor()
 {
-  if (mPeakSize) {
-    Telemetry::Accumulate(mPeakSizeID, mPeakSize);
-  }
-  if (mPeakCount) {
-    Telemetry::Accumulate(mPeakCountID, mPeakCount);
-  }
   UnregisterStrongMemoryReporter(mDynamicReporter);
   mDynamicReporter->mCompressor = nullptr;
   mDynamicReporter = nullptr;
@@ -335,16 +329,6 @@ Http2BaseCompressor::MakeRoom(uint32_t amount, const char *direction)
     ++countEvicted;
     bytesEvicted += mHeaderTable[index]->Size();
     mHeaderTable.RemoveElement();
-  }
-
-  if (!strcmp(direction, "decompressor")) {
-    Telemetry::Accumulate(Telemetry::HPACK_ELEMENTS_EVICTED_DECOMPRESSOR, countEvicted);
-    Telemetry::Accumulate(Telemetry::HPACK_BYTES_EVICTED_DECOMPRESSOR, bytesEvicted);
-    Telemetry::Accumulate(Telemetry::HPACK_BYTES_EVICTED_RATIO_DECOMPRESSOR, (uint32_t)((100.0 * (double)bytesEvicted) / (double)amount));
-  } else {
-    Telemetry::Accumulate(Telemetry::HPACK_ELEMENTS_EVICTED_COMPRESSOR, countEvicted);
-    Telemetry::Accumulate(Telemetry::HPACK_BYTES_EVICTED_COMPRESSOR, bytesEvicted);
-    Telemetry::Accumulate(Telemetry::HPACK_BYTES_EVICTED_RATIO_COMPRESSOR, (uint32_t)((100.0 * (double)bytesEvicted) / (double)amount));
   }
 }
 
@@ -418,7 +402,7 @@ Http2Decompressor::DecodeHeaderBlock(const uint8_t *data, uint32_t datalen,
 
   nsresult rv = NS_OK;
   nsresult softfail_rv = NS_OK;
-  while (NS_SUCCEEDED(rv) && (mOffset < datalen)) {
+  while (NS_SUCCEEDED(rv) && (mOffset < mDataLen)) {
     bool modifiesTable = true;
     if (mData[mOffset] & 0x80) {
       rv = DoIndexed();
@@ -700,6 +684,11 @@ nsresult
 Http2Decompressor::DecodeFinalHuffmanCharacter(const HuffmanIncomingTable *table,
                                                uint8_t &c, uint8_t &bitsLeft)
 {
+  MOZ_ASSERT(mOffset <= mDataLen);
+  if (mOffset > mDataLen) {
+    NS_WARNING("DecodeFinalHuffmanCharacter trying to read beyond end of buffer");
+    return NS_ERROR_FAILURE;
+  }
   uint8_t mask = (1 << bitsLeft) - 1;
   uint8_t idx = mData[mOffset - 1] & mask;
   idx <<= (8 - bitsLeft);
@@ -737,6 +726,7 @@ Http2Decompressor::DecodeFinalHuffmanCharacter(const HuffmanIncomingTable *table
 uint8_t
 Http2Decompressor::ExtractByte(uint8_t bitsLeft, uint32_t &bytesConsumed)
 {
+  MOZ_DIAGNOSTIC_ASSERT(mOffset < mDataLen);
   uint8_t rv;
 
   if (bitsLeft) {
@@ -766,8 +756,8 @@ Http2Decompressor::DecodeHuffmanCharacter(const HuffmanIncomingTable *table,
   uint8_t idx = ExtractByte(bitsLeft, bytesConsumed);
 
   if (table->IndexHasANextTable(idx)) {
-    if (bytesConsumed >= mDataLen) {
-      if (!bitsLeft || (bytesConsumed > mDataLen)) {
+    if (mOffset >= mDataLen) {
+      if (!bitsLeft || (mOffset > mDataLen)) {
         // TODO - does this get me into trouble in the new world?
         // No info left in input to try to consume, we're done
         LOG(("DecodeHuffmanCharacter all out of bits to consume, can't chain"));
@@ -908,6 +898,13 @@ Http2Decompressor::DoLiteralInternal(nsACString &name, nsACString &value,
     return rv;
   }
 
+  // sanity check
+  if (mOffset >= mDataLen) {
+    NS_WARNING("Http2 Decompressor ran out of data");
+    // This is session-fatal
+    return NS_ERROR_FAILURE;
+  }
+
   bool isHuffmanEncoded;
 
   if (!index) {
@@ -935,6 +932,13 @@ Http2Decompressor::DoLiteralInternal(nsACString &name, nsACString &value,
     return rv;
   }
 
+  // sanity check
+  if (mOffset >= mDataLen) {
+    NS_WARNING("Http2 Decompressor ran out of data");
+    // This is session-fatal
+    return NS_ERROR_FAILURE;
+  }
+  
   // now the value
   uint32_t valueLen;
   isHuffmanEncoded = mData[mOffset] & (1 << 7);

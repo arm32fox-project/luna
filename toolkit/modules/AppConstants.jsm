@@ -60,13 +60,6 @@ this.AppConstants = Object.freeze({
   false,
 #endif
 
-  MOZ_DEV_EDITION:
-#ifdef MOZ_DEV_EDITION
-  true,
-#else
-  false,
-#endif
-
   MOZ_SERVICES_HEALTHREPORT:
 #ifdef MOZ_SERVICES_HEALTHREPORT
   true,
@@ -97,13 +90,6 @@ MOZ_SAFE_BROWSING:
 
   MOZ_TELEMETRY_ON_BY_DEFAULT:
 #ifdef MOZ_TELEMETRY_ON_BY_DEFAULT
-  true,
-#else
-  false,
-#endif
-
-  MOZ_SERVICES_CLOUDSYNC:
-#ifdef MOZ_SERVICES_CLOUDSYNC
   true,
 #else
   false,
@@ -175,13 +161,6 @@ MOZ_SAFE_BROWSING:
 
   MOZ_VERIFY_MAR_SIGNATURE:
 #ifdef MOZ_VERIFY_MAR_SIGNATURE
-  true,
-#else
-  false,
-#endif
-
-  MOZ_MAINTENANCE_SERVICE:
-#ifdef MOZ_MAINTENANCE_SERVICE
   true,
 #else
   false,

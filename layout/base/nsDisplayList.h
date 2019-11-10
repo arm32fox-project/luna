@@ -1003,7 +1003,7 @@ public:
 
   static OutOfFlowDisplayData* GetOutOfFlowData(nsIFrame* aFrame)
   {
-    return aFrame->Properties().Get(OutOfFlowDisplayDataProperty());
+    return aFrame->GetProperty(OutOfFlowDisplayDataProperty());
   }
 
   nsPresContext* CurrentPresContext() {
@@ -1200,7 +1200,7 @@ private:
   PLArenaPool                    mPool;
   nsCOMPtr<nsISelection>         mBoundingSelection;
   AutoTArray<PresShellState,8> mPresShellStates;
-  AutoTArray<nsIFrame*,100>    mFramesMarkedForDisplay;
+  AutoTArray<nsIFrame*,400>    mFramesMarkedForDisplay;
   AutoTArray<ThemeGeometry,2>  mThemeGeometries;
   nsDisplayTableItem*            mCurrentTableItem;
   DisplayListClipState           mClipState;
@@ -2713,6 +2713,8 @@ private:
  */
 class nsDisplayBackgroundImage : public nsDisplayImageContainer {
 public:
+  typedef mozilla::StyleGeometryBox StyleGeometryBox;
+
   /**
    * aLayer signifies which background layer this item represents.
    * aIsThemed should be the value of aFrame->IsThemed.
@@ -2735,7 +2737,9 @@ public:
                                          const nsRect& aBackgroundRect,
                                          nsDisplayList* aList,
                                          bool aAllowWillPaintBorderOptimization = true,
-                                         nsStyleContext* aStyleContext = nullptr);
+                                         nsStyleContext* aStyleContext = nullptr,
+                                         const nsRect& aBackgroundOriginRect = nsRect(),
+                                         nsIFrame* aSecondaryReferenceFrame = nullptr);
 
   virtual LayerState GetLayerState(nsDisplayListBuilder* aBuilder,
                                    LayerManager* aManager,
@@ -2790,8 +2794,10 @@ public:
   virtual already_AddRefed<imgIContainer> GetImage() override;
   virtual nsRect GetDestRect() override;
 
-  static nsRegion GetInsideClipRegion(nsDisplayItem* aItem, uint8_t aClip,
-                                      const nsRect& aRect, const nsRect& aBackgroundRect);
+  static nsRegion GetInsideClipRegion(nsDisplayItem* aItem,
+                                      StyleGeometryBox aClip,
+                                      const nsRect& aRect,
+                                      const nsRect& aBackgroundRect);
 
   virtual bool ShouldFixToViewport(nsDisplayListBuilder* aBuilder) override;
 
@@ -2807,6 +2813,8 @@ protected:
 
   void PaintInternal(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx,
                      const nsRect& aBounds, nsRect* aClipRect);
+
+  virtual nsIFrame* StyleFrame() { return mFrame; }
 
   // Determine whether we want to be separated into our own layer, independent
   // of whether this item can actually be layerized.
@@ -2833,6 +2841,60 @@ protected:
   bool mShouldTreatAsFixed;
 };
 
+enum class TableType : uint8_t {
+  TABLE,
+  TABLE_COL,
+  TABLE_COL_GROUP,
+  TABLE_ROW,
+  TABLE_ROW_GROUP,
+  TABLE_CELL,
+
+  TABLE_TYPE_MAX
+};
+
+enum class TableTypeBits : uint8_t {
+  COUNT = 3
+};
+
+static_assert(
+  static_cast<uint8_t>(TableType::TABLE_TYPE_MAX) < (1 << (static_cast<uint8_t>(TableTypeBits::COUNT) + 1)),
+  "TableType cannot fit with TableTypeBits::COUNT");
+TableType GetTableTypeFromFrame(nsIFrame* aFrame);
+
+/**
+ * A display item to paint background image for table. For table parts, such
+ * as row, row group, col, col group, when drawing its background, we'll
+ * create separate background image display item for its containning cell.
+ * Those background image display items will reference to same DisplayItemData
+ * if we keep the mFrame point to cell's ancestor frame. We don't want to this
+ * happened bacause share same DisplatItemData will cause many bugs. So that
+ * we let mFrame point to cell frame and store the table type of the ancestor
+ * frame. And use mFrame and table type as key to generate DisplayItemData to
+ * avoid sharing DisplayItemData.
+ *
+ * Also store ancestor frame as mStyleFrame for all rendering informations.
+ */
+class nsDisplayTableBackgroundImage : public nsDisplayBackgroundImage {
+public:
+  nsDisplayTableBackgroundImage(nsDisplayListBuilder* aBuilder,
+                                nsIFrame* aFrame,
+                                uint32_t aLayer,
+                                const nsRect& aBackgroundRect,
+                                const nsStyleBackground* aBackgroundStyle,
+                                nsIFrame* aCellFrame);
+
+  virtual uint32_t GetPerFrameKey() override {
+    return (static_cast<uint8_t>(mTableType) << nsDisplayItem::TYPE_BITS) |
+           nsDisplayItem::GetPerFrameKey();
+  }
+
+  virtual bool IsInvalid(nsRect& aRect) override;
+protected:
+  virtual nsIFrame* StyleFrame() override { return mStyleFrame; }
+
+  nsIFrame* mStyleFrame;
+  TableType mTableType;
+};
 
 /**
  * A display item to paint the native theme background for a frame.
@@ -3731,7 +3793,7 @@ public:
     return mAnimatedGeometryRootForScrollMetadata;
   }
 
-private:
+protected:
   // For background-attachment:fixed
   nsDisplayFixedPosition(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame,
                          nsDisplayList* aList, uint32_t aIndex);
@@ -3740,6 +3802,27 @@ private:
   AnimatedGeometryRoot* mAnimatedGeometryRootForScrollMetadata;
   uint32_t mIndex;
   bool mIsFixedBackground;
+};
+
+class nsDisplayTableFixedPosition : public nsDisplayFixedPosition
+{
+public:
+  static nsDisplayTableFixedPosition* CreateForFixedBackground(nsDisplayListBuilder* aBuilder,
+                                                               nsIFrame* aFrame,
+                                                               nsDisplayBackgroundImage* aImage,
+                                                               uint32_t aIndex,
+                                                               nsIFrame* aAncestorFrame);
+
+  virtual uint32_t GetPerFrameKey() override {
+    return (mIndex << (nsDisplayItem::TYPE_BITS + static_cast<uint8_t>(TableTypeBits::COUNT))) |
+           (static_cast<uint8_t>(mTableType) << nsDisplayItem::TYPE_BITS) |
+           nsDisplayItem::GetPerFrameKey();
+  }
+protected:
+  nsDisplayTableFixedPosition(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame,
+                              nsDisplayList* aList, uint32_t aIndex, nsIFrame* aAncestorFrame);
+
+  TableType mTableType;
 };
 
 /**
@@ -4507,44 +4590,5 @@ public:
   // Cached result of mFrame->IsSelected().  Only initialized when needed.
   mutable mozilla::Maybe<bool> mIsFrameSelected;
 };
-
-namespace mozilla {
-
-class PaintTelemetry
-{
- public:
-  enum class Metric {
-    DisplayList,
-    Layerization,
-    Rasterization,
-    COUNT,
-  };
-
-  class AutoRecord
-  {
-   public:
-    explicit AutoRecord(Metric aMetric);
-    ~AutoRecord();
-   private:
-    Metric mMetric;
-    mozilla::TimeStamp mStart;
-  };
-
-  class AutoRecordPaint
-  {
-   public:
-    AutoRecordPaint();
-    ~AutoRecordPaint();
-   private:
-    mozilla::TimeStamp mStart;
-  };
-
- private:
-  static uint32_t sPaintLevel;
-  static uint32_t sMetricLevel;
-  static mozilla::EnumeratedArray<Metric, Metric::COUNT, double> sMetrics;
-};
-
-} // namespace mozilla
 
 #endif /*NSDISPLAYLIST_H_*/

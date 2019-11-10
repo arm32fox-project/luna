@@ -7,48 +7,22 @@
 // Platform specific code to invoke XPCOM methods on native objects
 
 #include "xptcprivate.h"
-#include "alloca.h"
 
-// 6 integral parameters are passed in registers
-const uint32_t GPR_COUNT = 6;
+// 6 integral parameters are passed in registers, but 1 is |this| which isn't
+// considered here.
+const uint32_t GPR_COUNT = 5;
 
 // 8 floating point parameters are passed in SSE registers
 const uint32_t FPR_COUNT = 8;
 
-// Remember that these 'words' are 64-bit long
-static inline void
-invoke_count_words(uint32_t paramCount, nsXPTCVariant * s,
-                   uint32_t & nr_gpr, uint32_t & nr_fpr, uint32_t & nr_stack)
+extern "C" void
+InvokeCopyToStack(uint64_t * gpregs, double * fpregs,
+                     uint32_t paramCount, nsXPTCVariant * s,
+                     uint64_t* d)
 {
-    nr_gpr = 1; // skip one GP register for 'that'
-    nr_fpr = 0;
-    nr_stack = 0;
-
-    /* Compute number of eightbytes of class MEMORY.  */
-    for (uint32_t i = 0; i < paramCount; i++, s++) {
-        if (!s->IsPtrData()
-            && (s->type == nsXPTType::T_FLOAT || s->type == nsXPTType::T_DOUBLE)) {
-            if (nr_fpr < FPR_COUNT)
-                nr_fpr++;
-            else
-                nr_stack++;
-        }
-        else {
-            if (nr_gpr < GPR_COUNT)
-                nr_gpr++;
-            else
-                nr_stack++;
-        }
-    }
-}
-
-static void
-invoke_copy_to_stack(uint64_t * d, uint32_t paramCount, nsXPTCVariant * s,
-                     uint64_t * gpregs, double * fpregs)
-{
-    uint32_t nr_gpr = 1; // skip one GP register for 'that'
-    uint32_t nr_fpr = 0;
-    uint64_t value;
+    uint32_t nr_gpr = 0u; // skip one GP register for 'that'
+    uint32_t nr_fpr = 0u;
+    uint64_t value = 0u;
 
     for (uint32_t i = 0; i < paramCount; i++, s++) {
         if (s->IsPtrData())
@@ -98,52 +72,4 @@ invoke_copy_to_stack(uint64_t * d, uint32_t paramCount, nsXPTCVariant * s,
                 *d++ = value;
         }
     }
-}
-
-// Avoid AddressSanitizer instrumentation for the next function because it
-// depends on __builtin_alloca behavior and alignment that cannot be relied on
-// once the function is compiled with a version of ASan that has dynamic-alloca
-// instrumentation enabled.
-
-MOZ_ASAN_BLACKLIST
-EXPORT_XPCOM_API(nsresult)
-NS_InvokeByIndex(nsISupports * that, uint32_t methodIndex,
-                 uint32_t paramCount, nsXPTCVariant * params)
-{
-    uint32_t nr_gpr, nr_fpr, nr_stack;
-    invoke_count_words(paramCount, params, nr_gpr, nr_fpr, nr_stack);
-    
-    // Stack, if used, must be 16-bytes aligned
-    if (nr_stack)
-        nr_stack = (nr_stack + 1) & ~1;
-
-    // Load parameters to stack, if necessary
-    uint64_t *stack = (uint64_t *) __builtin_alloca(nr_stack * 8);
-    uint64_t gpregs[GPR_COUNT];
-    double fpregs[FPR_COUNT];
-    invoke_copy_to_stack(stack, paramCount, params, gpregs, fpregs);
-
-    switch (nr_fpr) {
-      case 8: asm("movupd %0, %xmm7" : : "xmm7" (fpregs[7]));
-      case 7: asm("movupd %0, %xmm6" : : "xmm6" (fpregs[6]));
-      case 6: asm("movupd %0, %xmm5" : : "xmm5" (fpregs[5]));
-      case 5: asm("movupd %0, %xmm4" : : "xmm4" (fpregs[4]));
-      case 4: asm("movupd %0, %xmm3" : : "xmm3" (fpregs[3]));
-      case 3: asm("movupd %0, %xmm2" : : "xmm2" (fpregs[2]));
-      case 2: asm("movupd %0, %xmm1" : : "xmm1" (fpregs[1]));
-      case 1: asm("movupd %0, %xmm0" : : "xmm0" (fpregs[0]));
-      case 0:;
-    }
-    
-    // Ensure that assignments to SSE registers won't be optimized away
-    asm("" ::: "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7");
-    
-    // Get pointer to method
-    uint64_t methodAddress = *((uint64_t *)that);
-    methodAddress += 16 + 8 * methodIndex;
-    methodAddress = *((uint64_t *)methodAddress);
-    
-    typedef uint32_t (*Method)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
-    uint32_t result = ((Method)methodAddress)((uint64_t)that, gpregs[1], gpregs[2], gpregs[3], gpregs[4], gpregs[5]);
-    return result;
 }

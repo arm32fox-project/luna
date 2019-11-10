@@ -514,26 +514,7 @@ nsSVGUtils::DetermineMaskUsage(nsIFrame* aFrame, bool aHandleOpacity,
 
   nsTArray<nsSVGMaskFrame*> maskFrames = effectProperties.GetMaskFrames();
 
-#ifdef MOZ_ENABLE_MASK_AS_SHORTHAND
-  // For a HTML doc:
-  //   According to css-masking spec, always create a mask surface when we
-  //   have any item in maskFrame even if all of those items are
-  //   non-resolvable <mask-sources> or <images>, we still need to create a
-  //   transparent black mask layer under this condition.
-  // For a SVG doc:
-  //   SVG 1.1 say that  if we fail to resolve a mask, we should draw the
-  //   object unmasked.
-  aUsage.shouldGenerateMaskLayer =
-    (aFrame->GetStateBits() & NS_FRAME_SVG_LAYOUT)
-      ? maskFrames.Length() == 1 && maskFrames[0]
-      : maskFrames.Length() > 0;
-#else
-  // Since we do not support image mask so far, we should treat any
-  // unresolvable mask as no mask. Otherwise, any object with a valid image
-  // mask, e.g. url("xxx.png"), will become invisible just because we can not
-  // handle image mask correctly. (See bug 1294171)
-  aUsage.shouldGenerateMaskLayer = maskFrames.Length() == 1 && maskFrames[0];
-#endif
+  aUsage.shouldGenerateMaskLayer = (maskFrames.Length() > 0);
 
   bool isOK = effectProperties.HasNoFilterOrHasValidFilter();
   nsSVGClipPathFrame *clipPathFrame = effectProperties.GetClipPathFrame(&isOK);
@@ -753,9 +734,12 @@ nsSVGUtils::PaintFrameWithEffects(nsIFrame *aFrame,
     RefPtr<SourceSurface> maskSurface;
 
     if (maskUsage.shouldGenerateMaskLayer) {
-      maskSurface =
-        maskFrame->GetMaskForMaskedFrame(&aContext, aFrame, aTransform,
-                                         maskUsage.opacity, &maskTransform);
+      // Make sure we have a mask frame.
+      if (maskFrame) {
+        maskSurface = 
+          maskFrame->GetMaskForMaskedFrame(&aContext, aFrame, aTransform,
+                                           maskUsage.opacity, &maskTransform);
+      }
 
       if (!maskSurface) {
         // Entire surface is clipped out.
@@ -1076,10 +1060,9 @@ nsSVGUtils::GetBBox(nsIFrame *aFrame, uint32_t aFlags)
       return bbox;
     }
 
-    FrameProperties props = aFrame->Properties();
 
     if (aFlags == eBBoxIncludeFillGeometry) {
-      gfxRect* prop = props.Get(ObjectBoundingBoxProperty());
+      gfxRect* prop = aFrame->GetProperty(ObjectBoundingBoxProperty());
       if (prop) {
         return *prop;
       }
@@ -1155,7 +1138,7 @@ nsSVGUtils::GetBBox(nsIFrame *aFrame, uint32_t aFlags)
     if (aFlags == eBBoxIncludeFillGeometry) {
       // Obtaining the bbox for objectBoundingBox calculations is common so we
       // cache the result for future calls, since calculation can be expensive:
-      props.Set(ObjectBoundingBoxProperty(), new gfxRect(bbox));
+      aFrame->SetProperty(ObjectBoundingBoxProperty(), new gfxRect(bbox));
     }
 
     return bbox;

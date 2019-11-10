@@ -774,8 +774,6 @@ public:
 
   virtual nsViewportInfo GetViewportInfo(const mozilla::ScreenIntSize& aDisplaySize) override;
 
-  void ReportUseCounters();
-
   virtual void AddIntersectionObserver(
     mozilla::dom::DOMIntersectionObserver* aObserver) override;
   virtual void RemoveIntersectionObserver(
@@ -950,11 +948,13 @@ public:
     ResolvePreloadImage(nsIURI *aBaseURI,
                         const nsAString& aSrcAttr,
                         const nsAString& aSrcsetAttr,
-                        const nsAString& aSizesAttr) override;
+                        const nsAString& aSizesAttr,
+                        bool *aIsImgSet) override;
 
   virtual void MaybePreLoadImage(nsIURI* uri,
                                  const nsAString &aCrossOriginAttr,
-                                 ReferrerPolicy aReferrerPolicy) override;
+                                 ReferrerPolicy aReferrerPolicy,
+                                 bool aIsImgSet) override;
   virtual void ForgetImagePreload(nsIURI* aURI) override;
 
   virtual void MaybePreconnect(nsIURI* uri,
@@ -1341,8 +1341,9 @@ protected:
   // Array of observers
   nsTObserverArray<nsIDocumentObserver*> mObservers;
 
-  // Array of intersection observers
-  nsTArray<RefPtr<mozilla::dom::DOMIntersectionObserver>> mIntersectionObservers;
+  // Hashtable of intersection observers
+  nsTHashtable<nsPtrHashKey<mozilla::dom::DOMIntersectionObserver>>
+    mIntersectionObservers;
 
   // Tracker for animations that are waiting to start.
   // nullptr until GetOrCreatePendingAnimationTracker is called.
@@ -1447,14 +1448,6 @@ public:
   // Keeps track of whether we have a pending
   // 'style-sheet-applicable-state-changed' notification.
   bool mSSApplicableStateNotificationPending:1;
-
-  // Whether we have reported use counters for this document with Telemetry yet.
-  // Normally this is only done at document destruction time, but for image
-  // documents (SVG documents) that are not guaranteed to be destroyed, we
-  // report use counters when the image cache no longer has any imgRequestProxys
-  // pointing to them.  We track whether we ever reported use counters so
-  // that we only report them once for the document.
-  bool mReportedUseCounters:1;
 
   // Whether we have filled our pres shell's style set with the document's
   // additional sheets and sheets from the nsStyleSheetService.

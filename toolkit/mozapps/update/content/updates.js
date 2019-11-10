@@ -11,10 +11,9 @@
 // so we have to use different names.
 const {classes: CoC, interfaces: CoI, results: CoR, utils: CoU} = Components;
 
-/* globals DownloadUtils, Services, AUSTLMY */
+/* globals DownloadUtils, Services */
 CoU.import("resource://gre/modules/DownloadUtils.jsm", this);
 CoU.import("resource://gre/modules/Services.jsm", this);
-CoU.import("resource://gre/modules/UpdateTelemetry.jsm", this);
 
 const XMLNS_XUL = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 
@@ -85,28 +84,6 @@ function openUpdateURL(event) {
 }
 
 /**
- * Gets a preference value, handling the case where there is no default.
- * @param   func
- *          The name of the preference function to call, on nsIPrefBranch
- * @param   preference
- *          The name of the preference
- * @param   defaultValue
- *          The default value to return in the event the preference has
- *          no setting
- * @returns The value of the preference, or undefined if there was no
- *          user or default value.
- */
-function getPref(func, preference, defaultValue) {
-  try {
-    return Services.prefs[func](preference);
-  }
-  catch (e) {
-    LOG("General", "getPref - failed to get preference: " + preference);
-  }
-  return defaultValue;
-}
-
-/**
  * A set of shared data and control functions for the wizard as a whole.
  */
 var gUpdates = {
@@ -136,15 +113,6 @@ var gUpdates = {
    * exits the wizard via onWizardCancel or onWizardFinish.
    */
   _runUnload: true,
-
-  /**
-   * Submit on close telemtry values for the update wizard.
-   * @param  pageID
-   *         The page id for the last page displayed.
-   */
-  _submitTelemetry: function(aPageID) {
-    AUSTLMY.pingWizLastPageCode(aPageID);
-  },
 
   /**
    * Helper function for setButtons
@@ -264,7 +232,6 @@ var gUpdates = {
     var pageid = document.documentElement.currentPage.pageid;
     if ("onWizardFinish" in this._pages[pageid])
       this._pages[pageid].onWizardFinish();
-    this._submitTelemetry(pageid);
   },
 
   /**
@@ -276,7 +243,6 @@ var gUpdates = {
     var pageid = document.documentElement.currentPage.pageid;
     if ("onWizardCancel" in this._pages[pageid])
       this._pages[pageid].onWizardCancel();
-    this._submitTelemetry(pageid);
   },
 
   /**
@@ -320,7 +286,7 @@ var gUpdates = {
   onLoad: function() {
     this.wiz = document.documentElement;
 
-    gLogEnabled = getPref("getBoolPref", PREF_APP_UPDATE_LOG, false);
+    gLogEnabled = Services.prefs.getBoolPref(PREF_APP_UPDATE_LOG, false);
 
     this.strings = document.getElementById("updateStrings");
     var brandStrings = document.getElementById("brandStrings");
@@ -601,7 +567,7 @@ var gNoUpdatesPage = {
     LOG("gNoUpdatesPage", "onPageShow - could not select an appropriate " +
         "update. Either there were no updates or |selectUpdate| failed");
 
-    if (getPref("getBoolPref", PREF_APP_UPDATE_ENABLED, true))
+    if (Services.prefs.getBoolPref(PREF_APP_UPDATE_ENABLED, true))
       document.getElementById("noUpdatesAutoEnabled").hidden = false;
     else
       document.getElementById("noUpdatesAutoDisabled").hidden = false;
@@ -1309,7 +1275,7 @@ var gFinishedPage = {
       moreElevatedLinkLabel.setAttribute("hidden", "false");
     }
 
-    if (getPref("getBoolPref", PREF_APP_UPDATE_TEST_LOOP, false)) {
+    if (Services.prefs.getBoolPref(PREF_APP_UPDATE_TEST_LOOP, false)) {
       setTimeout(function () { gUpdates.wiz.getButton("finish").click(); },
                  UPDATE_TEST_LOOP_INTERVAL);
     }

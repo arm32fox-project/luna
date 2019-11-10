@@ -6,6 +6,12 @@
 
 TEST_DIRS += ['test']
 
+XPIDL_SOURCES += [
+    'nsIScriptError.idl'
+]
+
+XPIDL_MODULE = 'dom_bindings'
+
 EXPORTS.ipc += [
     'ErrorIPCUtils.h',
 ]
@@ -32,10 +38,10 @@ EXPORTS.mozilla.dom += [
     'FakeString.h',
     'IterableIterator.h',
     'JSSlots.h',
-    'MozMap.h',
     'NonRefcountedDOMObject.h',
     'Nullable.h',
     'PrimitiveConversions.h',
+    'Record.h',
     'RootedDictionary.h',
     'SimpleGlobalObject.h',
     'StructuredClone.h',
@@ -91,6 +97,8 @@ UNIFIED_SOURCES += [
     'DOMJSProxyHandler.cpp',
     'Exceptions.cpp',
     'IterableIterator.cpp',
+    'nsScriptError.cpp',
+    'nsScriptErrorWithStack.cpp',
     'SimpleGlobalObject.cpp',
     'ToJSValue.cpp',
     'WebIDLGlobalNameHash.cpp',
@@ -139,7 +147,7 @@ FINAL_LIBRARY = 'xul'
 SPHINX_TREES['webidl'] = 'docs'
 SPHINX_PYTHON_PACKAGE_DIRS += ['mozwebidlcodegen']
 
-if CONFIG['MOZ_PHOENIX'] or CONFIG['MOZ_FENNEC'] or CONFIG['MOZ_XULRUNNER']:
+if CONFIG['MOZ_PHOENIX'] or CONFIG['MOZ_XULRUNNER']:
     # This is needed for Window.webidl
     DEFINES['HAVE_SIDEBAR'] = True
 

@@ -158,11 +158,11 @@ NativeObject::extendDenseElements(ExclusiveContext* cx,
     MOZ_ASSERT(!denseElementsAreFrozen());
 
     /*
-     * Don't grow elements for non-extensible objects or watched objects. Dense
-     * elements can be added/written with no extensible or watchpoint checks as
-     * long as there is capacity for them.
+     * Don't grow elements for non-extensible objects. Dense elements can be
+     * added/written with no extensible checks as long as there is capacity
+     * for them.
      */
-    if (!nonProxyIsExtensible() || watched()) {
+    if (!nonProxyIsExtensible()) {
         MOZ_ASSERT(getDenseCapacity() == 0);
         return DenseElementResult::Incomplete;
     }
@@ -232,6 +232,38 @@ NativeObject::ensureDenseElements(ExclusiveContext* cx, uint32_t index, uint32_t
         return result;
 
     ensureDenseInitializedLengthNoPackedCheck(cx, index, extra);
+    return DenseElementResult::Success;
+}
+
+inline DenseElementResult
+NativeObject::setOrExtendDenseElements(ExclusiveContext* cx, uint32_t start, const Value* vp,
+                                       uint32_t count,
+                                       ShouldUpdateTypes updateTypes)
+{
+    if (denseElementsAreFrozen())
+        return DenseElementResult::Incomplete;
+
+    if (is<ArrayObject>() &&
+        !as<ArrayObject>().lengthIsWritable() &&
+        start + count >= as<ArrayObject>().length())
+    {
+        return DenseElementResult::Incomplete;
+    }
+
+    DenseElementResult result = ensureDenseElements(cx, start, count);
+    if (result != DenseElementResult::Success)
+        return result;
+
+    if (is<ArrayObject>() && start + count >= as<ArrayObject>().length())
+        as<ArrayObject>().setLengthInt32(start + count);
+
+    if (updateTypes == ShouldUpdateTypes::DontUpdate && !shouldConvertDoubleElements()) {
+        copyDenseElements(start, vp, count);
+    } else {
+        for (size_t i = 0; i < count; i++)
+            setDenseElementWithType(cx, start + i, vp[i]);
+    }
+
     return DenseElementResult::Success;
 }
 

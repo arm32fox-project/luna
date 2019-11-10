@@ -1537,7 +1537,6 @@ IncrementalFinalizeRunnable::Run()
     return NS_OK;
   }
 
-  TimeStamp start = TimeStamp::Now();
   ReleaseNow(true);
 
   if (mDeferredFinalizeFunctions.Length()) {
@@ -1546,9 +1545,6 @@ IncrementalFinalizeRunnable::Run()
       ReleaseNow(false);
     }
   }
-
-  uint32_t duration = (uint32_t)((TimeStamp::Now() - start).ToMilliseconds());
-  Telemetry::Accumulate(Telemetry::DEFERRED_FINALIZE_ASYNC, duration);
 
   return NS_OK;
 }

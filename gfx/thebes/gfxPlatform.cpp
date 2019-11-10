@@ -11,7 +11,6 @@
 #include "mozilla/gfx/GPUProcessManager.h"
 #include "mozilla/gfx/GraphicsMessages.h"
 #include "mozilla/ClearOnShutdown.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/TimeStamp.h"
 #include "mozilla/Unused.h"
 
@@ -131,8 +130,6 @@ class mozilla::gl::SkiaGLGlue : public GenericAtomicRefCounted {
 #include "SoftwareVsyncSource.h"
 #include "nscore.h" // for NS_FREE_PERMANENT_DATA
 #include "mozilla/dom/ContentChild.h"
-#include "gfxVR.h"
-#include "VRManagerChild.h"
 #include "mozilla/gfx/GPUParent.h"
 #include "prsystem.h"
 
@@ -351,52 +348,10 @@ void CrashStatsLogForwarder::Log(const std::string& aString)
   }
 }
 
-class CrashTelemetryEvent : public Runnable
-{
-  virtual ~CrashTelemetryEvent() {}
-
-  NS_DECL_ISUPPORTS_INHERITED
-
-  explicit CrashTelemetryEvent(uint32_t aReason) : mReason(aReason) {}
-
-  NS_IMETHOD Run() override {
-    MOZ_ASSERT(NS_IsMainThread());
-    Telemetry::Accumulate(Telemetry::GFX_CRASH, mReason);
-    return NS_OK;
-  }
-
-protected:
-  uint32_t mReason;
-};
-
-NS_IMPL_ISUPPORTS_INHERITED0(CrashTelemetryEvent, Runnable);
-
 void
 CrashStatsLogForwarder::CrashAction(LogReason aReason)
 {
-#ifndef RELEASE_OR_BETA
-  // Non-release builds crash by default, but will use telemetry
-  // if this environment variable is present.
-  static bool useTelemetry = gfxEnv::GfxDevCrashTelemetry();
-#else
-  // Release builds use telemetry by default, but will crash instead
-  // if this environment variable is present.
-  static bool useTelemetry = !gfxEnv::GfxDevCrashMozCrash();
-#endif
-
-  if (useTelemetry) {
-    // The callers need to assure that aReason is in the range
-    // that the telemetry call below supports.
-    if (NS_IsMainThread()) {
-      Telemetry::Accumulate(Telemetry::GFX_CRASH, (uint32_t)aReason);
-    } else {
-      nsCOMPtr<nsIRunnable> r1 = new CrashTelemetryEvent((uint32_t)aReason);
-      NS_DispatchToMainThread(r1);
-    }
-  } else {
-    // ignoring aReason, we can get the information we need from the stack
-    MOZ_CRASH("GFX_CRASH");
-  }
+  MOZ_CRASH("GFX_CRASH");
 }
 
 NS_IMPL_ISUPPORTS(SRGBOverrideObserver, nsIObserver, nsISupportsWeakReference)
@@ -515,8 +470,6 @@ gfxPlatform::gfxPlatform()
                      contentMask, BackendType::CAIRO);
 
     mTotalSystemMemory = PR_GetPhysicalMemorySize();
-
-    VRManager::ManagerInit();
 }
 
 gfxPlatform*
@@ -923,14 +876,12 @@ gfxPlatform::ShutdownLayersIPC()
     sLayersIPCIsUp = false;
 
     if (XRE_IsContentProcess()) {
-        gfx::VRManagerChild::ShutDown();
         // cf bug 1215265.
         if (gfxPrefs::ChildProcessShutdown()) {
           layers::CompositorBridgeChild::ShutDown();
           layers::ImageBridgeChild::ShutDown();
         }
     } else if (XRE_IsParentProcess()) {
-        gfx::VRManagerChild::ShutDown();
         layers::CompositorBridgeChild::ShutDown();
         layers::ImageBridgeChild::ShutDown();
 
@@ -2403,13 +2354,13 @@ gfxPlatform::AsyncPanZoomEnabled()
 {
 #if !defined(MOZ_WIDGET_ANDROID) && !defined(MOZ_WIDGET_UIKIT)
   // For XUL applications (everything but Firefox on Android) we only want
-  // to use APZ when E10S is enabled. If we ever get input events off the
-  // main thread we can consider relaxing this requirement.
-  if (!BrowserTabsRemoteAutostart()) {
+  // to use APZ when E10S is enabled or when the user explicitly enable it.
+  if (BrowserTabsRemoteAutostart() || gfxPrefs::APZDesktopEnabled()) {
+    return gfxPrefs::AsyncPanZoomEnabledDoNotUseDirectly();
+  } else {
     return false;
   }
-#endif
-#ifdef MOZ_WIDGET_ANDROID
+#elif defined(MOZ_WIDGET_ANDROID)
   return true;
 #else
   return gfxPrefs::AsyncPanZoomEnabledDoNotUseDirectly();
@@ -2464,13 +2415,6 @@ gfxPlatform::NotifyCompositorCreated(LayersBackend aBackend)
 
   // Set the backend before we notify so it's available immediately.
   mCompositorBackend = aBackend;
-
-  // Notify that we created a compositor, so telemetry can update.
-  NS_DispatchToMainThread(NS_NewRunnableFunction([] {
-    if (nsCOMPtr<nsIObserverService> obsvc = services::GetObserverService()) {
-      obsvc->NotifyObservers(nullptr, "compositor:created", nullptr);
-    }
-  }));
 }
 
 void

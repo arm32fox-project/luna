@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2008 Mozilla Foundation
+ * Copyright (c) 2019 Moonchild Productions
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -51,10 +52,11 @@ class nsHtml5ArrayCopy {
       memcpy(target, source, size_t(length) * sizeof(int32_t));
     }
 
-    static inline void
-    arraycopy(nsString** source, nsString** target, int32_t length)
+    static inline void arraycopy(nsHtml5String* source,
+                                 nsHtml5String* target,
+                                 int32_t length)
     {
-      memcpy(target, source, size_t(length) * sizeof(nsString*));
+      memcpy(target, source, size_t(length) * sizeof(nsHtml5String));
     }
 
     static inline void

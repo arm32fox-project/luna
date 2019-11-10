@@ -46,8 +46,6 @@ EXTRA_JS_MODULES += [
     'FinderIterator.jsm',
     'FormLikeFactory.jsm',
     'Geometry.jsm',
-    'GMPInstallManager.jsm',
-    'GMPUtils.jsm',
     'Http.jsm',
     'InlineSpellChecker.jsm',
     'InlineSpellCheckerContent.jsm',
@@ -94,7 +92,6 @@ EXTRA_JS_MODULES += [
     'Sqlite.jsm',
     'Task.jsm',
     'Timer.jsm',
-    'UpdateUtils.jsm',
     'WebChannel.jsm',
     'WindowDraggingUtils.jsm',
     'ZipUtils.jsm',
@@ -105,10 +102,8 @@ EXTRA_JS_MODULES.sessionstore += ['sessionstore/Utils.jsm']
 EXTRA_PP_JS_MODULES += [
     'NewTabUtils.jsm',
     'Troubleshoot.jsm',
+    'UpdateUtils.jsm',
 ]
-
-if not CONFIG['MOZ_WEBEXTENSIONS']:
-  EXTRA_PP_JS_MODULES += ['UpdateChannel.jsm']
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] in ('windows', 'cocoa'):
     DEFINES['CAN_DRAW_IN_TITLEBAR'] = 1
@@ -155,8 +150,7 @@ for var in ('ANDROID_PACKAGE_NAME',
 for var in ('MOZ_TOOLKIT_SEARCH',
             'MOZ_SYSTEM_NSS',
             'MOZ_UPDATER',
-            'MOZ_SWITCHBOARD',
-            'MOZ_SERVICES_CLOUDSYNC'):
+            'MOZ_SWITCHBOARD'):
     if CONFIG[var]:
         DEFINES[var] = True
 

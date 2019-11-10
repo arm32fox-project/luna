@@ -1281,17 +1281,7 @@
      *   Stack: receiver, obj, propval => obj[propval]
      */ \
     macro(JSOP_GETELEM_SUPER, 125, "getelem-super", NULL, 1,  3,  1, JOF_BYTE |JOF_ELEM|JOF_LEFTASSOC) \
-    /*
-     * Pushes newly created array for a spread call onto the stack. This has
-     * the same semantics as JSOP_NEWARRAY, but is distinguished to avoid
-     * using unboxed arrays in spread calls, which would make compiling spread
-     * calls in baseline more complex.
-     *   Category: Literals
-     *   Type: Array
-     *   Operands: uint32_t length
-     *   Stack: => obj
-     */ \
-    macro(JSOP_SPREADCALLARRAY, 126, "spreadcallarray", NULL, 5,  0,  1, JOF_UINT32) \
+    macro(JSOP_UNUSED126, 126, "unused126", NULL, 5,  0,  1, JOF_UINT32) \
     \
     /*
      * Defines the given function on the current scope.
@@ -2292,14 +2282,23 @@
      *   Operands:
      *   Stack: =>
      */ \
-    macro(JSOP_JUMPTARGET,  230, "jumptarget",     NULL,  1,  0,  0,  JOF_BYTE)
+    macro(JSOP_JUMPTARGET,  230, "jumptarget",     NULL,  1,  0,  0,  JOF_BYTE)\
+    /*
+     * Like JSOP_CALL, but tells the function that the return value is ignored.
+     * stack.
+     *   Category: Statements
+     *   Type: Function
+     *   Operands: uint16_t argc
+     *   Stack: callee, this, args[0], ..., args[argc-1] => rval
+     *   nuses: (argc+2)
+     */ \
+    macro(JSOP_CALL_IGNORES_RV, 231, "call-ignores-rv", NULL, 3, -1, 1, JOF_UINT16|JOF_INVOKE|JOF_TYPESET)
 
 /*
  * In certain circumstances it may be useful to "pad out" the opcode space to
  * a power of two.  Use this macro to do so.
  */
 #define FOR_EACH_TRAILING_UNUSED_OPCODE(macro) \
-    macro(231) \
     macro(232) \
     macro(233) \
     macro(234) \

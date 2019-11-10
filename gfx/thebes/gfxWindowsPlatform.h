@@ -225,8 +225,6 @@ public:
     }
     bool SupportsPluginDirectDXGIDrawing();
 
-    static void RecordContentDeviceFailure(mozilla::gfx::TelemetryDeviceCode aDevice);
-
 protected:
     bool AccelerateLayersByDefault() override {
       return true;

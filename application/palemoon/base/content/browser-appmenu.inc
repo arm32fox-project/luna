@@ -341,7 +341,7 @@
       <splitmenu id="appmenu_help"
                  label="&helpMenu.label;"
                  oncommand="openHelpLink('firefox-help')">
-          <menupopup id="appmenu_helpMenupopup">
+          <menupopup id="appmenu_helpMenupopup" onpopupshowing="buildHelpMenu();">
             <menuitem id="appmenu_openHelp"
                       label="&helpMenu.label;"
                       oncommand="openHelpLink('firefox-help')"
@@ -350,14 +350,26 @@
                       label="&helpTroubleshootingInfo.label;"
                       oncommand="openTroubleshootingPage()"
                       onclick="checkForMiddleClick(this,event);"/>
+            <menuitem id="appmenu_safeMode"
+                      label="&appMenuSafeMode.label;"
+                      oncommand="restart(true);"/>
+            <menuseparator/>
+            <menuitem id="appmenu_releaseNotes"
+                      accesskey="&helpReleaseNotes.accesskey;"
+                      label="&helpReleaseNotes.label;"
+                      oncommand="openReleaseNotes();"
+                      onclick="checkForMiddleClick(this, event);"/>
             <menuitem id="appmenu_feedbackPage"
                       label="&helpFeedbackPage.label;"
                       oncommand="openFeedbackPage()"
                       onclick="checkForMiddleClick(this, event);"/>
+#ifdef MOZ_UPDATER
             <menuseparator/>
-            <menuitem id="appmenu_safeMode"
-                      label="&appMenuSafeMode.label;"
-                      oncommand="restart(true);"/>
+            <menuitem id="appmenu_checkForUpdates"
+                      class="menuitem-iconic"
+                      label="&updateCmd.label;"
+                      oncommand="checkForUpdates();"/>
+#endif
             <menuseparator/>
             <menuitem id="appmenu_about"
                       label="&aboutProduct.label;"

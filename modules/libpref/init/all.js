@@ -23,7 +23,7 @@ pref("keyword.enabled", false);
 pref("general.useragent.locale", "chrome://global/locale/intl.properties");
 pref("general.useragent.compatMode.gecko", false);
 pref("general.useragent.compatMode.firefox", false);
-pref("general.useragent.compatMode.version", "52.9");
+pref("general.useragent.compatMode.version", "60.9");
 pref("general.useragent.appVersionIsBuildID", false);
 
 // This pref exists only for testing purposes. In order to disable all
@@ -117,6 +117,9 @@ pref("browser.cache.compression_level", 0);
 // Don't show "Open with" option on download dialog if true.
 pref("browser.download.forbid_open_with", false);
 
+// Save download locations as a content preference
+pref("browser.download.lastDir.savePerSite", true);
+
 #ifdef XP_WIN
 // Save internet zone information on downloaded files:
 // 0 => Never
@@ -128,8 +131,6 @@ pref("browser.download.saveZoneInformation", 2);
 // Whether or not testing features are enabled.
 pref("dom.quotaManager.testing", false);
 
-// Whether or not indexedDB is enabled.
-pref("dom.indexedDB.enabled", true);
 // Whether or not indexedDB experimental features are enabled.
 pref("dom.indexedDB.experimental", false);
 // Enable indexedDB logging.
@@ -211,8 +212,8 @@ pref("dom.enable_performance_observer", false);
 pref("dom.requestIdleCallback.enabled", true);
 
 // Enable Intersection Observers
-// See WD https://w3c.github.io/IntersectionObserver/
-pref("dom.IntersectionObserver.enabled", false);
+// See WD https://www.w3.org/TR/intersection-observer/
+pref("dom.intersectionObserver.enabled", true);
 
 // Whether the Gamepad API is enabled
 pref("dom.gamepad.enabled", true);
@@ -247,6 +248,10 @@ pref("dom.compartment_per_addon", true);
 // of content viewers to cache based on the amount of available memory.
 pref("browser.sessionhistory.max_total_viewers", -1);
 
+// Whether to store 'about:newtab' in the session history, disabled by default.
+// See https://github.com/MoonchildProductions/UXP/issues/719
+pref("browser.newtabpage.add_to_session_history", false);
+
 pref("ui.use_native_colors", true);
 pref("ui.click_hold_context_menus", false);
 // Duration of timeout of incremental search in menus (ms).  0 means infinite.
@@ -273,6 +278,9 @@ pref("browser.display.show_image_placeholders", true);
 pref("browser.display.show_loading_image_placeholder", false);
 // min font device pixel size at which to turn on high quality
 pref("browser.display.auto_quality_min_font_size", 20);
+// Background color for standalone images; leave empty to use default
+// all CSS colors available: named colors, rgb(..), #rrggbb, ...
+pref("browser.display.standalone_images.background_color", "");
 pref("browser.anchor_color",                "#0000EE");
 pref("browser.active_color",                "#EE0000");
 pref("browser.visited_color",               "#551A8B");
@@ -354,9 +362,6 @@ pref("media.play-stand-alone", true);
 pref("media.hardware-video-decoding.enabled", true);
 pref("media.hardware-video-decoding.force-enabled", false);
 
-#ifdef MOZ_DIRECTSHOW
-pref("media.directshow.enabled", true);
-#endif
 #ifdef MOZ_FMP4
 pref("media.mp4.enabled", true);
 // Specifies whether the PDMFactory can create a test decoder that
@@ -577,6 +582,10 @@ pref("media.mediasource.webm.enabled", true);
 #endif
 pref("media.mediasource.webm.audio.enabled", true);
 
+#ifdef MOZ_AV1
+pref("media.av1.enabled", false);
+#endif
+
 // Use new MediaFormatReader architecture for plain ogg.
 pref("media.flac.enabled", true);
 pref("media.ogg.flac.enabled", true);
@@ -698,6 +707,10 @@ pref("apz.y_skate_size_multiplier", "1.5");
 pref("apz.y_stationary_size_multiplier", "1.5");
 #endif
 
+#if !defined(MOZ_WIDGET_ANDROID) && !defined(MOZ_WIDGET_UIKIT)
+pref("apz.desktop.enabled", false);
+#endif
+
 #ifdef XP_MACOSX
 // Whether to run in native HiDPI mode on machines with "Retina"/HiDPI display;
 //   <= 0 : hidpi mode disabled, display will just use pixel-based upscaling
@@ -719,12 +732,19 @@ pref("gfx.layerscope.port", 23456);
 // This should be use to quickly find which slow paths are used by test cases.
 pref("gfx.perf-warnings.enabled", false);
 
-// 0 = Off, 1 = Full, 2 = Tagged Images Only.
+// Color Management System
+// 0 = Off, 1 = All Images, 2 = Tagged Images Only.
 // See eCMSMode in gfx/thebes/gfxPlatform.h
+// Enabled by default on Windows and Mac, disabled elsewhere
+#if defined(XP_WIN) || defined(XP_MACOSX)
 pref("gfx.color_management.mode", 2);
+#else
+pref("gfx.color_management.mode", 0);
+#endif
 pref("gfx.color_management.display_profile", "");
 pref("gfx.color_management.rendering_intent", 0);
-pref("gfx.color_management.enablev4", false);
+pref("gfx.color_management.enablev4", true);
+
 
 pref("gfx.downloadable_fonts.enabled", true);
 pref("gfx.downloadable_fonts.fallback_delay", 3000);
@@ -901,6 +921,7 @@ pref("findbar.highlightAll", false);
 pref("findbar.modalHighlight", false);
 pref("findbar.entireword", false);
 pref("findbar.iteratorTimeout", 100);
+pref("findbar.termPerTab", false);
 
 // use Mac OS X Appearance panel text smoothing setting when rendering text, disabled by default
 pref("gfx.use_text_smoothing_setting", false);
@@ -919,16 +940,16 @@ pref("toolkit.scrollbox.clickToScroll.scrollDelay", 150);
 
 // Telemetry settings.
 // Server to submit telemetry pings to.
-pref("toolkit.telemetry.server", "https://incoming.telemetry.mozilla.org");
+pref("toolkit.telemetry.server", "");
 // Telemetry server owner. Please change if you set toolkit.telemetry.server to a different server
-pref("toolkit.telemetry.server_owner", "Mozilla");
+pref("toolkit.telemetry.server_owner", "");
 // Information page about telemetry (temporary ; will be about:telemetry in the end)
-pref("toolkit.telemetry.infoURL", "https://www.mozilla.org/legal/privacy/firefox.html#telemetry");
+pref("toolkit.telemetry.infoURL", "");
 // Determines whether full SQL strings are returned when they might contain sensitive info
 // i.e. dynamically constructed SQL strings or SQL executed by addons against addon DBs
 pref("toolkit.telemetry.debugSlowSql", false);
 // Whether to use the unified telemetry behavior, requires a restart.
-pref("toolkit.telemetry.unified", true);
+pref("toolkit.telemetry.unified", false);
 
 // Identity module
 pref("toolkit.identity.enabled", false);
@@ -941,6 +962,9 @@ pref("toolkit.asyncshutdown.log", false);
 
 // Enable deprecation warnings.
 pref("devtools.errorconsole.deprecation_warnings", true);
+
+// Enable performance warnings.
+pref("devtools.errorconsole.performance_warnings", true);
 
 // Disable debugging chrome
 pref("devtools.chrome.enabled", false);
@@ -1274,7 +1298,7 @@ pref("javascript.options.mem.high_water_mark", 128);
 pref("javascript.options.mem.max", -1);
 pref("javascript.options.mem.gc_per_zone", true);
 pref("javascript.options.mem.gc_incremental", true);
-pref("javascript.options.mem.gc_incremental_slice_ms", 10);
+pref("javascript.options.mem.gc_incremental_slice_ms", 20);
 pref("javascript.options.mem.gc_generational", true);
 pref("javascript.options.mem.gc_compacting", true);
 pref("javascript.options.mem.log", false);
@@ -1302,12 +1326,7 @@ pref("javascript.options.mem.gc_max_empty_chunk_count", 30);
 
 pref("javascript.options.showInConsole", false);
 
-#ifdef RELEASE_OR_BETA
-// Disabled in Beta and Release for now, see bug 1225406
-pref("javascript.options.shared_memory", false);
-#else
 pref("javascript.options.shared_memory", true);
-#endif
 
 pref("javascript.options.throw_on_debuggee_would_run", false);
 pref("javascript.options.dump_stack_on_debuggee_would_run", false);
@@ -1318,6 +1337,10 @@ pref("image.animation_mode",                "normal");
 
 // Same-origin policy for file URIs, "false" is traditional
 pref("security.fileuri.strict_origin_policy", true);
+
+// Treat all file URIs as having a unique origin.
+// Only has an effect if strict origin policy is true.
+pref("security.fileuri.unique_origin", true);
 
 // If this pref is true, prefs in the logging.config branch will be cleared on
 // startup. This is done so that setting a log-file and log-modules at runtime
@@ -1367,6 +1390,7 @@ pref("network.protocol-handler.external.vbscript", false);
 pref("network.protocol-handler.external.javascript", false);
 pref("network.protocol-handler.external.data", false);
 pref("network.protocol-handler.external.ms-help", false);
+pref("network.protocol-handler.external.res", false);
 pref("network.protocol-handler.external.shell", false);
 pref("network.protocol-handler.external.vnd.ms.radio", false);
 #ifdef XP_MACOSX
@@ -1457,7 +1481,10 @@ pref("network.http.request.max-start-delay", 10);
 pref("network.http.request.max-attempts", 10);
 
 // Headers
-pref("network.http.accept.default", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
+pref("network.http.accept.default", "*/*");
+pref("network.http.accept.navigation", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
+pref("network.http.accept.image", "image/png,image/svg+xml,image/*;q=0.8,*/*;q=0.5");
+pref("network.http.accept.style", "text/css,*/*;q=0.1");
 
 // Prefs allowing granular control of referers
 // 0=don't send any, 1=send only on clicks, 2=send on image requests as well
@@ -1576,7 +1603,10 @@ pref("network.http.spdy.default-hpack-buffer", 65536); // 64k
 // alt-svc allows separation of transport routing from
 // the origin host without using a proxy.
 pref("network.http.altsvc.enabled", true);
-pref("network.http.altsvc.oe", true);
+// Opportunistic encryption use of alt-svc
+pref("network.http.altsvc.oe", false);
+// Send upgrade-insecure-requests HTTP header?
+pref("network.http.upgrade-insecure-requests", false);
 
 pref("network.http.diagnostics", false);
 
@@ -1969,6 +1999,19 @@ pref("network.generic-ntlm-auth.workstation", "WORKSTATION");
 //   2 - allow the cross-origin authentication as well.
 pref("network.auth.subresource-http-auth-allow", 2);
 
+// Sub-resources HTTP-authentication for cross-origin images:
+// true - presenting the http auth. dialog for cross-origin images is allowed.
+// false - suppress the http auth. dialog for cross-origin images.
+// If network.auth.subresource-http-auth-allow has a value of 0 or 1, this pref
+// does not have any effect.
+pref("network.auth.subresource-http-img-XO-auth", false);
+
+// Whether or not to show anti-spoof confirmation prompts when navigating to a
+// URL with user info.
+// true - display extra confirmation prompt ("You are about to log in to...")
+// false - do not display extra confirmation prompt (default)
+pref("network.auth.confirmAuth.enabled", false);
+
 // This preference controls whether to allow sending default credentials (SSO) to
 // NTLM/Negotiate servers allowed in the "trusted uri" list when navigating them
 // in a Private Browsing window.
@@ -2018,6 +2061,8 @@ pref("network.proxy.autoconfig_url.include_path", false);
 pref("network.proxy.autoconfig_retry_interval_min", 5);    // 5 seconds
 pref("network.proxy.autoconfig_retry_interval_max", 300);  // 5 minutes
 
+// Master switch for HSTS usage (security <-> privacy tradeoff)
+pref("network.stricttransportsecurity.enabled", true);
 // Use the HSTS preload list by default
 pref("network.stricttransportsecurity.preloadlist", true);
 
@@ -2201,6 +2246,11 @@ pref("ui.key.contentAccess", 5);
 
 pref("ui.key.menuAccessKeyFocuses", false); // overridden below
 pref("ui.key.saveLink.shift", true); // true = shift, false = meta
+
+// When true, overrides Windows OS convention to lock content scrolling
+// if a contextual menu is open.
+// XXX: Only effective on Windows for now!
+pref("ui.menu.allow_content_scroll", true);
 
 // Disable page loading activity cursor by default.
 pref("ui.use_activity_cursor", false);
@@ -2416,7 +2466,7 @@ pref("layout.word_select.stop_at_punctuation", true);
 pref("layout.selection.caret_style", 0);
 
 // pref to report CSS errors to the error console
-pref("layout.css.report_errors", true);
+pref("layout.css.report_errors", false);
 
 // Should the :visited selector ever match (otherwise :link matches instead)?
 pref("layout.css.visited_links_enabled", true);
@@ -3975,6 +4025,12 @@ pref("autocomplete.ungrab_during_mode_switch", true);
 // toggling to use the XUL filepicker
 pref("ui.allow_platform_file_picker", true);
 
+// Allow for using the native GTK file picker. If the application is not run
+// with GTK_USE_PORTAL=1 this pref has no effect.
+#ifdef MOZ_WIDGET_GTK
+pref("widget.allow-gtk-native-file-chooser", false);
+#endif
+
 pref("helpers.global_mime_types_file", "/etc/mime.types");
 pref("helpers.global_mailcap_file", "/etc/mailcap");
 pref("helpers.private_mime_types_file", "~/.mime.types");
@@ -4873,30 +4929,6 @@ pref("dom.browserElement.maxScreenshotDelayMS", 2000);
 // Whether we should show the placeholder when the element is focused but empty.
 pref("dom.placeholder.show_on_focus", true);
 
-// VR is disabled by default in release and enabled for nightly and aurora
-#ifdef RELEASE_OR_BETA
-pref("dom.vr.enabled", false);
-#else
-pref("dom.vr.enabled", true);
-#endif
-pref("dom.vr.oculus.enabled", true);
-// OSVR device
-pref("dom.vr.osvr.enabled", false);
-// OpenVR device
-pref("dom.vr.openvr.enabled", false);
-// Pose prediction reduces latency effects by returning future predicted HMD
-// poses to callers of the WebVR API.  This currently only has an effect for
-// Oculus Rift on SDK 0.8 or greater.  It is disabled by default for now due to
-// frame uniformity issues with e10s.
-pref("dom.vr.poseprediction.enabled", false);
-// path to openvr DLL
-pref("gfx.vr.openvr-runtime", "");
-// path to OSVR DLLs
-pref("gfx.vr.osvr.utilLibPath", "");
-pref("gfx.vr.osvr.commonLibPath", "");
-pref("gfx.vr.osvr.clientLibPath", "");
-pref("gfx.vr.osvr.clientKitLibPath", "");
-
 // MMS UA Profile settings
 pref("wap.UAProf.url", "");
 pref("wap.UAProf.tagname", "x-wap-profile");
@@ -4955,7 +4987,7 @@ pref("network.captive-portal-service.maxInterval", 1500000); // 25 minutes
 pref("network.captive-portal-service.backoffFactor", "5.0");
 pref("network.captive-portal-service.enabled", false);
 
-pref("captivedetect.canonicalURL", "http://detectportal.firefox.com/success.txt");
+pref("captivedetect.canonicalURL", "http://detectportal.palemoon.org/success.txt");
 pref("captivedetect.canonicalContent", "success\n");
 pref("captivedetect.maxWaitingTime", 5000);
 pref("captivedetect.pollingTime", 3000);
@@ -5144,9 +5176,6 @@ pref("layout.accessiblecaret.hide_carets_for_mouse_input", true);
 // Wakelock is disabled by default.
 pref("dom.wakelock.enabled", false);
 
-// The URL of the Firefox Accounts auth server backend
-pref("identity.fxaccounts.auth.uri", "https://api.accounts.firefox.com/v1");
-
 // disable mozsample size for now
 pref("image.mozsamplesize.enabled", false);
 
@@ -5196,6 +5225,9 @@ pref("intl.allow-insecure-text-input", false);
 // Enable meta-viewport support in remote APZ-enabled frames.
 pref("dom.meta-viewport.enabled", false);
 
+// Disable <meta http-equiv=set-cookie> support. See m-c bug 1457503 / UXP #1102.
+pref("dom.meta-set-cookie.enabled", false);
+
 // MozSettings debugging prefs for each component
 pref("dom.mozSettings.SettingsDB.debug.enabled", false);
 pref("dom.mozSettings.SettingsManager.debug.enabled", false);
@@ -5229,9 +5261,6 @@ pref("browser.search.update.interval", 21600);
 pref("browser.search.suggest.enabled", true);
 pref("browser.search.reset.enabled", false);
 pref("browser.search.reset.whitelist", "");
-pref("browser.search.geoSpecificDefaults", false);
-pref("browser.search.geoip.url", "https://location.services.mozilla.com/v1/country?key=%MOZILLA_API_KEY%");
-pref("browser.search.geoip.timeout", 3000);
 
 #ifdef MOZ_OFFICIAL_BRANDING
 // {moz:official} expands to "official"
@@ -5244,7 +5273,7 @@ pref("browser.search.official", true);
 //pref("media.gmp-manager.url.override", "");
 
 // Update service URL for GMP install/updates:
-pref("media.gmp-manager.url", "https://aus5.mozilla.org/update/3/GMP/55.0/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/update.xml");
+pref("media.gmp-manager.url", "https://aus5.mozilla.org/update/3/GMP/60.0/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/update.xml");
 
 // When |media.gmp-manager.cert.requireBuiltIn| is true or not specified the
 // final certificate and all certificates the connection is redirected to before
@@ -5384,6 +5413,9 @@ pref("plugins.navigator_hide_disabled_flash", false);
 // Disable browser frames by default
 pref("dom.mozBrowserFramesEnabled", false);
 
+// Thick caret when behind CJK characters
+pref("layout.cjkthickcaret", true); 
+
 // Is support for 'color-adjust' CSS property enabled?
 pref("layout.css.color-adjust.enabled", true);
 
@@ -5438,6 +5470,9 @@ pref("layout.css.servo.enabled", true);
 // URL-Bar will not be blocked when flipping this pref.
 pref("security.data_uri.block_toplevel_data_uri_navigations", true);
 
+// If true, all FTP subresource loads will be blocked.
+pref("security.block_ftp_subresources", true);
+
 // Disable Storage api in release builds.
 #ifdef NIGHTLY_BUILD
 pref("dom.storageManager.enabled", true);
@@ -5445,11 +5480,9 @@ pref("dom.storageManager.enabled", true);
 pref("dom.storageManager.enabled", false);
 #endif
 
-// When a user cancels this number of authentication dialogs coming from
-// a single web page in a row, all following authentication dialogs will
-// be blocked (automatically canceled) for that page. The counter resets
-// when the page is reloaded. To turn this feature off, just set the limit to 0.
-pref("prompts.authentication_dialog_abuse_limit", 3);
-
-// Whether module scripts (<script type="module">) are enabled for content.
-pref("dom.moduleScripts.enabled", false);
+// DoS protection for HTTP Auth prompt spawning.
+// -1 = completely disable HTTP Auth prompting. (careful!)
+// 0  = disable this DoS protection
+// >0 = suppress further prompts after the user has canceled the dialog n times
+// See application preferences for appropriate defaults.
+pref("prompts.authentication_dialog_abuse_limit", 0);

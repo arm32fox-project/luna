@@ -1,48 +1,16 @@
-/* -*- Mode: c; tab-width: 8; c-basic-offset: 4; indent-tabs-mode: t; -*- */
-/* Cairo - a vector graphics library with display and print output
- *
- * Copyright © 2005 Red Hat, Inc.
- *
- * This library is free software; you can redistribute it and/or
- * modify it either under the terms of the GNU Lesser General Public
- * License version 2.1 as published by the Free Software Foundation
- * (the "LGPL") or, at your option, under the terms of the Mozilla
- * Public License Version 1.1 (the "MPL"). If you do not alter this
- * notice, a recipient may use your version of this file under either
- * the MPL or the LGPL.
- *
- * You should have received a copy of the LGPL along with this library
- * in the file COPYING-LGPL-2.1; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Suite 500, Boston, MA 02110-1335, USA
- * You should have received a copy of the MPL along with this library
- * in the file COPYING-MPL-1.1
- *
- * The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY
- * OF ANY KIND, either express or implied. See the LGPL or the MPL for
- * the specific language governing rights and limitations.
- *
- * The Original Code is the cairo graphics library.
- *
- * The Initial Developer of the Original Code is Red Hat, Inc.
- *
- * Contributor(s):
- *	Owen Taylor <otaylor@redhat.com>
- *	Stuart Parmenter <stuart@mozilla.com>
- *	Vladimir Vukicevic <vladimir@pobox.com>
- */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#define WIN32_LEAN_AND_MEAN
-/* We require Windows 2000 features such as ETO_PDY */
-#if !defined(WINVER) || (WINVER < 0x0500)
-# define WINVER 0x0500
+#ifndef WIN32_LEAN_AND_MEAN
+# define WIN32_LEAN_AND_MEAN
 #endif
-#if !defined(_WIN32_WINNT) || (_WIN32_WINNT < 0x0500)
-# define _WIN32_WINNT 0x0500
+/* We require at least Windows 7 features */
+#if !defined(WINVER) || (WINVER < 0x0601)
+# define WINVER 0x0601
+#endif
+#if !defined(_WIN32_WINNT) || (_WIN32_WINNT < 0x0601)
+# define _WIN32_WINNT 0x0601
 #endif
 
 #include "cairoint.h"
@@ -947,28 +915,14 @@ _composite_alpha_blend (cairo_win32_surface_t *dst,
 
     BLENDFUNCTION blend_function;
 
-    /* Check for AlphaBlend dynamically to allow compiling on
-     * MSVC 6 and use on older windows versions
-     */
+    /* Check for AlphaBlend dynamically */
     if (!alpha_blend_checked) {
-	OSVERSIONINFO os;
-
-	os.dwOSVersionInfoSize = sizeof (os);
-	GetVersionEx (&os);
-
-	/* If running on Win98, disable using AlphaBlend()
-	 * to avoid Win98 AlphaBlend() bug */
-	if (VER_PLATFORM_WIN32_WINDOWS != os.dwPlatformId ||
-	    os.dwMajorVersion != 4 || os.dwMinorVersion != 10)
-	{
 	    HMODULE msimg32_dll = LoadLibraryW (L"msimg32");
 
 	    if (msimg32_dll != NULL)
 		alpha_blend = (cairo_alpha_blend_func_t)GetProcAddress (msimg32_dll,
 									"AlphaBlend");
-	}
-
-	alpha_blend_checked = TRUE;
+		alpha_blend_checked = TRUE;
     }
 
     if (alpha_blend == NULL)

@@ -108,7 +108,6 @@ user_pref("extensions.update.background.url", "http://%(server)s/extensions-dumm
 user_pref("extensions.blocklist.detailsURL", "http://%(server)s/extensions-dummy/blocklistDetailsURL");
 user_pref("extensions.blocklist.itemURL", "http://%(server)s/extensions-dummy/blocklistItemURL");
 user_pref("extensions.blocklist.url", "http://%(server)s/extensions-dummy/blocklistURL");
-user_pref("extensions.hotfix.url", "http://%(server)s/extensions-dummy/hotfixURL");
 user_pref("extensions.systemAddon.update.url", "http://%(server)s/dummy-system-addons.xml");
 // Turn off extension updates so they don't bother tests
 user_pref("extensions.update.enabled", false);
@@ -258,21 +257,6 @@ user_pref('toolkit.telemetry.server', 'https://%(server)s/telemetry-dummy/');
 user_pref('toolkit.telemetry.test.pref1', true);
 user_pref('toolkit.telemetry.test.pref2', false);
 
-// We don't want to hit the real Firefox Accounts server for tests.  We don't
-// actually need a functioning FxA server, so just set it to something that
-// resolves and accepts requests, even if they all fail.
-user_pref('identity.fxaccounts.auth.uri', 'https://%(server)s/fxa-dummy/');
-
-// Ditto for all the other Firefox accounts URIs used for about:accounts et al.:
-user_pref("identity.fxaccounts.remote.signup.uri", "https://%(server)s/fxa-signup");
-user_pref("identity.fxaccounts.remote.force_auth.uri", "https://%(server)s/fxa-force-auth");
-user_pref("identity.fxaccounts.remote.signin.uri", "https://%(server)s/fxa-signin");
-user_pref("identity.fxaccounts.settings.uri", "https://%(server)s/fxa-settings");
-user_pref('identity.fxaccounts.remote.webchannel.uri', 'https://%(server)s/');
-
-// We don't want browser tests to perform FxA device registration.
-user_pref('identity.fxaccounts.skipDeviceRegistration', true);
-
 // Increase the APZ content response timeout in tests to 1 minute.
 // This is to accommodate the fact that test environments tends to be slower
 // than production environments (with the b2g emulator being the slowest of them
@@ -283,12 +267,6 @@ user_pref("apz.content_response_timeout", 60000);
 
 // Make sure SSL Error reports don't hit the network
 user_pref("security.ssl.errorReporting.url", "https://example.com/browser/browser/base/content/test/general/ssl_error_reports.sjs?succeed");
-
-// Make sure Translation won't hit the network.
-user_pref("browser.translation.bing.authURL", "http://%(server)s/browser/browser/components/translation/test/bing.sjs");
-user_pref("browser.translation.bing.translateArrayURL", "http://%(server)s/browser/browser/components/translation/test/bing.sjs");
-user_pref("browser.translation.yandex.translateURLOverride", "http://%(server)s/browser/browser/components/translation/test/yandex.sjs");
-user_pref("browser.translation.engine", "bing");
 
 // Make sure we don't try to load snippets from the network.
 user_pref("browser.aboutHomeSnippets.updateUrl", "nonexistent://test");

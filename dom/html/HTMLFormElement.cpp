@@ -38,7 +38,6 @@
 // form submission
 #include "HTMLFormSubmissionConstants.h"
 #include "mozilla/dom/FormData.h"
-#include "mozilla/Telemetry.h"
 #include "nsIFormSubmitObserver.h"
 #include "nsIObserverService.h"
 #include "nsICategoryManager.h"
@@ -52,7 +51,6 @@
 #include "nsIWebProgress.h"
 #include "nsIDocShell.h"
 #include "nsIPrompt.h"
-#include "nsISecurityUITelemetry.h"
 #include "nsIStringBundle.h"
 
 // radio buttons
@@ -955,15 +953,6 @@ HTMLFormElement::DoSecureToInsecureSubmitCheck(nsIURI* aActionURL,
     return rv;
   }
   *aCancelSubmit = (buttonPressed == 1);
-  uint32_t telemetryBucket =
-    nsISecurityUITelemetry::WARNING_CONFIRM_POST_TO_INSECURE_FROM_SECURE;
-  mozilla::Telemetry::Accumulate(mozilla::Telemetry::SECURITY_UI,
-                                 telemetryBucket);
-  if (!*aCancelSubmit) {
-    // The user opted to continue, so note that in the next telemetry bucket.
-    mozilla::Telemetry::Accumulate(mozilla::Telemetry::SECURITY_UI,
-                                   telemetryBucket + 1);
-  }
   return NS_OK;
 }
 

@@ -30,7 +30,6 @@
 #include "jit/shared/Lowering-shared-inl.h"
 #include "vm/NativeObject-inl.h"
 #include "vm/StringObject-inl.h"
-#include "vm/UnboxedObject-inl.h"
 
 using mozilla::ArrayLength;
 using mozilla::AssertedCast;
@@ -86,8 +85,6 @@ IonBuilder::inlineNativeCall(CallInfo& callInfo, JSFunction* target)
         return inlineArrayPush(callInfo);
       case InlinableNative::ArraySlice:
         return inlineArraySlice(callInfo);
-      case InlinableNative::ArraySplice:
-        return inlineArraySplice(callInfo);
 
       // Atomic natives.
       case InlinableNative::AtomicsCompareExchange:
@@ -473,11 +470,6 @@ IonBuilder::inlineArray(CallInfo& callInfo)
         return InliningStatus_NotInlined;
     }
 
-    if (templateObject->is<UnboxedArrayObject>()) {
-        if (templateObject->group()->unboxedLayout().nativeGroup())
-            return InliningStatus_NotInlined;
-    }
-
     // Multiple arguments imply array initialization, not just construction.
     if (callInfo.argc() >= 2) {
         initLength = callInfo.argc();
@@ -525,7 +517,7 @@ IonBuilder::inlineArray(CallInfo& callInfo)
         // Make sure initLength matches the template object's length. This is
         // not guaranteed to be the case, for instance if we're inlining the
         // MConstant may come from an outer script.
-        if (initLength != GetAnyBoxedOrUnboxedArrayLength(templateObject))
+        if (initLength != templateObject->as<ArrayObject>().length())
             return InliningStatus_NotInlined;
 
         // Don't inline large allocations.
@@ -540,16 +532,15 @@ IonBuilder::inlineArray(CallInfo& callInfo)
 
     MDefinition* array = current->peek(-1);
     if (callInfo.argc() >= 2) {
-        JSValueType unboxedType = GetBoxedOrUnboxedType(templateObject);
         for (uint32_t i = 0; i < initLength; i++) {
             if (!alloc().ensureBallast())
                 return InliningStatus_Error;
             MDefinition* value = callInfo.getArg(i);
-            if (!initializeArrayElement(array, i, value, unboxedType, /* addResumePoint = */ false))
+            if (!initializeArrayElement(array, i, value, /* addResumePoint = */ false))
                 return InliningStatus_Error;
         }
 
-        MInstruction* setLength = setInitializedLength(array, unboxedType, initLength);
+        MInstruction* setLength = setInitializedLength(array, initLength);
         if (!resumeAfter(setLength))
             return InliningStatus_Error;
     }
@@ -582,7 +573,7 @@ IonBuilder::inlineArrayIsArray(CallInfo& callInfo)
         if (!clasp || clasp->isProxy())
             return InliningStatus_NotInlined;
 
-        isArray = (clasp == &ArrayObject::class_ || clasp == &UnboxedArrayObject::class_);
+        isArray = (clasp == &ArrayObject::class_);
     }
 
     pushConstant(BooleanValue(isArray));
@@ -613,34 +604,27 @@ IonBuilder::inlineArrayPopShift(CallInfo& callInfo, MArrayPopShift::Mode mode)
         OBJECT_FLAG_LENGTH_OVERFLOW |
         OBJECT_FLAG_ITERATED;
 
-    MDefinition* obj = convertUnboxedObjects(callInfo.thisArg());
+    MDefinition* obj = callInfo.thisArg();
     TemporaryTypeSet* thisTypes = obj->resultTypeSet();
     if (!thisTypes)
         return InliningStatus_NotInlined;
     const Class* clasp = thisTypes->getKnownClass(constraints());
-    if (clasp != &ArrayObject::class_ && clasp != &UnboxedArrayObject::class_)
+    if (clasp != &ArrayObject::class_)
         return InliningStatus_NotInlined;
     if (thisTypes->hasObjectFlags(constraints(), unhandledFlags)) {
         trackOptimizationOutcome(TrackedOutcome::ArrayBadFlags);
         return InliningStatus_NotInlined;
     }
 
-    if (ArrayPrototypeHasIndexedProperty(this, script())) {
+    // Watch out for extra indexed properties on the object or its prototype.
+    if (ElementAccessHasExtraIndexedProperty(this, obj)) {
         trackOptimizationOutcome(TrackedOutcome::ProtoIndexedProps);
         return InliningStatus_NotInlined;
     }
 
-    JSValueType unboxedType = JSVAL_TYPE_MAGIC;
-    if (clasp == &UnboxedArrayObject::class_) {
-        unboxedType = UnboxedArrayElementType(constraints(), obj, nullptr);
-        if (unboxedType == JSVAL_TYPE_MAGIC)
-            return InliningStatus_NotInlined;
-    }
-
     callInfo.setImplicitlyUsedUnchecked();
 
-    if (clasp == &ArrayObject::class_)
-        obj = addMaybeCopyElementsForWrite(obj, /* checkNative = */ false);
+    obj = addMaybeCopyElementsForWrite(obj, /* checkNative = */ false);
 
     TemporaryTypeSet* returnTypes = getInlineReturnTypeSet();
     bool needsHoleCheck = thisTypes->hasObjectFlags(constraints(), OBJECT_FLAG_NON_PACKED);
@@ -651,8 +635,7 @@ IonBuilder::inlineArrayPopShift(CallInfo& callInfo, MArrayPopShift::Mode mode)
     if (barrier != BarrierKind::NoBarrier)
         returnType = MIRType::Value;
 
-    MArrayPopShift* ins = MArrayPopShift::New(alloc(), obj, mode,
-                                              unboxedType, needsHoleCheck, maybeUndefined);
+    MArrayPopShift* ins = MArrayPopShift::New(alloc(), obj, mode, needsHoleCheck, maybeUndefined);
     current->add(ins);
     current->push(ins);
     ins->setResultType(returnType);
@@ -663,46 +646,6 @@ IonBuilder::inlineArrayPopShift(CallInfo& callInfo, MArrayPopShift::Mode mode)
     if (!pushTypeBarrier(ins, returnTypes, barrier))
         return InliningStatus_Error;
 
-    return InliningStatus_Inlined;
-}
-
-IonBuilder::InliningStatus
-IonBuilder::inlineArraySplice(CallInfo& callInfo)
-{
-    if (callInfo.argc() != 2 || callInfo.constructing()) {
-        trackOptimizationOutcome(TrackedOutcome::CantInlineNativeBadForm);
-        return InliningStatus_NotInlined;
-    }
-
-    // Ensure |this|, argument and result are objects.
-    if (getInlineReturnType() != MIRType::Object)
-        return InliningStatus_NotInlined;
-    if (callInfo.thisArg()->type() != MIRType::Object)
-        return InliningStatus_NotInlined;
-    if (callInfo.getArg(0)->type() != MIRType::Int32)
-        return InliningStatus_NotInlined;
-    if (callInfo.getArg(1)->type() != MIRType::Int32)
-        return InliningStatus_NotInlined;
-
-    callInfo.setImplicitlyUsedUnchecked();
-
-    // Specialize arr.splice(start, deleteCount) with unused return value and
-    // avoid creating the result array in this case.
-    if (!BytecodeIsPopped(pc)) {
-        trackOptimizationOutcome(TrackedOutcome::CantInlineGeneric);
-        return InliningStatus_NotInlined;
-    }
-
-    MArraySplice* ins = MArraySplice::New(alloc(),
-                                          callInfo.thisArg(),
-                                          callInfo.getArg(0),
-                                          callInfo.getArg(1));
-
-    current->add(ins);
-    pushConstant(UndefinedValue());
-
-    if (!resumeAfter(ins))
-        return InliningStatus_Error;
     return InliningStatus_Inlined;
 }
 
@@ -741,7 +684,7 @@ IonBuilder::inlineArrayPush(CallInfo& callInfo)
         return InliningStatus_NotInlined;
     }
 
-    MDefinition* obj = convertUnboxedObjects(callInfo.thisArg());
+    MDefinition* obj = callInfo.thisArg();
     MDefinition* value = callInfo.getArg(0);
     if (PropertyWriteNeedsTypeBarrier(alloc(), constraints(), current,
                                       &obj, nullptr, &value, /* canModify = */ false))
@@ -759,16 +702,10 @@ IonBuilder::inlineArrayPush(CallInfo& callInfo)
     if (!thisTypes)
         return InliningStatus_NotInlined;
     const Class* clasp = thisTypes->getKnownClass(constraints());
-    if (clasp != &ArrayObject::class_ && clasp != &UnboxedArrayObject::class_)
+    if (clasp != &ArrayObject::class_)
         return InliningStatus_NotInlined;
-    if (thisTypes->hasObjectFlags(constraints(), OBJECT_FLAG_SPARSE_INDEXES |
-                                  OBJECT_FLAG_LENGTH_OVERFLOW))
-    {
-        trackOptimizationOutcome(TrackedOutcome::ArrayBadFlags);
-        return InliningStatus_NotInlined;
-    }
 
-    if (ArrayPrototypeHasIndexedProperty(this, script())) {
+    if (ElementAccessHasExtraIndexedProperty(this, obj)) {
         trackOptimizationOutcome(TrackedOutcome::ProtoIndexedProps);
         return InliningStatus_NotInlined;
     }
@@ -778,13 +715,6 @@ IonBuilder::inlineArrayPush(CallInfo& callInfo)
     if (conversion == TemporaryTypeSet::AmbiguousDoubleConversion) {
         trackOptimizationOutcome(TrackedOutcome::ArrayDoubleConversion);
         return InliningStatus_NotInlined;
-    }
-
-    JSValueType unboxedType = JSVAL_TYPE_MAGIC;
-    if (clasp == &UnboxedArrayObject::class_) {
-        unboxedType = UnboxedArrayElementType(constraints(), obj, nullptr);
-        if (unboxedType == JSVAL_TYPE_MAGIC)
-            return InliningStatus_NotInlined;
     }
 
     callInfo.setImplicitlyUsedUnchecked();
@@ -797,13 +727,12 @@ IonBuilder::inlineArrayPush(CallInfo& callInfo)
         value = valueDouble;
     }
 
-    if (unboxedType == JSVAL_TYPE_MAGIC)
-        obj = addMaybeCopyElementsForWrite(obj, /* checkNative = */ false);
+    obj = addMaybeCopyElementsForWrite(obj, /* checkNative = */ false);
 
     if (NeedsPostBarrier(value))
         current->add(MPostWriteBarrier::New(alloc(), obj, value));
 
-    MArrayPush* ins = MArrayPush::New(alloc(), obj, value, unboxedType);
+    MArrayPush* ins = MArrayPush::New(alloc(), obj, value);
     current->add(ins);
     current->push(ins);
 
@@ -820,7 +749,7 @@ IonBuilder::inlineArraySlice(CallInfo& callInfo)
         return InliningStatus_NotInlined;
     }
 
-    MDefinition* obj = convertUnboxedObjects(callInfo.thisArg());
+    MDefinition* obj = callInfo.thisArg();
 
     // Ensure |this| and result are objects.
     if (getInlineReturnType() != MIRType::Object)
@@ -844,24 +773,11 @@ IonBuilder::inlineArraySlice(CallInfo& callInfo)
         return InliningStatus_NotInlined;
 
     const Class* clasp = thisTypes->getKnownClass(constraints());
-    if (clasp != &ArrayObject::class_ && clasp != &UnboxedArrayObject::class_)
+    if (clasp != &ArrayObject::class_)
         return InliningStatus_NotInlined;
-    if (thisTypes->hasObjectFlags(constraints(), OBJECT_FLAG_SPARSE_INDEXES |
-                                  OBJECT_FLAG_LENGTH_OVERFLOW))
-    {
-        trackOptimizationOutcome(TrackedOutcome::ArrayBadFlags);
-        return InliningStatus_NotInlined;
-    }
 
-    JSValueType unboxedType = JSVAL_TYPE_MAGIC;
-    if (clasp == &UnboxedArrayObject::class_) {
-        unboxedType = UnboxedArrayElementType(constraints(), obj, nullptr);
-        if (unboxedType == JSVAL_TYPE_MAGIC)
-            return InliningStatus_NotInlined;
-    }
-
-    // Watch out for indexed properties on the prototype.
-    if (ArrayPrototypeHasIndexedProperty(this, script())) {
+    // Watch out for indexed properties on the object or its prototype.
+    if (ElementAccessHasExtraIndexedProperty(this, obj)) {
         trackOptimizationOutcome(TrackedOutcome::ProtoIndexedProps);
         return InliningStatus_NotInlined;
     }
@@ -880,15 +796,8 @@ IonBuilder::inlineArraySlice(CallInfo& callInfo)
     if (!templateObj)
         return InliningStatus_NotInlined;
 
-    if (unboxedType == JSVAL_TYPE_MAGIC) {
-        if (!templateObj->is<ArrayObject>())
-            return InliningStatus_NotInlined;
-    } else {
-        if (!templateObj->is<UnboxedArrayObject>())
-            return InliningStatus_NotInlined;
-        if (templateObj->as<UnboxedArrayObject>().elementType() != unboxedType)
-            return InliningStatus_NotInlined;
-    }
+    if (!templateObj->is<ArrayObject>())
+        return InliningStatus_NotInlined;
 
     callInfo.setImplicitlyUsedUnchecked();
 
@@ -907,16 +816,12 @@ IonBuilder::inlineArraySlice(CallInfo& callInfo)
 
         end = MArrayLength::New(alloc(), elements);
         current->add(end->toInstruction());
-    } else {
-        end = MUnboxedArrayLength::New(alloc(), obj);
-        current->add(end->toInstruction());
     }
 
     MArraySlice* ins = MArraySlice::New(alloc(), constraints(),
                                         obj, begin, end,
                                         templateObj,
-                                        templateObj->group()->initialHeap(constraints()),
-                                        unboxedType);
+                                        templateObj->group()->initialHeap(constraints()));
     current->add(ins);
     current->push(ins);
 
@@ -1435,7 +1340,7 @@ IonBuilder::inlineConstantStringSplitString(CallInfo& callInfo)
     // Check if exist a template object in stub.
     JSString* stringStr = nullptr;
     JSString* stringSep = nullptr;
-    JSObject* templateObject = nullptr;
+    ArrayObject* templateObject = nullptr;
     if (!inspector->isOptimizableCallStringSplit(pc, &stringStr, &stringSep, &templateObject))
         return InliningStatus_NotInlined;
 
@@ -1461,13 +1366,13 @@ IonBuilder::inlineConstantStringSplitString(CallInfo& callInfo)
     if (!key.maybeTypes()->hasType(TypeSet::StringType()))
         return InliningStatus_NotInlined;
 
-    uint32_t initLength = GetAnyBoxedOrUnboxedArrayLength(templateObject);
-    if (GetAnyBoxedOrUnboxedInitializedLength(templateObject) != initLength)
+    uint32_t initLength = templateObject->length();
+    if (templateObject->getDenseInitializedLength() != initLength)
         return InliningStatus_NotInlined;
 
     Vector<MConstant*, 0, SystemAllocPolicy> arrayValues;
     for (uint32_t i = 0; i < initLength; i++) {
-        Value str = GetAnyBoxedOrUnboxedDenseElement(templateObject, i);
+        Value str = templateObject->getDenseElement(i);
         MOZ_ASSERT(str.toString()->isAtom());
         MConstant* value = MConstant::New(alloc().fallible(), str, constraints());
         if (!value)
@@ -1498,8 +1403,6 @@ IonBuilder::inlineConstantStringSplitString(CallInfo& callInfo)
         return InliningStatus_Inlined;
     }
 
-    JSValueType unboxedType = GetBoxedOrUnboxedType(templateObject);
-
     // Store all values, no need to initialize the length after each as
     // jsop_initelem_array is doing because we do not expect to bailout
     // because the memory is supposed to be allocated by now.
@@ -1510,11 +1413,11 @@ IonBuilder::inlineConstantStringSplitString(CallInfo& callInfo)
         MConstant* value = arrayValues[i];
         current->add(value);
 
-        if (!initializeArrayElement(array, i, value, unboxedType, /* addResumePoint = */ false))
+        if (!initializeArrayElement(array, i, value, /* addResumePoint = */ false))
             return InliningStatus_Error;
     }
 
-    MInstruction* setLength = setInitializedLength(array, unboxedType, initLength);
+    MInstruction* setLength = setInitializedLength(array, initLength);
     if (!resumeAfter(setLength))
         return InliningStatus_Error;
 
@@ -2150,7 +2053,7 @@ IonBuilder::inlineDefineDataProperty(CallInfo& callInfo)
     if (callInfo.argc() != 3)
         return InliningStatus_NotInlined;
 
-    MDefinition* obj = convertUnboxedObjects(callInfo.getArg(0));
+    MDefinition* obj = callInfo.getArg(0);
     MDefinition* id = callInfo.getArg(1);
     MDefinition* value = callInfo.getArg(2);
 

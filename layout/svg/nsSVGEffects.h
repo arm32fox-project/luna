@@ -7,7 +7,7 @@
 #define NSSVGEFFECTS_H_
 
 #include "mozilla/Attributes.h"
-#include "FramePropertyTable.h"
+#include "FrameProperties.h"
 #include "mozilla/dom/Element.h"
 #include "nsHashKeys.h"
 #include "nsID.h"
@@ -626,11 +626,23 @@ public:
   static already_AddRefed<nsIURI>
   GetPaintURI(nsIFrame* aFrame, nsStyleSVGPaint nsStyleSVG::* aPaint);
 
-    /**
+  /**
    * A helper function to resolve SVG mask URL.
    */
   static already_AddRefed<nsIURI>
   GetMaskURI(nsIFrame* aFrame, uint32_t aIndex);
+
+  /**
+   * Return a baseURL for resolving a local-ref URL.
+   *
+   * @param aContent an element which uses a local-ref property. Here are some
+   *                 examples:
+   *                   <rect fill=url(#foo)>
+   *                   <circle clip-path=url(#foo)>
+   *                   <use xlink:href="#foo">
+   */
+  static already_AddRefed<nsIURI>
+  GetBaseURLForLocalRef(nsIContent* aContent, nsIURI* aDocURI);
 };
 
 #endif /*NSSVGEFFECTS_H_*/

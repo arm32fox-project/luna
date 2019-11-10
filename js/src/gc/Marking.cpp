@@ -18,6 +18,7 @@
 #include "builtin/ModuleObject.h"
 #include "gc/GCInternals.h"
 #include "gc/Policy.h"
+#include "gc/StoreBuffer-inl.h"
 #include "jit/IonCode.h"
 #include "js/SliceBudget.h"
 #include "vm/ArgumentsObject.h"
@@ -28,7 +29,6 @@
 #include "vm/Shape.h"
 #include "vm/Symbol.h"
 #include "vm/TypedArrayObject.h"
-#include "vm/UnboxedObject.h"
 #include "wasm/WasmJS.h"
 
 #include "jscompartmentinlines.h"
@@ -37,7 +37,6 @@
 
 #include "gc/Nursery-inl.h"
 #include "vm/String-inl.h"
-#include "vm/UnboxedObject-inl.h"
 
 using namespace js;
 using namespace js::gc;
@@ -1231,34 +1230,34 @@ BindingIter::trace(JSTracer* trc)
 void
 LexicalScope::Data::trace(JSTracer* trc)
 {
-    TraceBindingNames(trc, names, length);
+    TraceBindingNames(trc, trailingNames.start(), length);
 }
 void
 FunctionScope::Data::trace(JSTracer* trc)
 {
     TraceNullableEdge(trc, &canonicalFunction, "scope canonical function");
-    TraceNullableBindingNames(trc, names, length);
+    TraceNullableBindingNames(trc, trailingNames.start(), length);
 }
 void
 VarScope::Data::trace(JSTracer* trc)
 {
-    TraceBindingNames(trc, names, length);
+    TraceBindingNames(trc, trailingNames.start(), length);
 }
 void
 GlobalScope::Data::trace(JSTracer* trc)
 {
-    TraceBindingNames(trc, names, length);
+    TraceBindingNames(trc, trailingNames.start(), length);
 }
 void
 EvalScope::Data::trace(JSTracer* trc)
 {
-    TraceBindingNames(trc, names, length);
+    TraceBindingNames(trc, trailingNames.start(), length);
 }
 void
 ModuleScope::Data::trace(JSTracer* trc)
 {
     TraceNullableEdge(trc, &module, "scope module");
-    TraceBindingNames(trc, names, length);
+    TraceBindingNames(trc, trailingNames.start(), length);
 }
 void
 Scope::traceChildren(JSTracer* trc)
@@ -1302,13 +1301,13 @@ js::GCMarker::eagerlyMarkChildren(Scope* scope)
         traverseEdge(scope, static_cast<Scope*>(scope->enclosing_));
     if (scope->environmentShape_)
         traverseEdge(scope, static_cast<Shape*>(scope->environmentShape_));
-    BindingName* names = nullptr;
+    TrailingNamesArray* names = nullptr;
     uint32_t length = 0;
     switch (scope->kind_) {
       case ScopeKind::Function: {
         FunctionScope::Data* data = reinterpret_cast<FunctionScope::Data*>(scope->data_);
         traverseEdge(scope, static_cast<JSObject*>(data->canonicalFunction));
-        names = data->names;
+        names = &data->trailingNames;
         length = data->length;
         break;
       }
@@ -1316,7 +1315,7 @@ js::GCMarker::eagerlyMarkChildren(Scope* scope)
       case ScopeKind::FunctionBodyVar:
       case ScopeKind::ParameterExpressionVar: {
         VarScope::Data* data = reinterpret_cast<VarScope::Data*>(scope->data_);
-        names = data->names;
+        names = &data->trailingNames;
         length = data->length;
         break;
       }
@@ -1327,7 +1326,7 @@ js::GCMarker::eagerlyMarkChildren(Scope* scope)
       case ScopeKind::NamedLambda:
       case ScopeKind::StrictNamedLambda: {
         LexicalScope::Data* data = reinterpret_cast<LexicalScope::Data*>(scope->data_);
-        names = data->names;
+        names = &data->trailingNames;
         length = data->length;
         break;
       }
@@ -1335,7 +1334,7 @@ js::GCMarker::eagerlyMarkChildren(Scope* scope)
       case ScopeKind::Global:
       case ScopeKind::NonSyntactic: {
         GlobalScope::Data* data = reinterpret_cast<GlobalScope::Data*>(scope->data_);
-        names = data->names;
+        names = &data->trailingNames;
         length = data->length;
         break;
       }
@@ -1343,7 +1342,7 @@ js::GCMarker::eagerlyMarkChildren(Scope* scope)
       case ScopeKind::Eval:
       case ScopeKind::StrictEval: {
         EvalScope::Data* data = reinterpret_cast<EvalScope::Data*>(scope->data_);
-        names = data->names;
+        names = &data->trailingNames;
         length = data->length;
         break;
       }
@@ -1351,7 +1350,7 @@ js::GCMarker::eagerlyMarkChildren(Scope* scope)
       case ScopeKind::Module: {
         ModuleScope::Data* data = reinterpret_cast<ModuleScope::Data*>(scope->data_);
         traverseEdge(scope, static_cast<JSObject*>(data->module));
-        names = data->names;
+        names = &data->trailingNames;
         length = data->length;
         break;
       }
@@ -1361,12 +1360,12 @@ js::GCMarker::eagerlyMarkChildren(Scope* scope)
     }
     if (scope->kind_ == ScopeKind::Function) {
         for (uint32_t i = 0; i < length; i++) {
-            if (JSAtom* name = names[i].name())
+            if (JSAtom* name = names->operator[](i).name())
                 traverseEdge(scope, static_cast<JSString*>(name));
         }
     } else {
         for (uint32_t i = 0; i < length; i++)
-            traverseEdge(scope, static_cast<JSString*>(names[i].name()));
+            traverseEdge(scope, static_cast<JSString*>(names->operator[](i).name()));
     }
 }
 
@@ -1394,14 +1393,6 @@ js::ObjectGroup::traceChildren(JSTracer* trc)
 
     if (maybePreliminaryObjects())
         maybePreliminaryObjects()->trace(trc);
-
-    if (maybeUnboxedLayout())
-        unboxedLayout().trace(trc);
-
-    if (ObjectGroup* unboxedGroup = maybeOriginalUnboxedGroup()) {
-        TraceManuallyBarrieredEdge(trc, &unboxedGroup, "group_original_unboxed_group");
-        setOriginalUnboxedGroup(unboxedGroup);
-    }
 
     if (JSObject* descr = maybeTypeDescr()) {
         TraceManuallyBarrieredEdge(trc, &descr, "group_type_descr");
@@ -1435,12 +1426,6 @@ js::GCMarker::lazilyMarkChildren(ObjectGroup* group)
 
     if (group->maybePreliminaryObjects())
         group->maybePreliminaryObjects()->trace(this);
-
-    if (group->maybeUnboxedLayout())
-        group->unboxedLayout().trace(this);
-
-    if (ObjectGroup* unboxedGroup = group->maybeOriginalUnboxedGroup())
-        traverseEdge(group, unboxedGroup);
 
     if (TypeDescr* descr = group->maybeTypeDescr())
         traverseEdge(group, static_cast<JSObject*>(descr));
@@ -1478,23 +1463,6 @@ CallTraceHook(Functor f, JSTracer* trc, JSObject* obj, CheckGeneration check, Ar
         InlineTypedObject& tobj = obj->as<InlineTypedObject>();
         if (tobj.typeDescr().hasTraceList()) {
             VisitTraceList(f, tobj.typeDescr().traceList(), tobj.inlineTypedMemForGC(),
-                           mozilla::Forward<Args>(args)...);
-        }
-
-        return nullptr;
-    }
-
-    if (clasp == &UnboxedPlainObject::class_) {
-        JSObject** pexpando = obj->as<UnboxedPlainObject>().addressOfExpando();
-        if (*pexpando)
-            f(pexpando, mozilla::Forward<Args>(args)...);
-
-        UnboxedPlainObject& unboxed = obj->as<UnboxedPlainObject>();
-        const UnboxedLayout& layout = check == CheckGeneration::DoChecks
-                                      ? unboxed.layout()
-                                      : unboxed.layoutDontCheckGeneration();
-        if (layout.traceList()) {
-            VisitTraceList(f, layout.traceList(), unboxed.data(),
                            mozilla::Forward<Args>(args)...);
         }
 
@@ -2293,18 +2261,6 @@ static inline void
 TraceWholeCell(TenuringTracer& mover, JSObject* object)
 {
     mover.traceObject(object);
-
-    // Additionally trace the expando object attached to any unboxed plain
-    // objects. Baseline and Ion can write properties to the expando while
-    // only adding a post barrier to the owning unboxed object. Note that
-    // it isn't possible for a nursery unboxed object to have a tenured
-    // expando, so that adding a post barrier on the original object will
-    // capture any tenured->nursery edges in the expando as well.
-
-    if (object->is<UnboxedPlainObject>()) {
-        if (UnboxedExpandoObject* expando = object->as<UnboxedPlainObject>().maybeExpando())
-            expando->traceChildren(&mover);
-    }
 }
 
 static inline void
@@ -2548,8 +2504,6 @@ js::TenuringTracer::moveObjectToTenured(JSObject* dst, JSObject* src, AllocKind 
         InlineTypedObject::objectMovedDuringMinorGC(this, dst, src);
     } else if (src->is<TypedArrayObject>()) {
         tenuredSize += TypedArrayObject::objectMovedDuringMinorGC(this, dst, src, dstKind);
-    } else if (src->is<UnboxedArrayObject>()) {
-        tenuredSize += UnboxedArrayObject::objectMovedDuringMinorGC(this, dst, src, dstKind);
     } else if (src->is<ArgumentsObject>()) {
         tenuredSize += ArgumentsObject::objectMovedDuringMinorGC(this, dst, src);
     } else if (src->is<ProxyObject>()) {
@@ -2892,10 +2846,9 @@ struct UnmarkGrayTracer : public JS::CallbackTracer
  *
  * There is an additional complication for certain kinds of edges that are not
  * contained explicitly in the source object itself, such as from a weakmap key
- * to its value, and from an object being watched by a watchpoint to the
- * watchpoint's closure. These "implicit edges" are represented in some other
- * container object, such as the weakmap or the watchpoint itself. In these
- * cases, calling unmark gray on an object won't find all of its children.
+ * to its value. These "implicit edges" are represented in some other
+ * container object, such as the weakmap itself. In these cases, calling unmark
+ * gray on an object won't find all of its children.
  *
  * Handling these implicit edges has two parts:
  * - A special pass enumerating all of the containers that know about the

@@ -81,14 +81,14 @@ const Curl = {
       postDataText = data.postDataText;
       postData.push("--data");
       postData.push(escapeString(utils.writePostDataTextParams(postDataText)));
-      ignoredHeaders.add("Content-Length");
+      ignoredHeaders.add("content-length");
     } else if (multipartRequest) {
       postDataText = data.postDataText;
       postData.push("--data-binary");
       let boundary = utils.getMultipartBoundary(data);
       let text = utils.removeBinaryDataFromMultipartText(postDataText, boundary);
       postData.push(escapeString(text));
-      ignoredHeaders.add("Content-Length");
+      ignoredHeaders.add("content-length");
     }
 
     // Add method.
@@ -125,11 +125,11 @@ const Curl = {
     }
     for (let i = 0; i < headers.length; i++) {
       let header = headers[i];
-      if (header.name === "Accept-Encoding") {
+      if (header.name.toLowerCase() === "accept-encoding") {
         command.push("--compressed");
         continue;
       }
-      if (ignoredHeaders.has(header.name)) {
+      if (ignoredHeaders.has(header.name.toLowerCase())) {
         continue;
       }
       command.push("-H");
@@ -375,6 +375,7 @@ const CurlUtils = {
                         .replace(/\'/g, "\\\'")
                         .replace(/\n/g, "\\n")
                         .replace(/\r/g, "\\r")
+                        .replace(/!/g, "\\041")
                         .replace(/[^\x20-\x7E]/g, escapeCharacter) + "'";
     }
 

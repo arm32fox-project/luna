@@ -261,10 +261,15 @@ SetPropertyOperation(JSContext* cx, JSOp op, HandleValue lval, HandleId id, Hand
 }
 
 static JSFunction*
-MakeDefaultConstructor(JSContext* cx, JSOp op, JSAtom* atom, HandleObject proto)
+MakeDefaultConstructor(JSContext* cx, HandleScript script, jsbytecode* pc, HandleObject proto)
 {
+    JSOp op = JSOp(*pc);
+    JSAtom* atom = script->getAtom(pc);
     bool derived = op == JSOP_DERIVEDCONSTRUCTOR;
     MOZ_ASSERT(derived == !!proto);
+
+    jssrcnote* classNote = GetSrcNote(cx, script, pc);
+    MOZ_ASSERT(classNote && SN_TYPE(classNote) == SRC_CLASS_SPAN);
 
     PropertyName* lookup = derived ? cx->names().DefaultDerivedClassConstructor
                                    : cx->names().DefaultBaseClassConstructor;
@@ -284,6 +289,17 @@ MakeDefaultConstructor(JSContext* cx, JSOp op, JSAtom* atom, HandleObject proto)
     ctor->setIsClassConstructor();
 
     MOZ_ASSERT(ctor->infallibleIsDefaultClassConstructor(cx));
+
+    // Create the script now, as the source span needs to be overridden for
+    // toString. Calling toString on a class constructor must not return the
+    // source for just the constructor function.
+    JSScript *ctorScript = JSFunction::getOrCreateScript(cx, ctor);
+    if (!ctorScript)
+        return nullptr;
+    uint32_t classStartOffset = GetSrcNoteOffset(classNote, 0);
+    uint32_t classEndOffset = GetSrcNoteOffset(classNote, 1);
+    ctorScript->setDefaultClassConstructorSpan(script->sourceObject(), classStartOffset,
+                                               classEndOffset);
 
     return ctor;
 }
@@ -373,7 +389,7 @@ js::RunScript(JSContext* cx, RunState& state)
 
     SPSEntryMarker marker(cx->runtime(), state.script());
 
-    state.script()->ensureNonLazyCanonicalFunction(cx);
+    state.script()->ensureNonLazyCanonicalFunction();
 
     if (jit::IsIonEnabled(cx)) {
         jit::MethodStatus status = jit::CanEnter(cx, state);
@@ -446,7 +462,7 @@ js::InternalCallOrConstruct(JSContext* cx, const CallArgs& args, MaybeConstruct 
     }
 
     /* Invoke native functions. */
-    JSFunction* fun = &args.callee().as<JSFunction>();
+    RootedFunction fun(cx, &args.callee().as<JSFunction>());
     if (construct != CONSTRUCT && fun->isClassConstructor()) {
         JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr, JSMSG_CANT_CALL_CLASS_CONSTRUCTOR);
         return false;
@@ -454,10 +470,16 @@ js::InternalCallOrConstruct(JSContext* cx, const CallArgs& args, MaybeConstruct 
 
     if (fun->isNative()) {
         MOZ_ASSERT_IF(construct, !fun->isConstructor());
-        return CallJSNative(cx, fun->native(), args);
+        JSNative native = fun->native();
+        if (!construct && args.ignoresReturnValue()) {
+            const JSJitInfo* jitInfo = fun->jitInfo();
+            if (jitInfo && jitInfo->type() == JSJitInfo::IgnoresReturnValueNative)
+                native = jitInfo->ignoresReturnValueMethod;
+        }
+        return CallJSNative(cx, native, args);
     }
 
-    if (!fun->getOrCreateScript(cx))
+    if (!JSFunction::getOrCreateScript(cx, fun))
         return false;
 
     /* Run function until JSOP_RETRVAL, JSOP_RETURN or error. */
@@ -718,14 +740,14 @@ js::Execute(JSContext* cx, HandleScript script, JSObject& envChainArg, Value* rv
 }
 
 /*
- * ES6 (4-25-16) 12.10.4 InstanceofOperator
+ * ES6 12.9.4 InstanceofOperator
  */
 extern bool
-js::InstanceOfOperator(JSContext* cx, HandleObject obj, HandleValue v, bool* bp)
+JS::InstanceofOperator(JSContext* cx, HandleObject obj, HandleValue v, bool* bp)
 {
     /* Step 1. is handled by caller. */
 
-    /* Step 2. */
+    /* Step 2-3. */
     RootedValue hasInstance(cx);
     RootedId id(cx, SYMBOL_TO_JSID(cx->wellKnownSymbols().hasInstance));
     if (!GetProperty(cx, obj, obj, id, &hasInstance))
@@ -735,7 +757,7 @@ js::InstanceOfOperator(JSContext* cx, HandleObject obj, HandleValue v, bool* bp)
         if (!IsCallable(hasInstance))
             return ReportIsNotFunction(cx, hasInstance);
 
-        /* Step 3. */
+        /* Step 4. */
         RootedValue rval(cx);
         if (!Call(cx, hasInstance, obj, v, &rval))
             return false;
@@ -743,13 +765,13 @@ js::InstanceOfOperator(JSContext* cx, HandleObject obj, HandleValue v, bool* bp)
         return true;
     }
 
-    /* Step 4. */
+    /* Step 5. */
     if (!obj->isCallable()) {
         RootedValue val(cx, ObjectValue(*obj));
         return ReportIsNotFunction(cx, val);
     }
 
-    /* Step 5. */
+    /* Step 6. */
     return OrdinaryHasInstance(cx, obj, v, bp);
 }
 
@@ -760,7 +782,7 @@ js::HasInstance(JSContext* cx, HandleObject obj, HandleValue v, bool* bp)
     RootedValue local(cx, v);
     if (JSHasInstanceOp hasInstance = clasp->getHasInstance())
         return hasInstance(cx, obj, &local, bp);
-    return js::InstanceOfOperator(cx, obj, local, bp);
+    return JS::InstanceofOperator(cx, obj, local, bp);
 }
 
 static inline bool
@@ -1543,7 +1565,7 @@ SetObjectElementOperation(JSContext* cx, HandleObject obj, HandleId id, HandleVa
         }
     }
 
-    if (obj->isNative() && !JSID_IS_INT(id) && !obj->setHadElementsAccess(cx))
+    if (obj->isNative() && !JSID_IS_INT(id) && !JSObject::setHadElementsAccess(cx, obj))
         return false;
 
     ObjectOpResult result;
@@ -1916,6 +1938,7 @@ CASE(EnableInterruptsPseudoOpcode)
 /* Various 1-byte no-ops. */
 CASE(JSOP_NOP)
 CASE(JSOP_NOP_DESTRUCTURING)
+CASE(JSOP_UNUSED126)
 CASE(JSOP_UNUSED192)
 CASE(JSOP_UNUSED209)
 CASE(JSOP_UNUSED210)
@@ -2958,6 +2981,7 @@ CASE(JSOP_FUNAPPLY)
 
 CASE(JSOP_NEW)
 CASE(JSOP_CALL)
+CASE(JSOP_CALL_IGNORES_RV)
 CASE(JSOP_CALLITER)
 CASE(JSOP_SUPERCALL)
 CASE(JSOP_FUNCALL)
@@ -2966,10 +2990,11 @@ CASE(JSOP_FUNCALL)
         cx->runtime()->spsProfiler.updatePC(script, REGS.pc);
 
     MaybeConstruct construct = MaybeConstruct(*REGS.pc == JSOP_NEW || *REGS.pc == JSOP_SUPERCALL);
+    bool ignoresReturnValue = *REGS.pc == JSOP_CALL_IGNORES_RV;
     unsigned argStackSlots = GET_ARGC(REGS.pc) + construct;
 
     MOZ_ASSERT(REGS.stackDepth() >= 2u + GET_ARGC(REGS.pc));
-    CallArgs args = CallArgsFromSp(argStackSlots, REGS.sp, construct);
+    CallArgs args = CallArgsFromSp(argStackSlots, REGS.sp, construct, ignoresReturnValue);
 
     JSFunction* maybeFun;
     bool isFunction = IsFunctionObject(args.calleev(), &maybeFun);
@@ -2999,7 +3024,7 @@ CASE(JSOP_FUNCALL)
     {
         MOZ_ASSERT(maybeFun);
         ReservedRooted<JSFunction*> fun(&rootFunction0, maybeFun);
-        ReservedRooted<JSScript*> funScript(&rootScript0, fun->getOrCreateScript(cx));
+        ReservedRooted<JSScript*> funScript(&rootScript0, JSFunction::getOrCreateScript(cx, fun));
         if (!funScript)
             goto error;
 
@@ -3636,7 +3661,6 @@ CASE(JSOP_NEWINIT)
 END_CASE(JSOP_NEWINIT)
 
 CASE(JSOP_NEWARRAY)
-CASE(JSOP_SPREADCALLARRAY)
 {
     uint32_t length = GET_UINT32(REGS.pc);
     JSObject* obj = NewArrayOperation(cx, script, REGS.pc, length);
@@ -4111,7 +4135,7 @@ CASE(JSOP_INITHOMEOBJECT)
     /* Load the home object */
     ReservedRooted<JSObject*> obj(&rootObject0);
     obj = &REGS.sp[int(-2 - skipOver)].toObject();
-    MOZ_ASSERT(obj->is<PlainObject>() || obj->is<UnboxedPlainObject>() || obj->is<JSFunction>());
+    MOZ_ASSERT(obj->is<PlainObject>() || obj->is<JSFunction>());
 
     func->setExtendedSlot(FunctionExtended::METHOD_HOMEOBJECT_SLOT, ObjectValue(*obj));
 }
@@ -4174,8 +4198,8 @@ CASE(JSOP_DERIVEDCONSTRUCTOR)
     MOZ_ASSERT(REGS.sp[-1].isObject());
     ReservedRooted<JSObject*> proto(&rootObject0, &REGS.sp[-1].toObject());
 
-    JSFunction* constructor = MakeDefaultConstructor(cx, JSOp(*REGS.pc), script->getAtom(REGS.pc),
-                                                     proto);
+    JSFunction* constructor = MakeDefaultConstructor(cx, script, REGS.pc, proto);
+
     if (!constructor)
         goto error;
 
@@ -4185,8 +4209,7 @@ END_CASE(JSOP_DERIVEDCONSTRUCTOR)
 
 CASE(JSOP_CLASSCONSTRUCTOR)
 {
-    JSFunction* constructor = MakeDefaultConstructor(cx, JSOp(*REGS.pc), script->getAtom(REGS.pc),
-                                                     nullptr);
+    JSFunction* constructor = MakeDefaultConstructor(cx, script, REGS.pc, nullptr);
     if (!constructor)
         goto error;
     PUSH_OBJECT(*constructor);
@@ -4725,7 +4748,8 @@ js::RunOnceScriptPrologue(JSContext* cx, HandleScript script)
 
     // Force instantiation of the script's function's group to ensure the flag
     // is preserved in type information.
-    if (!script->functionNonDelazifying()->getGroup(cx))
+    RootedFunction fun(cx, script->functionNonDelazifying());
+    if (!JSObject::getGroup(cx, fun))
         return false;
 
     MarkObjectGroupFlags(cx, script->functionNonDelazifying(), OBJECT_FLAG_RUNONCE_INVALIDATED);
@@ -4927,18 +4951,13 @@ js::NewObjectOperation(JSContext* cx, HandleScript script, jsbytecode* pc,
             return nullptr;
         if (group->maybePreliminaryObjects()) {
             group->maybePreliminaryObjects()->maybeAnalyze(cx, group);
-            if (group->maybeUnboxedLayout())
-                group->maybeUnboxedLayout()->setAllocationSite(script, pc);
         }
 
         if (group->shouldPreTenure() || group->maybePreliminaryObjects())
             newKind = TenuredObject;
-
-        if (group->maybeUnboxedLayout())
-            return UnboxedPlainObject::create(cx, group, newKind);
     }
 
-    RootedObject obj(cx);
+    RootedPlainObject obj(cx);
 
     if (*pc == JSOP_NEWOBJECT) {
         RootedPlainObject baseObject(cx, &script->getObject(pc)->as<PlainObject>());
@@ -4975,11 +4994,6 @@ js::NewObjectOperationWithTemplate(JSContext* cx, HandleObject templateObject)
 
     NewObjectKind newKind = templateObject->group()->shouldPreTenure() ? TenuredObject : GenericObject;
 
-    if (templateObject->group()->maybeUnboxedLayout()) {
-        RootedObjectGroup group(cx, templateObject->group());
-        return UnboxedPlainObject::create(cx, group, newKind);
-    }
-
     JSObject* obj = CopyInitializerObject(cx, templateObject.as<PlainObject>(), newKind);
     if (!obj)
         return nullptr;
@@ -5006,9 +5020,6 @@ js::NewArrayOperation(JSContext* cx, HandleScript script, jsbytecode* pc, uint32
 
         if (group->shouldPreTenure() || group->maybePreliminaryObjects())
             newKind = TenuredObject;
-
-        if (group->maybeUnboxedLayout())
-            return UnboxedArrayObject::create(cx, group, length, newKind);
     }
 
     ArrayObject* obj = NewDenseFullyAllocatedArray(cx, length, nullptr, newKind);
@@ -5019,9 +5030,6 @@ js::NewArrayOperation(JSContext* cx, HandleScript script, jsbytecode* pc, uint32
         MOZ_ASSERT(obj->isSingleton());
     } else {
         obj->setGroup(group);
-
-        if (PreliminaryObjectArray* preliminaryObjects = group->maybePreliminaryObjects())
-            preliminaryObjects->registerNewObject(obj);
     }
 
     return obj;
@@ -5033,12 +5041,6 @@ js::NewArrayOperationWithTemplate(JSContext* cx, HandleObject templateObject)
     MOZ_ASSERT(!templateObject->isSingleton());
 
     NewObjectKind newKind = templateObject->group()->shouldPreTenure() ? TenuredObject : GenericObject;
-
-    if (templateObject->is<UnboxedArrayObject>()) {
-        uint32_t length = templateObject->as<UnboxedArrayObject>().length();
-        RootedObjectGroup group(cx, templateObject->group());
-        return UnboxedArrayObject::create(cx, group, length, newKind);
-    }
 
     ArrayObject* obj = NewDenseFullyAllocatedArray(cx, templateObject->as<ArrayObject>().length(),
                                                    nullptr, newKind);

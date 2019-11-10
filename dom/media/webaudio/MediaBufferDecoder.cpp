@@ -23,7 +23,6 @@
 #include "VideoUtils.h"
 #include "WebAudioUtils.h"
 #include "mozilla/dom/Promise.h"
-#include "mozilla/Telemetry.h"
 #include "nsPrintfCString.h"
 #include "GMPService.h"
 
@@ -45,7 +44,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(WebAudioDecodeJob)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mOutput)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mSuccessCallback)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mFailureCallback)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(WebAudioDecodeJob)
@@ -302,7 +300,6 @@ MediaDecodeTask::OnMetadataRead(MetadataHolder* aMetadata)
     MOZ_LOG(gMediaDecoderLog,
             LogLevel::Debug,
             ("Telemetry (WebAudio) MEDIA_CODEC_USED= '%s'", codec.get()));
-    Telemetry::Accumulate(Telemetry::ID::MEDIA_CODEC_USED, codec);
   });
   AbstractThread::MainThread()->Dispatch(task.forget());
 

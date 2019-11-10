@@ -62,8 +62,6 @@ namespace mozilla {
 
 // Returns true if we should enable MSE webm regardless of preferences.
 // 1. If MP4/H264 isn't supported:
-//   * Windows XP
-//   * Windows Vista and Server 2008 without the optional "Platform Update Supplement"
 //   * N/KN editions (Europe and Korea) of Windows 7/8/8.1/10 without the
 //     optional "Windows Media Feature Pack"
 // 2. If H264 hardware acceleration is not available.
@@ -112,14 +110,16 @@ MediaSource::IsTypeSupported(const nsAString& aType, DecoderDoctorDiagnostics* a
     }
     return NS_OK;
   }
-  if (mimeType.EqualsASCII("video/webm")) {
+  if (mimeType.EqualsASCII("video/webm") ||
+      mimeType.EqualsASCII("video/x-matroska")) {
     if (!(Preferences::GetBool("media.mediasource.webm.enabled", false) ||
           IsWebMForced(aDiagnostics))) {
       return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
     }
     return NS_OK;
   }
-  if (mimeType.EqualsASCII("audio/webm")) {
+  if (mimeType.EqualsASCII("audio/webm") ||
+      mimeType.EqualsASCII("audio/x-matroska")) {
     if (!(Preferences::GetBool("media.mediasource.webm.enabled", false) ||
           Preferences::GetBool("media.mediasource.webm.audio.enabled", true))) {
       return NS_ERROR_DOM_NOT_SUPPORTED_ERR;

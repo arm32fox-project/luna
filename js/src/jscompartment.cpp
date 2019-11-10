@@ -13,7 +13,6 @@
 #include "jsfriendapi.h"
 #include "jsgc.h"
 #include "jsiter.h"
-#include "jswatchpoint.h"
 #include "jswrapper.h"
 
 #include "gc/Marking.h"
@@ -41,7 +40,6 @@ using namespace js::gc;
 using namespace js::jit;
 
 using mozilla::DebugOnly;
-using mozilla::PodArrayZero;
 
 JSCompartment::JSCompartment(Zone* zone, const JS::CompartmentOptions& options = JS::CompartmentOptions())
   : creationOptions_(options.creationOptions()),
@@ -77,7 +75,6 @@ JSCompartment::JSCompartment(Zone* zone, const JS::CompartmentOptions& options =
     gcIncomingGrayPointers(nullptr),
     debugModeBits(0),
     randomKeyGenerator_(runtime_->forkRandomKeyGenerator()),
-    watchpointMap(nullptr),
     scriptCountsMap(nullptr),
     debugScriptMap(nullptr),
     debugEnvs(nullptr),
@@ -91,7 +88,6 @@ JSCompartment::JSCompartment(Zone* zone, const JS::CompartmentOptions& options =
     unmappedArgumentsTemplate_(nullptr),
     lcovOutput()
 {
-    PodArrayZero(sawDeprecatedLanguageExtension);
     runtime_->numCompartments++;
     MOZ_ASSERT_IF(creationOptions_.mergeable(),
                   creationOptions_.invisibleToDebugger());
@@ -99,15 +95,12 @@ JSCompartment::JSCompartment(Zone* zone, const JS::CompartmentOptions& options =
 
 JSCompartment::~JSCompartment()
 {
-    reportTelemetry();
-
     // Write the code coverage information in a file.
     JSRuntime* rt = runtimeFromMainThread();
     if (rt->lcovOutput.isEnabled())
         rt->lcovOutput.writeLCovResult(lcovOutput);
 
     js_delete(jitCompartment_);
-    js_delete(watchpointMap);
     js_delete(scriptCountsMap);
     js_delete(debugScriptMap);
     js_delete(debugEnvs);
@@ -115,13 +108,6 @@ JSCompartment::~JSCompartment()
     js_delete(lazyArrayBuffers);
     js_delete(nonSyntacticLexicalEnvironments_),
     js_free(enumerators);
-
-#ifdef DEBUG
-    // Avoid assertion destroying the unboxed layouts list if the embedding
-    // leaked GC things.
-    if (!rt->gc.shutdownCollectedEverything())
-        unboxedLayouts.clear();
-#endif
 
     runtime_->numCompartments--;
 }
@@ -673,12 +659,6 @@ JSCompartment::traceRoots(JSTracer* trc, js::gc::GCRuntime::TraceOrMarkRuntime t
     if (traceOrMark == js::gc::GCRuntime::MarkRuntime && !zone()->isCollecting())
         return;
 
-    // During a GC, these are treated as weak pointers.
-    if (traceOrMark == js::gc::GCRuntime::TraceRuntime) {
-        if (watchpointMap)
-            watchpointMap->markAll(trc);
-    }
-
     /* Mark debug scopes, if present */
     if (debugEnvs)
         debugEnvs->mark(trc);
@@ -723,9 +703,6 @@ JSCompartment::traceRoots(JSTracer* trc, js::gc::GCRuntime::TraceOrMarkRuntime t
 void
 JSCompartment::finishRoots()
 {
-    if (watchpointMap)
-        watchpointMap->clear();
-
     if (debugEnvs)
         debugEnvs->finish();
 
@@ -1086,18 +1063,18 @@ CreateLazyScriptsForCompartment(JSContext* cx)
     // Create scripts for each lazy function, updating the list of functions to
     // process with any newly exposed inner functions in created scripts.
     // A function cannot be delazified until its outer script exists.
+    RootedFunction fun(cx);
     for (size_t i = 0; i < lazyFunctions.length(); i++) {
-        JSFunction* fun = &lazyFunctions[i]->as<JSFunction>();
+        fun = &lazyFunctions[i]->as<JSFunction>();
 
         // lazyFunctions may have been populated with multiple functions for
         // a lazy script.
         if (!fun->isInterpretedLazy())
             continue;
 
-        LazyScript* lazy = fun->lazyScript();
-        bool lazyScriptHadNoScript = !lazy->maybeScript();
+        bool lazyScriptHadNoScript = !fun->lazyScript()->maybeScript();
 
-        JSScript* script = fun->getOrCreateScript(cx);
+        JSScript* script = JSFunction::getOrCreateScript(cx, fun);
         if (!script)
             return false;
         if (lazyScriptHadNoScript && !AddInnerLazyFunctionsFromScript(script, lazyFunctions))
@@ -1266,39 +1243,6 @@ JSCompartment::addSizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf,
     auto callback = runtime_->sizeOfIncludingThisCompartmentCallback;
     if (callback)
         *privateData += callback(mallocSizeOf, this);
-}
-
-void
-JSCompartment::reportTelemetry()
-{
-    // Only report telemetry for web content and add-ons, not chrome JS.
-    if (isSystem_)
-        return;
-
-    // Hazard analysis can't tell that the telemetry callbacks don't GC.
-    JS::AutoSuppressGCAnalysis nogc;
-
-    int id = creationOptions_.addonIdOrNull()
-             ? JS_TELEMETRY_DEPRECATED_LANGUAGE_EXTENSIONS_IN_ADDONS
-             : JS_TELEMETRY_DEPRECATED_LANGUAGE_EXTENSIONS_IN_CONTENT;
-
-    // Call back into Firefox's Telemetry reporter.
-    for (size_t i = 0; i < DeprecatedLanguageExtensionCount; i++) {
-        if (sawDeprecatedLanguageExtension[i])
-            runtime_->addTelemetry(id, i);
-    }
-}
-
-void
-JSCompartment::addTelemetry(const char* filename, DeprecatedLanguageExtension e)
-{
-    // Only report telemetry for web content and add-ons, not chrome JS.
-    if (isSystem_)
-        return;
-    if (!creationOptions_.addonIdOrNull() && (!filename || strncmp(filename, "http", 4) != 0))
-        return;
-
-    sawDeprecatedLanguageExtension[e] = true;
 }
 
 HashNumber

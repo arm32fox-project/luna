@@ -28,7 +28,6 @@
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/HeapSnapshotBinding.h"
 #include "mozilla/RangedPtr.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/Unused.h"
 
 #include "jsapi.h"
@@ -1352,10 +1351,6 @@ class MOZ_STACK_CLASS HeapSnapshotHandler
   JS::CompartmentSet* compartments;
 
 public:
-  // For telemetry.
-  uint32_t nodeCount;
-  uint32_t edgeCount;
-
   HeapSnapshotHandler(CoreDumpWriter& writer,
                       JS::CompartmentSet* compartments)
     : writer(writer),
@@ -1372,8 +1367,6 @@ public:
                    NodeData*,
                    bool first)
   {
-    edgeCount++;
-
     // We're only interested in the first time we reach edge.referent, not in
     // every edge arriving at that node. "But, don't we want to serialize every
     // edge in the heap graph?" you ask. Don't worry! This edge is still
@@ -1386,8 +1379,6 @@ public:
     CoreDumpWriter::EdgePolicy policy;
     if (!ShouldIncludeEdge(compartments, origin, edge, &policy))
       return true;
-
-    nodeCount++;
 
     if (policy == CoreDumpWriter::EXCLUDE_EDGES)
       traversal.abandonReferent();
@@ -1403,9 +1394,7 @@ WriteHeapGraph(JSContext* cx,
                CoreDumpWriter& writer,
                bool wantNames,
                JS::CompartmentSet* compartments,
-               JS::AutoCheckCannotGC& noGC,
-               uint32_t& outNodeCount,
-               uint32_t& outEdgeCount)
+               JS::AutoCheckCannotGC& noGC)
 {
   // Serialize the starting node to the core dump.
 
@@ -1424,11 +1413,6 @@ WriteHeapGraph(JSContext* cx,
 
   bool ok = traversal.addStartVisited(node) &&
             traversal.traverse();
-
-  if (ok) {
-    outNodeCount = handler.nodeCount;
-    outEdgeCount = handler.edgeCount;
-  }
 
   return ok;
 }
@@ -1563,8 +1547,6 @@ ThreadSafeChromeUtils::SaveHeapSnapshot(GlobalObject& global,
 
   bool wantNames = true;
   CompartmentSet compartments;
-  uint32_t nodeCount = 0;
-  uint32_t edgeCount = 0;
 
   nsCOMPtr<nsIOutputStream> outputStream = getCoreDumpOutputStream(rv, start, outFilePath);
   if (NS_WARN_IF(rv.Failed()))
@@ -1600,9 +1582,7 @@ ThreadSafeChromeUtils::SaveHeapSnapshot(GlobalObject& global,
                         writer,
                         wantNames,
                         compartments.initialized() ? &compartments : nullptr,
-                        maybeNoGC.ref(),
-                        nodeCount,
-                        edgeCount))
+                        maybeNoGC.ref()))
     {
       rv.Throw(zeroCopyStream.failed()
                ? zeroCopyStream.result()
@@ -1610,13 +1590,6 @@ ThreadSafeChromeUtils::SaveHeapSnapshot(GlobalObject& global,
       return;
     }
   }
-
-  Telemetry::AccumulateTimeDelta(Telemetry::DEVTOOLS_SAVE_HEAP_SNAPSHOT_MS,
-                                 start);
-  Telemetry::Accumulate(Telemetry::DEVTOOLS_HEAP_SNAPSHOT_NODE_COUNT,
-                        nodeCount);
-  Telemetry::Accumulate(Telemetry::DEVTOOLS_HEAP_SNAPSHOT_EDGE_COUNT,
-                        edgeCount);
 }
 
 /* static */ already_AddRefed<HeapSnapshot>
@@ -1624,8 +1597,6 @@ ThreadSafeChromeUtils::ReadHeapSnapshot(GlobalObject& global,
                                         const nsAString& filePath,
                                         ErrorResult& rv)
 {
-  auto start = TimeStamp::Now();
-
   UniquePtr<char[]> path(ToNewCString(filePath));
   if (!path) {
     rv.Throw(NS_ERROR_OUT_OF_MEMORY);
@@ -1640,10 +1611,6 @@ ThreadSafeChromeUtils::ReadHeapSnapshot(GlobalObject& global,
   RefPtr<HeapSnapshot> snapshot = HeapSnapshot::Create(
       global.Context(), global, reinterpret_cast<const uint8_t*>(mm.address()),
       mm.size(), rv);
-
-  if (!rv.Failed())
-    Telemetry::AccumulateTimeDelta(Telemetry::DEVTOOLS_READ_HEAP_SNAPSHOT_MS,
-                                   start);
 
   return snapshot.forget();
 }

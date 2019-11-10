@@ -86,12 +86,6 @@ bool CacheObserver::sSanitizeOnShutdown = kDefaultSanitizeOnShutdown;
 static bool kDefaultClearCacheOnShutdown = false;
 bool CacheObserver::sClearCacheOnShutdown = kDefaultClearCacheOnShutdown;
 
-static bool kDefaultCacheFSReported = false;
-bool CacheObserver::sCacheFSReported = kDefaultCacheFSReported;
-
-static bool kDefaultHashStatsReported = false;
-bool CacheObserver::sHashStatsReported = kDefaultHashStatsReported;
-
 static uint32_t const kDefaultMaxShutdownIOLag = 2; // seconds
 Atomic<uint32_t, Relaxed> CacheObserver::sMaxShutdownIOLag(kDefaultMaxShutdownIOLag);
 
@@ -328,58 +322,6 @@ CacheObserver::StoreDiskCacheCapacity()
 {
   mozilla::Preferences::SetInt("browser.cache.disk.capacity",
                                sDiskCacheCapacity);
-}
-
-// static
-void
-CacheObserver::SetCacheFSReported()
-{
-  sCacheFSReported = true;
-
-  if (!sSelf) {
-    return;
-  }
-
-  if (NS_IsMainThread()) {
-    sSelf->StoreCacheFSReported();
-  } else {
-    nsCOMPtr<nsIRunnable> event =
-      NewRunnableMethod(sSelf, &CacheObserver::StoreCacheFSReported);
-    NS_DispatchToMainThread(event);
-  }
-}
-
-void
-CacheObserver::StoreCacheFSReported()
-{
-  mozilla::Preferences::SetInt("browser.cache.disk.filesystem_reported",
-                               sCacheFSReported);
-}
-
-// static
-void
-CacheObserver::SetHashStatsReported()
-{
-  sHashStatsReported = true;
-
-  if (!sSelf) {
-    return;
-  }
-
-  if (NS_IsMainThread()) {
-    sSelf->StoreHashStatsReported();
-  } else {
-    nsCOMPtr<nsIRunnable> event =
-      NewRunnableMethod(sSelf, &CacheObserver::StoreHashStatsReported);
-    NS_DispatchToMainThread(event);
-  }
-}
-
-void
-CacheObserver::StoreHashStatsReported()
-{
-  mozilla::Preferences::SetInt("browser.cache.disk.hashstats_reported",
-                               sHashStatsReported);
 }
 
 // static

@@ -152,6 +152,9 @@ BrowserGlue.prototype = {
   // nsIObserver implementation 
   observe: function BG_observe(subject, topic, data) {
     switch (topic) {
+      case "notifications-open-settings":
+        this._openPermissions(subject);
+        break;
       case "prefservice:after-app-defaults":
         this._onAppDefaults();
         break;
@@ -322,6 +325,7 @@ BrowserGlue.prototype = {
   // initialization (called on application startup) 
   _init: function BG__init() {
     let os = Services.obs;
+    os.addObserver(this, "notifications-open-settings", false);
     os.addObserver(this, "prefservice:after-app-defaults", false);
     os.addObserver(this, "final-ui-startup", false);
     os.addObserver(this, "browser-delayed-startup-finished", false);
@@ -354,6 +358,7 @@ BrowserGlue.prototype = {
   // cleanup (called on application shutdown)
   _dispose: function BG__dispose() {
     let os = Services.obs;
+    os.removeObserver(this, "notifications-open-settings");
     os.removeObserver(this, "prefservice:after-app-defaults");
     os.removeObserver(this, "final-ui-startup");
     os.removeObserver(this, "sessionstore-windows-restored");
@@ -546,14 +551,6 @@ BrowserGlue.prototype = {
     if (this._isPlacesDatabaseLocked) {
       this._showPlacesLockedNotificationBox();
     }
-
-    // If there are plugins installed that are outdated, and the user hasn't
-    // been warned about them yet, open the plugins update page.
-    // Pale Moon: disable this functionality, people are already notified
-    // if they visit a page with an outdated plugin, and they can check
-    // properly from the plugins page as well.
-//    if (Services.prefs.getBoolPref(PREF_PLUGINS_NOTIFYUSER))
-//      this._showPluginUpdatePage();
 
     // For any add-ons that were installed disabled and can be enabled offer
     // them to the user.
@@ -993,14 +990,8 @@ BrowserGlue.prototype = {
         // An import operation is about to run.
         // Don't try to recreate smart bookmarks if autoExportHTML is true or
         // smart bookmarks are disabled.
-        var autoExportHTML = false;
-        try {
-          autoExportHTML = Services.prefs.getBoolPref("browser.bookmarks.autoExportHTML");
-        } catch(ex) {}
-        var smartBookmarksVersion = 0;
-        try {
-          smartBookmarksVersion = Services.prefs.getIntPref("browser.places.smartBookmarksVersion");
-        } catch(ex) {}
+        var autoExportHTML = Services.prefs.getBoolPref("browser.bookmarks.autoExportHTML", false);
+        var smartBookmarksVersion = Services.prefs.getIntPref("browser.places.smartBookmarksVersion", 0);
         if (!autoExportHTML && smartBookmarksVersion != -1)
           Services.prefs.setIntPref("browser.places.smartBookmarksVersion", 0);
 
@@ -1484,6 +1475,16 @@ BrowserGlue.prototype = {
     }
   },
 
+  _openPermissions: function(aPrincipal) {
+    var win = this.getMostRecentBrowserWindow();
+    var url = "about:permissions";
+    try {
+      url = url + "?filter=" + aPrincipal.URI.host;
+    }
+    catch (e) {}
+    win.openUILinkIn(url, "tab");
+  },
+
   _hasSystemAlertsService: function() {
     try {
       return !!Cc["@mozilla.org/system-alerts-service;1"].getService(
@@ -1549,10 +1550,7 @@ BrowserGlue.prototype = {
     const MAX_RESULTS = 10;
 
     // Get current smart bookmarks version.  If not set, create them.
-    let smartBookmarksCurrentVersion = 0;
-    try {
-      smartBookmarksCurrentVersion = Services.prefs.getIntPref(SMART_BOOKMARKS_PREF);
-    } catch(ex) {}
+    let smartBookmarksCurrentVersion = Services.prefs.getIntPref(SMART_BOOKMARKS_PREF, 0);
 
     // If version is current or smart bookmarks are disabled, just bail out.
     if (smartBookmarksCurrentVersion == -1 ||

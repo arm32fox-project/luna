@@ -224,6 +224,9 @@ var gPlayTests = [
   // Test playback of a webm file
   { name:"seek-short.webm", type:"video/webm", duration:0.23 },
 
+  // Test playback of a webm file with 'matroska' doctype
+  { name:"bug1377278.webm", type:"video/webm", duration:4.0 },
+
   // Test playback of a WebM file with non-zero start time.
   { name:"split.webm", type:"video/webm", duration:1.967 },
 
@@ -263,10 +266,10 @@ var gPlayTests = [
   { name:"small-shot.mp3", type:"audio/mpeg", duration:0.27 },
   { name:"owl.mp3", type:"audio/mpeg", duration:3.343 },
   // owl.mp3 as above, but with something funny going on in the ID3v2 tag
-  // that causes DirectShow to fail.
+  // that caused DirectShow to fail.
   { name:"owl-funny-id3.mp3", type:"audio/mpeg", duration:3.343 },
   // owl.mp3 as above, but with something even funnier going on in the ID3v2 tag
-  // that causes DirectShow to fail.
+  // that caused DirectShow to fail.
   { name:"owl-funnier-id3.mp3", type:"audio/mpeg", duration:3.343 },
   // One second of silence with ~140KB of ID3 tags. Usually when the first MP3
   // frame is at such a high offset into the file, MP3FrameParser will give up
@@ -532,7 +535,6 @@ var gErrorTests = [
   { name:"448636.ogv", type:"video/ogg" },
   { name:"bug504843.ogv", type:"video/ogg" },
   { name:"bug501279.ogg", type:"audio/ogg" },
-  { name:"bug580982.webm", type:"video/webm" },
   { name:"bug603918.webm", type:"video/webm" },
   { name:"bug604067.webm", type:"video/webm" },
   { name:"bogus.duh", type:"bogus/duh" }

@@ -291,7 +291,6 @@ UNIFIED_SOURCES += [
     'jspropertytree.cpp',
     'jsscript.cpp',
     'jsstr.cpp',
-    'jswatchpoint.cpp',
     'jsweakmap.cpp',
     'perf/jsperf.cpp',
     'proxy/BaseProxyHandler.cpp',
@@ -355,7 +354,6 @@ UNIFIED_SOURCES += [
     'vm/UbiNode.cpp',
     'vm/UbiNodeCensus.cpp',
     'vm/UbiNodeShortestPaths.cpp',
-    'vm/UnboxedObject.cpp',
     'vm/Unicode.cpp',
     'vm/Value.cpp',
     'vm/WeakMapPtr.cpp',
@@ -620,11 +618,11 @@ else:
         'perf/pm_stub.cpp'
     ]
 
-GENERATED_FILES += ['jsautokw.h']
-jsautokw = GENERATED_FILES['jsautokw.h']
-jsautokw.script = 'jsautokw.py'
-jsautokw.inputs += [
-    'vm/Keywords.h'
+GENERATED_FILES += ['frontend/ReservedWordsGenerated.h']
+ReservedWordsGenerated = GENERATED_FILES['frontend/ReservedWordsGenerated.h']
+ReservedWordsGenerated.script = 'frontend/GenerateReservedWords.py'
+ReservedWordsGenerated.inputs += [
+    'frontend/ReservedWords.h'
 ]
 
 # JavaScript must be built shared, even for static builds, as it is used by

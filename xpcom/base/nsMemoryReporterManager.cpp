@@ -317,7 +317,7 @@ VsizeMaxContiguousDistinguishedAmount(int64_t* aN)
 }
 #endif // FreeBSD
 
-#elif defined(SOLARIS)
+#elif defined(XP_SOLARIS)
 
 #include <procfs.h>
 #include <fcntl.h>
@@ -440,7 +440,6 @@ ResidentDistinguishedAmountHelper(int64_t* aN, bool aDoPurge)
 {
 #ifdef HAVE_JEMALLOC_STATS
   if (aDoPurge) {
-    Telemetry::AutoTimer<Telemetry::MEMORY_FREE_PURGED_PAGES_MS> timer;
     jemalloc_purge_freed_pages();
   }
 #endif
@@ -1151,8 +1150,8 @@ ResidentPeakDistinguishedAmount(int64_t* aN)
     // - Linux, {Net/Open/Free}BSD, DragonFly: KiB
 #ifdef XP_MACOSX
     *aN = usage.ru_maxrss;
-#elif defined(SOLARIS)
-    *aN = usage.ru_maxrss * getpagesize();
+#elif defined(XP_SOLARIS)
+    *aN = usage.ru_maxrss * getpagesize();    
 #else
     *aN = usage.ru_maxrss * 1024;
 #endif

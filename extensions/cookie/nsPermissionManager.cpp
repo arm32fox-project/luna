@@ -37,7 +37,6 @@
 #include "mozilla/net/NeckoMessageUtils.h"
 #include "mozilla/Preferences.h"
 #include "nsReadLine.h"
-#include "mozilla/Telemetry.h"
 #include "nsIConsoleService.h"
 #include "nsINavHistoryService.h"
 #include "nsToolkitCompsCID.h"
@@ -107,7 +106,11 @@ nsresult
 GetOriginFromPrincipal(nsIPrincipal* aPrincipal, nsACString& aOrigin)
 {
   nsresult rv = aPrincipal->GetOriginNoSuffix(aOrigin);
-  NS_ENSURE_SUCCESS(rv, rv);
+  // The principal may belong to the about:blank content viewer, so this can be
+  // expected to fail.
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
 
   nsAutoCString suffix;
   rv = aPrincipal->GetOriginSuffix(suffix);
@@ -866,9 +869,6 @@ nsPermissionManager::InitDB(bool aRemoveFile)
   if (rv == NS_ERROR_FILE_CORRUPTED) {
     LogToConsole(NS_LITERAL_STRING("permissions.sqlite is corrupted! Try again!"));
 
-    // Add telemetry probe
-    mozilla::Telemetry::Accumulate(mozilla::Telemetry::PERMISSIONS_SQL_CORRUPTED, 1);
-
     // delete corrupted permissions.sqlite and try again
     rv = permissionsFile->Remove(false);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -890,9 +890,6 @@ nsPermissionManager::InitDB(bool aRemoveFile)
     rv = permissionsFile->Remove(false);
     NS_ENSURE_SUCCESS(rv, rv);
     LogToConsole(NS_LITERAL_STRING("Defective permissions.sqlite has been removed."));
-
-    // Add telemetry probe
-    mozilla::Telemetry::Accumulate(mozilla::Telemetry::DEFECTIVE_PERMISSIONS_SQL_REMOVED, 1);
 
     rv = OpenDatabase(permissionsFile);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -1078,8 +1075,6 @@ nsPermissionManager::InitDB(bool aRemoveFile)
         bool hostsTableExists = false;
         mDBConn->TableExists(NS_LITERAL_CSTRING("moz_hosts"), &hostsTableExists);
         if (hostsTableExists) {
-          bool migrationError = false;
-
           // Both versions 4 and 6 have a version 4 formatted hosts table named
           // moz_hosts. We can migrate this table to our version 7 table moz_perms.
           // If moz_perms is present, then we can use it as a basis for comparison.
@@ -1127,12 +1122,10 @@ nsPermissionManager::InitDB(bool aRemoveFile)
             // Read in the old row
             rv = stmt->GetUTF8String(0, host);
             if (NS_WARN_IF(NS_FAILED(rv))) {
-              migrationError = true;
               continue;
             }
             rv = stmt->GetUTF8String(1, type);
             if (NS_WARN_IF(NS_FAILED(rv))) {
-              migrationError = true;
               continue;
             }
             permission = stmt->AsInt32(2);
@@ -1140,7 +1133,6 @@ nsPermissionManager::InitDB(bool aRemoveFile)
             expireTime = stmt->AsInt64(4);
             modificationTime = stmt->AsInt64(5);
             if (NS_WARN_IF(stmt->AsInt64(6) < 0)) {
-              migrationError = true;
               continue;
             }
             appId = static_cast<uint32_t>(stmt->AsInt64(6));
@@ -1157,7 +1149,6 @@ nsPermissionManager::InitDB(bool aRemoveFile)
             if (NS_FAILED(rv)) {
               NS_WARNING("Unexpected failure when upgrading migrating permission "
                          "from host to origin");
-              migrationError = true;
             }
           }
 
@@ -1175,39 +1166,7 @@ nsPermissionManager::InitDB(bool aRemoveFile)
           mDBConn->TableExists(NS_LITERAL_CSTRING("moz_perms"), &permsTableExists);
           if (permsTableExists) {
             // The user already had a moz_perms table, and we are performing a
-            // re-migration. We count the rows in the old table for telemetry,
-            // and then back up their old database as moz_perms_v6
-
-            nsCOMPtr<mozIStorageStatement> countStmt;
-            rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING("SELECT COUNT(*) FROM moz_perms"),
-                                          getter_AddRefs(countStmt));
-            bool hasResult = false;
-            if (NS_SUCCEEDED(rv) &&
-                NS_SUCCEEDED(countStmt->ExecuteStep(&hasResult)) &&
-                hasResult) {
-              int32_t permsCount = countStmt->AsInt32(0);
-
-              // The id variable contains the number of rows inserted into the
-              // moz_hosts_new table (as one ID was used per entry)
-              uint32_t telemetryValue;
-              if (permsCount > id) {
-                telemetryValue = 3; // NEW > OLD
-              } else if (permsCount == id) {
-                telemetryValue = 2; // NEW == OLD
-              } else if (permsCount == 0) {
-                telemetryValue = 0; // NEW = 0
-              } else {
-                telemetryValue = 1; // NEW < OLD
-              }
-
-              // Report the telemetry value to telemetry
-              mozilla::Telemetry::Accumulate(
-                  mozilla::Telemetry::PERMISSIONS_REMIGRATION_COMPARISON,
-                  telemetryValue);
-            } else {
-              NS_WARNING("Could not count the rows in moz_perms");
-            }
-
+            // re-migration.
             // Back up the old moz_perms database as moz_perms_v6 before we
             // move the new table into its position
             rv = mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
@@ -1221,9 +1180,6 @@ nsPermissionManager::InitDB(bool aRemoveFile)
 
           rv = mDBConn->CommitTransaction();
           NS_ENSURE_SUCCESS(rv, rv);
-
-          mozilla::Telemetry::Accumulate(mozilla::Telemetry::PERMISSIONS_MIGRATION_7_ERROR,
-                                         NS_WARN_IF(migrationError));
         } else {
           // We don't have a moz_hosts table, so we create one for downgrading purposes.
           // This table is empty.
