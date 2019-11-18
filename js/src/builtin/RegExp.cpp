@@ -664,29 +664,6 @@ js::regexp_multiline(JSContext* cx, unsigned argc, JS::Value* vp)
     return CallNonGenericMethod<IsRegExpInstanceOrPrototype, regexp_multiline_impl>(cx, args);
 }
 
-// ES 2018 dotAll
-MOZ_ALWAYS_INLINE bool
-regexp_dotall_impl(JSContext* cx, const CallArgs& args)
-{
-    MOZ_ASSERT(IsRegExpInstanceOrPrototype(args.thisv()));
-
-    if (!IsRegExpObject(args.thisv())) {
-        args.rval().setUndefined();
-        return true;
-    }
-
-    Rooted<RegExpObject*> reObj(cx, &args.thisv().toObject().as<RegExpObject>());
-    args.rval().setBoolean(reObj->dotall());
-    return true;
-}
-
-bool
-js::regexp_dotall(JSContext* cx, unsigned argc, JS::Value* vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod<IsRegExpInstanceOrPrototype, regexp_dotall_impl>(cx, args);
-}
-
 // ES 2017 draft rev32 21.2.5.10.
 MOZ_ALWAYS_INLINE bool
 regexp_source_impl(JSContext* cx, const CallArgs& args)
@@ -782,7 +759,6 @@ const JSPropertySpec js::regexp_properties[] = {
     JS_PSG("source", regexp_source, 0),
     JS_PSG("sticky", regexp_sticky, 0),
     JS_PSG("unicode", regexp_unicode, 0),
-    JS_PSG("dotall", regexp_dotall, 0),
     JS_PS_END
 };
 
