@@ -313,6 +313,7 @@ class RegExpParser
     bool multiline_;
     bool unicode_;
     bool ignore_case_;
+    bool dotall_;
     bool simple_;
     bool contains_anchor_;
     bool is_scanned_for_captures_;
