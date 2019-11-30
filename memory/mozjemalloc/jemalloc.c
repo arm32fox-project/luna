@@ -2,7 +2,7 @@
 /* vim:set softtabstop=8 shiftwidth=8 noet: */
 /*-
  * Copyright (C) 2006-2008 Jason Evans <jasone@FreeBSD.org>.
- * Copyright (C) 2015-2018 Mark Straver <moonchild@palemoon.org>
+ * Copyright (C) 2015-2019 Mark Straver <moonchild@palemoon.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -178,13 +178,6 @@
    /* Support SYSV semantics. */
 #  define MALLOC_SYSV
 #endif
-
-/*
- * MALLOC_VALIDATE causes malloc_usable_size() to perform some pointer
- * validation.  There are many possible errors that validation does not even
- * attempt to detect.
- */
-#define MALLOC_VALIDATE
 
 #if defined(MOZ_MEMORY_LINUX) && !defined(MOZ_MEMORY_ANDROID)
 #define	_GNU_SOURCE /* For mremap(2). */
@@ -726,16 +719,15 @@ typedef rb_tree(extent_node_t) extent_tree_t;
  * Radix tree data structures.
  */
 
-#ifdef MALLOC_VALIDATE
-   /*
-    * Size of each radix tree node (must be a power of 2).  This impacts tree
-    * depth.
-    */
-#  if (SIZEOF_PTR == 4)
-#    define MALLOC_RTREE_NODESIZE (1U << 14)
-#  else
-#    define MALLOC_RTREE_NODESIZE CACHELINE
-#  endif
+/*
+ * Size of each radix tree node (must be a power of 2).  This impacts tree
+ * depth.
+ */
+#if (SIZEOF_PTR == 4)
+#define MALLOC_RTREE_NODESIZE (1U << 14)
+#else
+#define MALLOC_RTREE_NODESIZE CACHELINE
+#endif
 
 typedef struct malloc_rtree_s malloc_rtree_t;
 struct malloc_rtree_s {
@@ -744,7 +736,6 @@ struct malloc_rtree_s {
 	unsigned		height;
 	unsigned		level2bits[1]; /* Dynamically sized. */
 };
-#endif
 
 /******************************************************************************/
 /*
@@ -1149,9 +1140,7 @@ static size_t recycled_size;
  * Chunks.
  */
 
-#ifdef MALLOC_VALIDATE
 static malloc_rtree_t *chunk_rtree;
-#endif
 
 /* Protects chunk-related data structures. */
 static malloc_mutex_t	chunks_mtx;
@@ -2369,7 +2358,6 @@ pages_copy(void *dest, const void *src, size_t n)
 }
 #endif
 
-#ifdef MALLOC_VALIDATE
 static inline malloc_rtree_t *
 malloc_rtree_new(unsigned bits)
 {
@@ -2510,7 +2498,6 @@ malloc_rtree_set(malloc_rtree_t *rtree, uintptr_t key, void *val)
 
 	return (false);
 }
-#endif
 
 /* pages_trim, chunk_alloc_mmap_slow and chunk_alloc_mmap were cherry-picked
  * from upstream jemalloc 3.4.1 to fix Mozilla bug 956501. */
@@ -2799,14 +2786,12 @@ chunk_alloc(size_t size, size_t alignment, bool base, bool zero)
 	ret = NULL;
 RETURN:
 
-#ifdef MALLOC_VALIDATE
 	if (ret != NULL && base == false) {
 		if (malloc_rtree_set(chunk_rtree, (uintptr_t)ret, ret)) {
 			chunk_dealloc(ret, size);
 			return (NULL);
 		}
 	}
-#endif
 
 	assert(CHUNK_ADDR2BASE(ret) == ret);
 	return (ret);
@@ -2924,9 +2909,7 @@ chunk_dealloc(void *chunk, size_t size)
 	assert(size != 0);
 	assert((size & chunksize_mask) == 0);
 
-#ifdef MALLOC_VALIDATE
 	malloc_rtree_set(chunk_rtree, (uintptr_t)chunk, NULL);
-#endif
 
 	if (chunk_dalloc_mmap(chunk, size))
 		chunk_record(&chunks_szad_mmap, &chunks_ad_mmap, chunk, size);
@@ -4284,7 +4267,6 @@ arena_salloc(const void *ptr)
 	return (ret);
 }
 
-#if (defined(MALLOC_VALIDATE) || defined(MOZ_MEMORY_DARWIN))
 /*
  * Validate ptr before assuming that it points to an allocation.  Currently,
  * the following validation is performed:
@@ -4325,7 +4307,6 @@ isalloc_validate(const void *ptr)
 		return (ret);
 	}
 }
-#endif
 
 static inline size_t
 isalloc(const void *ptr)
@@ -5775,11 +5756,9 @@ MALLOC_OUT:
 
 	malloc_spin_init(&arenas_lock);
 
-#ifdef MALLOC_VALIDATE
 	chunk_rtree = malloc_rtree_new((SIZEOF_PTR << 3) - opt_chunk_2pow);
 	if (chunk_rtree == NULL)
 		return (true);
-#endif
 
 	malloc_initialized = true;
 
@@ -6258,13 +6237,7 @@ malloc_usable_size_impl(MALLOC_USABLE_SIZE_CONST_PTR void *ptr)
 {
 	DARWIN_ONLY(return (szone->size)(szone, ptr));
 
-#ifdef MALLOC_VALIDATE
 	return (isalloc_validate(ptr));
-#else
-	assert(ptr != NULL);
-
-	return (isalloc(ptr));
-#endif
 }
 
 MOZ_JEMALLOC_API void
