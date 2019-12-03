@@ -2,7 +2,7 @@
 /* vim:set softtabstop=8 shiftwidth=8 noet: */
 /*-
  * Copyright (C) 2006-2008 Jason Evans <jasone@FreeBSD.org>.
- * Copyright (C) 2015-2018 Mark Straver <moonchild@palemoon.org>
+ * Copyright (C) 2015-2019 Mark Straver <moonchild@palemoon.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -167,11 +167,6 @@
     */
 #  define MALLOC_DEBUG
 
-   /* Allocation tracing. */
-#  ifndef MOZ_MEMORY_WINDOWS
-#    define MALLOC_UTRACE
-#  endif
-
    /* Support optional abort() on OOM. */
 #  define MALLOC_XMALLOC
 
@@ -179,18 +174,8 @@
 #  define MALLOC_SYSV
 #endif
 
-/*
- * MALLOC_VALIDATE causes malloc_usable_size() to perform some pointer
- * validation.  There are many possible errors that validation does not even
- * attempt to detect.
- */
-#define MALLOC_VALIDATE
-
 #if defined(MOZ_MEMORY_LINUX) && !defined(MOZ_MEMORY_ANDROID)
 #define	_GNU_SOURCE /* For mremap(2). */
-#if 0 /* Enable in order to test decommit code on Linux. */
-#  define MALLOC_DECOMMIT
-#endif
 #endif
 
 #include <sys/types.h>
@@ -286,15 +271,6 @@ typedef long ssize_t;
 #ifndef __DECONST
 #  define __DECONST(type, var)	((type)(uintptr_t)(const void *)(var))
 #endif
-#ifndef MOZ_MEMORY
-__FBSDID("$FreeBSD: head/lib/libc/stdlib/malloc.c 180599 2008-07-18 19:35:44Z jasone $");
-#include "libc_private.h"
-#ifdef MALLOC_DEBUG
-#  define _LOCK_DEBUG
-#endif
-#include "spinlock.h"
-#include "namespace.h"
-#endif
 #include <sys/mman.h>
 #ifndef MADV_FREE
 #  define MADV_FREE	MADV_DONTNEED
@@ -303,22 +279,9 @@ __FBSDID("$FreeBSD: head/lib/libc/stdlib/malloc.c 180599 2008-07-18 19:35:44Z ja
 #  define MAP_NOSYNC	0
 #endif
 #include <sys/param.h>
-#ifndef MOZ_MEMORY
-#include <sys/stddef.h>
-#endif
 #include <sys/time.h>
 #include <sys/types.h>
-#if !defined(MOZ_MEMORY_SOLARIS) && !defined(MOZ_MEMORY_ANDROID)
-#include <sys/sysctl.h>
-#endif
 #include <sys/uio.h>
-#ifndef MOZ_MEMORY
-#include <sys/ktrace.h> /* Must come after several other sys/ includes. */
-
-#include <machine/atomic.h>
-#include <machine/cpufunc.h>
-#include <machine/vmparam.h>
-#endif
 
 #include <errno.h>
 #include <limits.h>
@@ -326,13 +289,6 @@ __FBSDID("$FreeBSD: head/lib/libc/stdlib/malloc.c 180599 2008-07-18 19:35:44Z ja
 #  define SIZE_T_MAX	SIZE_MAX
 #endif
 #include <pthread.h>
-#ifdef MOZ_MEMORY_DARWIN
-#define _pthread_self pthread_self
-#define _pthread_mutex_init pthread_mutex_init
-#define _pthread_mutex_trylock pthread_mutex_trylock
-#define _pthread_mutex_lock pthread_mutex_lock
-#define _pthread_mutex_unlock pthread_mutex_unlock
-#endif
 #include <sched.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -351,10 +307,6 @@ __FBSDID("$FreeBSD: head/lib/libc/stdlib/malloc.c 180599 2008-07-18 19:35:44Z ja
 #include <mach/mach_init.h>
 #include <mach/vm_map.h>
 #include <malloc/malloc.h>
-#endif
-
-#ifndef MOZ_MEMORY
-#include "un-namespace.h"
 #endif
 
 #endif
@@ -418,10 +370,6 @@ void *_mmap(void *addr, size_t length, int prot, int flags,
 #define __DECONST(type, var) ((type)(uintptr_t)(const void *)(var))
 #endif
 
-#ifdef MOZ_MEMORY_WINDOWS
-   /* MSVC++ does not support C99 variable-length arrays. */
-#  define RB_NO_C99_VARARRAYS
-#endif
 #include "rb.h"
 
 #ifdef MALLOC_DEBUG
@@ -446,46 +394,6 @@ void *_mmap(void *addr, size_t length, int prot, int flags,
 #define PIC
 #ifdef MOZ_MEMORY_DARWIN
 #  define NO_TLS
-#endif
-#if 0
-#ifdef __i386__
-#  define QUANTUM_2POW_MIN	4
-#  define SIZEOF_PTR_2POW	2
-#  define CPU_SPINWAIT		__asm__ volatile("pause")
-#endif
-#ifdef __ia64__
-#  define QUANTUM_2POW_MIN	4
-#  define SIZEOF_PTR_2POW	3
-#endif
-#ifdef __alpha__
-#  define QUANTUM_2POW_MIN	4
-#  define SIZEOF_PTR_2POW	3
-#  define NO_TLS
-#endif
-#ifdef __sparc64__
-#  define QUANTUM_2POW_MIN	4
-#  define SIZEOF_PTR_2POW	3
-#  define NO_TLS
-#endif
-#ifdef __amd64__
-#  define QUANTUM_2POW_MIN	4
-#  define SIZEOF_PTR_2POW	3
-#  define CPU_SPINWAIT		__asm__ volatile("pause")
-#endif
-#ifdef __arm__
-#  define QUANTUM_2POW_MIN	3
-#  define SIZEOF_PTR_2POW	2
-#  define NO_TLS
-#endif
-#ifdef __mips__
-#  define QUANTUM_2POW_MIN	3
-#  define SIZEOF_PTR_2POW	2
-#  define NO_TLS
-#endif
-#ifdef __powerpc__
-#  define QUANTUM_2POW_MIN	4
-#  define SIZEOF_PTR_2POW	2
-#endif
 #endif
 
 #define	SIZEOF_PTR		(1U << SIZEOF_PTR_2POW)
@@ -556,29 +464,6 @@ void *_mmap(void *addr, size_t length, int prot, int flags,
 #define	RUN_MAX_OVRHD		0x0000003dU
 #define	RUN_MAX_OVRHD_RELAX	0x00001800U
 
-/*
- * Hyper-threaded CPUs may need a special instruction inside spin loops in
- * order to yield to another virtual CPU.  If no such instruction is defined
- * above, make CPU_SPINWAIT a no-op.
- */
-#ifndef CPU_SPINWAIT
-#  define CPU_SPINWAIT
-#endif
-
-/*
- * Adaptive spinning must eventually switch to blocking, in order to avoid the
- * potential for priority inversion deadlock.  Backing off past a certain point
- * can actually waste time.
- */
-#define	SPIN_LIMIT_2POW		11
-
-/*
- * Conversion from spinning to blocking is expensive; we use (1U <<
- * BLOCK_COST_2POW) to estimate how many more times costly blocking is than
- * worst-case spinning.
- */
-#define	BLOCK_COST_2POW		4
-
 /******************************************************************************/
 
 /* MALLOC_DECOMMIT and MALLOC_DOUBLE_PURGE are mutually exclusive. */
@@ -601,15 +486,9 @@ typedef struct {
 typedef struct {
 	OSSpinLock	lock;
 } malloc_spinlock_t;
-#elif defined(MOZ_MEMORY)
+#else
 typedef pthread_mutex_t malloc_mutex_t;
 typedef pthread_mutex_t malloc_spinlock_t;
-#else
-/* XXX these should #ifdef these for freebsd (and linux?) only */
-typedef struct {
-	spinlock_t	lock;
-} malloc_mutex_t;
-typedef malloc_spinlock_t malloc_mutex_t;
 #endif
 
 /* Set to true once the allocator has been initialized. */
@@ -621,10 +500,8 @@ static bool malloc_initialized = false;
 static malloc_mutex_t init_lock = {OS_SPINLOCK_INIT};
 #elif defined(MOZ_MEMORY_LINUX) && !defined(MOZ_MEMORY_ANDROID)
 static malloc_mutex_t init_lock = PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP;
-#elif defined(MOZ_MEMORY)
-static malloc_mutex_t init_lock = PTHREAD_MUTEX_INITIALIZER;
 #else
-static malloc_mutex_t init_lock = {_SPINLOCK_INITIALIZER};
+static malloc_mutex_t init_lock = PTHREAD_MUTEX_INITIALIZER;
 #endif
 
 /******************************************************************************/
@@ -726,16 +603,15 @@ typedef rb_tree(extent_node_t) extent_tree_t;
  * Radix tree data structures.
  */
 
-#ifdef MALLOC_VALIDATE
-   /*
-    * Size of each radix tree node (must be a power of 2).  This impacts tree
-    * depth.
-    */
-#  if (SIZEOF_PTR == 4)
-#    define MALLOC_RTREE_NODESIZE (1U << 14)
-#  else
-#    define MALLOC_RTREE_NODESIZE CACHELINE
-#  endif
+/*
+ * Size of each radix tree node (must be a power of 2).  This impacts tree
+ * depth.
+ */
+#if (SIZEOF_PTR == 4)
+#define MALLOC_RTREE_NODESIZE (1U << 14)
+#else
+#define MALLOC_RTREE_NODESIZE CACHELINE
+#endif
 
 typedef struct malloc_rtree_s malloc_rtree_t;
 struct malloc_rtree_s {
@@ -744,7 +620,6 @@ struct malloc_rtree_s {
 	unsigned		height;
 	unsigned		level2bits[1]; /* Dynamically sized. */
 };
-#endif
 
 /******************************************************************************/
 /*
@@ -931,11 +806,7 @@ struct arena_s {
 #endif
 
 	/* All operations on this arena require that lock be locked. */
-#ifdef MOZ_MEMORY
 	malloc_spinlock_t	lock;
-#else
-	pthread_mutex_t		lock;
-#endif
 
 #ifdef MALLOC_STATS
 	arena_stats_t		stats;
@@ -1149,9 +1020,7 @@ static size_t recycled_size;
  * Chunks.
  */
 
-#ifdef MALLOC_VALIDATE
 static malloc_rtree_t *chunk_rtree;
-#endif
 
 /* Protects chunk-related data structures. */
 static malloc_mutex_t	chunks_mtx;
@@ -1216,11 +1085,7 @@ static unsigned		narenas;
 #ifndef NO_TLS
 static unsigned		next_arena;
 #endif
-#ifdef MOZ_MEMORY
 static malloc_spinlock_t arenas_lock; /* Protects arenas initialization. */
-#else
-static pthread_mutex_t arenas_lock; /* Protects arenas initialization. */
-#endif
 
 #ifndef NO_TLS
 /*
@@ -1266,9 +1131,6 @@ static size_t	opt_quantum_2pow = QUANTUM_2POW_MIN;
 static size_t	opt_small_max_2pow = SMALL_MAX_2POW_DEFAULT;
 static size_t	opt_chunk_2pow = CHUNK_2POW_DEFAULT;
 #endif
-#ifdef MALLOC_UTRACE
-static bool	opt_utrace = false;
-#endif
 #ifdef MALLOC_SYSV
 static bool	opt_sysv = false;
 #endif
@@ -1276,25 +1138,6 @@ static bool	opt_sysv = false;
 static bool	opt_xmalloc = false;
 #endif
 static int	opt_narenas_lshift = 0;
-
-#ifdef MALLOC_UTRACE
-typedef struct {
-	void	*p;
-	size_t	s;
-	void	*r;
-} malloc_utrace_t;
-
-#define	UTRACE(a, b, c)							\
-	if (opt_utrace) {						\
-		malloc_utrace_t ut;					\
-		ut.p = (a);						\
-		ut.s = (b);						\
-		ut.r = (c);						\
-		utrace(&ut, sizeof(ut));				\
-	}
-#else
-#define	UTRACE(a, b, c)
-#endif
 
 /******************************************************************************/
 /*
@@ -1500,7 +1343,7 @@ umax2s(uintmax_t x, unsigned base, char *s)
 static void
 wrtmessage(const char *p1, const char *p2, const char *p3, const char *p4)
 {
-#if defined(MOZ_MEMORY) && !defined(MOZ_MEMORY_WINDOWS)
+#if !defined(MOZ_MEMORY_WINDOWS)
 #define	_write	write
 #endif
 	// Pretend to check _write() errors to suppress gcc warnings about
@@ -1571,13 +1414,9 @@ malloc_mutex_init(malloc_mutex_t *mutex)
 		return (true);
 	}
 	pthread_mutexattr_destroy(&attr);
-#elif defined(MOZ_MEMORY)
+#else
 	if (pthread_mutex_init(mutex, NULL) != 0)
 		return (true);
-#else
-	static const spinlock_t lock = _SPINLOCK_INITIALIZER;
-
-	mutex->lock = lock;
 #endif
 	return (false);
 }
@@ -1590,10 +1429,8 @@ malloc_mutex_lock(malloc_mutex_t *mutex)
 	AcquireSRWLockExclusive(mutex);
 #elif defined(MOZ_MEMORY_DARWIN)
 	OSSpinLockLock(&mutex->lock);
-#elif defined(MOZ_MEMORY)
-	pthread_mutex_lock(mutex);
 #else
-	_SPINLOCK(&mutex->lock);
+	pthread_mutex_lock(mutex);
 #endif
 }
 
@@ -1605,10 +1442,8 @@ malloc_mutex_unlock(malloc_mutex_t *mutex)
 	ReleaseSRWLockExclusive(mutex);
 #elif defined(MOZ_MEMORY_DARWIN)
 	OSSpinLockUnlock(&mutex->lock);
-#elif defined(MOZ_MEMORY)
-	pthread_mutex_unlock(mutex);
 #else
-	_SPINUNLOCK(&mutex->lock);
+	pthread_mutex_unlock(mutex);
 #endif
 }
 
@@ -1632,11 +1467,9 @@ malloc_spin_init(malloc_spinlock_t *lock)
 		return (true);
 	}
 	pthread_mutexattr_destroy(&attr);
-#elif defined(MOZ_MEMORY)
+#else
 	if (pthread_mutex_init(lock, NULL) != 0)
 		return (true);
-#else
-	lock->lock = _SPINLOCK_INITIALIZER;
 #endif
 	return (false);
 }
@@ -1649,10 +1482,8 @@ malloc_spin_lock(malloc_spinlock_t *lock)
 	AcquireSRWLockExclusive(lock);
 #elif defined(MOZ_MEMORY_DARWIN)
 	OSSpinLockLock(&lock->lock);
-#elif defined(MOZ_MEMORY)
-	pthread_mutex_lock(lock);
 #else
-	_SPINLOCK(&lock->lock);
+	pthread_mutex_lock(lock);
 #endif
 }
 
@@ -1663,10 +1494,8 @@ malloc_spin_unlock(malloc_spinlock_t *lock)
 	ReleaseSRWLockExclusive(lock);
 #elif defined(MOZ_MEMORY_DARWIN)
 	OSSpinLockUnlock(&lock->lock);
-#elif defined(MOZ_MEMORY)
-	pthread_mutex_unlock(lock);
 #else
-	_SPINUNLOCK(&lock->lock);
+	pthread_mutex_unlock(lock);
 #endif
 }
 
@@ -1680,78 +1509,10 @@ malloc_spin_unlock(malloc_spinlock_t *lock)
  * priority inversion.
  */
 
-#if defined(MOZ_MEMORY) && !defined(MOZ_MEMORY_DARWIN)
+#if !defined(MOZ_MEMORY_DARWIN)
 #  define	malloc_spin_init	malloc_mutex_init
 #  define	malloc_spin_lock	malloc_mutex_lock
 #  define	malloc_spin_unlock	malloc_mutex_unlock
-#endif
-
-#ifndef MOZ_MEMORY
-/*
- * We use an unpublished interface to initialize pthread mutexes with an
- * allocation callback, in order to avoid infinite recursion.
- */
-int	_pthread_mutex_init_calloc_cb(pthread_mutex_t *mutex,
-    void *(calloc_cb)(size_t, size_t));
-
-__weak_reference(_pthread_mutex_init_calloc_cb_stub,
-    _pthread_mutex_init_calloc_cb);
-
-int
-_pthread_mutex_init_calloc_cb_stub(pthread_mutex_t *mutex,
-    void *(calloc_cb)(size_t, size_t))
-{
-
-	return (0);
-}
-
-static bool
-malloc_spin_init(pthread_mutex_t *lock)
-{
-
-	if (_pthread_mutex_init_calloc_cb(lock, base_calloc) != 0)
-		return (true);
-
-	return (false);
-}
-
-static inline unsigned
-malloc_spin_lock(pthread_mutex_t *lock)
-{
-	unsigned ret = 0;
-
-	if (_pthread_mutex_trylock(lock) != 0) {
-		unsigned i;
-		volatile unsigned j;
-
-		/* Exponentially back off. */
-		for (i = 1; i <= SPIN_LIMIT_2POW; i++) {
-			for (j = 0; j < (1U << i); j++)
-				ret++;
-
-			CPU_SPINWAIT;
-			if (_pthread_mutex_trylock(lock) == 0)
-				return (ret);
-		}
-
-		/*
-		 * Spinning failed.  Block until the lock becomes
-		 * available, in order to avoid indefinite priority
-		 * inversion.
-		 */
-		_pthread_mutex_lock(lock);
-		assert((ret << BLOCK_COST_2POW) != 0);
-		return (ret << BLOCK_COST_2POW);
-	}
-
-	return (ret);
-}
-
-static inline void
-malloc_spin_unlock(pthread_mutex_t *lock)
-{
-	_pthread_mutex_unlock(lock);
-}
 #endif
 
 /*
@@ -1803,52 +1564,6 @@ pow2_ceil(size_t x)
 	x++;
 	return (x);
 }
-
-#ifdef MALLOC_UTRACE
-static int
-utrace(const void *addr, size_t len)
-{
-	malloc_utrace_t *ut = (malloc_utrace_t *)addr;
-	char buf_a[UMAX2S_BUFSIZE];
-	char buf_b[UMAX2S_BUFSIZE];
-
-	assert(len == sizeof(malloc_utrace_t));
-
-	if (ut->p == NULL && ut->s == 0 && ut->r == NULL) {
-		_malloc_message(
-		    umax2s(getpid(), 10, buf_a),
-		    " x USER malloc_init()\n", "", "");
-	} else if (ut->p == NULL && ut->r != NULL) {
-		_malloc_message(
-		    umax2s(getpid(), 10, buf_a),
-		    " x USER 0x",
-		    umax2s((uintptr_t)ut->r, 16, buf_b),
-		    " = malloc(");
-		_malloc_message(
-		    umax2s(ut->s, 10, buf_a),
-		    ")\n", "", "");
-	} else if (ut->p != NULL && ut->r != NULL) {
-		_malloc_message(
-		    umax2s(getpid(), 10, buf_a),
-		    " x USER 0x",
-		    umax2s((uintptr_t)ut->r, 16, buf_b),
-		    " = realloc(0x");
-		_malloc_message(
-		    umax2s((uintptr_t)ut->p, 16, buf_a),
-		    ", ",
-		    umax2s(ut->s, 10, buf_b),
-		    ")\n");
-	} else {
-		_malloc_message(
-		    umax2s(getpid(), 10, buf_a),
-		    " x USER free(0x",
-		    umax2s((uintptr_t)ut->p, 16, buf_b),
-		    ")\n");
-	}
-
-	return (0);
-}
-#endif
 
 static inline const char *
 _getprogname(void)
@@ -2369,7 +2084,6 @@ pages_copy(void *dest, const void *src, size_t n)
 }
 #endif
 
-#ifdef MALLOC_VALIDATE
 static inline malloc_rtree_t *
 malloc_rtree_new(unsigned bits)
 {
@@ -2510,7 +2224,6 @@ malloc_rtree_set(malloc_rtree_t *rtree, uintptr_t key, void *val)
 
 	return (false);
 }
-#endif
 
 /* pages_trim, chunk_alloc_mmap_slow and chunk_alloc_mmap were cherry-picked
  * from upstream jemalloc 3.4.1 to fix Mozilla bug 956501. */
@@ -2799,14 +2512,12 @@ chunk_alloc(size_t size, size_t alignment, bool base, bool zero)
 	ret = NULL;
 RETURN:
 
-#ifdef MALLOC_VALIDATE
 	if (ret != NULL && base == false) {
 		if (malloc_rtree_set(chunk_rtree, (uintptr_t)ret, ret)) {
 			chunk_dealloc(ret, size);
 			return (NULL);
 		}
 	}
-#endif
 
 	assert(CHUNK_ADDR2BASE(ret) == ret);
 	return (ret);
@@ -2924,9 +2635,7 @@ chunk_dealloc(void *chunk, size_t size)
 	assert(size != 0);
 	assert((size & chunksize_mask) == 0);
 
-#ifdef MALLOC_VALIDATE
 	malloc_rtree_set(chunk_rtree, (uintptr_t)chunk, NULL);
-#endif
 
 	if (chunk_dalloc_mmap(chunk, size))
 		chunk_record(&chunks_szad_mmap, &chunks_ad_mmap, chunk, size);
@@ -4284,7 +3993,6 @@ arena_salloc(const void *ptr)
 	return (ret);
 }
 
-#if (defined(MALLOC_VALIDATE) || defined(MOZ_MEMORY_DARWIN))
 /*
  * Validate ptr before assuming that it points to an allocation.  Currently,
  * the following validation is performed:
@@ -4325,7 +4033,6 @@ isalloc_validate(const void *ptr)
 		return (ret);
 	}
 }
-#endif
 
 static inline size_t
 isalloc(const void *ptr)
@@ -5186,9 +4893,6 @@ malloc_print_stats(void)
 		_malloc_message(opt_junk ? "J" : "j", "", "", "");
 #endif
 		_malloc_message("P", "", "", "");
-#ifdef MALLOC_UTRACE
-		_malloc_message(opt_utrace ? "U" : "u", "", "", "");
-#endif
 #ifdef MALLOC_SYSV
 		_malloc_message(opt_sysv ? "V" : "v", "", "", "");
 #endif
@@ -5540,14 +5244,6 @@ MALLOC_OUT:
 						opt_small_max_2pow++;
 					break;
 #endif
-#ifdef MALLOC_UTRACE
-				case 'u':
-					opt_utrace = false;
-					break;
-				case 'U':
-					opt_utrace = true;
-					break;
-#endif
 #ifdef MALLOC_SYSV
 				case 'v':
 					opt_sysv = false;
@@ -5641,8 +5337,6 @@ MALLOC_OUT:
 	assert((chunksize % pagesize) == 0);
 	assert((1 << (ffs(chunksize / pagesize) - 1)) == (chunksize/pagesize));
 #endif
-
-	UTRACE(0, 0, 0);
 
 	/* Various sanity checks that regard configuration. */
 	assert(quantum >= sizeof(void *));
@@ -5775,23 +5469,15 @@ MALLOC_OUT:
 
 	malloc_spin_init(&arenas_lock);
 
-#ifdef MALLOC_VALIDATE
 	chunk_rtree = malloc_rtree_new((SIZEOF_PTR << 3) - opt_chunk_2pow);
 	if (chunk_rtree == NULL)
 		return (true);
-#endif
 
 	malloc_initialized = true;
 
 #if !defined(MOZ_MEMORY_WINDOWS) && !defined(MOZ_MEMORY_DARWIN)
 	/* Prevent potential deadlock on malloc locks after fork. */
 	pthread_atfork(_malloc_prefork, _malloc_postfork, _malloc_postfork);
-#endif
-
-#if defined(NEEDS_PTHREAD_MMAP_UNALIGNED_TSD)
-	if (pthread_key_create(&mmap_unaligned_tsd, NULL) != 0) {
-		malloc_printf("<jemalloc>: Error in pthread_key_create()\n");
-	}
 #endif
 
 #if defined(MOZ_MEMORY_DARWIN) && !defined(MOZ_REPLACE_MALLOC)
@@ -5919,7 +5605,6 @@ RETURN:
 		errno = ENOMEM;
 	}
 
-	UTRACE(0, size, ret);
 	return (ret);
 }
 
@@ -5997,7 +5682,6 @@ RETURN:
 		abort();
 	}
 #endif
-	UTRACE(0, size, ret);
 	return (ret);
 }
 
@@ -6111,7 +5795,6 @@ RETURN:
 		errno = ENOMEM;
 	}
 
-	UTRACE(0, num_size, ret);
 	return (ret);
 }
 
@@ -6175,7 +5858,6 @@ realloc_impl(void *ptr, size_t size)
 #ifdef MALLOC_SYSV
 RETURN:
 #endif
-	UTRACE(ptr, size, ret);
 	return (ret);
 }
 
@@ -6185,8 +5867,6 @@ free_impl(void *ptr)
 	size_t offset;
 
 	DARWIN_ONLY((szone->free)(szone, ptr); return);
-
-	UTRACE(ptr, 0, 0);
 
 	/*
 	 * A version of idalloc that checks for NULL pointer but only for
@@ -6258,15 +5938,10 @@ malloc_usable_size_impl(MALLOC_USABLE_SIZE_CONST_PTR void *ptr)
 {
 	DARWIN_ONLY(return (szone->size)(szone, ptr));
 
-#ifdef MALLOC_VALIDATE
 	return (isalloc_validate(ptr));
-#else
-	assert(ptr != NULL);
-
-	return (isalloc(ptr));
-#endif
 }
 
+#ifdef MALLOC_STATS
 MOZ_JEMALLOC_API void
 jemalloc_stats_impl(jemalloc_stats_t *stats)
 {
@@ -6286,11 +5961,6 @@ jemalloc_stats_impl(jemalloc_stats_t *stats)
 	stats->opt_poison =
 #ifdef MALLOC_FILL
 	    opt_poison ? true :
-#endif
-	    false;
-	stats->opt_utrace =
-#ifdef MALLOC_UTRACE
-	    opt_utrace ? true :
 #endif
 	    false;
 	stats->opt_sysv =
@@ -6414,7 +6084,7 @@ jemalloc_stats_impl(jemalloc_stats_t *stats)
 	assert(stats->mapped >= stats->allocated + stats->waste +
 				stats->page_cache + stats->bookkeeping);
 }
-
+#endif // MALLOC_STATS
 #ifdef MALLOC_DOUBLE_PURGE
 
 /* Explicitly remove all of this chunk's MADV_FREE'd pages from memory. */
