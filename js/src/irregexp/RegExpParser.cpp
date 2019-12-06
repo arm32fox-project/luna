@@ -222,11 +222,12 @@ RegExpBuilder::AddQuantifierToAtom(int min, int max,
 template <typename CharT>
 RegExpParser<CharT>::RegExpParser(frontend::TokenStream& ts, LifoAlloc* alloc,
                                   const CharT* chars, const CharT* end, bool multiline_mode,
-                                  bool unicode, bool ignore_case)
+                                  bool unicode, bool ignore_case, bool dotall)
   : ts(ts),
     alloc(alloc),
     captures_(nullptr),
     next_pos_(chars),
+    captures_started_(0),
     end_(end),
     current_(kEndMarker),
     capture_count_(0),
@@ -234,6 +235,7 @@ RegExpParser<CharT>::RegExpParser(frontend::TokenStream& ts, LifoAlloc* alloc,
     multiline_(multiline_mode),
     unicode_(unicode),
     ignore_case_(ignore_case),
+    dotall_(dotall),
     simple_(false),
     contains_anchor_(false),
     is_scanned_for_captures_(false)
@@ -418,7 +420,8 @@ RangeAtom(LifoAlloc* alloc, char16_t from, char16_t to)
 static inline RegExpTree*
 NegativeLookahead(LifoAlloc* alloc, char16_t from, char16_t to)
 {
-    return alloc->newInfallible<RegExpLookahead>(RangeAtom(alloc, from, to), false, 0, 0);
+    return alloc->newInfallible<RegExpLookaround>(RangeAtom(alloc, from, to), false,
+                                                  0, 0, RegExpLookaround::LOOKAHEAD);
 }
 
 static bool
@@ -1213,6 +1216,38 @@ RegExpParser<CharT>::ParseBackReferenceIndex(int* index_out)
     return true;
 }
 
+template <typename CharT>
+RegExpCapture*
+RegExpParser<CharT>::GetCapture(int index) {
+  // The index for the capture groups are one-based. Its index in the list is
+  // zero-based.
+  int known_captures =
+      is_scanned_for_captures_ ? capture_count_ : captures_started_;
+  MOZ_ASSERT(index <= known_captures);
+  if (captures_ == NULL) {
+    captures_ = alloc->newInfallible<RegExpCaptureVector>(*alloc);
+  }
+  while ((int)captures_->length() < known_captures) {
+    RegExpCapture* capture = alloc->newInfallible<RegExpCapture>(nullptr, captures_->length() + 1);
+    captures_->append(capture);
+  }
+  return (*captures_)[index - 1];
+}
+
+
+template <typename CharT>
+bool
+RegExpParser<CharT>::RegExpParserState::IsInsideCaptureGroup(int index) {
+  for (RegExpParserState* s = this; s != NULL; s = s->previous_state()) {
+    if (s->group_type() != CAPTURE) continue;
+    // Return true if we found the matching capture index.
+    if (index == s->capture_index()) return true;
+    // Abort if index is larger than what has been parsed up till this state.
+    if (index > s->capture_index()) return false;
+  }
+  return false;
+}
+
 // QuantifierPrefix ::
 //   { DecimalDigits }
 //   { DecimalDigits , }
@@ -1350,13 +1385,45 @@ UnicodeEverythingAtom(LifoAlloc* alloc)
 {
     RegExpBuilder* builder = alloc->newInfallible<RegExpBuilder>(alloc);
 
-    // everything except \x0a, \x0d, \u2028 and \u2029
+    // Everything except \x0a, \x0d, \u2028 and \u2029
 
     CharacterRangeVector* ranges = alloc->newInfallible<CharacterRangeVector>(*alloc);
     ranges->append(CharacterRange::Range(0x0, 0x09));
     ranges->append(CharacterRange::Range(0x0b, 0x0c));
     ranges->append(CharacterRange::Range(0x0e, 0x2027));
     ranges->append(CharacterRange::Range(0x202A, unicode::LeadSurrogateMin - 1));
+    ranges->append(CharacterRange::Range(unicode::TrailSurrogateMax + 1, unicode::UTF16Max));
+    builder->AddAtom(alloc->newInfallible<RegExpCharacterClass>(ranges, false));
+
+    builder->NewAlternative();
+
+    builder->AddAtom(RangeAtom(alloc, unicode::LeadSurrogateMin, unicode::LeadSurrogateMax));
+    builder->AddAtom(NegativeLookahead(alloc, unicode::TrailSurrogateMin,
+                                       unicode::TrailSurrogateMax));
+
+    builder->NewAlternative();
+
+    builder->AddAssertion(alloc->newInfallible<RegExpAssertion>(
+        RegExpAssertion::NOT_AFTER_LEAD_SURROGATE));
+    builder->AddAtom(RangeAtom(alloc, unicode::TrailSurrogateMin, unicode::TrailSurrogateMax));
+
+    builder->NewAlternative();
+
+    builder->AddAtom(RangeAtom(alloc, unicode::LeadSurrogateMin, unicode::LeadSurrogateMax));
+    builder->AddAtom(RangeAtom(alloc, unicode::TrailSurrogateMin, unicode::TrailSurrogateMax));
+
+    return builder->ToRegExp();
+}
+
+static inline RegExpTree*
+UnicodeDotAllAtom(LifoAlloc* alloc)
+{
+    RegExpBuilder* builder = alloc->newInfallible<RegExpBuilder>(alloc);
+
+    // Full range excluding surrogates because /s was specified
+
+    CharacterRangeVector* ranges = alloc->newInfallible<CharacterRangeVector>(*alloc);
+    ranges->append(CharacterRange::Range(0x0, unicode::LeadSurrogateMin - 1));
     ranges->append(CharacterRange::Range(unicode::TrailSurrogateMax + 1, unicode::UTF16Max));
     builder->AddAtom(alloc->newInfallible<RegExpCharacterClass>(ranges, false));
 
@@ -1423,24 +1490,24 @@ RegExpTree*
 RegExpParser<CharT>::ParseDisjunction()
 {
     // Used to store current state while parsing subexpressions.
-    RegExpParserState initial_state(alloc, nullptr, INITIAL, 0);
-    RegExpParserState* stored_state = &initial_state;
+    RegExpParserState initial_state(alloc, nullptr, INITIAL, RegExpLookaround::LOOKAHEAD, 0);
+    RegExpParserState* state = &initial_state;
     // Cache the builder in a local variable for quick access.
     RegExpBuilder* builder = initial_state.builder();
     while (true) {
         switch (current()) {
           case kEndMarker:
-            if (stored_state->IsSubexpression()) {
+            if (state->IsSubexpression()) {
                 // Inside a parenthesized group when hitting end of input.
                 return ReportError(JSMSG_MISSING_PAREN);
             }
-            MOZ_ASSERT(INITIAL == stored_state->group_type());
+            MOZ_ASSERT(INITIAL == state->group_type());
             // Parsing completed successfully.
             return builder->ToRegExp();
           case ')': {
-            if (!stored_state->IsSubexpression())
+            if (!state->IsSubexpression())
                 return ReportError(JSMSG_UNMATCHED_RIGHT_PAREN);
-            MOZ_ASSERT(INITIAL != stored_state->group_type());
+            MOZ_ASSERT(INITIAL != state->group_type());
 
             Advance();
             // End disjunction parsing and convert builder content to new single
@@ -1449,29 +1516,30 @@ RegExpParser<CharT>::ParseDisjunction()
 
             int end_capture_index = captures_started();
 
-            int capture_index = stored_state->capture_index();
-            SubexpressionType group_type = stored_state->group_type();
-
-            // Restore previous state.
-            stored_state = stored_state->previous_state();
-            builder = stored_state->builder();
+            int capture_index = state->capture_index();
+            SubexpressionType group_type = state->group_type();
 
             // Build result of subexpression.
             if (group_type == CAPTURE) {
-                RegExpCapture* capture = alloc->newInfallible<RegExpCapture>(body, capture_index);
-                (*captures_)[capture_index - 1] = capture;
+                RegExpCapture* capture = GetCapture(capture_index);
+                capture->set_body(body);
                 body = capture;
             } else if (group_type != GROUPING) {
-                MOZ_ASSERT(group_type == POSITIVE_LOOKAHEAD ||
-                           group_type == NEGATIVE_LOOKAHEAD);
-                bool is_positive = (group_type == POSITIVE_LOOKAHEAD);
-                body = alloc->newInfallible<RegExpLookahead>(body,
+                MOZ_ASSERT(group_type == POSITIVE_LOOKAROUND ||
+                           group_type == NEGATIVE_LOOKAROUND);
+                bool is_positive = (group_type == POSITIVE_LOOKAROUND);
+                body = alloc->newInfallible<RegExpLookaround>(body,
                                                    is_positive,
                                                    end_capture_index - capture_index,
-                                                   capture_index);
+                                                   capture_index,
+                                                   state->lookaround_type());
             }
+
+            // Restore previous state.
+            state = state->previous_state();
+            builder = state->builder();
             builder->AddAtom(body);
-            if (unicode_ && (group_type == POSITIVE_LOOKAHEAD || group_type == NEGATIVE_LOOKAHEAD))
+            if (unicode_ && (group_type == POSITIVE_LOOKAROUND || group_type == NEGATIVE_LOOKAROUND))
                 continue;
             // For compatability with JSC and ES3, we allow quantifiers after
             // lookaheads, and break in all cases.
@@ -1506,19 +1574,32 @@ RegExpParser<CharT>::ParseDisjunction()
           }
           case '.': {
             Advance();
-            // everything except \x0a, \x0d, \u2028 and \u2029
+            
             if (unicode_) {
-                builder->AddAtom(UnicodeEverythingAtom(alloc));
+                if (dotall_) {
+                    // Everything
+                    builder->AddAtom(UnicodeDotAllAtom(alloc));
+                } else {
+                    // Everything except \x0a, \x0d, \u2028 and \u2029
+                    builder->AddAtom(UnicodeEverythingAtom(alloc));
+                }
                 break;
             }
             CharacterRangeVector* ranges = alloc->newInfallible<CharacterRangeVector>(*alloc);
-            CharacterRange::AddClassEscape(alloc, '.', ranges);
+            if (dotall_) {
+                // Everything
+                CharacterRange::AddClassEscape(alloc, '*', ranges);
+            } else {
+                // Everything except \x0a, \x0d, \u2028 and \u2029
+                CharacterRange::AddClassEscape(alloc, '.', ranges);
+            }
             RegExpTree* atom = alloc->newInfallible<RegExpCharacterClass>(ranges, false);
             builder->AddAtom(atom);
             break;
           }
           case '(': {
             SubexpressionType subexpr_type = CAPTURE;
+            RegExpLookaround::Type lookaround_type = state->lookaround_type();
             Advance();
             if (current() == '?') {
                 switch (Next()) {
@@ -1526,26 +1607,39 @@ RegExpParser<CharT>::ParseDisjunction()
                     subexpr_type = GROUPING;
                     break;
                   case '=':
-                    subexpr_type = POSITIVE_LOOKAHEAD;
+                    lookaround_type = RegExpLookaround::LOOKAHEAD;
+                    subexpr_type = POSITIVE_LOOKAROUND;
                     break;
                   case '!':
-                    subexpr_type = NEGATIVE_LOOKAHEAD;
+                    lookaround_type = RegExpLookaround::LOOKAHEAD;
+                    subexpr_type = NEGATIVE_LOOKAROUND;
                     break;
+                  case '<':
+                    Advance();
+                    lookaround_type = RegExpLookaround::LOOKBEHIND;
+                    if (Next() == '=') {
+                      subexpr_type = POSITIVE_LOOKAROUND;
+                      break;
+                    } else if (Next() == '!') {
+                      subexpr_type = NEGATIVE_LOOKAROUND;
+                      break;
+                    }
+                    // We didn't get a positive or negative after '<'.
+                    // That's an error.
+                    return ReportError(JSMSG_INVALID_GROUP);
                   default:
                     return ReportError(JSMSG_INVALID_GROUP);
                 }
                 Advance(2);
             } else {
-                if (captures_ == nullptr)
-                    captures_ = alloc->newInfallible<RegExpCaptureVector>(*alloc);
                 if (captures_started() >= kMaxCaptures)
                     return ReportError(JSMSG_TOO_MANY_PARENS);
-                captures_->append((RegExpCapture*) nullptr);
+                captures_started_++;
             }
             // Store current state and begin new disjunction parsing.
-            stored_state = alloc->newInfallible<RegExpParserState>(alloc, stored_state, subexpr_type,
-                                                                   captures_started());
-            builder = stored_state->builder();
+            state = alloc->newInfallible<RegExpParserState>(alloc, state, subexpr_type,
+                                                            lookaround_type, captures_started_);
+            builder = state->builder();
             continue;
           }
           case '[': {
@@ -1600,19 +1694,18 @@ RegExpParser<CharT>::ParseDisjunction()
               case '7': case '8': case '9': {
                 int index = 0;
                 if (ParseBackReferenceIndex(&index)) {
-                    RegExpCapture* capture = nullptr;
-                    if (captures_ != nullptr && index <= (int) captures_->length()) {
-                        capture = (*captures_)[index - 1];
+                    if (state->IsInsideCaptureGroup(index)) {
+                      // The backreference is inside the capture group it refers to.
+                      // Nothing can possibly have been captured yet.
+                      builder->AddEmpty();
+                    } else {
+                      RegExpCapture* capture = GetCapture(index);
+                      RegExpTree* atom = alloc->newInfallible<RegExpBackReference>(capture);
+                      if (unicode_)
+                          builder->AddAtom(UnicodeBackReferenceAtom(alloc, atom));
+                      else
+                          builder->AddAtom(atom);
                     }
-                    if (capture == nullptr) {
-                        builder->AddEmpty();
-                        break;
-                    }
-                    RegExpTree* atom = alloc->newInfallible<RegExpBackReference>(capture);
-                    if (unicode_)
-                        builder->AddAtom(UnicodeBackReferenceAtom(alloc, atom));
-                    else
-                        builder->AddAtom(atom);
                     break;
                 }
                 if (unicode_)
@@ -1832,7 +1925,7 @@ template <typename CharT>
 static bool
 ParsePattern(frontend::TokenStream& ts, LifoAlloc& alloc, const CharT* chars, size_t length,
              bool multiline, bool match_only, bool unicode, bool ignore_case,
-             bool global, bool sticky, RegExpCompileData* data)
+             bool global, bool sticky, bool dotall, RegExpCompileData* data)
 {
     if (match_only) {
         // Try to strip a leading '.*' from the RegExp, but only if it is not
@@ -1859,7 +1952,7 @@ ParsePattern(frontend::TokenStream& ts, LifoAlloc& alloc, const CharT* chars, si
         }
     }
 
-    RegExpParser<CharT> parser(ts, &alloc, chars, chars + length, multiline, unicode, ignore_case);
+    RegExpParser<CharT> parser(ts, &alloc, chars, chars + length, multiline, unicode, ignore_case, dotall);
     data->tree = parser.ParsePattern();
     if (!data->tree)
         return false;
@@ -1873,33 +1966,33 @@ ParsePattern(frontend::TokenStream& ts, LifoAlloc& alloc, const CharT* chars, si
 bool
 irregexp::ParsePattern(frontend::TokenStream& ts, LifoAlloc& alloc, JSAtom* str,
                        bool multiline, bool match_only, bool unicode, bool ignore_case,
-                       bool global, bool sticky, RegExpCompileData* data)
+                       bool global, bool sticky, bool dotall, RegExpCompileData* data)
 {
     JS::AutoCheckCannotGC nogc;
     return str->hasLatin1Chars()
            ? ::ParsePattern(ts, alloc, str->latin1Chars(nogc), str->length(),
-                            multiline, match_only, unicode, ignore_case, global, sticky, data)
+                            multiline, match_only, unicode, ignore_case, global, sticky, dotall, data)
            : ::ParsePattern(ts, alloc, str->twoByteChars(nogc), str->length(),
-                            multiline, match_only, unicode, ignore_case, global, sticky, data);
+                            multiline, match_only, unicode, ignore_case, global, sticky, dotall, data);
 }
 
 template <typename CharT>
 static bool
 ParsePatternSyntax(frontend::TokenStream& ts, LifoAlloc& alloc, const CharT* chars, size_t length,
-                   bool unicode)
+                   bool unicode, bool dotall)
 {
     LifoAllocScope scope(&alloc);
 
-    RegExpParser<CharT> parser(ts, &alloc, chars, chars + length, false, unicode, false);
+    RegExpParser<CharT> parser(ts, &alloc, chars, chars + length, false, unicode, dotall, false);
     return parser.ParsePattern() != nullptr;
 }
 
 bool
 irregexp::ParsePatternSyntax(frontend::TokenStream& ts, LifoAlloc& alloc, JSAtom* str,
-                             bool unicode)
+                             bool unicode, bool dotall)
 {
     JS::AutoCheckCannotGC nogc;
     return str->hasLatin1Chars()
-           ? ::ParsePatternSyntax(ts, alloc, str->latin1Chars(nogc), str->length(), unicode)
-           : ::ParsePatternSyntax(ts, alloc, str->twoByteChars(nogc), str->length(), unicode);
+           ? ::ParsePatternSyntax(ts, alloc, str->latin1Chars(nogc), str->length(), unicode, dotall)
+           : ::ParsePatternSyntax(ts, alloc, str->twoByteChars(nogc), str->length(), unicode, dotall);
 }

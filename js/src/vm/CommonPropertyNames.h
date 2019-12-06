@@ -97,6 +97,7 @@
     macro(displayURL, displayURL, "displayURL") \
     macro(do, do_, "do") \
     macro(done, done, "done") \
+    macro(dotall, dotall, "dotall") \
     macro(dotGenerator, dotGenerator, ".generator") \
     macro(dotThis, dotThis, ".this") \
     macro(each, each, "each") \
@@ -281,6 +282,7 @@
     macro(RegExpFlagsGetter, RegExpFlagsGetter, "RegExpFlagsGetter") \
     macro(RegExpMatcher, RegExpMatcher, "RegExpMatcher") \
     macro(RegExpSearcher, RegExpSearcher, "RegExpSearcher") \
+    macro(RegExpStringIterator, RegExpStringIterator, "RegExp String Iterator") \
     macro(RegExpTester, RegExpTester, "RegExpTester") \
     macro(RegExp_prototype_Exec, RegExp_prototype_Exec, "RegExp_prototype_Exec") \
     macro(Reify, Reify, "Reify") \

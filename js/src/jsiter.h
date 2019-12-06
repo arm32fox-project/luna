@@ -151,7 +151,7 @@ class StringIteratorObject : public JSObject
     static const Class class_;
 };
 
-class ListIteratorObject : public JSObject
+class RegExpStringIteratorObject : public JSObject
 {
   public:
     static const Class class_;

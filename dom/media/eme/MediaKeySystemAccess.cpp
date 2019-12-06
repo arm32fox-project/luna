@@ -134,16 +134,6 @@ MediaKeySystemAccess::GetKeySystemStatus(const nsAString& aKeySystem,
     return EnsureCDMInstalled(aKeySystem, aOutMessage);
   }
 
-  if (Preferences::GetBool("media.gmp-eme-adobe.visible", false)) {
-    if (IsPrimetimeKeySystem(aKeySystem)) {
-      if (!Preferences::GetBool("media.gmp-eme-adobe.enabled", false)) {
-        aOutMessage = NS_LITERAL_CSTRING("Adobe EME disabled");
-        return MediaKeySystemStatus::Cdm_disabled;
-      }
-      return EnsureCDMInstalled(aKeySystem, aOutMessage);
-    }
-  }
-
   if (IsWidevineKeySystem(aKeySystem)) {
     if (Preferences::GetBool("media.gmp-widevinecdm.visible", false)) {
       if (!Preferences::GetBool("media.gmp-widevinecdm.enabled", false)) {
@@ -374,19 +364,6 @@ GetSupportedKeySystems()
       widevine.mWebM.SetCanDecryptAndDecode(EME_CODEC_VP9);
 #endif
       keySystemConfigs.AppendElement(Move(widevine));
-    }
-  }
-  {
-    if (HavePluginForKeySystem(kEMEKeySystemPrimetime)) {
-      KeySystemConfig primetime;
-      primetime.mKeySystem = NS_ConvertUTF8toUTF16(kEMEKeySystemPrimetime);
-      primetime.mInitDataTypes.AppendElement(NS_LITERAL_STRING("cenc"));
-      primetime.mPersistentState = KeySystemFeatureSupport::Required;
-      primetime.mDistinctiveIdentifier = KeySystemFeatureSupport::Required;
-      primetime.mSessionTypes.AppendElement(MediaKeySessionType::Temporary);
-      primetime.mMP4.SetCanDecryptAndDecode(EME_CODEC_AAC);
-      primetime.mMP4.SetCanDecryptAndDecode(EME_CODEC_H264);
-      keySystemConfigs.AppendElement(Move(primetime));
     }
   }
 

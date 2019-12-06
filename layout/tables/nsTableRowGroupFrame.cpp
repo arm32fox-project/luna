@@ -154,46 +154,6 @@ nsTableRowGroupFrame::InitRepeatedFrame(nsTableRowGroupFrame* aHeaderFooterFrame
   return NS_OK;
 }
 
-/**
- * We need a custom display item for table row backgrounds. This is only used
- * when the table row is the root of a stacking context (e.g., has 'opacity').
- * Table row backgrounds can extend beyond the row frame bounds, when
- * the row contains row-spanning cells.
- */
-class nsDisplayTableRowGroupBackground : public nsDisplayTableItem {
-public:
-  nsDisplayTableRowGroupBackground(nsDisplayListBuilder* aBuilder,
-                                   nsTableRowGroupFrame* aFrame) :
-    nsDisplayTableItem(aBuilder, aFrame) {
-    MOZ_COUNT_CTOR(nsDisplayTableRowGroupBackground);
-  }
-#ifdef NS_BUILD_REFCNT_LOGGING
-  virtual ~nsDisplayTableRowGroupBackground() {
-    MOZ_COUNT_DTOR(nsDisplayTableRowGroupBackground);
-  }
-#endif
-
-  virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx) override;
-
-  NS_DISPLAY_DECL_NAME("TableRowGroupBackground", TYPE_TABLE_ROW_GROUP_BACKGROUND)
-};
-
-void
-nsDisplayTableRowGroupBackground::Paint(nsDisplayListBuilder* aBuilder,
-                                        nsRenderingContext* aCtx)
-{
-  auto rgFrame = static_cast<nsTableRowGroupFrame*>(mFrame);
-  TableBackgroundPainter painter(rgFrame->GetTableFrame(),
-                                 TableBackgroundPainter::eOrigin_TableRowGroup,
-                                 mFrame->PresContext(), *aCtx,
-                                 mVisibleRect, ToReferenceFrame(),
-                                 aBuilder->GetBackgroundPaintFlags());
-
-  DrawResult result = painter.PaintRowGroup(rgFrame);
-  nsDisplayTableItemGeometry::UpdateDrawResult(this, result);
-}
-
 // Handle the child-traversal part of DisplayGenericTablePart
 static void
 DisplayRows(nsDisplayListBuilder* aBuilder, nsFrame* aFrame,
@@ -204,7 +164,7 @@ DisplayRows(nsDisplayListBuilder* aBuilder, nsFrame* aFrame,
   // Don't try to use the row cursor if we have to descend into placeholders;
   // we might have rows containing placeholders, where the row's overflow
   // area doesn't intersect the dirty rect but we need to descend into the row
-  // to see out of flows.
+  // to see out-of-flows.
   // Note that we really want to check ShouldDescendIntoFrame for all
   // the rows in |f|, but that's exactly what we're trying to avoid, so we
   // approximate it by checking it for |f|: if it's true for any row
@@ -213,11 +173,11 @@ DisplayRows(nsDisplayListBuilder* aBuilder, nsFrame* aFrame,
     nullptr : f->GetFirstRowContaining(aDirtyRect.y, &overflowAbove);
 
   if (kid) {
-    // have a cursor, use it
+    // If we have a cursor, use it
     while (kid) {
-      if (kid->GetRect().y - overflowAbove >= aDirtyRect.YMost() &&
-          kid->GetNormalRect().y - overflowAbove >= aDirtyRect.YMost())
+      if (kid->GetRect().y - overflowAbove >= aDirtyRect.YMost()) {
         break;
+      }
       f->BuildDisplayListForChild(aBuilder, kid, aDirtyRect, aLists);
       kid = kid->GetNextSibling();
     }
@@ -249,19 +209,8 @@ nsTableRowGroupFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                        const nsRect&           aDirtyRect,
                                        const nsDisplayListSet& aLists)
 {
-  nsDisplayTableItem* item = nullptr;
-  if (IsVisibleInSelection(aBuilder)) {
-    bool isRoot = aBuilder->IsAtRootOfPseudoStackingContext();
-    if (isRoot) {
-      // This background is created regardless of whether this frame is
-      // visible or not. Visibility decisions are delegated to the
-      // table background painter.
-      item = new (aBuilder) nsDisplayTableRowGroupBackground(aBuilder, this);
-      aLists.BorderBackground()->AppendNewToTop(item);
-    }
-  }
   nsTableFrame::DisplayGenericTablePart(aBuilder, this, aDirtyRect,
-                                        aLists, item, DisplayRows);
+                                        aLists, DisplayRows);
 }
 
 nsIFrame::LogicalSides
@@ -1962,12 +1911,12 @@ nsTableRowGroupFrame::GetFirstRowContaining(nscoord aY, nscoord* aOverflowAbove)
   // encountering a row whose overflowArea.YMost() is <= aY but which has
   // a row above it containing cell(s) that span to include aY.
   while (cursorIndex > 0 &&
-         cursorFrame->GetNormalRect().YMost() + property->mOverflowBelow > aY) {
+         cursorFrame->GetRect().YMost() + property->mOverflowBelow > aY) {
     --cursorIndex;
     cursorFrame = property->mFrames[cursorIndex];
   }
   while (cursorIndex + 1 < frameCount &&
-         cursorFrame->GetNormalRect().YMost() + property->mOverflowBelow <= aY) {
+         cursorFrame->GetRect().YMost() + property->mOverflowBelow <= aY) {
     ++cursorIndex;
     cursorFrame = property->mFrames[cursorIndex];
   }
@@ -1980,13 +1929,11 @@ nsTableRowGroupFrame::GetFirstRowContaining(nscoord aY, nscoord* aOverflowAbove)
 bool
 nsTableRowGroupFrame::FrameCursorData::AppendFrame(nsIFrame* aFrame)
 {
-  // Relative positioning can cause table parts to move, but we will still paint
-  // the backgrounds for the parts under them at their 'normal' position. That
-  // means that we must consider the overflow rects at both positions. For
-  // example, if we use relative positioning to move a row-spanning cell, we
-  // will still paint the row background for that cell at its normal position,
-  // which will overflow the row.
-  // XXX(seth): This probably isn't correct in the presence of transforms.
+  // Relative positioning can cause table parts to move, which can cause issues
+  // with the cursor position to know which rows can be skipped.
+  // To make this work, use the max difference between the frame's rect and the
+  // union of the frame's "normal" position and the overflow rect to cover the
+  // area of relatively positioned elements even if they are out of order.
   nsRect positionedOverflowRect = aFrame->GetVisualOverflowRect();
   nsPoint positionedToNormal = aFrame->GetNormalPosition() - aFrame->GetPosition();
   nsRect normalOverflowRect = positionedOverflowRect + positionedToNormal;
