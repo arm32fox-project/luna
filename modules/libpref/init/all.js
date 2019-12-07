@@ -23,7 +23,7 @@ pref("keyword.enabled", false);
 pref("general.useragent.locale", "chrome://global/locale/intl.properties");
 pref("general.useragent.compatMode.gecko", false);
 pref("general.useragent.compatMode.firefox", false);
-pref("general.useragent.compatMode.version", "60.9");
+pref("general.useragent.compatMode.version", "68.9");
 pref("general.useragent.appVersionIsBuildID", false);
 
 // This pref exists only for testing purposes. In order to disable all
@@ -2005,6 +2005,12 @@ pref("network.auth.subresource-http-auth-allow", 2);
 // If network.auth.subresource-http-auth-allow has a value of 0 or 1, this pref
 // does not have any effect.
 pref("network.auth.subresource-http-img-XO-auth", false);
+
+// Whether or not to show anti-spoof confirmation prompts when navigating to a
+// URL with user info.
+// true - display extra confirmation prompt ("You are about to log in to...")
+// false - do not display extra confirmation prompt (default)
+pref("network.auth.confirmAuth.enabled", false);
 
 // This preference controls whether to allow sending default credentials (SSO) to
 // NTLM/Negotiate servers allowed in the "trusted uri" list when navigating them
@@ -5480,3 +5486,7 @@ pref("dom.storageManager.enabled", false);
 // >0 = suppress further prompts after the user has canceled the dialog n times
 // See application preferences for appropriate defaults.
 pref("prompts.authentication_dialog_abuse_limit", 0);
+
+// Whether module scripts (<script type="module">) are enabled for content.
+pref("dom.moduleScripts.enabled", true);
+

@@ -239,8 +239,11 @@ GetBuildConfiguration(JSContext* cx, unsigned argc, Value* vp)
     value = BooleanValue(true);
     if (!JS_SetProperty(cx, info, "intl-api", value))
         return false;
-
+#ifdef XP_SOLARIS
+    value = BooleanValue(false);
+#else
     value = BooleanValue(true);
+#endif    
     if (!JS_SetProperty(cx, info, "mapped-array-buffer", value))
         return false;
 
@@ -3897,10 +3900,10 @@ ConvertRegExpTreeToObject(JSContext* cx, irregexp::RegExpTree* tree)
             return nullptr;
         return obj;
     }
-    if (tree->IsLookahead()) {
-        if (!StringProp(cx, obj, "type", "Lookahead"))
+    if (tree->IsLookaround()) {
+        if (!StringProp(cx, obj, "type", "Lookaround"))
             return nullptr;
-        irregexp::RegExpLookahead* t = tree->AsLookahead();
+        irregexp::RegExpLookaround* t = tree->AsLookaround();
         if (!BooleanProp(cx, obj, "is_positive", t->is_positive()))
             return nullptr;
         if (!TreeProp(cx, obj, "body", t->body()))
@@ -3972,6 +3975,7 @@ ParseRegExp(JSContext* cx, unsigned argc, Value* vp)
                                 flags & MultilineFlag, match_only,
                                 flags & UnicodeFlag, flags & IgnoreCaseFlag,
                                 flags & GlobalFlag, flags & StickyFlag,
+                                flags & DotAllFlag,
                                 &data))
     {
         return false;

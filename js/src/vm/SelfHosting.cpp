@@ -857,33 +857,20 @@ intrinsic_NewStringIterator(JSContext* cx, unsigned argc, Value* vp)
 }
 
 static bool
-intrinsic_NewListIterator(JSContext* cx, unsigned argc, Value* vp)
+intrinsic_NewRegExpStringIterator(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     MOZ_ASSERT(args.length() == 0);
 
-    RootedObject proto(cx, GlobalObject::getOrCreateIteratorPrototype(cx, cx->global()));
+    RootedObject proto(cx, GlobalObject::getOrCreateRegExpStringIteratorPrototype(cx, cx->global()));
     if (!proto)
         return false;
 
-    RootedObject iterator(cx);
-    iterator = NewObjectWithGivenProto(cx, &ListIteratorObject::class_, proto);
-    if (!iterator)
+    JSObject* obj = NewObjectWithGivenProto(cx, &RegExpStringIteratorObject::class_, proto);
+    if (!obj)
         return false;
 
-    args.rval().setObject(*iterator);
-    return true;
-}
-
-static bool
-intrinsic_ActiveFunction(JSContext* cx, unsigned argc, Value* vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    MOZ_ASSERT(args.length() == 0);
-
-    ScriptFrameIter iter(cx);
-    MOZ_ASSERT(iter.isFunctionFrame());
-    args.rval().setObject(*iter.callee(cx));
+    args.rval().setObject(*obj);
     return true;
 }
 
@@ -2133,6 +2120,21 @@ intrinsic_ModuleNamespaceExports(JSContext* cx, unsigned argc, Value* vp)
     return true;
 }
 
+static bool
+intrinsic_PromiseResolve(JSContext* cx, unsigned argc, Value* vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    MOZ_ASSERT(args.length() == 2);
+
+    RootedObject constructor(cx, &args[0].toObject());
+    JSObject* promise = js::PromiseResolve(cx, constructor, args[1]);
+    if (!promise)
+        return false;
+
+    args.rval().setObject(*promise);
+    return true;
+}
+
 // The self-hosting global isn't initialized with the normal set of builtins.
 // Instead, individual C++-implemented functions that're required by
 // self-hosted code are defined as global functions. Accessing these
@@ -2290,11 +2292,6 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_FN("CallArrayIteratorMethodIfWrapped",
           CallNonGenericSelfhostedMethod<Is<ArrayIteratorObject>>,      2,0),
 
-    JS_FN("NewListIterator",         intrinsic_NewListIterator,         0,0),
-    JS_FN("CallListIteratorMethodIfWrapped",
-          CallNonGenericSelfhostedMethod<Is<ListIteratorObject>>,       2,0),
-    JS_FN("ActiveFunction",          intrinsic_ActiveFunction,          0,0),
-
     JS_FN("_SetCanonicalName",       intrinsic_SetCanonicalName,        2,0),
 
     JS_INLINABLE_FN("GuardToArrayIterator",
@@ -2309,9 +2306,8 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_INLINABLE_FN("GuardToStringIterator",
                     intrinsic_GuardToBuiltin<StringIteratorObject>, 1,0,
                     IntrinsicGuardToStringIterator),
-    JS_INLINABLE_FN("IsListIterator",
-                    intrinsic_IsInstanceOfBuiltin<ListIteratorObject>,  1,0,
-                    IntrinsicIsListIterator),
+    JS_FN("GuardToRegExpStringIterator",
+          intrinsic_GuardToBuiltin<RegExpStringIteratorObject>, 1,0),
 
     JS_FN("_CreateMapIterationResultPair", intrinsic_CreateMapIterationResultPair, 0, 0),
     JS_INLINABLE_FN("_GetNextMapEntryForIterator", intrinsic_GetNextMapEntryForIterator, 2,0,
@@ -2329,6 +2325,9 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_FN("NewStringIterator",       intrinsic_NewStringIterator,       0,0),
     JS_FN("CallStringIteratorMethodIfWrapped",
           CallNonGenericSelfhostedMethod<Is<StringIteratorObject>>,     2,0),
+    JS_FN("NewRegExpStringIterator", intrinsic_NewRegExpStringIterator, 0,0),
+    JS_FN("CallRegExpStringIteratorMethodIfWrapped",
+          CallNonGenericSelfhostedMethod<Is<RegExpStringIteratorObject>>, 2,0),
 
     JS_FN("IsStarGeneratorObject",
           intrinsic_IsInstanceOfBuiltin<StarGeneratorObject>,           1,0),
@@ -2533,10 +2532,13 @@ static const JSFunctionSpec intrinsic_functions[] = {
           intrinsic_InstantiateModuleFunctionDeclarations, 1, 0),
     JS_FN("SetModuleState", intrinsic_SetModuleState, 1, 0),
     JS_FN("EvaluateModule", intrinsic_EvaluateModule, 1, 0),
-    JS_FN("IsModuleNamespace", intrinsic_IsInstanceOfBuiltin<ModuleNamespaceObject>, 1, 0),
     JS_FN("NewModuleNamespace", intrinsic_NewModuleNamespace, 2, 0),
     JS_FN("AddModuleNamespaceBinding", intrinsic_AddModuleNamespaceBinding, 4, 0),
     JS_FN("ModuleNamespaceExports", intrinsic_ModuleNamespaceExports, 1, 0),
+
+    JS_FN("IsPromiseObject", intrinsic_IsInstanceOfBuiltin<PromiseObject>, 1, 0),
+    JS_FN("CallPromiseMethodIfWrapped", CallNonGenericSelfhostedMethod<Is<PromiseObject>>, 2, 0),
+    JS_FN("PromiseResolve", intrinsic_PromiseResolve, 2, 0),
 
     JS_FS_END
 };
