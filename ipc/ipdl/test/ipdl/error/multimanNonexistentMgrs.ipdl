@@ -1,7 +1,0 @@
-protocol multimanNonexistentManagers {
-    manager Starsky or Hutch;
-
-child:
-    Dummy();
-    __delete__();
-};

@@ -1,8 +1,0 @@
-union Union {
-    nullable int;
-};
-
-protocol Nullable2 {
-child:
-    Msg(Union i);
-};

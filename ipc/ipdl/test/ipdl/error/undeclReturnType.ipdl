@@ -1,5 +1,0 @@
-sync protocol undeclReturnType {
-
-child:  sync Msg() returns (FARGLEGARGLE r);
-
-};

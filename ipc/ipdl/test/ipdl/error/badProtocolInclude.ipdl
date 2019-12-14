@@ -1,7 +1,0 @@
-include protocol IDONTEXIST;
-
-// error: nonexistent protocol ^^^
-
-protocol badProtocolInclude {
-child: Msg();
-};

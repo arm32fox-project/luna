@@ -1,7 +1,0 @@
-struct X { Y y; };
-struct Y { Z z; };
-struct Z { X x; };
-
-protocol undefMutualRecStruct {
-child: __delete__(X x);
-};

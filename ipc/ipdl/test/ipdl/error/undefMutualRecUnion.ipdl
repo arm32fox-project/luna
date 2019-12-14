@@ -1,7 +1,0 @@
-union X { Y; };
-union Y { Z; };
-union Z { X; };
-
-protocol undefMutualRecUnion {
-child: __delete__(X x);
-};

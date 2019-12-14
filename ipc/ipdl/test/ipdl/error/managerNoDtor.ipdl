@@ -1,9 +1,0 @@
-include protocol managedNoDtor;
-
-protocol managerNoDtor {
-    manages managedNoDtor;
-
-parent:
-    managedNoDtor();
-    // error: no ctor defined
-};
