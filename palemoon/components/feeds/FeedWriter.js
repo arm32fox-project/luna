@@ -9,6 +9,7 @@ const Cr = Components.results;
 const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/NetUtil.jsm");
 
 const FEEDWRITER_CID = Components.ID("{49bb6593-3aff-4eb3-a068-2712c28bd58e}");
 const FEEDWRITER_CONTRACTID = "@mozilla.org/browser/feeds/result-writer;1";
@@ -17,12 +18,7 @@ function LOG(str) {
   var prefB = Cc["@mozilla.org/preferences-service;1"].
               getService(Ci.nsIPrefBranch);
 
-  var shouldLog = false;
-  try {
-    shouldLog = prefB.getBoolPref("feeds.log");
-  } 
-  catch (ex) {
-  }
+  var shouldLog = prefB.getBoolPref("feeds.log", false);
 
   if (shouldLog)
     dump("*** Feeds: " + str + "\n");
@@ -691,21 +687,6 @@ FeedWriter.prototype = {
   },
 
   /**
-   * Get moz-icon url for a file
-   * @param   file
-   *          A nsIFile object for which the moz-icon:// is returned
-   * @returns moz-icon url of the given file as a string
-   */
-  _getFileIconURL: function FW__getFileIconURL(file) {
-    var ios = Cc["@mozilla.org/network/io-service;1"].
-              getService(Ci.nsIIOService);
-    var fph = ios.getProtocolHandler("file")
-                 .QueryInterface(Ci.nsIFileProtocolHandler);
-    var urlSpec = fph.getURLSpecFromFile(file);
-    return "moz-icon://" + urlSpec + "?size=16";
-  },
-
-  /**
    * Helper method to set the selected application and system default
    * reader menuitems details from a file object
    *   @param aMenuItem
@@ -716,7 +697,10 @@ FeedWriter.prototype = {
   _initMenuItemWithFile: function(aMenuItem, aFile) {
     this._contentSandbox.menuitem = aMenuItem;
     this._contentSandbox.label = this._getFileDisplayName(aFile);
-    this._contentSandbox.image = this._getFileIconURL(aFile);
+    // For security reasons, access to moz-icon:file://... URIs is
+    // no longer allowed (indirect file system access from content).
+    // We use a dummy application instead to get a generic icon.
+    this._contentSandbox.image = "moz-icon://dummy.exe?size=16";
     var codeStr = "menuitem.setAttribute('label', label); " +
                   "menuitem.setAttribute('image', image);"
     Cu.evalInSandbox(codeStr, this._contentSandbox);
@@ -885,11 +869,7 @@ FeedWriter.prototype = {
         Cc["@mozilla.org/preferences-service;1"].
         getService(Ci.nsIPrefBranch);
 
-    var handler = "bookmarks";
-    try {
-      handler = prefs.getCharPref(getPrefReaderForType(feedType));
-    }
-    catch (ex) { }
+    var handler = prefs.getCharPref(getPrefReaderForType(feedType), "bookmarks");
 
     switch (handler) {
       case "web": {
@@ -1087,11 +1067,7 @@ FeedWriter.prototype = {
         .addEventListener("command", this, false);
 
     // first-run ui
-    var showFirstRunUI = true;
-    try {
-      showFirstRunUI = prefs.getBoolPref(PREF_SHOW_FIRST_RUN_UI);
-    }
-    catch (ex) { }
+    var showFirstRunUI = prefs.getBoolPref(PREF_SHOW_FIRST_RUN_UI, true);
     if (showFirstRunUI) {
       var textfeedinfo1, textfeedinfo2;
       switch (feedType) {
@@ -1137,16 +1113,14 @@ FeedWriter.prototype = {
     var nullPrincipal = Cc["@mozilla.org/nullprincipal;1"].
                         createInstance(Ci.nsIPrincipal);
 
-    var resolvedURI = Cc["@mozilla.org/network/io-service;1"].
-                      getService(Ci.nsIIOService).
-                      newChannel2("about:feeds",
-                                  null,
-                                  null,
-                                  null, // aLoadingNode
-                                  nullPrincipal,
-                                  null, // aTriggeringPrincipal
-                                  Ci.nsILoadInfo.SEC_NORMAL,
-                                  Ci.nsIContentPolicy.TYPE_OTHER).URI;
+    // this channel is not going to be openend, use a nullPrincipal
+    // and the most restrctive securityFlag.
+    let resolvedURI = NetUtil.newChannel({
+      uri: "about:feeds",
+      loadingPrincipal: nullPrincipal,
+      securityFlags: Ci.nsILoadInfo.SEC_REQUIRE_SAME_ORIGIN_DATA_IS_BLOCKED,
+      contentPolicyType: Ci.nsIContentPolicy.TYPE_OTHER
+    }).URI;
 
     if (resolvedURI.equals(chan.URI))
       return chan.originalURI;
@@ -1174,7 +1148,7 @@ FeedWriter.prototype = {
 
     var secman = Cc["@mozilla.org/scriptsecuritymanager;1"].
                  getService(Ci.nsIScriptSecurityManager);
-    this._feedPrincipal = secman.getSimpleCodebasePrincipal(this._feedURI);
+    this._feedPrincipal = secman.createCodebasePrincipal(this._feedURI, {});
 
     LOG("Subscribe Preview: feed uri = " + this._window.location.href);
 
@@ -1395,6 +1369,8 @@ FeedWriter.prototype = {
                                          .QueryInterface(Ci.nsIDocShell)
                                          .QueryInterface(Ci.nsILoadContext)
                                          .usePrivateBrowsing;
+    var nullPrincipal = Cc["@mozilla.org/nullprincipal;1"]
+                          .createInstance(Ci.nsIPrincipal);
     this._faviconService.setAndFetchFaviconForPage(readerURI, faviconURI, false,
       usePrivateBrowsing ? this._faviconService.FAVICON_LOAD_PRIVATE
                          : this._faviconService.FAVICON_LOAD_NON_PRIVATE,
@@ -1409,7 +1385,7 @@ FeedWriter.prototype = {
           self._contentSandbox.menuItem = null;
           self._contentSandbox.dataURL = null;
         }
-      });
+      }, nullPrincipal);
   },
 
   classID: FEEDWRITER_CID,

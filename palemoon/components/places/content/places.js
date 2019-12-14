@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
-Components.utils.import("resource:///modules/MigrationUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Task",
                                   "resource://gre/modules/Task.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "BookmarkJSONUtils",
@@ -335,14 +334,6 @@ var PlacesOrganizer = {
   },
 
   /**
-   * Show the migration wizard for importing passwords,
-   * cookies, history, preferences, and bookmarks.
-   */
-  importFromBrowser: function PO_importFromBrowser() {
-    MigrationUtils.showMigrationWizard(window);
-  },
-
-  /**
    * Open a file-picker and import the selected file into the bookmarks store
    */
   importFromFile: function PO_importFromFile() {
@@ -500,7 +491,7 @@ var PlacesOrganizer = {
 
     Task.spawn(function() {
       try {
-        yield BookmarkJSONUtils.importFromFile(aFile, true);
+        yield BookmarkJSONUtils.importFromFile(aFile.path, true);
       } catch(ex) {
         PlacesOrganizer._showErrorAlert(PlacesUIUtils.getString("bookmarksRestoreParseError"));
       }
@@ -528,7 +519,7 @@ var PlacesOrganizer = {
     let fp = Cc["@mozilla.org/filepicker;1"].createInstance(Ci.nsIFilePicker);
     let fpCallback = function fpCallback_done(aResult) {
       if (aResult != Ci.nsIFilePicker.returnCancel) {
-        BookmarkJSONUtils.exportToFile(fp.file);
+        BookmarkJSONUtils.exportToFile(fp.file.path);
       }
     };
 
@@ -1386,7 +1377,7 @@ var ViewMenu = {
   }
 }
 
-let ContentArea = {
+var ContentArea = {
   _specialViews: new Map(),
 
   init: function CA_init() {
@@ -1520,7 +1511,7 @@ let ContentArea = {
   }
 };
 
-let ContentTree = {
+var ContentTree = {
   init: function CT_init() {
     this._view = document.getElementById("placeContent");
   },

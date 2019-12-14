@@ -132,38 +132,8 @@
       </splitmenu>
       <menuseparator class="appmenu-menuseparator"/>
       <splitmenu id="appmenu_webDeveloper"
-                 command="Tools:DevToolbox"
                  label="&appMenuWebDeveloper.label;">
         <menupopup id="appmenu_webDeveloper_popup">
-#ifdef MOZ_DEVTOOLS
-          <menuitem id="appmenu_devToolbox"
-                    observes="devtoolsMenuBroadcaster_DevToolbox"/>
-          <menuseparator id="appmenu_devtools_separator"/>
-          <menuitem id="appmenu_devToolbar"
-                    observes="devtoolsMenuBroadcaster_DevToolbar"/>
-          <menuitem id="appmenu_chromeDebugger"
-                    observes="devtoolsMenuBroadcaster_ChromeDebugger"/>
-          <menuitem id="appmenu_browserConsole"
-                    observes="devtoolsMenuBroadcaster_BrowserConsole"/>
-          <menuitem id="appmenu_responsiveUI"
-                    observes="devtoolsMenuBroadcaster_ResponsiveUI"/>
-          <menuitem id="appmenu_eyedropper"
-                    observes="devtoolsMenuBroadcaster_Eyedropper"/>
-          <menuitem id="appmenu_scratchpad"
-                    observes="devtoolsMenuBroadcaster_Scratchpad"/>
-#endif
-          <menuitem id="appmenu_pageSource"
-                    observes="devtoolsMenuBroadcaster_PageSource"/>
-          <menuitem id="appmenu_errorConsole"
-                    observes="devtoolsMenuBroadcaster_ErrorConsole"/>
-#ifdef MOZ_DEVTOOLS
-          <menuitem id="appmenu_devtools_connect"
-                    observes="devtoolsMenuBroadcaster_connect"/>
-#endif
-          <menuseparator id="appmenu_devToolsEndSeparator"/>
-          <menuitem id="appmenu_getMoreDevtools"
-                    observes="devtoolsMenuBroadcaster_GetMoreTools"/>
-          <menuseparator/>
 #define ID_PREFIX appmenu_developer_
 #define OMIT_ACCESSKEYS
 #include browser-charsetmenu.inc
@@ -173,6 +143,11 @@
                     type="checkbox"
                     observes="workOfflineMenuitemState"
                     oncommand="BrowserOffline.toggleOfflineStatus();"/>
+          <menuseparator/>
+          <menuitem id="appmenu_pageSource"
+                    observes="devtoolsMenuBroadcaster_PageSource"/>
+          <menuitem id="appmenu_javascriptConsole"
+                    observes="devtoolsMenuBroadcaster_ErrorConsole"/>
         </menupopup>
       </splitmenu>
       <menuseparator class="appmenu-menuseparator"/>
@@ -366,7 +341,7 @@
       <splitmenu id="appmenu_help"
                  label="&helpMenu.label;"
                  oncommand="openHelpLink('firefox-help')">
-          <menupopup id="appmenu_helpMenupopup">
+          <menupopup id="appmenu_helpMenupopup" onpopupshowing="buildHelpMenu();">
             <menuitem id="appmenu_openHelp"
                       label="&helpMenu.label;"
                       oncommand="openHelpLink('firefox-help')"
@@ -375,14 +350,26 @@
                       label="&helpTroubleshootingInfo.label;"
                       oncommand="openTroubleshootingPage()"
                       onclick="checkForMiddleClick(this,event);"/>
+            <menuitem id="appmenu_safeMode"
+                      label="&appMenuSafeMode.label;"
+                      oncommand="restart(true);"/>
+            <menuseparator/>
+            <menuitem id="appmenu_releaseNotes"
+                      accesskey="&helpReleaseNotes.accesskey;"
+                      label="&helpReleaseNotes.label;"
+                      oncommand="openReleaseNotes();"
+                      onclick="checkForMiddleClick(this, event);"/>
             <menuitem id="appmenu_feedbackPage"
                       label="&helpFeedbackPage.label;"
                       oncommand="openFeedbackPage()"
                       onclick="checkForMiddleClick(this, event);"/>
+#ifdef MOZ_UPDATER
             <menuseparator/>
-            <menuitem id="appmenu_safeMode"
-                      label="&appMenuSafeMode.label;"
-                      oncommand="restart(true);"/>
+            <menuitem id="appmenu_checkForUpdates"
+                      class="menuitem-iconic"
+                      label="&updateCmd.label;"
+                      oncommand="checkForUpdates();"/>
+#endif
             <menuseparator/>
             <menuitem id="appmenu_about"
                       label="&aboutProduct.label;"

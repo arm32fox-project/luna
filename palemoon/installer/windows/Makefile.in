@@ -5,9 +5,7 @@
 include $(topsrcdir)/toolkit/mozapps/installer/package-name.mk
 
 CONFIG_DIR = instgen
-SFX_MODULE = $(topsrcdir)/other-licenses/7zstub/firefox/7zSD.sfx
-APP_VERSION := $(shell cat $(srcdir)/../../config/version.txt)
-DEFINES += -DAPP_VERSION=$(APP_VERSION)
+SFX_MODULE = $(topsrcdir)/other-licenses/7zstub/palemoon/7zSD.sfx
 
 INSTALLER_FILES = \
 	app.tag \
@@ -24,23 +22,16 @@ BRANDING_FILES = \
 	wizWatermark.bmp \
 	$(NULL)
 
-DEFINES += \
-	-DAB_CD=$(AB_CD) \
-	-DMOZ_APP_NAME=$(MOZ_APP_NAME) \
-	-DMOZ_APP_DISPLAYNAME="${MOZ_APP_DISPLAYNAME}" \
-	-DMOZILLA_VERSION=${MOZILLA_VERSION} \
-	$(NULL)
-
 include $(topsrcdir)/config/config.mk
 
 ifdef LOCALE_MERGEDIR
 PPL_LOCALE_ARGS = \
-  --l10n-dir=$(LOCALE_MERGEDIR)/browser/installer \
-  --l10n-dir=$(call EXPAND_LOCALE_SRCDIR,browser/locales)/installer \
-  --l10n-dir=$(topsrcdir)/browser/locales/en-US/installer \
+  --l10n-dir=$(LOCALE_MERGEDIR)/application/palemoon/installer \
+  --l10n-dir=$(call EXPAND_LOCALE_SRCDIR,application/palemoon/locales)/installer \
+  --l10n-dir=$(topsrcdir)/application/palemoon/locales/en-US/installer \
   $(NULL)
 else
-PPL_LOCALE_ARGS=$(call EXPAND_LOCALE_SRCDIR,browser/locales)/installer
+PPL_LOCALE_ARGS=$(call EXPAND_LOCALE_SRCDIR,application/palemoon/locales)/installer
 endif
 
 OVERRIDE_DEFAULT_GOAL := installer
@@ -71,10 +62,6 @@ $(CONFIG_DIR)/setup.exe::
 	$(PYTHON) $(topsrcdir)/toolkit/mozapps/installer/windows/nsis/preprocess-locale.py \
 	  --preprocess-locale $(topsrcdir) \
 	  $(PPL_LOCALE_ARGS) $(AB_CD) $(CONFIG_DIR)
-	$(PYTHON) $(topsrcdir)/toolkit/mozapps/installer/windows/nsis/preprocess-locale.py \
-	  --preprocess-single-file $(topsrcdir) \
-	  $(PPL_LOCALE_ARGS) $(CONFIG_DIR) \
-	  nsisstrings.properties nsisstrings.nlf
 
 GARBARGE_DIRS += instgen
 

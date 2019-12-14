@@ -3,40 +3,46 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 installer:
-	@$(MAKE) -C browser/installer installer
+	@$(MAKE) -C application/palemoon/installer installer
 
 package:
-	@$(MAKE) -C browser/installer
+	@$(MAKE) -C application/palemoon/installer make-archive
+
+l10n-package:
+	@$(MAKE) -C application/palemoon/installer make-langpack
+
+mozpackage:
+	@$(MAKE) -C application/palemoon/installer
 
 package-compare:
-	@$(MAKE) -C browser/installer package-compare
+	@$(MAKE) -C application/palemoon/installer package-compare
 
 stage-package:
-	@$(MAKE) -C browser/installer stage-package
+	@$(MAKE) -C application/palemoon/installer stage-package make-buildinfo-file
 
 install::
-	@$(MAKE) -C browser/installer install
+	@$(MAKE) -C application/palemoon/installer install
 
 clean::
-	@$(MAKE) -C browser/installer clean
+	@$(MAKE) -C application/palemoon/installer clean
 
 distclean::
-	@$(MAKE) -C browser/installer distclean
+	@$(MAKE) -C application/palemoon/installer distclean
 
 source-package::
-	@$(MAKE) -C browser/installer source-package
+	@$(MAKE) -C application/palemoon/installer source-package
 
 upload::
-	@$(MAKE) -C browser/installer upload
+	@$(MAKE) -C application/palemoon/installer upload
 
 source-upload::
-	@$(MAKE) -C browser/installer source-upload
+	@$(MAKE) -C application/palemoon/installer source-upload
 
 hg-bundle::
-	@$(MAKE) -C browser/installer hg-bundle
+	@$(MAKE) -C application/palemoon/installer hg-bundle
 
 l10n-check::
-	@$(MAKE) -C browser/locales l10n-check
+	@$(MAKE) -C application/palemoon/locales l10n-check
 
 ifdef ENABLE_TESTS
 # Implemented in testing/testsuite-targets.mk

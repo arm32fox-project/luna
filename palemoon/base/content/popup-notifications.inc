@@ -2,7 +2,6 @@
 
     <panel id="notification-popup"
            type="arrow"
-           footertype="promobox"
            position="after_start"
            hidden="true"
            orient="vertical"
@@ -54,7 +53,7 @@
       </hbox>
     </panel>
 
-
+#ifdef MOZ_WEBRTC
     <popupnotification id="webRTC-shareDevices-notification" hidden="true">
       <popupnotificationcontent id="webRTC-selectCamera" orient="vertical">
         <separator class="thin"/>
@@ -75,7 +74,7 @@
         </menulist>
       </popupnotificationcontent>
     </popupnotification>
-
+#endif
     <popupnotification id="servicesInstall-notification" hidden="true">
       <popupnotificationcontent orient="vertical" align="start">
         <!-- XXX bug 974146, tests are looking for this, can't remove yet. -->
@@ -86,6 +85,14 @@
       <popupnotificationcontent orient="vertical" align="start">
         <separator class="thin"/>
         <label id="pointerLock-cancel" value="&pointerLock.notification.message;"/>
+      </popupnotificationcontent>
+    </popupnotification>
+
+    <popupnotification id="password-notification" hidden="true">
+      <popupnotificationcontent orient="vertical">
+        <textbox id="password-notification-username"/>
+        <textbox id="password-notification-password" type="password" show-content=""/>
+        <checkbox id="password-notification-visibilityToggle" hidden="true"/>
       </popupnotificationcontent>
     </popupnotification>
 

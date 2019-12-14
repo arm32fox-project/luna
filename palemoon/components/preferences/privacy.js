@@ -151,42 +151,6 @@ var gPrivacyPane = {
   },
 
   /**
-   * Update the Tracking preferences based on controls.
-   */
-  setTrackingPrefs: function PPP_setTrackingPrefs()
-  {
-    let dntRadioGroup = document.getElementById("doNotTrackSelection"),
-        dntValuePref = document.getElementById("privacy.donottrackheader.value"),
-        dntEnabledPref = document.getElementById("privacy.donottrackheader.enabled");
-
-    // if the selected radio button says "no preference", set on/off pref to
-    // false and don't change the value pref.
-    if (dntRadioGroup.selectedItem.value == -1) {
-      dntEnabledPref.value = false;
-      return dntValuePref.value;
-    }
-
-    dntEnabledPref.value = true;
-    return dntRadioGroup.selectedItem.value;
-  },
-
-  /**
-   * Obtain the tracking preference value and reflect it in the UI.
-   */
-  getTrackingPrefs: function PPP_getTrackingPrefs()
-  {
-    let dntValuePref = document.getElementById("privacy.donottrackheader.value"),
-        dntEnabledPref = document.getElementById("privacy.donottrackheader.enabled");
-
-    // if DNT is enbaled, select the value from the selected radio
-    // button, otherwise choose the "no preference" radio button
-    if (dntEnabledPref.value)
-      return dntValuePref.value;
-
-    return document.getElementById("dntnopref").value;
-  },
-
-  /**
    * Update the private browsing auto-start pref and the history mode
    * micro-management prefs based on the history mode menulist
    */
@@ -333,36 +297,6 @@ var gPrivacyPane = {
   },
 
   // HISTORY
-
-  /**
-   * Read the location bar enabled and suggestion prefs
-   * @return Int value for suggestion menulist
-   */
-  readSuggestionPref: function PPP_readSuggestionPref()
-  {
-    let getVal = function(aPref)
-      document.getElementById("browser.urlbar." + aPref).value;
-
-    // Suggest nothing if autocomplete is not enabled
-    if (!getVal("autocomplete.enabled"))
-      return -1;
-
-    // Bottom 2 bits of default.behavior specify history/bookmark
-    return getVal("default.behavior") & 3;
-  },
-
-  /**
-   * Update browser.urlbar.autocomplete.enabled when a
-   * browser.urlbar.suggest.* pref is changed from the ui.
-   */
-  writeSuggestionPref: function PPP_writeSuggestionPref() {
-    let getVal = (aPref) => {
-      return document.getElementById("browser.urlbar.suggest." + aPref).value;
-    }
-    // autocomplete.enabled is true if any of the suggestions is true
-    let enabled = ["history", "bookmark", "openpage"].map(getVal).some(v => v);
-    Services.prefs.setBoolPref("browser.urlbar.autocomplete.enabled", enabled);
-  },
 
   /*
    * Preferences:

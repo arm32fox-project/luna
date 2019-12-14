@@ -8,15 +8,15 @@
 
 "use strict";
 
-let Cc = Components.classes;
-let Ci = Components.interfaces;
-let Cu = Components.utils;
+var Cc = Components.classes;
+var Ci = Components.interfaces;
+var Cu = Components.utils;
 
 this.EXPORTED_SYMBOLS = [ "FormValidationHandler" ];
 
 Cu.import("resource://gre/modules/Services.jsm");
 
-let FormValidationHandler =
+var FormValidationHandler =
 {
   _panel: null,
   _anchor: null,
@@ -122,7 +122,7 @@ let FormValidationHandler =
     this._panel.hidden = false;
 
     let tabBrowser = aWindow.gBrowser;
-    this._anchor = tabBrowser.formValidationAnchor;
+    this._anchor = tabBrowser.popupAnchor;
     this._anchor.left = aPanelData.contentRect.left;
     this._anchor.top = aPanelData.contentRect.top;
     this._anchor.width = aPanelData.contentRect.width;

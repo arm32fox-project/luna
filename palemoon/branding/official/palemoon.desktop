@@ -64,7 +64,7 @@ Comment[ko]=웹을 돌아 다닙니다
 Comment[ku]=Li torê bigere
 Comment[lt]=Naršykite internete
 Comment[nb]=Surf på nettet
-Comment[nl]=Verken het internet
+Comment[nl]=Surf op het internet
 Comment[nn]=Surf på nettet
 Comment[no]=Surf på nettet
 Comment[pl]=Przeglądanie stron WWW
@@ -87,8 +87,9 @@ Type=Application
 Icon=palemoon
 Categories=Network;WebBrowser;
 MimeType=text/html;text/xml;application/xhtml+xml;application/vnd.mozilla.xul+xml;text/mml;x-scheme-handler/http;x-scheme-handler/https;x-scheme-handler/ftp;
-StartupNotify=true
+StartupNotify=false
 Actions=NewTab;NewWindow;NewPrivateWindow;
+StartupWMClass="pale moon"
 
 [Desktop Action NewTab]
 Name=Open new tab

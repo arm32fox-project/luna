@@ -3,7 +3,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 // gSyncUI handles updating the tools menu
-let gSyncUI = {
+var gSyncUI = {
   _obs: ["weave:service:sync:start",
          "weave:service:sync:delayed",
          "weave:service:quota:remaining",
@@ -83,10 +83,7 @@ let gSyncUI = {
   _wasDelayed: false,
 
   _needsSetup: function SUI__needsSetup() {
-    let firstSync = "";
-    try {
-      firstSync = Services.prefs.getCharPref("services.sync.firstSync");
-    } catch (e) { }
+    let firstSync = Services.prefs.getCharPref("services.sync.firstSync", "");
     return Weave.Status.checkSetup() == Weave.CLIENT_NOT_CONFIGURED ||
            firstSync == "notReady";
   },
@@ -96,17 +93,25 @@ let gSyncUI = {
     document.getElementById("sync-setup-state").hidden = !needsSetup;
     document.getElementById("sync-syncnow-state").hidden = needsSetup;
 
-    if (!gBrowser)
+    if (!gBrowser) {
       return;
+    }
 
     let button = document.getElementById("sync-button");
-    if (!button)
+    if (!button) {
       return;
+    }
 
     button.removeAttribute("status");
+
     this._updateLastSyncTime();
-    if (needsSetup)
+
+    if (needsSetup) {
       button.removeAttribute("tooltiptext");
+      button.setAttribute("label", this._stringBundle.GetStringFromName("setupsync.label"));
+    } else {
+      button.setAttribute("label", this._stringBundle.GetStringFromName("syncnow.label"));
+    }
   },
 
 
@@ -120,6 +125,7 @@ let gSyncUI = {
       return;
 
     button.setAttribute("status", "active");
+    button.setAttribute("label", this._stringBundle.GetStringFromName("syncing2.label"));
   },
 
   onSyncDelay: function SUI_onSyncDelay() {
@@ -285,11 +291,7 @@ let gSyncUI = {
     if (!syncButton)
       return;
 
-    let lastSync;
-    try {
-      lastSync = Services.prefs.getCharPref("services.sync.lastSync");
-    }
-    catch (e) { };
+    let lastSync = Services.prefs.getCharPref("services.sync.lastSync", "");
     if (!lastSync || this._needsSetup()) {
       syncButton.removeAttribute("tooltiptext");
       return;

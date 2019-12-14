@@ -37,15 +37,20 @@ pref("extensions.strictCompatibility", false);
 // for it to be compatible by default.
 pref("extensions.minCompatibleAppVersion", "1.5");
 
+#define AM_DOMAIN addons.palemoon.org
+#define AM_AUS_ARGS reqVersion=%REQ_VERSION%&id=%ITEM_ID%&version=%ITEM_VERSION%&maxAppVersion=%ITEM_MAXAPPVERSION%&status=%ITEM_STATUS%&appID=%APP_ID%&appVersion=%APP_VERSION%&appOS=%APP_OS%&appABI=%APP_ABI%&locale=%APP_LOCALE%&currentAppVersion=%CURRENT_APP_VERSION%&updateType=%UPDATE_TYPE%&compatMode=%COMPATIBILITY_MODE%
+
 // Preferences for AMO integration
-pref("extensions.getAddons.cache.enabled", true);
-pref("extensions.getAddons.maxResults", 15);
-pref("extensions.getAddons.get.url", "https://services.addons.mozilla.org/%LOCALE%/firefox/api/%API_VERSION%/search/guid:%IDS%?src=firefox&appOS=%OS%&appVersion=%VERSION%");
-pref("extensions.getAddons.getWithPerformance.url", "https://services.addons.mozilla.org/%LOCALE%/firefox/api/%API_VERSION%/search/guid:%IDS%?src=firefox&appOS=%OS%&appVersion=%VERSION%&tMain=%TIME_MAIN%&tFirstPaint=%TIME_FIRST_PAINT%&tSessionRestored=%TIME_SESSION_RESTORED%");
-pref("extensions.getAddons.search.browseURL", "https://addons.mozilla.org/%LOCALE%/firefox/search?q=%TERMS%&platform=%OS%&appver=%VERSION%");
-pref("extensions.getAddons.search.url", "https://services.addons.mozilla.org/%LOCALE%/firefox/api/%API_VERSION%/search/%TERMS%/all/%MAX_RESULTS%/%OS%/%VERSION%/%COMPATIBILITY_MODE%?src=firefox");
-pref("extensions.webservice.discoverURL", "https://services.addons.mozilla.org/%LOCALE%/firefox/discovery/pane/%VERSION%/%OS%/%COMPATIBILITY_MODE%");
-pref("extensions.getAddons.recommended.url", "https://services.addons.mozilla.org/%LOCALE%/%APP%/api/%API_VERSION%/list/recommended/all/%MAX_RESULTS%/%OS%/%VERSION%?src=firefox");
+pref("extensions.getAddons.cache.enabled", false);
+pref("extensions.getAddons.maxResults", 10);
+pref("extensions.getAddons.get.url", "https://@AM_DOMAIN@/?component=integration&type=internal&request=get&addonguid=%IDS%&os=%OS%&version=%VERSION%");
+pref("extensions.getAddons.getWithPerformance.url", "https://@AM_DOMAIN@/?component=integration&type=internal&request=get&addonguid=%IDS%&os=%OS%&version=%VERSION%");
+pref("extensions.getAddons.search.browseURL", "https://@AM_DOMAIN@/search/?terms=%TERMS%");
+pref("extensions.getAddons.search.url", "https://@AM_DOMAIN@/?component=integration&type=internal&request=search&q=%TERMS%&locale=%LOCALE%&os=%OS%&version=%VERSION%");
+pref("extensions.webservice.discoverURL", "http://@AM_DOMAIN@/?component=discover");
+pref("extensions.getAddons.recommended.url", "https://@AM_DOMAIN@/?component=integration&type=internal&request=recommended&locale=%LOCALE%&os=%OS%");
+pref("extensions.getAddons.browseAddons", "http://@AM_DOMAIN@/");
+pref("extensions.getAddons.recommended.browseURL", "https://@AM_DOMAIN@/?component=integration&type=external&request=recommended");
 
 // Blocklist preferences
 pref("extensions.blocklist.enabled", true);
@@ -54,9 +59,9 @@ pref("extensions.blocklist.level.updated", false);
 // Controls what level the blocklist switches from warning about items to forcibly
 // blocking them.
 pref("extensions.blocklist.level", 2);
-pref("extensions.blocklist.url", "https://addons.mozilla.org/blocklist/3/%APP_ID%/%APP_VERSION%/%PRODUCT%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/%PING_COUNT%/%TOTAL_PING_COUNT%/%DAYS_SINCE_LAST_PING%/");
-pref("extensions.blocklist.detailsURL", "https://www.mozilla.org/%LOCALE%/blocklist/");
-pref("extensions.blocklist.itemURL", "https://addons.mozilla.org/%LOCALE%/%APP%/blocked/%blockID%");
+pref("extensions.blocklist.url", "https://blocklist.palemoon.org/?version=%VERSION%");
+pref("extensions.blocklist.detailsURL", "https://blocklist.palemoon.org/about.shtml");
+pref("extensions.blocklist.itemURL", "https://blocklist.palemoon.org/info/?id=%blockID%");
 
 pref("extensions.update.autoUpdateDefault", true);
 
@@ -65,10 +70,10 @@ pref("extensions.update.autoUpdateDefault", true);
 pref("extensions.autoDisableScopes", 15);
 
 // Dictionary download preference
-pref("browser.dictionaries.download.url", "https://addons.mozilla.org/%LOCALE%/firefox/dictionaries/");
+pref("browser.dictionaries.download.url", "https://@AM_DOMAIN@/dictionaries/");
 
 // Get More Tools link URL
-pref("browser.getdevtools.url","https://addons.mozilla.org/firefox/collections/mozilla/webdeveloper/");
+pref("browser.getdevtools.url","https://@AM_DOMAIN@/?component=integration&type=external&request=devtools");
 
 // Feedback URL
 pref("browser.feedback.url", "https://forum.palemoon.org");
@@ -106,7 +111,7 @@ pref("app.update.backgroundMaxErrors", 10);
 // final certificate and all certificates the connection is redirected to before
 // the final certificate for the url specified in the |app.update.url|
 // preference must be built-in.
-pref("app.update.cert.requireBuiltIn", true);
+pref("app.update.cert.requireBuiltIn", false);
 
 // When |app.update.cert.checkAttributes| is true or not specified the
 // certificate attributes specified in the |app.update.certs.| preference branch
@@ -142,7 +147,7 @@ pref("app.update.enabled", true);
 // This preference turns on app.update.mode and allows automatic download and
 // install to take place. We use a separate boolean toggle for this to make
 // the UI easier to construct.
-pref("app.update.auto", true);
+pref("app.update.auto", false);
 
 // See chart in nsUpdateService.js source for more details
 pref("app.update.mode", 1);
@@ -155,7 +160,7 @@ pref("app.update.silent", false);
 pref("app.update.staging.enabled", true);
 
 // Update service URL:
-pref("app.update.url", "https://aus3.mozilla.org/update/3/%PRODUCT%/%VERSION%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/update.xml");
+pref("app.update.url", "https://aus.palemoon.org/?application=%PRODUCT%&version=%VERSION%&arch=%BUILD_TARGET%&toolkit=%WIDGET_TOOLKIT%&buildid=%BUILD_ID%&channel=%CHANNEL%");
 // app.update.url.manual is in branding section
 // app.update.url.details is in branding section
 
@@ -166,7 +171,7 @@ pref("app.update.url", "https://aus3.mozilla.org/update/3/%PRODUCT%/%VERSION%/%B
 // app.update.promptWaitTime is in branding section
 
 // Show the Update Checking/Ready UI when the user was idle for x seconds
-pref("app.update.idletime", 60);
+pref("app.update.idletime", 180);
 
 // Whether or not we show a dialog box informing the user that the update was
 // successfully applied. This is off in Firefox by default since we show a 
@@ -189,8 +194,8 @@ pref("app.update.incompatible.mode", 0);
 //  .. etc ..
 //
 pref("extensions.update.enabled", true);
-pref("extensions.update.url", "https://versioncheck.addons.mozilla.org/update/VersionCheck.php?reqVersion=%REQ_VERSION%&id=%ITEM_ID%&version=%ITEM_VERSION%&maxAppVersion=%ITEM_MAXAPPVERSION%&status=%ITEM_STATUS%&appID=%APP_ID%&appVersion=%APP_VERSION%&appOS=%APP_OS%&appABI=%APP_ABI%&locale=%APP_LOCALE%&currentAppVersion=%CURRENT_APP_VERSION%&updateType=%UPDATE_TYPE%&compatMode=%COMPATIBILITY_MODE%");
-pref("extensions.update.background.url", "https://versioncheck-bg.addons.mozilla.org/update/VersionCheck.php?reqVersion=%REQ_VERSION%&id=%ITEM_ID%&version=%ITEM_VERSION%&maxAppVersion=%ITEM_MAXAPPVERSION%&status=%ITEM_STATUS%&appID=%APP_ID%&appVersion=%APP_VERSION%&appOS=%APP_OS%&appABI=%APP_ABI%&locale=%APP_LOCALE%&currentAppVersion=%CURRENT_APP_VERSION%&updateType=%UPDATE_TYPE%&compatMode=%COMPATIBILITY_MODE%");
+pref("extensions.update.url", "https://@AM_DOMAIN@/?component=aus&@AM_AUS_ARGS@");
+pref("extensions.update.background.url", "https://@AM_DOMAIN@/?component=aus&@AM_AUS_ARGS@");
 pref("extensions.update.interval", 86400);  // Check for updates to Extensions and 
                                             // Themes every day
 // Non-symmetric (not shared by extensions) extension-specific [update] preferences
@@ -201,9 +206,6 @@ pref("extensions.dss.switchPending", false);    // Non-dynamic switch pending af
 pref("extensions.{972ce4c6-7e08-4474-a285-3208198ce6fd}.name", "chrome://browser/locale/browser.properties");
 pref("extensions.{972ce4c6-7e08-4474-a285-3208198ce6fd}.description", "chrome://browser/locale/browser.properties");
 
-pref("xpinstall.whitelist.add", "addons.mozilla.org,www.palemoon.org,addons.palemoon.org");
-pref("xpinstall.whitelist.add.36", "");
-pref("xpinstall.whitelist.add.180", "");
 pref("xpinstall.whitelist.required", false);
 // Allow installing XPI add-ons by direct URL requests (no referrer)
 pref("xpinstall.whitelist.directRequest", true);
@@ -224,6 +226,11 @@ pref("keyword.enabled", true);
 pref("general.useragent.locale", "@AB_CD@");
 pref("general.skins.selectedSkin", "classic/1.0");
 
+// Native UA mode by default for unbranded
+pref("general.useragent.compatMode", 0);
+pref("general.useragent.compatMode.gecko", false);
+pref("general.useragent.compatMode.firefox", false);
+
 pref("general.smoothScroll", true);
 #ifdef UNIX_BUT_NOT_MAC
 pref("general.autoScroll", false);
@@ -236,6 +243,11 @@ pref("general.useragent.complexOverride.moodle", false); // bug 797703
 // At startup, check if we're the default browser and prompt user if not.
 pref("browser.shell.checkDefaultBrowser", true);
 pref("browser.shell.shortcutFavicons",true);
+pref("browser.shell.mostRecentDateSetAsDefault", "");
+pref("browser.shell.skipDefaultBrowserCheckOnFirstRun", false);
+pref("browser.shell.skipDefaultBrowserCheck", true);
+pref("browser.shell.defaultBrowserCheckCount", 0);
+pref("browser.defaultbrowser.notificationbar", false);
 
 // 0 = blank, 1 = home (browser.startup.homepage), 2 = last visited page, 3 = resume previous browser session
 // The behavior of option 3 is detailed at: http://wiki.mozilla.org/Session_Restore
@@ -249,6 +261,9 @@ pref("browser.slowStartup.maxSamples", 5);
 pref("browser.enable_automatic_image_resizing", true);
 pref("browser.chrome.site_icons", true);
 pref("browser.chrome.favicons", true);
+// If enabled, will process favicons by drawing them on a canvas,
+// optimizing display size for the UI. This also strips animations.
+pref("browser.chrome.favicons.process", false);
 // browser.warnOnQuit == false will override all other possible prompts when quitting or restarting
 pref("browser.warnOnQuit", true);
 // browser.showQuitWarning specifically controls the quit warning dialog. We
@@ -298,7 +313,7 @@ pref("browser.urlbar.suggest.openpage",             true);
 pref("browser.urlbar.suggest.history.onlyTyped",    false);
 
 pref("browser.urlbar.formatting.enabled", true);
-pref("browser.urlbar.trimURLs", true);
+pref("browser.urlbar.trimURLs", false);
 
 // Display punycode in identity panel:
 // 0 = Display IDN name
@@ -309,7 +324,7 @@ pref("browser.identity.display_punycode", 1);
 // Address bar RSS icon control, show by default
 pref("browser.urlbar.rss", true);
 
-pref("browser.altClickSave", false);
+pref("browser.altClickSave", true);
 
 // Enable logging downloads operations to the Error Console.
 pref("browser.download.debug", false);
@@ -320,7 +335,8 @@ pref("browser.download.debug", false);
 // feedback from their action.
 pref("browser.download.saveLinkAsFilenameTimeout", 4000);
 
-pref("browser.download.useDownloadDir", true);
+// Do not use default download location as standard, but ask.
+pref("browser.download.useDownloadDir", false);
 
 pref("browser.download.folderList", 1);
 pref("browser.download.manager.showAlertOnComplete", true);
@@ -329,7 +345,7 @@ pref("browser.download.manager.retention", 2);
 pref("browser.download.manager.showWhenStarting", true);
 pref("browser.download.manager.closeWhenDone", false);
 pref("browser.download.manager.focusWhenStarting", false);
-pref("browser.download.manager.flashCount", 2);
+pref("browser.download.manager.flashCount", 10);
 pref("browser.download.manager.addToRecentDocs", true);
 pref("browser.download.manager.quitBehavior", 2);
 pref("browser.download.manager.scanWhenDone", true);
@@ -343,7 +359,7 @@ pref("browser.download.panel.shown", false);
 pref("browser.download.panel.firstSessionCompleted", false);
 
 // search engines URL
-pref("browser.search.searchEnginesURL",      "https://addons.mozilla.org/%LOCALE%/firefox/search-engines/");
+pref("browser.search.searchEnginesURL",      "https://@AM_DOMAIN@/?component=integration&type=external&request=searchplugins");
 
 // pointer to the default engine name
 pref("browser.search.defaultenginename",      "chrome://browser-region/locale/region.properties");
@@ -360,8 +376,8 @@ pref("browser.search.order.4",                "chrome://browser-region/locale/re
 // search bar results always open in a new tab
 pref("browser.search.openintab", false);
 
-// context menu searches open in the foreground
-pref("browser.search.context.loadInBackground", false);
+// do not swap focus to the context search tab.
+pref("browser.search.context.loadInBackground", true);
 
 // if no result, add the search term so that the panel of the new UI is shown anyway
 pref("browser.search.showOneOffButtons", true);
@@ -425,7 +441,7 @@ pref("browser.tabs.loadBookmarksInBackground", false);
 pref("browser.tabs.noWindowActivationOnExternal", false);
 pref("browser.tabs.tabClipWidth", 140);
 pref("browser.tabs.animate", true);
-pref("browser.tabs.onTop", true);
+pref("browser.tabs.onTop", false);
 #ifdef XP_WIN
 pref("browser.tabs.drawInTitlebar", true);
 #else
@@ -447,8 +463,12 @@ pref("browser.tabs.closeButtons", 1);
 // false  return to the adjacent tab (old default)
 pref("browser.tabs.selectOwnerOnClose", true);
 
-pref("browser.allTabs.previews", false);
-pref("browser.ctrlTab.previews", false);
+pref("browser.tabs.showAudioPlayingIcon", true);
+// This should match Chromium's audio indicator delay.
+pref("browser.tabs.delayHidingAudioPlayingIconMS", 3000);
+
+pref("browser.allTabs.previews", true);
+pref("browser.ctrlTab.previews", true);
 pref("browser.ctrlTab.recentlyUsedLimit", 7);
 
 // By default, do not export HTML at shutdown.
@@ -475,8 +495,8 @@ pref("general.warnOnAboutConfig",                 false);
 // applications, but without it there isn't a really good way to prevent chrome
 // spoofing, see bug 337344
 pref("dom.disable_window_open_feature.location",  true);
-// prevent JS from setting status messages
-pref("dom.disable_window_status_change",          true);
+// Allow JS to set status messages
+pref("dom.disable_window_status_change",          false);
 // allow JS to move and resize existing windows
 pref("dom.disable_window_move_resize",            false);
 // prevent JS from monkeying with window focus, etc
@@ -527,6 +547,25 @@ pref("privacy.sanitize.sanitizeOnShutdown", false);
 pref("privacy.sanitize.migrateFx3Prefs",    false);
 
 pref("network.proxy.share_proxy_settings",  false); // use the same proxy settings for all protocols
+
+// Disable speculative half-open connections on Pale Moon
+pref("network.http.speculative-parallel-limit", 0);
+
+// Enable pipelining over SSL
+pref("network.http.pipelining.ssl", true);
+
+// Disable predictor/prefetch of URIs
+pref("network.predictor.enabled", false);
+pref("network.prefetch-next", false);
+
+// Disable DNS prefetching
+pref("network.dns.disablePrefetch", true);
+
+// Tune DNS lookups
+pref("network.dnsCacheEntries", 800);
+pref("network.dnsCacheExpiration", 180);            // 3 minutes if no TTL given by DNS resolver
+pref("network.dns.get-ttl", true);                  // Get and use DNS resolver TTL
+pref("network.dnsCacheExpirationGracePeriod", 60);  // 1 minute grace period for stale entry
 
 // simple gestures support
 pref("browser.gesture.swipe.left", "Browser:BackOrBackDuplicate");
@@ -637,11 +676,20 @@ pref("plugins.hide_infobar_for_outdated_plugin", false);
 // Pale Moon:pref to always show the plugin indicator or not (default=false)
 pref("plugins.always_show_indicator", false);
 
-pref("plugins.update.url", "https://www.mozilla.org/%LOCALE%/plugincheck/");
+pref("plugins.update.url", "https://aus.palemoon.org/plugincheck/");
 pref("plugins.update.notifyUser", false);
 
 //Enable tri-state option (Always/Never/Ask)
 pref("plugins.click_to_play", true);
+
+// Platform pref is to enable all plugins by default.
+// Uncomment this pref to default to click-to-play
+// pref("plugin.default.state", 1);
+
+// Don't load plugin instances with no src declared.
+// These prefs are documented in detail in all.js.
+pref("plugins.favorfallback.mode", "follow-ctp");
+pref("plugins.favorfallback.rules", "nosrc");
 
 #ifdef XP_WIN
 pref("browser.preferences.instantApply", false);
@@ -666,6 +714,9 @@ pref("browser.backspace_action", 2);
 #else
 pref("browser.backspace_action", 0);
 #endif
+
+// Pale Moon never eats the space with word selection, regardless of O.S.
+pref("layout.word_select.eat_space_to_next_word", false);
 
 // this will automatically enable inline spellchecking (if it is available) for
 // editable elements in HTML
@@ -704,7 +755,7 @@ pref("browser.audioFeeds.handler", "ask");
 // region.properties file is newer than the version number in the handler
 // service datastore, it will add any new handlers it finds in the prefs (as
 // seeded by this file) to its datastore.  
-pref("goanna.handlerService.defaultHandlersVersion", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.defaultHandlersVersion", "chrome://browser-region/locale/region.properties");
 
 // The default set of web-based protocol handlers shown in the application
 // selection dialog for webcal: ; I've arbitrarily picked 4 default handlers
@@ -712,50 +763,51 @@ pref("goanna.handlerService.defaultHandlersVersion", "chrome://browser-region/lo
 // protocol not currently listed here), we should go ahead and add those.
 
 // webcal
-pref("goanna.handlerService.schemes.webcal.0.name", "chrome://browser-region/locale/region.properties");
-pref("goanna.handlerService.schemes.webcal.0.uriTemplate", "chrome://browser-region/locale/region.properties");
-pref("goanna.handlerService.schemes.webcal.1.name", "chrome://browser-region/locale/region.properties");
-pref("goanna.handlerService.schemes.webcal.1.uriTemplate", "chrome://browser-region/locale/region.properties");
-pref("goanna.handlerService.schemes.webcal.2.name", "chrome://browser-region/locale/region.properties");
-pref("goanna.handlerService.schemes.webcal.2.uriTemplate", "chrome://browser-region/locale/region.properties");
-pref("goanna.handlerService.schemes.webcal.3.name", "chrome://browser-region/locale/region.properties");
-pref("goanna.handlerService.schemes.webcal.3.uriTemplate", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.webcal.0.name", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.webcal.0.uriTemplate", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.webcal.1.name", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.webcal.1.uriTemplate", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.webcal.2.name", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.webcal.2.uriTemplate", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.webcal.3.name", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.webcal.3.uriTemplate", "chrome://browser-region/locale/region.properties");
 
 // mailto
-pref("goanna.handlerService.schemes.mailto.0.name", "chrome://browser-region/locale/region.properties");
-pref("goanna.handlerService.schemes.mailto.0.uriTemplate", "chrome://browser-region/locale/region.properties");
-pref("goanna.handlerService.schemes.mailto.1.name", "chrome://browser-region/locale/region.properties");
-pref("goanna.handlerService.schemes.mailto.1.uriTemplate", "chrome://browser-region/locale/region.properties");
-pref("goanna.handlerService.schemes.mailto.2.name", "chrome://browser-region/locale/region.properties");
-pref("goanna.handlerService.schemes.mailto.2.uriTemplate", "chrome://browser-region/locale/region.properties");
-pref("goanna.handlerService.schemes.mailto.3.name", "chrome://browser-region/locale/region.properties");
-pref("goanna.handlerService.schemes.mailto.3.uriTemplate", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.mailto.0.name", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.mailto.0.uriTemplate", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.mailto.1.name", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.mailto.1.uriTemplate", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.mailto.2.name", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.mailto.2.uriTemplate", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.mailto.3.name", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.mailto.3.uriTemplate", "chrome://browser-region/locale/region.properties");
 
 // irc
-pref("goanna.handlerService.schemes.irc.0.name", "chrome://browser-region/locale/region.properties");
-pref("goanna.handlerService.schemes.irc.0.uriTemplate", "chrome://browser-region/locale/region.properties");
-pref("goanna.handlerService.schemes.irc.1.name", "chrome://browser-region/locale/region.properties");
-pref("goanna.handlerService.schemes.irc.1.uriTemplate", "chrome://browser-region/locale/region.properties");
-pref("goanna.handlerService.schemes.irc.2.name", "chrome://browser-region/locale/region.properties");
-pref("goanna.handlerService.schemes.irc.2.uriTemplate", "chrome://browser-region/locale/region.properties");
-pref("goanna.handlerService.schemes.irc.3.name", "chrome://browser-region/locale/region.properties");
-pref("goanna.handlerService.schemes.irc.3.uriTemplate", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.irc.0.name", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.irc.0.uriTemplate", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.irc.1.name", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.irc.1.uriTemplate", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.irc.2.name", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.irc.2.uriTemplate", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.irc.3.name", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.irc.3.uriTemplate", "chrome://browser-region/locale/region.properties");
 
 // ircs
-pref("goanna.handlerService.schemes.ircs.0.name", "chrome://browser-region/locale/region.properties");
-pref("goanna.handlerService.schemes.ircs.0.uriTemplate", "chrome://browser-region/locale/region.properties");
-pref("goanna.handlerService.schemes.ircs.1.name", "chrome://browser-region/locale/region.properties");
-pref("goanna.handlerService.schemes.ircs.1.uriTemplate", "chrome://browser-region/locale/region.properties");
-pref("goanna.handlerService.schemes.ircs.2.name", "chrome://browser-region/locale/region.properties");
-pref("goanna.handlerService.schemes.ircs.2.uriTemplate", "chrome://browser-region/locale/region.properties");
-pref("goanna.handlerService.schemes.ircs.3.name", "chrome://browser-region/locale/region.properties");
-pref("goanna.handlerService.schemes.ircs.3.uriTemplate", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.ircs.0.name", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.ircs.0.uriTemplate", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.ircs.1.name", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.ircs.1.uriTemplate", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.ircs.2.name", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.ircs.2.uriTemplate", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.ircs.3.name", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.ircs.3.uriTemplate", "chrome://browser-region/locale/region.properties");
 
 // By default, we don't want protocol/content handlers to be registered from a different host, see bug 402287
-pref("goanna.handlerService.allowRegisterFromDifferentHost", false);
+pref("gecko.handlerService.allowRegisterFromDifferentHost", false);
 
 pref("browser.geolocation.warning.infoURL", "http://www.palemoon.org/info-url/geolocation.shtml");
 pref("browser.mixedcontent.warning.infoURL", "http://www.palemoon.org/info-url/mixedcontent.shtml");
+pref("browser.push.warning.infoURL", "https://www.palemoon.org/info-url/push.shtml");
 
 pref("browser.EULA.version", 3);
 pref("browser.rights.version", 3);
@@ -770,7 +822,7 @@ pref("browser.sessionstore.resume_from_crash", true);
 pref("browser.sessionstore.resume_session_once", false);
 
 // minimal interval between two save operations in milliseconds
-pref("browser.sessionstore.interval", 15000);
+pref("browser.sessionstore.interval",60000);
 // maximum amount of POSTDATA to be saved in bytes per history entry (-1 = all of it)
 // (NB: POSTDATA will be saved either entirely or not at all)
 pref("browser.sessionstore.postdata", 0);
@@ -881,7 +933,7 @@ pref("browser.zoom.siteSpecific", true);
 pref("browser.zoom.updateBackgroundTabs", true);
 
 // base URL for web-based support pages
-pref("app.support.baseURL", "https://support.mozilla.org/1/firefox/%VERSION%/%OS%/%LOCALE%/");
+pref("app.support.baseURL", "http://www.palemoon.org/support/");
 
 // Name of alternate about: page for certificate errors (when undefined, defaults to about:neterror)
 pref("security.alternate_certificate_error_page", "certerror");
@@ -999,7 +1051,6 @@ pref("services.sync.prefs.sync.privacy.clearOnShutdown.sessions", true);
 pref("services.sync.prefs.sync.privacy.clearOnShutdown.siteSettings", true);
 pref("services.sync.prefs.sync.privacy.clearOnShutdown.connectivityData", true);
 pref("services.sync.prefs.sync.privacy.donottrackheader.enabled", true);
-pref("services.sync.prefs.sync.privacy.donottrackheader.value", true);
 pref("services.sync.prefs.sync.privacy.sanitize.sanitizeOnShutdown", true);
 pref("services.sync.prefs.sync.security.OCSP.enabled", true);
 pref("services.sync.prefs.sync.security.OCSP.require", true);
@@ -1025,35 +1076,38 @@ pref("prompts.tab_modal.enabled", true);
 // Allow tab-modal prompts to switch tab focus
 pref("prompts.tab_modal.focusSwitch", true);
 
-// Whether the Panorama should animate going in/out of tabs
-pref("browser.panorama.animate_zoom", true);
-
 // Defines the url to be used for new tabs.
 pref("browser.newtab.url", "about:logopage");
+pref("browser.newtab.choice", 1);
+
 // Activates preloading of the new tab url.
 pref("browser.newtab.preload", false);
 
 // Toggles the content of 'about:newtab'. Shows the grid when enabled.
 pref("browser.newtabpage.enabled", true);
 
+// Disables capturing of page thumbnails
+pref("browser.pagethumbnails.capturing_disabled", false);
+
+// enables showing basic placeholders for missing thumbnails
+pref("browser.newtabpage.thumbnailPlaceholder", false);
+
 // number of columns of newtab grid
 pref("browser.newtabpage.columns", 4);
 
 // number of rows of newtab grid
-pref("browser.newtabpage.rows", 4);
+pref("browser.newtabpage.rows", 3);
 
 // Enable the DOM fullscreen API.
 pref("full-screen-api.enabled", true);
-
-// True if the fullscreen API requires approval upon a domain entering fullscreen.
-// Domains that have already had fullscreen permission granted won't re-request
-// approval.
-pref("full-screen-api.approval-required", true);
 
 // about:permissions
 // Maximum number of sites to return from the places database.
 // 0-100 (currently)
 pref("permissions.places-sites-limit", 50);
+
+// Built-in default permissions.
+pref("permissions.manager.defaultsUrl", "resource://app/defaults/permissions");
 
 // Startup Crash Tracking
 // number of startup crashes that can occur before starting into safe mode automatically
@@ -1071,8 +1125,10 @@ pref("security.csp.speccompliant", true);
 // Block insecure active content on https pages
 pref("security.mixed_content.block_active_content", true);
 
+// Disable Microsoft Family Safety MitM support
+pref("security.family_safety.mode", 0);
 
-// Override the Goanna-default value of false for Firefox.
+// Override the Gecko-default value of false for Pale Moon.
 pref("plain_text.wrap_long_lines", true);
 
 pref("media.webaudio.enabled", true);
@@ -1100,18 +1156,24 @@ pref("browser.padlock.urlbar_background", 2);
 //Pale Moon standalone image background color
 pref("browser.display.standalone_images.background_color", "#2E3B41");
 
-// ****************** domain-specific UAs ******************
+// These are the thumbnail width/height set in about:newtab.
+// If you change this, make sure the size is sufficient for tile sizes
+// in about:newtab. These values are in CSS pixels.
+pref("toolkit.pageThumbs.minWidth", 250);
+pref("toolkit.pageThumbs.minHeight", 180);
 
-// AMO needs "Firefox", obviously - pass on the OS (determined at build time)
-#ifdef XP_UNIX
-#ifdef XP_MACOSX
-pref("general.useragent.override.addons.mozilla.org","Mozilla/5.0 (Macintosh; Intel Mac OS X 10.8; rv:27.0) Gecko/20100101 Firefox/27.0");
-#else
-pref("general.useragent.override.addons.mozilla.org","Mozilla/5.0 (Linux; X11; rv:27.0) Gecko/20100101 Firefox/27.0");
+// On GTK, we now default to showing the menubar only when alt is pressed:
+#ifdef MOZ_WIDGET_GTK
+pref("ui.key.menuAccessKeyFocuses", true);
 #endif
-#else
-pref("general.useragent.override.addons.mozilla.org","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:27.0) Gecko/20100101 Firefox/27.0");
-#endif
+
+// When a user cancels this number of authentication dialogs coming from
+// a single web page (eTLD+1) in a row, all following authentication dialogs
+// will be blocked (automatically canceled) for that page.
+// This counter is per-tab and per-domain to minimize false positives.
+// The counter resets when the page is reloaded from the UI
+// (content-reloads do NOT clear this to mitigate reloading tricks).
+pref("prompts.authentication_dialog_abuse_limit", 3);
 
 // ****************** s4e prefs ******************
 pref("status4evar.addonbar.borderStyle", false);

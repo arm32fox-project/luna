@@ -11,11 +11,11 @@ XPCOMUtils.defineLazyModuleGetter(this, "FormHistory",
 XPCOMUtils.defineLazyModuleGetter(this, "Downloads",
                                   "resource://gre/modules/Downloads.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Promise",
-                                  "resource:///modules/promise.js");
+                                  "resource://gre/modules/Promise.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Task",
                                   "resource://gre/modules/Task.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "console",
-                                  "resource://gre/modules/devtools/Console.jsm");
+                                  "resource://gre/modules/Console.jsm");
 
 function Sanitizer() {}
 Sanitizer.prototype = {
@@ -148,7 +148,8 @@ Sanitizer.prototype = {
 
             if (cookie.creationTime > this.range[0])
               // This cookie was created after our cutoff, clear it
-              cookieMgr.remove(cookie.host, cookie.name, cookie.path, false);
+              cookieMgr.remove(cookie.host, cookie.name, cookie.path,
+                               false, cookie.originAttributes);
           }
         }
         else {
@@ -213,10 +214,16 @@ Sanitizer.prototype = {
     history: {
       clear: function ()
       {
-        if (this.range)
-          PlacesUtils.history.removeVisitsByTimeframe(this.range[0], this.range[1]);
-        else
-          PlacesUtils.history.removeAllPages();
+        if (this.range) {
+          PlacesUtils.history.removeVisitsByFilter({
+            beginDate: new Date(this.range[0] / 1000),
+            endDate: new Date(this.range[1] / 1000)
+          }).catch(Components.utils.reportError);;
+        } else {
+          // Remove everything.
+          PlacesUtils.history.clear()
+          .catch(Components.utils.reportError);
+        }
 
         try {
           var os = Components.classes["@mozilla.org/observer-service;1"]

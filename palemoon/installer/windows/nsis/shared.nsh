@@ -2,12 +2,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-; The registration ID of the COM server which is used for choosing wether
-; to launch the Win8 metro browser or desktop browser.
-!define DELEGATE_EXECUTE_HANDLER_ID {5100FEC1-212B-4BF5-9BF8-3E650FD794A3}
-
 !macro PostUpdate
-
   ; PostUpdate is called from both session 0 and from the user session
   ; for service updates, make sure that we only register with the user session
   ; Otherwise ApplicationID::Set can fail intermittently with a file in use error.
@@ -15,7 +10,7 @@
   System::Call "kernel32::ProcessIdToSessionId(i $0, *i ${NSIS_MAX_STRLEN} r9)"
 
   ; Determine if we're the protected UserChoice default or not. If so fix the
-  ; start menu tile.  In case there are 2 Pale Moon installations, we only do
+  ; start menu tile.  In case there are 2 PaleMoon installations, we only do
   ; this if the application being updated is the default.
   ReadRegStr $0 HKCU "Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice" "ProgId"
   ${If} $0 == "PaleMoonURL"
@@ -61,6 +56,9 @@
     ; Win7 taskbar and start menu link maintenance
     Call FixShortcutAppModelIDs
 
+    ; Add the Firewall entries after an update
+    Call AddFirewallEntries
+
     ; Only update the Clients\StartMenuInternet registry key values in HKLM if
     ; they don't exist or this installation is the same as the one set in those
     ; keys.
@@ -100,6 +98,13 @@
   ; root of the Start Menu Programs directory.
   ${MigrateStartMenuShortcut}
 
+  ; Update lastwritetime of the Start Menu shortcut to clear the tile cache.
+  ${If} ${AtLeastWin8}
+  ${AndIf} ${FileExists} "$SMPROGRAMS\${BrandFullName}.lnk"
+    FileOpen $0 "$SMPROGRAMS\${BrandFullName}.lnk" a
+    FileClose $0
+  ${EndIf}
+
   ; Adds a pinned Task Bar shortcut (see MigrateTaskBarShortcut for details).
   ${MigrateTaskBarShortcut}
 
@@ -119,7 +124,6 @@
   ${FixDistributionsINI}
 
   RmDir /r /REBOOTOK "$INSTDIR\${TO_BE_DELETED}"
-
 !macroend
 !define PostUpdate "!insertmacro PostUpdate"
 
@@ -280,11 +284,11 @@
   ${If} ${Errors}
     WriteRegStr SHCTX "SOFTWARE\Classes\${FILE_TYPE}"  "" "PaleMoonHTML"
   ${EndIf}
+  WriteRegStr SHCTX "SOFTWARE\Classes\${FILE_TYPE}\OpenWithProgids" "PaleMoonHTML" ""
 !macroend
 !define AddAssociationIfNoneExist "!insertmacro AddAssociationIfNoneExist"
 
-
-; Adds the protocol and file handler registry entries for making Pale Moon the
+; Adds the protocol and file handler registry entries for making PaleMoon the
 ; default handler (uses SHCTX).
 !macro SetHandlers
   ${GetLongPath} "$INSTDIR\${FileMainEXE}" $8
@@ -318,7 +322,6 @@
     WriteRegStr SHCTX "$0\.xhtml" "" "PaleMoonHTML"
   ${EndIf}
 
-  ;Register file associations, but only if they don't exist yet.
   ${AddAssociationIfNoneExist} ".oga"
   ${AddAssociationIfNoneExist} ".ogg"
   ${AddAssociationIfNoneExist} ".ogv"
@@ -331,7 +334,6 @@
 
   ${AddDisabledDDEHandlerValues} "PaleMoonURL" "$2" "$8,1" "${AppRegName} URL" \
                                  "true"
-
   ; An empty string is used for the 4th & 5th params because the following
   ; protocol handlers already have a display name and the additional keys
   ; required for a protocol handler.
@@ -341,7 +343,7 @@
 !macroend
 !define SetHandlers "!insertmacro SetHandlers"
 
-; Adds the HKLM\Software\Clients\StartMenuInternet\{EXE} registry
+; Adds the HKLM\Software\Clients\StartMenuInternet\PALEMOON.EXE registry
 ; entries (does not use SHCTX).
 ;
 ; The values for StartMenuInternet are only valid under HKLM and there can only
@@ -420,7 +422,7 @@
 ; The IconHandler reference for PaleMoonHTML can end up in an inconsistent state
 ; due to changes not being detected by the IconHandler for side by side
 ; installs (see bug 268512). The symptoms can be either an incorrect icon or no
-; icon being displayed for files associated with Pale Moon (does not use SHCTX).
+; icon being displayed for files associated with PaleMoon (does not use SHCTX).
 !macro FixShellIconHandler RegKey
   ClearErrors
   ReadRegStr $1 ${RegKey} "Software\Classes\PaleMoonHTML\ShellEx\IconHandler" ""
@@ -436,37 +438,67 @@
 
 ; Add Software\Mozilla\ registry entries (uses SHCTX).
 !macro SetAppKeys
+  ; Check if this is an ESR release and if so add registry values so it is
+  ; possible to determine that this is an ESR install (bug 726781).
+  ClearErrors
+  ${WordFind} "${UpdateChannel}" "esr" "E#" $3
+  ${If} ${Errors}
+    StrCpy $3 ""
+  ${Else}
+    StrCpy $3 " ESR"
+  ${EndIf}
+
   ${GetLongPath} "$INSTDIR" $8
-  StrCpy $0 "Software\Mozilla\${BrandFullNameInternal}\${AppVersion} (${AB_CD})\Main"
+  StrCpy $0 "Software\Mozilla\${BrandFullNameInternal}\${AppVersion}$3 (${ARCH} ${AB_CD})\Main"
   ${WriteRegStr2} $TmpVal "$0" "Install Directory" "$8" 0
   ${WriteRegStr2} $TmpVal "$0" "PathToExe" "$8\${FileMainEXE}" 0
 
-  StrCpy $0 "Software\Mozilla\${BrandFullNameInternal}\${AppVersion} (${AB_CD})\Uninstall"
-  ${WriteRegStr2} $TmpVal "$0" "Description" "${BrandFullNameInternal} (${ARCH} ${AB_CD})" 0
+  StrCpy $0 "Software\Mozilla\${BrandFullNameInternal}\${AppVersion}$3 (${ARCH} ${AB_CD})\Uninstall"
+  ${WriteRegStr2} $TmpVal "$0" "Description" "${BrandFullNameInternal} ${AppVersion}$3 (${ARCH} ${AB_CD})" 0
 
-  StrCpy $0 "Software\Mozilla\${BrandFullNameInternal}\${AppVersion} (${AB_CD})"
-  ${WriteRegStr2} $TmpVal  "$0" "" "${AppVersion} (${AB_CD})" 0
+  StrCpy $0 "Software\Mozilla\${BrandFullNameInternal}\${AppVersion}$3 (${ARCH} ${AB_CD})"
+  ${WriteRegStr2} $TmpVal  "$0" "" "${AppVersion}$3 (${ARCH} ${AB_CD})" 0
+  ${If} "$3" == ""
+    DeleteRegValue SHCTX "$0" "ESR"
+  ${Else}
+    ${WriteRegDWORD2} $TmpVal "$0" "ESR" 1 0
+  ${EndIf}
 
-  StrCpy $0 "Software\Mozilla\${BrandFullNameInternal} ${AppVersion}\bin"
+  StrCpy $0 "Software\Mozilla\${BrandFullNameInternal} ${AppVersion}$3\bin"
   ${WriteRegStr2} $TmpVal "$0" "PathToExe" "$8\${FileMainEXE}" 0
 
-  StrCpy $0 "Software\Mozilla\${BrandFullNameInternal} ${AppVersion}\extensions"
+  StrCpy $0 "Software\Mozilla\${BrandFullNameInternal} ${AppVersion}$3\extensions"
   ${WriteRegStr2} $TmpVal "$0" "Components" "$8\components" 0
   ${WriteRegStr2} $TmpVal "$0" "Plugins" "$8\plugins" 0
 
-  StrCpy $0 "Software\Mozilla\${BrandFullNameInternal} ${AppVersion}"
-  ${WriteRegStr2} $TmpVal "$0" "GoannaVer" "${GREVersion}" 0
+  StrCpy $0 "Software\Mozilla\${BrandFullNameInternal} ${AppVersion}$3"
+  ${WriteRegStr2} $TmpVal "$0" "GeckoVer" "${GREVersion}" 0
+  ${If} "$3" == ""
+    DeleteRegValue SHCTX "$0" "ESR"
+  ${Else}
+    ${WriteRegDWORD2} $TmpVal "$0" "ESR" 1 0
+  ${EndIf}
 
-  StrCpy $0 "Software\Mozilla\${BrandFullNameInternal}"
+  StrCpy $0 "Software\Mozilla\${BrandFullNameInternal}$3"
   ${WriteRegStr2} $TmpVal "$0" "" "${GREVersion}" 0
-  ${WriteRegStr2} $TmpVal "$0" "CurrentVersion" "${AppVersion} (${AB_CD})" 0
+  ${WriteRegStr2} $TmpVal "$0" "CurrentVersion" "${AppVersion}$3 (${ARCH} ${AB_CD})" 0
 !macroend
 !define SetAppKeys "!insertmacro SetAppKeys"
 
 ; Add uninstall registry entries. This macro tests for write access to determine
 ; if the uninstall keys should be added to HKLM or HKCU.
 !macro SetUninstallKeys
-  StrCpy $0 "Software\Microsoft\Windows\CurrentVersion\Uninstall\${BrandFullNameInternal} (${ARCH} ${AB_CD})"
+  ; Check if this is an ESR release and if so add registry values so it is
+  ; possible to determine that this is an ESR install (bug 726781).
+  ClearErrors
+  ${WordFind} "${UpdateChannel}" "esr" "E#" $3
+  ${If} ${Errors}
+    StrCpy $3 ""
+  ${Else}
+    StrCpy $3 " ESR"
+  ${EndIf}
+
+  StrCpy $0 "Software\Microsoft\Windows\CurrentVersion\Uninstall\${BrandFullNameInternal} ${AppVersion}$3 (${ARCH} ${AB_CD})"
 
   StrCpy $2 ""
   ClearErrors
@@ -493,15 +525,24 @@
     ${GetLongPath} "$INSTDIR" $8
 
     ; Write the uninstall registry keys
-    ${WriteRegStr2} $1 "$0" "Comments" "${BrandFullNameInternal} (${ARCH} ${AB_CD})" 0
+    ${WriteRegStr2} $1 "$0" "Comments" "${BrandFullNameInternal} ${AppVersion}$3 (${ARCH} ${AB_CD})" 0
     ${WriteRegStr2} $1 "$0" "DisplayIcon" "$8\${FileMainEXE},0" 0
-    ${WriteRegStr2} $1 "$0" "DisplayName" "${BrandFullNameInternal} (${ARCH} ${AB_CD})" 0
+    ${WriteRegStr2} $1 "$0" "DisplayName" "${BrandFullNameInternal} ${AppVersion}$3 (${ARCH} ${AB_CD})" 0
     ${WriteRegStr2} $1 "$0" "DisplayVersion" "${AppVersion}" 0
+    ${WriteRegStr2} $1 "$0" "HelpLink" "${HelpLink}" 0
     ${WriteRegStr2} $1 "$0" "InstallLocation" "$8" 0
     ${WriteRegStr2} $1 "$0" "Publisher" "Moonchild Productions" 0
     ${WriteRegStr2} $1 "$0" "UninstallString" "$\"$8\uninstall\helper.exe$\"" 0
-    ${WriteRegStr2} $1 "$0" "URLInfoAbout" "${URLInfoAbout}" 0
+    DeleteRegValue SHCTX "$0" "URLInfoAbout"
+; Don't add URLUpdateInfo which is the release notes url except for the release
+; and esr channels since nightly, aurora, and beta do not have release notes.
+; Note: URLUpdateInfo is only defined in the official branding.nsi.
+!ifdef URLUpdateInfo
+!ifndef BETA_UPDATE_CHANNEL
     ${WriteRegStr2} $1 "$0" "URLUpdateInfo" "${URLUpdateInfo}" 0
+!endif
+!endif
+    ${WriteRegStr2} $1 "$0" "URLInfoAbout" "${URLInfoAbout}" 0
     ${WriteRegDWORD2} $1 "$0" "NoModify" 1 0
     ${WriteRegDWORD2} $1 "$0" "NoRepair" 1 0
 
@@ -518,7 +559,7 @@
 !define SetUninstallKeys "!insertmacro SetUninstallKeys"
 
 ; Due to a bug when associating some file handlers, only SHCTX was checked for
-; some file types such as ".webm". SHCTX is set to HKCU or HKLM depending on
+; some file types such as ".pdf". SHCTX is set to HKCU or HKLM depending on
 ; whether the installer has write access to HKLM. The bug would happen when
 ; HCKU was checked and didn't exist since programs aren't required to set the
 ; HKCU Software\Classes keys when associating handlers. The fix uses the merged
@@ -534,7 +575,7 @@
   ReadRegStr $2 HKCR "${FILE_TYPE}\PersistentHandler" ""
   ${If} "$2" != ""
     ; Since there is a persistent handler remove PaleMoonHTML as the default
-    ; value from both HKCU and HKLM if it is set to PaleMoonHTML.
+    ; value from both HKCU and HKLM if it set to PaleMoonHTML.
     ${If} "$0" == "PaleMoonHTML"
       DeleteRegValue HKCU "Software\Classes\${FILE_TYPE}" ""
     ${EndIf}
@@ -542,7 +583,7 @@
       DeleteRegValue HKLM "Software\Classes\${FILE_TYPE}" ""
     ${EndIf}
   ${ElseIf} "$0" == "PaleMoonHTML"
-    ; Since KHCU is set to PaleMoonHTML, remove it as the default value
+    ; Since KHCU is set to PaleMoonHTML remove PaleMoonHTML as the default value
     ; from HKCU if HKLM is set to a value other than an empty string.
     ${If} "$1" != ""
       DeleteRegValue HKCU "Software\Classes\${FILE_TYPE}" ""
@@ -641,10 +682,9 @@
   ; update if the DefaultIcon is from palemoon.exe (Bug 301073).
   ${RegCleanAppHandler} "chrome"
 
-  ; Remove the app compatibility registry key
-  StrCpy $0 "Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"
-  DeleteRegValue HKLM "$0" "$INSTDIR\${FileMainEXE}"
-  DeleteRegValue HKCU "$0" "$INSTDIR\${FileMainEXE}"
+  ; Remove protocol handler registry keys added by the MS shim
+  DeleteRegKey HKLM "Software\Classes\PaleMoon.URL"
+  DeleteRegKey HKCU "Software\Classes\PaleMoon.URL"
 
   ; Delete gopher from Capabilities\URLAssociations if it is present.
   ${StrFilter} "${FileMainEXE}" "+" "" "" $R9
@@ -671,147 +711,21 @@
     RmDir /r /REBOOTOK "$INSTDIR\extensions\talkback@mozilla.org"
   ${EndIf}
 
-  ; Remove the Java Console extension (bug 597235)
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0012-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0012-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0013-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0013-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0014-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0014-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0015-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0015-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0016-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0016-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0017-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0017-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0018-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0018-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0019-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0019-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0020-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0020-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0021-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0021-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0022-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0015-0000-0022-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0000-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0000-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0001-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0001-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0002-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0002-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0003-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0003-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0004-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0004-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0005-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0005-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0006-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0006-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0007-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0007-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0010-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0010-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0011-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0011-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0012-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0012-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0013-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0013-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0014-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0014-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0015-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0015-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0016-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0016-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0017-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0017-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0018-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0018-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0019-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0019-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0020-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0020-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0021-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0021-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0022-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0022-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0023-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0023-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0024-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0024-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0025-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0025-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0026-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0026-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0027-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0027-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0028-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0028-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0029-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0029-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0030-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0030-ABCDEFFEDCBA}"
-  ${EndIf}
+  ; Remove the Java Console extension (bug 1165156)
   ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0031-ABCDEFFEDCBA}"
     RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0031-ABCDEFFEDCBA}"
   ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0032-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0032-ABCDEFFEDCBA}"
+  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0034-ABCDEFFEDCBA}"
+    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0034-ABCDEFFEDCBA}"
+  ${EndIf}
+  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0039-ABCDEFFEDCBA}"
+    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0039-ABCDEFFEDCBA}"
+  ${EndIf}
+  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0045-ABCDEFFEDCBA}"
+    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0045-ABCDEFFEDCBA}"
   ${EndIf}
   ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0017-0000-0000-ABCDEFFEDCBA}"
     RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0017-0000-0000-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0017-0000-0001-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0017-0000-0001-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0017-0000-0002-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0017-0000-0002-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0017-0000-0003-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0017-0000-0003-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0017-0000-0004-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0017-0000-0004-ABCDEFFEDCBA}"
   ${EndIf}
 !macroend
 !define RemoveDeprecatedFiles "!insertmacro RemoveDeprecatedFiles"
@@ -876,15 +790,15 @@
           ${If} $5 == ""
             ${Break}
           ${EndIf}
-          ${If} $5 == 233 ; ansi ??
+          ${If} $5 == 233 ; ansi é
             StrCpy $0 "1"
             FileWriteByte $4 195
             FileWriteByte $4 169
-          ${ElseIf} $5 == 241 ; ansi ??
+          ${ElseIf} $5 == 241 ; ansi ñ
             StrCpy $0 "1"
             FileWriteByte $4 195
             FileWriteByte $4 177
-          ${ElseIf} $5 == 252 ; ansi ??
+          ${ElseIf} $5 == 252 ; ansi ü
             StrCpy $0 "1"
             FileWriteByte $4 195
             FileWriteByte $4 188
@@ -928,7 +842,7 @@
       ${If} ${AtLeastWin7}
         ; No need to check the default on Win8 and later
         ${If} ${AtMostWin2008R2}
-          ; Check if Pale Moon is the http handler for this user
+          ; Check if the Pale Moon is the http handler for this user
           SetShellVarContext current ; Set SHCTX to the current user
           ${IsHandlerForInstallDir} "http" $R9
           ${If} $TmpVal == "HKLM"
@@ -1152,16 +1066,85 @@
   ; returns after the first check.
   Push "end"
   Push "AccessibleMarshal.dll"
+  Push "IA2Marshal.dll"
   Push "freebl3.dll"
   Push "nssckbi.dll"
   Push "nspr4.dll"
   Push "nssdbm3.dll"
   Push "mozsqlite3.dll"
   Push "xpcom.dll"
+  Push "crashreporter.exe"
+  Push "minidump-analyzer.exe"
   Push "updater.exe"
   Push "${FileMainEXE}"
 !macroend
 !define PushFilesToCheck "!insertmacro PushFilesToCheck"
+
+
+; Pushes the string "true" to the top of the stack if the Firewall service is
+; running and pushes the string "false" to the top of the stack if it isn't.
+!define SC_MANAGER_ALL_ACCESS 0x3F
+!define SERVICE_QUERY_CONFIG 0x0001
+!define SERVICE_QUERY_STATUS 0x0004
+!define SERVICE_RUNNING 0x4
+
+!macro IsFirewallSvcRunning
+  Push $R9
+  Push $R8
+  Push $R7
+  Push $R6
+  Push "false"
+
+  System::Call 'advapi32::OpenSCManagerW(n, n, i ${SC_MANAGER_ALL_ACCESS}) i.R6'
+  ${If} $R6 != 0
+    ; MpsSvc is the Firewall service on Windows Vista and above.
+    ; When opening the service with SERVICE_QUERY_CONFIG the return value will
+    ; be 0 if the service is not installed.
+    System::Call 'advapi32::OpenServiceW(i R6, t "MpsSvc", i ${SERVICE_QUERY_CONFIG}) i.R7'
+    ${If} $R7 != 0
+      System::Call 'advapi32::CloseServiceHandle(i R7) n'
+      ; Open the service with SERVICE_QUERY_CONFIG so its status can be queried.
+      System::Call 'advapi32::OpenServiceW(i R6, t "MpsSvc", i ${SERVICE_QUERY_STATUS}) i.R7'
+    ${Else}
+      ; SharedAccess is the Firewall service on Windows XP.
+      ; When opening the service with SERVICE_QUERY_CONFIG the return value will
+      ; be 0 if the service is not installed.
+      System::Call 'advapi32::OpenServiceW(i R6, t "SharedAccess", i ${SERVICE_QUERY_CONFIG}) i.R7'
+      ${If} $R7 != 0
+        System::Call 'advapi32::CloseServiceHandle(i R7) n'
+        ; Open the service with SERVICE_QUERY_CONFIG so its status can be
+        ; queried.
+        System::Call 'advapi32::OpenServiceW(i R6, t "SharedAccess", i ${SERVICE_QUERY_STATUS}) i.R7'
+      ${EndIf}
+    ${EndIf}
+    ; Did the calls to OpenServiceW succeed?
+    ${If} $R7 != 0
+      System::Call '*(i,i,i,i,i,i,i) i.R9'
+      ; Query the current status of the service.
+      System::Call 'advapi32::QueryServiceStatus(i R7, i $R9) i'
+      System::Call '*$R9(i, i.R8)'
+      System::Free $R9
+      System::Call 'advapi32::CloseServiceHandle(i R7) n'
+      IntFmt $R8 "0x%X" $R8
+      ${If} $R8 == ${SERVICE_RUNNING}
+        Pop $R9
+        Push "true"
+      ${EndIf}
+    ${EndIf}
+    System::Call 'advapi32::CloseServiceHandle(i R6) n'
+  ${EndIf}
+
+  Exch 1
+  Pop $R6
+  Exch 1
+  Pop $R7
+  Exch 1
+  Pop $R8
+  Exch 1
+  Pop $R9
+!macroend
+!define IsFirewallSvcRunning "!insertmacro IsFirewallSvcRunning"
+!define un.IsFirewallSvcRunning "!insertmacro IsFirewallSvcRunning"
 
 ; Sets this installation as the default browser by setting the registry keys
 ; under HKEY_CURRENT_USER via registry calls and using the AppAssocReg NSIS
@@ -1214,7 +1197,7 @@ Function SetAsDefaultAppUserHKCU
     ${EndUnless}
   ${EndIf}
   ${RemoveDeprecatedKeys}
-  ${PinToTaskBar}
+  ${MigrateTaskBarShortcut}
 FunctionEnd
 
 ; Helper for updating the shortcut application model IDs.
@@ -1222,6 +1205,15 @@ Function FixShortcutAppModelIDs
   ${If} ${AtLeastWin7}
   ${AndIf} "$AppUserModelID" != ""
     ${UpdateShortcutAppModelIDs} "$INSTDIR\${FileMainEXE}" "$AppUserModelID" $0
+  ${EndIf}
+FunctionEnd
+
+; Helper for adding Firewall exceptions during install and after app update.
+Function AddFirewallEntries
+  ${IsFirewallSvcRunning}
+  Pop $0
+  ${If} "$0" == "true"
+    liteFirewallW::AddRule "$INSTDIR\${FileMainEXE}" "${BrandShortName} ($INSTDIR)"
   ${EndIf}
 FunctionEnd
 
@@ -1311,4 +1303,4 @@ Function SetAsDefaultAppUser
 FunctionEnd
 !define SetAsDefaultAppUser "Call SetAsDefaultAppUser"
 
-!endif
+!endif ; NO_LOG

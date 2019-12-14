@@ -13,7 +13,7 @@
 
 <?xml-stylesheet href="chrome://browser/content/places/places.css" type="text/css"?>
 #ifdef MOZ_DEVTOOLS
-<?xml-stylesheet href="chrome://global/skin/devtools/common.css" type="text/css"?>
+<?xml-stylesheet href="chrome://devtools/skin/devtools-browser.css" type="text/css"?>
 #endif
 <?xml-stylesheet href="chrome://browser/skin/" type="text/css"?>
 
@@ -53,18 +53,24 @@
         titlemodifier_privatebrowsing="&mainWindow.titlemodifier; &mainWindow.titlePrivateBrowsingSuffix;"
 #endif
         titlemenuseparator="&mainWindow.titlemodifiermenuseparator;"
+#ifdef MOZ_PERSONAS
         lightweightthemes="true"
         lightweightthemesfooter="browser-bottombox"
+#endif
         windowtype="navigator:browser"
         macanimationtype="document"
         screenX="4" screenY="4"
         fullscreenbutton="true"
+        retargetdocumentfocus="urlbar"
         persist="screenX screenY width height sizemode">
 
 # All JS files which are not content (only) dependent that browser.xul
 # wishes to include *must* go into the global-scripts.inc file
 # so that they can be shared by macBrowserOverlay.xul.
 #include global-scripts.inc
+#ifdef MOZ_DEVTOOLS
+#include global-devtools-theme-scripts.inc
+#endif
 <script type="application/javascript" src="chrome://browser/content/nsContextMenu.js"/>
 
 <script type="application/javascript" src="chrome://global/content/contentAreaUtils.js"/>
@@ -83,6 +89,7 @@
                onpopuphidden="if (event.target == this) TabContextMenu.contextTab = null;">
       <menuitem id="context_reloadTab" label="&reloadTab.label;" accesskey="&reloadTab.accesskey;"
                 oncommand="gBrowser.reloadTab(TabContextMenu.contextTab);"/>
+      <menuitem id="context_toggleMuteTab" oncommand="TabContextMenu.contextTab.toggleMuteAudio();"/>
       <menuseparator/>
       <menuitem id="context_pinTab" label="&pinTab.label;"
                 accesskey="&pinTab.accesskey;"
@@ -125,9 +132,25 @@
 
     <!-- for search and content formfill/pw manager -->
     <panel type="autocomplete" id="PopupAutoComplete" noautofocus="true" hidden="true"/>
+    <panel type="private-autocomplete" id="PopupAutoComplete" noautofocus="true" hidden="true"/>
 
     <!-- for url bar autocomplete -->
     <panel type="autocomplete-richlistbox" id="PopupAutoCompleteRichResult" noautofocus="true" hidden="true"/>
+    <panel type="private-autocomplete-richlistbox" id="PopupAutoCompleteRichResult" noautofocus="true" hidden="true"/>
+
+    <!-- for date/time picker. consumeoutsideclicks is set to never, so that
+         clicks on the anchored input box are never consumed. -->
+    <panel id="DateTimePickerPanel"
+           type="arrow"
+           hidden="true"
+           orient="vertical"
+           noautofocus="true"
+           norolluponanchor="true"
+           consumeoutsideclicks="never"
+           level="parent"
+           tabspecific="true">
+      <iframe id="dateTimePopupFrame"/>
+    </panel>
 
     <!-- for invalid form error message -->
     <panel id="invalid-form-popup" type="arrow" orient="vertical" noautofocus="true" hidden="true" level="parent">
@@ -136,7 +159,6 @@
 
     <panel id="editBookmarkPanel"
            type="arrow"
-           footertype="promobox"
            orient="vertical"
            ignorekeys="true"
            consumeoutsideclicks="true"
@@ -316,7 +338,9 @@
       </button>
     </hbox>
 #endif
+#ifndef XP_MACOSX
     <spacer id="titlebar-spacer" flex="1"/>
+#endif
     <hbox id="titlebar-buttonbox-container" align="start">
       <hbox id="titlebar-buttonbox">
         <toolbarbutton class="titlebar-button" id="titlebar-min" oncommand="window.minimize();"/>
@@ -411,7 +435,7 @@
                    title="&locationItem.title;" class="chromeclass-location" removable="true">
         <textbox id="urlbar" flex="1"
                  placeholder=""
-                 type="autocomplete"
+                 type="private-autocomplete"
                  autocompletesearch="urlinline history"
                  autocompletesearchparam="enable-actions"
                  autocompletepopup="PopupAutoCompleteRichResult"
@@ -434,14 +458,15 @@
             <image id="addons-notification-icon" class="notification-anchor-icon" role="button"/>
             <image id="indexedDB-notification-icon" class="notification-anchor-icon" role="button"/>
             <image id="password-notification-icon" class="notification-anchor-icon" role="button"/>
-            <image id="webapps-notification-icon" class="notification-anchor-icon" role="button"/>
             <image id="plugins-notification-icon" class="notification-anchor-icon" role="button"/>
             <image id="web-notifications-notification-icon" class="notification-anchor-icon" role="button"/>
             <image id="alert-plugins-notification-icon" class="notification-anchor-icon" role="button"/>
             <image id="blocked-plugins-notification-icon" class="notification-anchor-icon" role="button"/>
             <image id="mixed-content-blocked-notification-icon" class="notification-anchor-icon" role="button"/>
+#ifdef MOZ_WEBRTC
             <image id="webRTC-shareDevices-notification-icon" class="notification-anchor-icon" role="button"/>
             <image id="webRTC-sharingDevices-notification-icon" class="notification-anchor-icon" role="button"/>
+#endif
             <image id="pointerLock-notification-icon" class="notification-anchor-icon" role="button"/>
             <image id="servicesInstall-notification-icon" class="notification-anchor-icon" role="button"/>
           </box>
@@ -513,7 +538,7 @@
                    flex="100" persist="width" removable="true">
         <searchbar id="searchbar" flex="1"/>
       </toolbaritem>
-
+#ifdef MOZ_WEBRTC
       <toolbarbutton id="webrtc-status-button"
                      class="toolbarbutton-1 chromeclass-toolbar-additional"
                      type="menu"
@@ -525,7 +550,7 @@
                    onpopuphiding="WebrtcIndicator.clearPopup(this);"
                    oncommand="WebrtcIndicator.menuCommand(event.target);"/>
       </toolbarbutton>
-
+#endif
       <toolbarbutton id="bookmarks-menu-button"
                      class="toolbarbutton-1 chromeclass-toolbar-additional"
                      persist="class"
@@ -921,7 +946,7 @@
     </toolbarpalette>
   </toolbox>
 
-  <hbox id="fullscr-toggler" collapsed="true"/>
+  <hbox id="fullscr-toggler" hidden="true"/>
 
   <hbox flex="1" id="browser">
     <vbox id="browser-border-start" hidden="true" layer="true"/>
@@ -941,7 +966,9 @@
                   flex="1" contenttooltip="aHTMLTooltip"
                   tabcontainer="tabbrowser-tabs"
                   contentcontextmenu="contentAreaContextMenu"
-                  autocompletepopup="PopupAutoComplete"/>
+                  autocompletepopup="PopupAutoComplete"
+                  datetimepicker="DateTimePickerPanel"
+                  authdosprotected="true"/>
       <chatbar id="pinnedchats" layer="true" mousethrough="always" hidden="true"/>
       <statuspanel id="statusbar-display" inactive="true"/>
     </vbox>
@@ -953,51 +980,12 @@
       <vbox id="full-screen-warning-message" align="center">
         <description id="full-screen-domain-text"/>
         <description class="full-screen-description" value="&fullscreenExitHint.value;"/>
-        <vbox id="full-screen-approval-pane" align="center">
-          <description class="full-screen-description" value="&fullscreenApproval.value;"/>
-          <hbox>
-            <button label="&fullscreenAllowButton.label;"
-                    oncommand="FullScreen.setFullscreenAllowed(true);"
-                    class="full-screen-approval-button"/>
-            <button label="&fullscreenExitButton.label;"
-                    oncommand="FullScreen.setFullscreenAllowed(false);"
-                    class="full-screen-approval-button"/>
-          </hbox>
-          <checkbox id="full-screen-remember-decision"/>
-        </vbox>
       </vbox>
     </hbox>
   </hbox>
 
   <vbox id="browser-bottombox" layer="true">
     <notificationbox id="global-notificationbox"/>
-#ifdef MOZ_DEVTOOLS
-    <toolbar id="developer-toolbar"
-             class="devtools-toolbar"
-             hidden="true">
-#ifdef XP_MACOSX
-          <toolbarbutton id="developer-toolbar-closebutton"
-                         class="devtools-closebutton"
-                         oncommand="DeveloperToolbar.hide();"
-                         tooltiptext="&devToolbarCloseButton.tooltiptext;"/>
-#endif
-          <stack class="gclitoolbar-stack-node" flex="1">
-            <textbox class="gclitoolbar-input-node" rows="1"/>
-            <hbox class="gclitoolbar-complete-node"/>
-          </stack>
-          <toolbarbutton id="developer-toolbar-toolbox-button"
-                         class="developer-toolbar-button"
-                         observes="devtoolsMenuBroadcaster_DevToolbox"
-                         tooltiptext="&devToolbarToolsButton.tooltip;"/>
-#ifndef XP_MACOSX
-          <toolbarbutton id="developer-toolbar-closebutton"
-                         class="devtools-closebutton"
-                         oncommand="DeveloperToolbar.hide();"
-                         tooltiptext="&devToolbarCloseButton.tooltiptext;"/>
-#endif
-   </toolbar>
-#endif
-
     <toolbar id="addon-bar"
              toolbarname="&statusBar.label;" accesskey="&statusBar.accesskey;"
              collapsed="true"

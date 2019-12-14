@@ -4,10 +4,10 @@
 
 this.EXPORTED_SYMBOLS = [ "DistributionCustomizer" ];
 
-const Ci = Components.interfaces;
-const Cc = Components.classes;
-const Cr = Components.results;
-const Cu = Components.utils;
+var Ci = Components.interfaces;
+var Cc = Components.classes;
+var Cr = Components.results;
+var Cu = Components.utils;
 
 const DISTRIBUTION_CUSTOMIZATION_COMPLETE_TOPIC =
   "distribution-customization-complete";
@@ -38,13 +38,7 @@ DistributionCustomizer.prototype = {
   },
 
   get _locale() {
-    let locale;
-    try {
-      locale = this._prefs.getCharPref("general.useragent.locale");
-    }
-    catch (e) {
-      locale = "en-US";
-    }
+    let locale = this._prefs.getCharPref("general.useragent.locale", "en-US");
     this.__defineGetter__("_locale", function() locale);
     return this._locale;
   },
@@ -221,11 +215,7 @@ DistributionCustomizer.prototype = {
         this._ini.getString("Global", "id") + ".bookmarksProcessed";
     }
 
-    let bmProcessed = false;
-    try {
-      bmProcessed = this._prefs.getBoolPref(bmProcessedPref);
-    }
-    catch (e) {}
+    let bmProcessed = this._prefs.getBoolPref(bmProcessedPref, false);
 
     if (!bmProcessed) {
       if (sections["BookmarksMenu"])

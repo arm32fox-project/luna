@@ -32,6 +32,7 @@
     <command id="cmd_printPreview" oncommand="PrintUtils.printPreview(PrintPreviewListener);"/>
     <command id="cmd_close" oncommand="BrowserCloseTabOrWindow()"/>
     <command id="cmd_closeWindow" oncommand="BrowserTryToCloseWindow()"/>
+	<command id="cmd_toggleMute" oncommand="gBrowser.selectedTab.toggleMuteAudio()"/>
     <command id="cmd_ToggleTabsOnTop" oncommand="TabsOnTop.toggle()"/>
     <command id="cmd_CustomizeToolbars" oncommand="BrowserCustomizeToolbar()"/>
     <command id="cmd_restartApplication" oncommand="restart(false);"/>
@@ -79,7 +80,6 @@
     <command id="Browser:NextTab" oncommand="gBrowser.tabContainer.advanceSelectedTab(1, true);"/>
     <command id="Browser:PrevTab" oncommand="gBrowser.tabContainer.advanceSelectedTab(-1, true);"/>
     <command id="Browser:ShowAllTabs" oncommand="allTabs.open();"/>
-    <command id="Browser:FocusNextFrame" oncommand="focusNextFrame(event);"/>
     <command id="cmd_fullZoomReduce"  oncommand="FullZoom.reduce()"/>
     <command id="cmd_fullZoomEnlarge" oncommand="FullZoom.enlarge()"/>
     <command id="cmd_fullZoomReset"   oncommand="FullZoom.reset()"/>
@@ -92,24 +92,9 @@
 
     <command id="Tools:Search" oncommand="BrowserSearch.webSearch();"/>
     <command id="Tools:Downloads" oncommand="BrowserDownloadsUI();"/>
-#ifdef MOZ_DEVTOOLS
-    <command id="Tools:DevToolbox" oncommand="gDevToolsBrowser.toggleToolboxCommand(gBrowser);"/>
-    <command id="Tools:DevToolbar" oncommand="DeveloperToolbar.toggle();" disabled="true" hidden="true"/>
-    <command id="Tools:DevToolbarFocus" oncommand="DeveloperToolbar.focusToggle();" disabled="true"/>
-    <command id="Tools:DevAppMgr" oncommand="gDevToolsBrowser.openAppManager(gBrowser);" disabled="true" hidden="true"/>
-    <command id="Tools:WebIDE" oncommand="gDevToolsBrowser.openWebIDE();" disabled="true" hidden="true"/>
-    <command id="Tools:ChromeDebugger" oncommand="BrowserToolboxProcess.init();" disabled="true" hidden="true"/>
-    <command id="Tools:BrowserConsole" oncommand="HUDService.openBrowserConsoleOrFocus();"/>
-    <command id="Tools:Scratchpad" oncommand="Scratchpad.openScratchpad();" disabled="true" hidden="true"/>
-    <command id="Tools:ResponsiveUI" oncommand="ResponsiveUI.toggle();" disabled="true" hidden="true"/>
-    <command id="Tools:Eyedropper" oncommand="openEyedropper();"/>
-#endif
     <command id="Tools:Addons" oncommand="BrowserOpenAddonsMgr();"/>
     <command id="Tools:Permissions" oncommand="BrowserOpenPermissionsMgr();"/>
     <command id="Tools:ErrorConsole" oncommand="toJavaScriptConsole()" disabled="true" hidden="true"/>
-#ifdef MOZ_DEVTOOLS
-    <command id="Tools:DevToolsConnect" oncommand="gDevToolsBrowser.openConnectScreen(gBrowser)" disabled="true" hidden="true"/>
-#endif
     <command id="Tools:Sanitize"
      oncommand="Cc['@mozilla.org/browser/browserglue;1'].getService(Ci.nsIBrowserGlue).sanitize(window);"/>
     <command id="Tools:PrivateBrowsing"
@@ -170,46 +155,6 @@
 #endif
     <broadcaster id="workOfflineMenuitemState"/>
 
-#ifdef MOZ_DEVTOOLS
-    <!-- DevTools broadcasters -->
-    <broadcaster id="devtoolsMenuBroadcaster_DevToolbox"
-                 label="&devToolboxMenuItem.label;"
-                 type="checkbox" autocheck="false"
-                 command="Tools:DevToolbox"
-                 key="key_devToolbox"/>
-    <broadcaster id="devtoolsMenuBroadcaster_DevToolbar"
-                 label="&devToolbarMenu.label;"
-                 type="checkbox" autocheck="false"
-                 command="Tools:DevToolbar"
-                 key="key_devToolbar"/>
-    <broadcaster id="devtoolsMenuBroadcaster_DevAppMgr"
-                 label="&devAppMgrMenu.label;"
-                 command="Tools:DevAppMgr"/>
-    <broadcaster id="devtoolsMenuBroadcaster_webide"
-                 label="&webide.label;"
-                 command="Tools:WebIDE"
-                 key="key_webide"/>
-    <broadcaster id="devtoolsMenuBroadcaster_ChromeDebugger"
-                 label="&chromeDebuggerMenu.label;"
-                 command="Tools:ChromeDebugger"/>
-    <broadcaster id="devtoolsMenuBroadcaster_BrowserConsole"
-                 label="&browserConsoleCmd.label;"
-                 key="key_browserConsole"
-                 command="Tools:BrowserConsole"/>
-    <broadcaster id="devtoolsMenuBroadcaster_Scratchpad"
-                 label="&scratchpad.label;"
-                 command="Tools:Scratchpad"
-                 key="key_scratchpad"/>
-    <broadcaster id="devtoolsMenuBroadcaster_ResponsiveUI"
-                 label="&responsiveDesignTool.label;"
-                 type="checkbox" autocheck="false"
-                 command="Tools:ResponsiveUI"
-                 key="key_responsiveUI"/>
-    <broadcaster id="devtoolsMenuBroadcaster_Eyedropper"
-                 label="&eyedropper.label;"
-                 type="checkbox" autocheck="false"
-                 command="Tools:Eyedropper"/>
-#endif
     <broadcaster id="devtoolsMenuBroadcaster_PageSource"
                  label="&pageSourceCmd.label;"
                  key="key_viewSource"
@@ -217,14 +162,6 @@
     <broadcaster id="devtoolsMenuBroadcaster_ErrorConsole"
                  label="&errorConsoleCmd.label;"
                  command="Tools:ErrorConsole"/>
-    <broadcaster id="devtoolsMenuBroadcaster_GetMoreTools"
-                 label="&getMoreDevtoolsCmd.label;"
-                 oncommand="openUILinkIn(gPrefService.getCharPref('browser.getdevtools.url'), 'tab');"/>
-#ifdef MOZ_DEVTOOLS
-    <broadcaster id="devtoolsMenuBroadcaster_connect"
-                 label="&devtoolsConnect.label;"
-                 command="Tools:DevToolsConnect"/>
-#endif
   </broadcasterset>
 
   <keyset id="mainKeyset">
@@ -271,26 +208,12 @@
     <key id="key_openDownloads" key="&downloads.commandkey;" command="Tools:Downloads" modifiers="accel"/>
 #endif
     <key id="key_openAddons" key="&addons.commandkey;" command="Tools:Addons" modifiers="accel,shift"/>
-#ifdef MOZ_DEVTOOLS
-    <key id="key_browserConsole" key="&browserConsoleCmd.commandkey;" command="Tools:BrowserConsole" modifiers="accel,shift"/>
-    <key id="key_devToolbox" keycode="VK_F12" keytext="F12" command="Tools:DevToolbox"/>
-    <key id="key_devToolbar" keycode="&devToolbar.keycode;" modifiers="shift"
-         keytext="&devToolbar.keytext;" command="Tools:DevToolbarFocus"/>
-    <key id="key_responsiveUI" key="&responsiveDesignTool.commandkey;" command="Tools:ResponsiveUI"
-#ifdef XP_MACOSX
-        modifiers="accel,alt"
-#else
-        modifiers="accel,shift"
-#endif
-    />
-    <key id="key_scratchpad" keycode="&scratchpad.keycode;" modifiers="shift"
-         keytext="&scratchpad.keytext;" command="Tools:Scratchpad"/>
-#endif
     <key id="openFileKb" key="&openFileCmd.commandkey;" command="Browser:OpenFile"  modifiers="accel"/>
     <key id="key_savePage" key="&savePageCmd.commandkey;" command="Browser:SavePage" modifiers="accel"/>
     <key id="printKb" key="&printCmd.commandkey;" command="cmd_print"  modifiers="accel"/>
     <key id="key_close" key="&closeCmd.key;" command="cmd_close" modifiers="accel"/>
     <key id="key_closeWindow" key="&closeCmd.key;" command="cmd_closeWindow" modifiers="accel,shift"/>
+	<key id="key_toggleMute" key="&toggleMuteCmd.key;" command="cmd_toggleMute" modifiers="control"/>
     <key id="key_undo"
          key="&undoCmd.key;"
          modifiers="accel"/>
@@ -329,8 +252,6 @@
 #ifndef XP_MACOSX
     <key id="showAllHistoryKb" key="&showAllHistoryCmd.commandkey;" command="Browser:ShowAllHistory" modifiers="accel,shift"/>
     <key keycode="VK_F5" command="Browser:ReloadSkipCache" modifiers="accel"/>
-    <key keycode="VK_F6" command="Browser:FocusNextFrame"/>
-    <key keycode="VK_F6" command="Browser:FocusNextFrame" modifiers="shift"/>
     <key id="key_fullScreen" keycode="VK_F11" command="View:FullScreen"/>
 #else
     <key id="key_fullScreen" key="&fullScreenCmd.macCommandKey;" command="View:FullScreen" modifiers="accel,control"/>

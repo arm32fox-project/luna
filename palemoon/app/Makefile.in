@@ -54,14 +54,6 @@ GARBAGE += $(addprefix $(FINAL_TARGET)/defaults/pref/, palemoon.js)
 
 endif
 
-ifdef MOZ_WIDGET_GTK
-libs::
-	$(INSTALL) $(IFLAGS1) $(DIST)/branding/mozicon128.png $(FINAL_TARGET)/icons
-	$(INSTALL) $(IFLAGS1) $(DIST)/branding/default16.png  $(FINAL_TARGET)/chrome/icons/default
-	$(INSTALL) $(IFLAGS1) $(DIST)/branding/default32.png  $(FINAL_TARGET)/chrome/icons/default
-	$(INSTALL) $(IFLAGS1) $(DIST)/branding/default48.png  $(FINAL_TARGET)/chrome/icons/default
-endif
-
 ifndef LIBXUL_SDK
 # channel-prefs.js is handled separate from other prefs due to bug 756325
 libs:: $(srcdir)/profile/channel-prefs.js
@@ -84,30 +76,30 @@ AB := $(firstword $(subst -, ,$(AB_CD)))
 clean clobber repackage::
 	$(RM) -r $(dist_dest)
 
-MAC_BUNDLE_VERSION = $(shell $(PYTHON) $(srcdir)/macversion.py --version=$(MOZ_APP_VERSION) --buildid=$(DEPTH)/config/buildid)
+MAC_BUNDLE_VERSION = $(shell $(PYTHON) $(srcdir)/macversion.py --version=$(MOZ_APP_VERSION) --buildid=$(DEPTH)/buildid.h)
 
 .PHONY: repackage
 tools repackage:: $(PROGRAM)
-	$(MKDIR) -p $(dist_dest)/Contents/MacOS
-	$(MKDIR) -p $(dist_dest)/Contents/Resources/$(AB).lproj
-	rsync -a --exclude '*.in' $(srcdir)/macbuild/Contents $(dist_dest) --exclude English.lproj
-	rsync -a --exclude '*.in' $(srcdir)/macbuild/Contents/Resources/English.lproj/ $(dist_dest)/Contents/Resources/$(AB).lproj
-	sed -e 's/%APP_VERSION%/$(MOZ_APP_VERSION)/' -e 's/%MAC_APP_NAME%/$(MAC_APP_NAME)/' -e 's/%MOZ_MACBUNDLE_ID%/$(MOZ_MACBUNDLE_ID)/' -e 's/%MAC_BUNDLE_VERSION%/$(MAC_BUNDLE_VERSION)/' $(srcdir)/macbuild/Contents/Info.plist.in > $(dist_dest)/Contents/Info.plist
-	sed -e 's/%MAC_APP_NAME%/$(MAC_APP_NAME)/' $(srcdir)/macbuild/Contents/Resources/English.lproj/InfoPlist.strings.in | iconv -f UTF-8 -t UTF-16 > $(dist_dest)/Contents/Resources/$(AB).lproj/InfoPlist.strings
-	rsync -a --exclude-from='$(srcdir)/macbuild/Contents/MacOS-files.in' $(DIST)/bin/ $(dist_dest)/Contents/Resources
-	rsync -a --include-from='$(srcdir)/macbuild/Contents/MacOS-files.in' --exclude '*' $(DIST)/bin/ $(dist_dest)/Contents/MacOS
-	$(RM) $(dist_dest)/Contents/MacOS/$(PROGRAM)
-	rsync -aL $(PROGRAM) $(dist_dest)/Contents/MacOS
-	cp -RL $(DIST)/branding/firefox.icns $(dist_dest)/Contents/Resources/firefox.icns
-	cp -RL $(DIST)/branding/document.icns $(dist_dest)/Contents/Resources/document.icns
-	printf APPLMOZB > $(dist_dest)/Contents/PkgInfo
+	$(MKDIR) -p '$(dist_dest)/Contents/MacOS'
+	$(MKDIR) -p '$(dist_dest)/Contents/Resources/$(AB).lproj'
+	rsync -a --exclude '*.in' $(srcdir)/macbuild/Contents '$(dist_dest)' --exclude English.lproj
+	rsync -a --exclude '*.in' $(srcdir)/macbuild/Contents/Resources/English.lproj/ '$(dist_dest)/Contents/Resources/$(AB).lproj'
+	sed -e 's/%APP_VERSION%/$(MOZ_APP_VERSION)/' -e 's/%MAC_APP_NAME%/$(MAC_APP_NAME)/' -e 's/%MOZ_MACBUNDLE_ID%/$(MOZ_MACBUNDLE_ID)/' -e 's/%MAC_BUNDLE_VERSION%/$(MAC_BUNDLE_VERSION)/' $(srcdir)/macbuild/Contents/Info.plist.in > '$(dist_dest)/Contents/Info.plist'
+	sed -e 's/%MAC_APP_NAME%/$(MAC_APP_NAME)/' $(srcdir)/macbuild/Contents/Resources/English.lproj/InfoPlist.strings.in | iconv -f UTF-8 -t UTF-16 > '$(dist_dest)/Contents/Resources/$(AB).lproj/InfoPlist.strings'
+	rsync -a --exclude-from='$(srcdir)/macbuild/Contents/MacOS-files.in' $(DIST)/bin/ '$(dist_dest)/Contents/Resources'
+	rsync -a --include-from='$(srcdir)/macbuild/Contents/MacOS-files.in' --exclude '*' $(DIST)/bin/ '$(dist_dest)/Contents/MacOS'
+	$(RM) '$(dist_dest)/Contents/MacOS/$(PROGRAM)'
+	rsync -aL $(PROGRAM) '$(dist_dest)/Contents/MacOS'
+	cp -RL $(DIST)/branding/firefox.icns '$(dist_dest)/Contents/Resources/firefox.icns'
+	cp -RL $(DIST)/branding/document.icns '$(dist_dest)/Contents/Resources/document.icns'
+	printf APPLMOZB > '$(dist_dest)/Contents/PkgInfo'
 endif
 
 ifdef LIBXUL_SDK #{
 ifndef SKIP_COPY_XULRUNNER #{
 libs::
 ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT)) #{
-	rsync -a --copy-unsafe-links $(LIBXUL_DIST)/XUL.framework $(dist_dest)/Contents/Frameworks
+	rsync -a --copy-unsafe-links $(LIBXUL_DIST)/XUL.framework '$(dist_dest)/Contents/Frameworks'
 else
 	$(NSINSTALL) -D $(DIST)/bin/xulrunner
 	(cd $(LIBXUL_SDK)/bin && tar $(TAR_CREATE_FLAGS) - .) | (cd $(DIST)/bin/xulrunner && tar -xf -)

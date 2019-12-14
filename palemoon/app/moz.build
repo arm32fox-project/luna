@@ -6,13 +6,9 @@
 
 DIRS += ['profile/extensions']
 
+GeckoProgram(CONFIG['MOZ_APP_NAME'])
 
-if CONFIG['OS_ARCH'] == 'WINNT' and CONFIG['MOZ_ASAN']:
-    GoannaProgram(CONFIG['MOZ_APP_NAME'])
-else:
-    GoannaProgram(CONFIG['MOZ_APP_NAME'], msvcrt='static')
-
-JS_PREFERENCE_FILES += [
+JS_PREFERENCE_PP_FILES += [
     'profile/palemoon.js',
 ]
 
@@ -21,24 +17,15 @@ if CONFIG['LIBXUL_SDK']:
         'profile/channel-prefs.js',
     ]
 
-SOURCES += [
-    'nsBrowserApp.cpp',
-]
+SOURCES += ['nsBrowserApp.cpp']
 
 FINAL_TARGET_FILES += ['blocklist.xml']
+FINAL_TARGET_FILES.defaults += ['permissions']
 FINAL_TARGET_FILES.defaults.profile += ['profile/prefs.js']
 
 DEFINES['APP_VERSION'] = CONFIG['MOZ_APP_VERSION']
 
-for var in ('MOZILLA_OFFICIAL', 'LIBXUL_SDK'):
-    if CONFIG[var]:
-        DEFINES[var] = True
-
-DEFINES['XPCOM_GLUE'] = True
-
-GENERATED_INCLUDES += [
-    '/build',
-]
+LOCAL_INCLUDES += ['!/build']
 
 LOCAL_INCLUDES += [
     '/toolkit/xre',
@@ -46,11 +33,7 @@ LOCAL_INCLUDES += [
     '/xpcom/build',
 ]
 
-DELAYLOAD_DLLS += [
-    'mozglue.dll',
-]
-USE_STATIC_LIBS = True
-
+USE_LIBS += ['mozglue']
 
 if CONFIG['_MSC_VER']:
     # Always enter a Windows program through wmain, whether or not we're
@@ -71,16 +54,6 @@ if CONFIG['OS_ARCH'] == 'WINNT':
 # Set it to 256k.  See bug 127069.
 if CONFIG['OS_ARCH'] == 'WINNT' and not CONFIG['GNU_CC']:
     LDFLAGS += ['/HEAP:0x40000']
-
-if CONFIG['OS_ARCH'] == 'WINNT':
-    USE_LIBS += [
-        'mozglue',
-        'xpcomglue_staticruntime',
-    ]
-else:
-    USE_LIBS += [
-        'xpcomglue',
-    ]
 
 DISABLE_STL_WRAPPING = True
 
