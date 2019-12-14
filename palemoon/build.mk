@@ -3,46 +3,46 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 installer:
-	@$(MAKE) -C application/palemoon/installer installer
+	@$(MAKE) -C palemoon/installer installer
 
 package:
-	@$(MAKE) -C application/palemoon/installer make-archive
+	@$(MAKE) -C palemoon/installer make-archive
 
 l10n-package:
-	@$(MAKE) -C application/palemoon/installer make-langpack
+	@$(MAKE) -C palemoon/installer make-langpack
 
 mozpackage:
-	@$(MAKE) -C application/palemoon/installer
+	@$(MAKE) -C palemoon/installer
 
 package-compare:
-	@$(MAKE) -C application/palemoon/installer package-compare
+	@$(MAKE) -C palemoon/installer package-compare
 
 stage-package:
-	@$(MAKE) -C application/palemoon/installer stage-package make-buildinfo-file
+	@$(MAKE) -C palemoon/installer stage-package make-buildinfo-file
 
 install::
-	@$(MAKE) -C application/palemoon/installer install
+	@$(MAKE) -C palemoon/installer install
 
 clean::
-	@$(MAKE) -C application/palemoon/installer clean
+	@$(MAKE) -C palemoon/installer clean
 
 distclean::
-	@$(MAKE) -C application/palemoon/installer distclean
+	@$(MAKE) -C palemoon/installer distclean
 
 source-package::
-	@$(MAKE) -C application/palemoon/installer source-package
+	@$(MAKE) -C palemoon/installer source-package
 
 upload::
-	@$(MAKE) -C application/palemoon/installer upload
+	@$(MAKE) -C palemoon/installer upload
 
 source-upload::
-	@$(MAKE) -C application/palemoon/installer source-upload
+	@$(MAKE) -C palemoon/installer source-upload
 
 hg-bundle::
-	@$(MAKE) -C application/palemoon/installer hg-bundle
+	@$(MAKE) -C palemoon/installer hg-bundle
 
 l10n-check::
-	@$(MAKE) -C application/palemoon/locales l10n-check
+	@$(MAKE) -C palemoon/locales l10n-check
 
 ifdef ENABLE_TESTS
 # Implemented in testing/testsuite-targets.mk

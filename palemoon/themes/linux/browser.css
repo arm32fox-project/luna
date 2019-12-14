@@ -2162,8 +2162,8 @@ toolbar[mode="text"] toolbarbutton.chevron > .toolbarbutton-icon {
 }
 
 %ifdef MOZ_DEVTOOLS
-%include ../../../../devtools/client/themes/responsivedesign.inc.css
-%include ../../../../devtools/client/themes/commandline.inc.css
+%include ../../../platform/devtools/client/themes/responsivedesign.inc.css
+%include ../../../platform/devtools/client/themes/commandline.inc.css
 %endif
 %include ../shared/plugin-doorhanger.inc.css
 

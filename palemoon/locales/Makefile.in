@@ -78,7 +78,7 @@ DIST_SUBDIRS = $(DIST_SUBDIR)
 
 include $(topsrcdir)/config/rules.mk
 
-include $(topsrcdir)/toolkit/locales/l10n.mk
+include $(MOZILLA_SRCDIR)/toolkit/locales/l10n.mk
 
 $(STAGEDIST): $(DIST)/branding
 
@@ -120,14 +120,14 @@ searchplugins: $(addprefix $(FINAL_TARGET)/searchplugins/,$(SEARCHPLUGINS))
 
 libs-%:
 	$(NSINSTALL) -D $(DIST)/install
-	@$(MAKE) -C ../../../toolkit/locales libs-$*
+	@$(MAKE) -C $(DEPTH)/toolkit/locales libs-$*
 ifdef MOZ_SERVICES_SYNC
-	@$(MAKE) -C ../../../services/sync/locales AB_CD=$* XPI_NAME=locale-$*
+	@$(MAKE) -C $(DEPTH)/services/sync/locales AB_CD=$* XPI_NAME=locale-$*
 endif
-	@$(MAKE) -C ../../../extensions/spellcheck/locales AB_CD=$* XPI_NAME=locale-$*
-	@$(MAKE) -C ../../../intl/locales AB_CD=$* XPI_NAME=locale-$*
+	@$(MAKE) -C $(DEPTH)/extensions/spellcheck/locales AB_CD=$* XPI_NAME=locale-$*
+	@$(MAKE) -C $(DEPTH)/intl/locales AB_CD=$* XPI_NAME=locale-$*
 ifdef MOZ_DEVTOOLS
-	@$(MAKE) -C ../../../devtools/client/locales AB_CD=$* XPI_NAME=locale-$*
+	@$(MAKE) -C $(DEPTH)/devtools/client/locales AB_CD=$* XPI_NAME=locale-$*
 endif
 	@$(MAKE) libs AB_CD=$* XPI_NAME=locale-$* PREF_DIR=$(PREF_DIR)
 	@$(MAKE) -C $(DEPTH)/$(MOZ_BRANDING_DIRECTORY)/locales AB_CD=$* XPI_NAME=locale-$*
@@ -218,5 +218,5 @@ l10n-check::
 	$(NSINSTALL) -D x-test/toolkit
 	echo "#define MOZ_LANG_TITLE Just testing" > x-test/toolkit/defines.inc
 	$(MAKE) installers-x-test L10NBASEDIR="$(PWD)" LOCALE_MERGEDIR="$(PWD)/mergedir"
-	$(PYTHON) $(topsrcdir)/toolkit/mozapps/installer/unpack.py $(DIST)/l10n-stage/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH)
+	$(PYTHON) $(MOZILLA_SRCDIR)/toolkit/mozapps/installer/unpack.py $(DIST)/l10n-stage/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH)
 	cd $(DIST)/l10n-stage && test $$(cat $(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH)/update.locale) = x-test

@@ -4,14 +4,14 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 if not CONFIG['LIBXUL_SDK']:
-    include('/toolkit/toolkit.mozbuild')
+    include('/platform/toolkit/toolkit.mozbuild')
 
 if CONFIG['MOZ_EXTENSIONS']:
-    DIRS += ['/extensions']
+    DIRS += ['/platform/extensions']
 
 DIRS += ['/%s' % CONFIG['MOZ_BRANDING_DIRECTORY']]
 
 # Never add tier dirs after browser because they apparently won't get
 # packaged properly on Mac.
-DIRS += ['/application/palemoon']
+DIRS += ['/palemoon']
 

@@ -328,7 +328,10 @@ $(CONFIGURES): %: %.in $(EXTRA_CONFIG_DEPS)
 	chmod +x $@
 
 CONFIG_STATUS_DEPS := \
-	$(wildcard $(CONFIGURES)) \
+	$(wildcard $(TOPSRCDIR)/*/confvars.sh) \
+	$(wildcard $(TOPSRCDIR)/*/configure.in) \
+	$(wildcard $(TOPSRCDIR)/*/config/version.txt) \
+  $(wildcard $(CONFIGURES)) \
 	$(wildcard $(TOPSRCDIR)/platform/nsprpub/configure) \
 	$(wildcard $(TOPSRCDIR)/platform/config/milestone.txt) \
 	$(wildcard $(TOPSRCDIR)/platform/ldap/sdks/c-sdk/configure) \
