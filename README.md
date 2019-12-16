@@ -9,8 +9,7 @@ selective cherry-picking of directly-applicable patches, this repository has its
 own development and holds the base for a future platform to be used by XUL
 applications.
 
-This repository will contain at least one application to demonstrate and make use
-of the platform: The Basilisk web browser, a close twin to Mozilla's Firefox.
+For a list of active projects making use of the Unified XUL Platform, checkout http://thereisonlyxul.org/.
 
 ## Additional documentation
 
