@@ -64,3 +64,12 @@ other-licenses/7zstub/firefox/7zSD - Copy.sfx.exe
 
 # Ignore official beta branding
 browser/branding/officialbeta/
+
+# External Projects
+# Account for someone being clever with ntfs junctions or other filesystem links ;)
+basilisk/
+mail/
+suite/
+iceweasel/
+calendar/
+projects/*
