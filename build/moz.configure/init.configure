@@ -631,17 +631,12 @@ def include_project_configure(project, external_source_dir, build_env, help):
 
     build_app = project[0]
 
-    # XXX: Change this when 'browser' becomes invalid as an alias
-    if build_app == 'browser':
-        build_app = 'basilisk'
-        #die('The project "browser" is no longer valid. Perhaps you meant "basilisk" or "palemoon"?')
-    
-    path_project_src_dir_application = os.path.join(base_dir, 'application/' + build_app, 'moz.configure')
+    if not external_source_dir and build_app not in ('xulrunner', 'js'):
+        die('Cannot find project %s', build_app)
+
     path_project_src_dir_root = os.path.join(base_dir, build_app, 'moz.configure')
     
-    if exists(path_project_src_dir_application):
-        return path_project_src_dir_application
-    elif exists(path_project_src_dir_root):
+    if exists(path_project_src_dir_root):
         return path_project_src_dir_root
     else:
         die('Cannot find project %s', build_app)
