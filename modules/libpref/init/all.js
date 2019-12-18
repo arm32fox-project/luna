@@ -2914,12 +2914,12 @@ pref("svg.transform-box.enabled", true);
 pref("font.default.ar", "sans-serif");
 pref("font.minimum-size.ar", 0);
 pref("font.size.variable.ar", 16);
-pref("font.size.fixed.ar", 13);
+pref("font.size.fixed.ar", 15);
 
 pref("font.default.el", "serif");
 pref("font.minimum-size.el", 0);
 pref("font.size.variable.el", 16);
-pref("font.size.fixed.el", 13);
+pref("font.size.fixed.el", 15);
 
 pref("font.default.he", "sans-serif");
 pref("font.minimum-size.he", 0);
@@ -2944,7 +2944,7 @@ pref("font.size.fixed.th", 13);
 pref("font.default.x-cyrillic", "serif");
 pref("font.minimum-size.x-cyrillic", 0);
 pref("font.size.variable.x-cyrillic", 16);
-pref("font.size.fixed.x-cyrillic", 13);
+pref("font.size.fixed.x-cyrillic", 15);
 
 pref("font.default.x-devanagari", "serif");
 pref("font.minimum-size.x-devanagari", 0);
@@ -3029,12 +3029,12 @@ pref("font.size.fixed.x-tibt", 13);
 pref("font.default.x-unicode", "serif");
 pref("font.minimum-size.x-unicode", 0);
 pref("font.size.variable.x-unicode", 16);
-pref("font.size.fixed.x-unicode", 13);
+pref("font.size.fixed.x-unicode", 15);
 
 pref("font.default.x-western", "serif");
 pref("font.minimum-size.x-western", 0);
 pref("font.size.variable.x-western", 16);
-pref("font.size.fixed.x-western", 13);
+pref("font.size.fixed.x-western", 15);
 
 pref("font.default.zh-CN", "sans-serif");
 pref("font.minimum-size.zh-CN", 0);
@@ -3056,7 +3056,7 @@ pref("font.size.fixed.zh-TW", 16);
 pref("font.default.x-math", "serif");
 pref("font.minimum-size.x-math", 0);
 pref("font.size.variable.x-math", 16);
-pref("font.size.fixed.x-math", 13);
+pref("font.size.fixed.x-math", 15);
 
 /*
  * A value greater than zero enables font size inflation for
