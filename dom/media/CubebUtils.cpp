@@ -203,11 +203,10 @@ void InitBrandName()
         NS_SUCCEEDED(rv), "Could not get the program name for a cubeb stream.");
     }
   }
-  /* cubeb expects a c-string. */
-  const char* ascii = NS_LossyConvertUTF16toASCII(brandName).get();
-  sBrandName = new char[brandName.Length() + 1];
-  PodCopy(sBrandName.get(), ascii, brandName.Length());
-  sBrandName[brandName.Length()] = 0;
+  NS_LossyConvertUTF16toASCII ascii(brandName);
+  sBrandName = new char[ascii.Length() + 1];
+  PodCopy(sBrandName.get(), ascii.get(), ascii.Length());
+  sBrandName[ascii.Length()] = 0;
 }
 
 cubeb* GetCubebContextUnlocked()
