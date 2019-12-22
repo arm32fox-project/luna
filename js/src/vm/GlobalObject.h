@@ -93,12 +93,18 @@ class GlobalObject : public NativeObject
         ITERATOR_PROTO,
         ARRAY_ITERATOR_PROTO,
         STRING_ITERATOR_PROTO,
+        REGEXP_STRING_ITERATOR_PROTO,
         LEGACY_GENERATOR_OBJECT_PROTO,
         STAR_GENERATOR_OBJECT_PROTO,
         STAR_GENERATOR_FUNCTION_PROTO,
         STAR_GENERATOR_FUNCTION,
         ASYNC_FUNCTION_PROTO,
         ASYNC_FUNCTION,
+        ASYNC_ITERATOR_PROTO,
+        ASYNC_FROM_SYNC_ITERATOR_PROTO,
+        ASYNC_GENERATOR,
+        ASYNC_GENERATOR_FUNCTION,
+        ASYNC_GENERATOR_PROTO,
         MAP_ITERATOR_PROTO,
         SET_ITERATOR_PROTO,
         COLLATOR_PROTO,
@@ -583,6 +589,12 @@ class GlobalObject : public NativeObject
     }
 
     static NativeObject*
+    getOrCreateRegExpStringIteratorPrototype(JSContext* cx, Handle<GlobalObject*> global) {
+        return MaybeNativeObject(getOrCreateObject(cx, global, REGEXP_STRING_ITERATOR_PROTO,
+                                                   initRegExpStringIteratorProto));
+    }
+
+    static NativeObject*
     getOrCreateLegacyGeneratorObjectPrototype(JSContext* cx, Handle<GlobalObject*> global) {
         return MaybeNativeObject(getOrCreateObject(cx, global, LEGACY_GENERATOR_OBJECT_PROTO,
                                                    initLegacyGeneratorProto));
@@ -615,6 +627,36 @@ class GlobalObject : public NativeObject
     static JSObject*
     getOrCreateAsyncFunction(JSContext* cx, Handle<GlobalObject*> global) {
         return getOrCreateObject(cx, global, ASYNC_FUNCTION, initAsyncFunction);
+    }
+
+    static NativeObject*
+    getOrCreateAsyncIteratorPrototype(JSContext* cx, Handle<GlobalObject*> global)
+    {
+        return MaybeNativeObject(getOrCreateObject(cx, global, ASYNC_ITERATOR_PROTO,
+                                                   initAsyncGenerators));
+    }
+
+    static NativeObject*
+    getOrCreateAsyncFromSyncIteratorPrototype(JSContext* cx, Handle<GlobalObject*> global) {
+        return MaybeNativeObject(getOrCreateObject(cx, global, ASYNC_FROM_SYNC_ITERATOR_PROTO,
+                                                   initAsyncGenerators));
+    }
+
+    static NativeObject*
+    getOrCreateAsyncGenerator(JSContext* cx, Handle<GlobalObject*> global) {
+        return MaybeNativeObject(getOrCreateObject(cx, global, ASYNC_GENERATOR,
+                                                   initAsyncGenerators));
+    }
+
+    static JSObject*
+    getOrCreateAsyncGeneratorFunction(JSContext* cx, Handle<GlobalObject*> global) {
+        return getOrCreateObject(cx, global, ASYNC_GENERATOR_FUNCTION, initAsyncGenerators);
+    }
+
+    static NativeObject*
+    getOrCreateAsyncGeneratorPrototype(JSContext* cx, Handle<GlobalObject*> global) {
+        return MaybeNativeObject(getOrCreateObject(cx, global, ASYNC_GENERATOR_PROTO,
+                                                   initAsyncGenerators));
     }
 
     static JSObject*
@@ -767,12 +809,15 @@ class GlobalObject : public NativeObject
     static bool initIteratorProto(JSContext* cx, Handle<GlobalObject*> global);
     static bool initArrayIteratorProto(JSContext* cx, Handle<GlobalObject*> global);
     static bool initStringIteratorProto(JSContext* cx, Handle<GlobalObject*> global);
+    static bool initRegExpStringIteratorProto(JSContext* cx, Handle<GlobalObject*> global);
 
     // Implemented in vm/GeneratorObject.cpp.
     static bool initLegacyGeneratorProto(JSContext* cx, Handle<GlobalObject*> global);
     static bool initStarGenerators(JSContext* cx, Handle<GlobalObject*> global);
 
     static bool initAsyncFunction(JSContext* cx, Handle<GlobalObject*> global);
+
+    static bool initAsyncGenerators(JSContext* cx, Handle<GlobalObject*> global);
 
     // Implemented in builtin/MapObject.cpp.
     static bool initMapIteratorProto(JSContext* cx, Handle<GlobalObject*> global);
@@ -977,12 +1022,14 @@ GlobalObject::createArrayFromBuffer<uint8_clamped>() const
 }
 
 /*
- * Define ctor.prototype = proto as non-enumerable, non-configurable, and
- * non-writable; define proto.constructor = ctor as non-enumerable but
- * configurable and writable.
+ * Unless otherwise specified, define ctor.prototype = proto as non-enumerable,
+ * non-configurable, and non-writable; and define proto.constructor = ctor as
+ * non-enumerable but configurable and writable.
  */
 extern bool
-LinkConstructorAndPrototype(JSContext* cx, JSObject* ctor, JSObject* proto);
+LinkConstructorAndPrototype(JSContext* cx, JSObject* ctor, JSObject* proto,
+                            unsigned prototypeAttrs = JSPROP_PERMANENT | JSPROP_READONLY,
+                            unsigned constructorAttrs = 0);
 
 /*
  * Define properties and/or functions on any object. Either ps or fs, or both,

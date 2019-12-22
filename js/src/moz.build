@@ -291,7 +291,6 @@ UNIFIED_SOURCES += [
     'jspropertytree.cpp',
     'jsscript.cpp',
     'jsstr.cpp',
-    'jswatchpoint.cpp',
     'jsweakmap.cpp',
     'perf/jsperf.cpp',
     'proxy/BaseProxyHandler.cpp',
@@ -306,6 +305,7 @@ UNIFIED_SOURCES += [
     'vm/ArgumentsObject.cpp',
     'vm/ArrayBufferObject.cpp',
     'vm/AsyncFunction.cpp',
+    'vm/AsyncIteration.cpp',
     'vm/Caches.cpp',
     'vm/CallNonGenericMethod.cpp',
     'vm/CharacterEncoding.cpp',
@@ -721,6 +721,14 @@ if CONFIG['OS_ARCH'] == 'Linux':
         'dl',
     ]
 
+if CONFIG['OS_ARCH'] == 'SunOS':
+    OS_LIBS += [
+        'posix4',
+        'dl',
+        'nsl',
+        'socket',
+    ]
+
 OS_LIBS += CONFIG['REALTIME_LIBS']
 
 CFLAGS += CONFIG['MOZ_ICU_CFLAGS']
@@ -740,6 +748,7 @@ selfhosted.inputs = [
     'builtin/SelfHostingDefines.h',
     'builtin/Utilities.js',
     'builtin/Array.js',
+    'builtin/AsyncIteration.js',
     'builtin/Classes.js',
     'builtin/Date.js',
     'builtin/Error.js',
@@ -752,6 +761,7 @@ selfhosted.inputs = [
     'builtin/Module.js',
     'builtin/Number.js',
     'builtin/Object.js',
+    'builtin/Promise.js',
     'builtin/Reflect.js',
     'builtin/RegExp.js',
     'builtin/RegExpGlobalReplaceOpt.h.js',
@@ -764,9 +774,6 @@ selfhosted.inputs = [
     'builtin/WeakMap.js',
     'builtin/WeakSet.js'
 ]
-
-if CONFIG['SPIDERMONKEY_PROMISE']:
-    selfhosted.inputs += ['builtin/Promise.js']
 
 if CONFIG['JS_HAS_CTYPES']:
     if CONFIG['MOZ_SYSTEM_FFI']:
@@ -783,3 +790,6 @@ if CONFIG['GNU_CXX']:
 # Suppress warnings in third-party code.
 if CONFIG['CLANG_CXX'] or CONFIG['GNU_CXX']:
     SOURCES['jsdtoa.cpp'].flags += ['-Wno-implicit-fallthrough']
+
+if CONFIG['OS_ARCH'] == 'WINNT':
+    DEFINES['NOMINMAX'] = True

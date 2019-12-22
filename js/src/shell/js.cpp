@@ -85,6 +85,7 @@
 #include "threading/Thread.h"
 #include "vm/ArgumentsObject.h"
 #include "vm/AsyncFunction.h"
+#include "vm/AsyncIteration.h"
 #include "vm/Compression.h"
 #include "vm/Debugger.h"
 #include "vm/HelperThreads.h"
@@ -153,7 +154,6 @@ static const double MAX_TIMEOUT_SECONDS = 1800.0;
 # define SHARED_MEMORY_DEFAULT 0
 #endif
 
-#ifdef SPIDERMONKEY_PROMISE
 using JobQueue = GCVector<JSObject*, 0, SystemAllocPolicy>;
 
 struct ShellAsyncTasks
@@ -166,7 +166,6 @@ struct ShellAsyncTasks
     size_t outstanding;
     Vector<JS::AsyncTask*> finished;
 };
-#endif // SPIDERMONKEY_PROMISE
 
 enum class ScriptKind
 {
@@ -271,12 +270,10 @@ struct ShellContext
     JS::PersistentRootedValue interruptFunc;
     bool lastWarningEnabled;
     JS::PersistentRootedValue lastWarning;
-#ifdef SPIDERMONKEY_PROMISE
     JS::PersistentRootedValue promiseRejectionTrackerCallback;
     JS::PersistentRooted<JobQueue> jobQueue;
     ExclusiveData<ShellAsyncTasks> asyncTasks;
     bool drainingJobQueue;
-#endif // SPIDERMONKEY_PROMISE
 
     /*
      * Watchdog thread state.
@@ -434,11 +431,9 @@ ShellContext::ShellContext(JSContext* cx)
     interruptFunc(cx, NullValue()),
     lastWarningEnabled(false),
     lastWarning(cx, NullValue()),
-#ifdef SPIDERMONKEY_PROMISE
     promiseRejectionTrackerCallback(cx, NullValue()),
     asyncTasks(mutexid::ShellAsyncTasks, cx),
     drainingJobQueue(false),
-#endif // SPIDERMONKEY_PROMISE
     watchdogLock(mutexid::ShellContextWatchdog),
     exitCode(0),
     quitting(false),
@@ -738,7 +733,6 @@ RunModule(JSContext* cx, const char* filename, FILE* file, bool compileOnly)
     return JS_CallFunction(cx, loaderObj, importFun, args, &value);
 }
 
-#ifdef SPIDERMONKEY_PROMISE
 static JSObject*
 ShellGetIncumbentGlobalCallback(JSContext* cx)
 {
@@ -775,12 +769,10 @@ ShellFinishAsyncTaskCallback(JS::AsyncTask* task)
     asyncTasks->outstanding--;
     return asyncTasks->finished.append(task);
 }
-#endif // SPIDERMONKEY_PROMISE
 
 static bool
 DrainJobQueue(JSContext* cx)
 {
-#ifdef SPIDERMONKEY_PROMISE
     ShellContext* sc = GetShellContext(cx);
     if (sc->quitting || sc->drainingJobQueue)
         return true;
@@ -831,7 +823,6 @@ DrainJobQueue(JSContext* cx)
     }
     sc->jobQueue.clear();
     sc->drainingJobQueue = false;
-#endif // SPIDERMONKEY_PROMISE
     return true;
 }
 
@@ -846,7 +837,6 @@ DrainJobQueue(JSContext* cx, unsigned argc, Value* vp)
     return true;
 }
 
-#ifdef SPIDERMONKEY_PROMISE
 static void
 ForwardingPromiseRejectionTrackerCallback(JSContext* cx, JS::HandleObject promise,
                                           PromiseRejectionHandlingState state, void* data)
@@ -869,14 +859,12 @@ ForwardingPromiseRejectionTrackerCallback(JSContext* cx, JS::HandleObject promis
     if (!Call(cx, callback, UndefinedHandleValue, args, &rval))
         JS_ClearPendingException(cx);
 }
-#endif // SPIDERMONKEY_PROMISE
 
 static bool
 SetPromiseRejectionTrackerCallback(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-#ifdef SPIDERMONKEY_PROMISE
     if (!IsCallable(args.get(0))) {
         JS_ReportErrorASCII(cx,
                             "setPromiseRejectionTrackerCallback expects a function as its sole "
@@ -887,7 +875,6 @@ SetPromiseRejectionTrackerCallback(JSContext* cx, unsigned argc, Value* vp)
     GetShellContext(cx)->promiseRejectionTrackerCallback = args[0];
     JS::SetPromiseRejectionTrackerCallback(cx, ForwardingPromiseRejectionTrackerCallback);
 
-#endif // SPIDERMONKEY_PROMISE
     args.rval().setUndefined();
     return true;
 }
@@ -2304,6 +2291,8 @@ ValueToScript(JSContext* cx, HandleValue v, JSFunction** funp = nullptr)
     // Get unwrapped async function.
     if (IsWrappedAsyncFunction(fun))
         fun = GetUnwrappedAsyncFunction(fun);
+    if (IsWrappedAsyncGenerator(fun))
+        fun = GetUnwrappedAsyncGenerator(fun);
 
     if (!fun->isInterpreted()) {
         JS_ReportErrorNumberASCII(cx, my_GetErrorMessage, nullptr, JSSMSG_SCRIPTS_ONLY);
@@ -3346,12 +3335,10 @@ WorkerMain(void* arg)
         return;
     }
 
-#ifdef SPIDERMONKEY_PROMISE
     sc->jobQueue.init(cx, JobQueue(SystemAllocPolicy()));
     JS::SetEnqueuePromiseJobCallback(cx, ShellEnqueuePromiseJobCallback);
     JS::SetGetIncumbentGlobalCallback(cx, ShellGetIncumbentGlobalCallback);
     JS::SetAsyncTaskCallbacks(cx, ShellStartAsyncTaskCallback, ShellFinishAsyncTaskCallback);
-#endif // SPIDERMONKEY_PROMISE
 
     EnvironmentPreparer environmentPreparer(cx);
 
@@ -3382,11 +3369,9 @@ WorkerMain(void* arg)
 
     JS::SetLargeAllocationFailureCallback(cx, nullptr, nullptr);
 
-#ifdef SPIDERMONKEY_PROMISE
     JS::SetGetIncumbentGlobalCallback(cx, nullptr);
     JS::SetEnqueuePromiseJobCallback(cx, nullptr);
     sc->jobQueue.reset();
-#endif // SPIDERMONKEY_PROMISE
 
     KillWatchdog(cx);
 
@@ -7942,12 +7927,10 @@ main(int argc, char** argv, char** envp)
     if (!JS::InitSelfHostedCode(cx))
         return 1;
 
-#ifdef SPIDERMONKEY_PROMISE
     sc->jobQueue.init(cx, JobQueue(SystemAllocPolicy()));
     JS::SetEnqueuePromiseJobCallback(cx, ShellEnqueuePromiseJobCallback);
     JS::SetGetIncumbentGlobalCallback(cx, ShellGetIncumbentGlobalCallback);
     JS::SetAsyncTaskCallbacks(cx, ShellStartAsyncTaskCallback, ShellFinishAsyncTaskCallback);
-#endif // SPIDERMONKEY_PROMISE
 
     EnvironmentPreparer environmentPreparer(cx);
 
@@ -7977,11 +7960,9 @@ main(int argc, char** argv, char** envp)
 
     JS::SetLargeAllocationFailureCallback(cx, nullptr, nullptr);
 
-#ifdef SPIDERMONKEY_PROMISE
     JS::SetGetIncumbentGlobalCallback(cx, nullptr);
     JS::SetEnqueuePromiseJobCallback(cx, nullptr);
     sc->jobQueue.reset();
-#endif // SPIDERMONKEY_PROMISE
 
     KillWatchdog(cx);
 

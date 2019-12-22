@@ -23,7 +23,7 @@ pref("keyword.enabled", false);
 pref("general.useragent.locale", "chrome://global/locale/intl.properties");
 pref("general.useragent.compatMode.gecko", false);
 pref("general.useragent.compatMode.firefox", false);
-pref("general.useragent.compatMode.version", "60.9");
+pref("general.useragent.compatMode.version", "68.9");
 pref("general.useragent.appVersionIsBuildID", false);
 
 // This pref exists only for testing purposes. In order to disable all
@@ -732,12 +732,19 @@ pref("gfx.layerscope.port", 23456);
 // This should be use to quickly find which slow paths are used by test cases.
 pref("gfx.perf-warnings.enabled", false);
 
-// 0 = Off, 1 = Full, 2 = Tagged Images Only.
+// Color Management System
+// 0 = Off, 1 = All Images, 2 = Tagged Images Only.
 // See eCMSMode in gfx/thebes/gfxPlatform.h
+// Enabled by default on Windows and Mac, disabled elsewhere
+#if defined(XP_WIN) || defined(XP_MACOSX)
 pref("gfx.color_management.mode", 2);
+#else
+pref("gfx.color_management.mode", 0);
+#endif
 pref("gfx.color_management.display_profile", "");
 pref("gfx.color_management.rendering_intent", 0);
 pref("gfx.color_management.enablev4", true);
+
 
 pref("gfx.downloadable_fonts.enabled", true);
 pref("gfx.downloadable_fonts.fallback_delay", 3000);
@@ -1999,6 +2006,12 @@ pref("network.auth.subresource-http-auth-allow", 2);
 // does not have any effect.
 pref("network.auth.subresource-http-img-XO-auth", false);
 
+// Whether or not to show anti-spoof confirmation prompts when navigating to a
+// URL with user info.
+// true - display extra confirmation prompt ("You are about to log in to...")
+// false - do not display extra confirmation prompt (default)
+pref("network.auth.confirmAuth.enabled", false);
+
 // This preference controls whether to allow sending default credentials (SSO) to
 // NTLM/Negotiate servers allowed in the "trusted uri" list when navigating them
 // in a Private Browsing window.
@@ -2901,12 +2914,12 @@ pref("svg.transform-box.enabled", true);
 pref("font.default.ar", "sans-serif");
 pref("font.minimum-size.ar", 0);
 pref("font.size.variable.ar", 16);
-pref("font.size.fixed.ar", 13);
+pref("font.size.fixed.ar", 15);
 
 pref("font.default.el", "serif");
 pref("font.minimum-size.el", 0);
 pref("font.size.variable.el", 16);
-pref("font.size.fixed.el", 13);
+pref("font.size.fixed.el", 15);
 
 pref("font.default.he", "sans-serif");
 pref("font.minimum-size.he", 0);
@@ -2931,7 +2944,7 @@ pref("font.size.fixed.th", 13);
 pref("font.default.x-cyrillic", "serif");
 pref("font.minimum-size.x-cyrillic", 0);
 pref("font.size.variable.x-cyrillic", 16);
-pref("font.size.fixed.x-cyrillic", 13);
+pref("font.size.fixed.x-cyrillic", 15);
 
 pref("font.default.x-devanagari", "serif");
 pref("font.minimum-size.x-devanagari", 0);
@@ -3016,12 +3029,12 @@ pref("font.size.fixed.x-tibt", 13);
 pref("font.default.x-unicode", "serif");
 pref("font.minimum-size.x-unicode", 0);
 pref("font.size.variable.x-unicode", 16);
-pref("font.size.fixed.x-unicode", 13);
+pref("font.size.fixed.x-unicode", 15);
 
 pref("font.default.x-western", "serif");
 pref("font.minimum-size.x-western", 0);
 pref("font.size.variable.x-western", 16);
-pref("font.size.fixed.x-western", 13);
+pref("font.size.fixed.x-western", 15);
 
 pref("font.default.zh-CN", "sans-serif");
 pref("font.minimum-size.zh-CN", 0);
@@ -3043,7 +3056,7 @@ pref("font.size.fixed.zh-TW", 16);
 pref("font.default.x-math", "serif");
 pref("font.minimum-size.x-math", 0);
 pref("font.size.variable.x-math", 16);
-pref("font.size.fixed.x-math", 13);
+pref("font.size.fixed.x-math", 15);
 
 /*
  * A value greater than zero enables font size inflation for
@@ -3182,12 +3195,12 @@ pref("font.name-list.emoji", "Twemoji Mozilla");
 pref("font.name.serif.ar", "Times New Roman");
 pref("font.name.sans-serif.ar", "Segoe UI");
 pref("font.name-list.sans-serif.ar", "Segoe UI, Tahoma, Arial");
-pref("font.name.monospace.ar", "Courier New");
+pref("font.name.monospace.ar", "Consolas");
 pref("font.name.cursive.ar", "Comic Sans MS");
 
 pref("font.name.serif.el", "Times New Roman");
 pref("font.name.sans-serif.el", "Arial");
-pref("font.name.monospace.el", "Courier New");
+pref("font.name.monospace.el", "Consolas");
 pref("font.name.cursive.el", "Comic Sans MS");
 
 pref("font.name.serif.he", "Narkisim");
@@ -3222,17 +3235,17 @@ pref("font.name.cursive.th", "Tahoma");
 
 pref("font.name.serif.x-cyrillic", "Times New Roman");
 pref("font.name.sans-serif.x-cyrillic", "Arial");
-pref("font.name.monospace.x-cyrillic", "Courier New");
+pref("font.name.monospace.x-cyrillic", "Consolas");
 pref("font.name.cursive.x-cyrillic", "Comic Sans MS");
 
 pref("font.name.serif.x-unicode", "Times New Roman");
 pref("font.name.sans-serif.x-unicode", "Arial");
-pref("font.name.monospace.x-unicode", "Courier New");
+pref("font.name.monospace.x-unicode", "Consolas");
 pref("font.name.cursive.x-unicode", "Comic Sans MS");
 
 pref("font.name.serif.x-western", "Times New Roman");
 pref("font.name.sans-serif.x-western", "Arial");
-pref("font.name.monospace.x-western", "Courier New");
+pref("font.name.monospace.x-western", "Consolas");
 pref("font.name.cursive.x-western", "Comic Sans MS");
 
 pref("font.name.serif.zh-CN", "SimSun");
@@ -3378,7 +3391,7 @@ pref("font.name.serif.x-math", "Latin Modern Math");
 // We have special support for Monotype Symbol on Windows.
 pref("font.name-list.serif.x-math", "Latin Modern Math, XITS Math, Cambria Math, Libertinus Math, DejaVu Math TeX Gyre, TeX Gyre Bonum Math, TeX Gyre Pagella Math, TeX Gyre Schola, TeX Gyre Termes Math, STIX Math, Asana Math, STIXGeneral, DejaVu Serif, DejaVu Sans, Symbol, Times New Roman");
 pref("font.name.sans-serif.x-math", "Arial");
-pref("font.name.monospace.x-math", "Courier New");
+pref("font.name.monospace.x-math", "Consolas");
 pref("font.name.cursive.x-math", "Comic Sans MS");
 
 // ClearType tuning parameters for directwrite/d2d.
@@ -4011,6 +4024,12 @@ pref("autocomplete.ungrab_during_mode_switch", true);
 // Default to using the system filepicker if possible, but allow
 // toggling to use the XUL filepicker
 pref("ui.allow_platform_file_picker", true);
+
+// Allow for using the native GTK file picker. If the application is not run
+// with GTK_USE_PORTAL=1 this pref has no effect.
+#ifdef MOZ_WIDGET_GTK
+pref("widget.allow-gtk-native-file-chooser", false);
+#endif
 
 pref("helpers.global_mime_types_file", "/etc/mime.types");
 pref("helpers.global_mailcap_file", "/etc/mailcap");
@@ -5467,3 +5486,7 @@ pref("dom.storageManager.enabled", false);
 // >0 = suppress further prompts after the user has canceled the dialog n times
 // See application preferences for appropriate defaults.
 pref("prompts.authentication_dialog_abuse_limit", 0);
+
+// Whether module scripts (<script type="module">) are enabled for content.
+pref("dom.moduleScripts.enabled", true);
+

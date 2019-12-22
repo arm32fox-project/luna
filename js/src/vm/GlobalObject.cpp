@@ -21,9 +21,7 @@
 #include "builtin/MapObject.h"
 #include "builtin/ModuleObject.h"
 #include "builtin/Object.h"
-#ifdef SPIDERMONKEY_PROMISE
 #include "builtin/Promise.h"
-#endif
 #include "builtin/RegExp.h"
 #include "builtin/SelfHostingDefines.h"
 #include "builtin/SymbolObject.h"
@@ -468,62 +466,29 @@ GlobalObject::initSelfHostingBuiltins(JSContext* cx, Handle<GlobalObject*> globa
         return false;
     }
 
-    RootedValue std_isConcatSpreadable(cx);
-    std_isConcatSpreadable.setSymbol(cx->wellKnownSymbols().get(JS::SymbolCode::isConcatSpreadable));
-    if (!JS_DefineProperty(cx, global, "std_isConcatSpreadable", std_isConcatSpreadable,
-                           JSPROP_PERMANENT | JSPROP_READONLY))
-    {
-        return false;
-    }
+    struct SymbolAndName {
+        JS::SymbolCode code;
+        const char* name;
+    };
 
-    // Define a top-level property 'std_iterator' with the name of the method
-    // used by for-of loops to create an iterator.
-    RootedValue std_iterator(cx);
-    std_iterator.setSymbol(cx->wellKnownSymbols().get(JS::SymbolCode::iterator));
-    if (!JS_DefineProperty(cx, global, "std_iterator", std_iterator,
-                           JSPROP_PERMANENT | JSPROP_READONLY))
-    {
-        return false;
-    }
+    SymbolAndName wellKnownSymbols[] = {
+        {JS::SymbolCode::isConcatSpreadable, "std_isConcatSpreadable"},
+        {JS::SymbolCode::iterator, "std_iterator"},
+        {JS::SymbolCode::match, "std_match"},
+        {JS::SymbolCode::matchAll, "std_matchAll"},
+        {JS::SymbolCode::replace, "std_replace"},
+        {JS::SymbolCode::search, "std_search"},
+        {JS::SymbolCode::species, "std_species"},
+        {JS::SymbolCode::split, "std_split"},
+    };
 
-    RootedValue std_match(cx);
-    std_match.setSymbol(cx->wellKnownSymbols().get(JS::SymbolCode::match));
-    if (!JS_DefineProperty(cx, global, "std_match", std_match,
-                           JSPROP_PERMANENT | JSPROP_READONLY))
-    {
-        return false;
-    }
-
-    RootedValue std_replace(cx);
-    std_replace.setSymbol(cx->wellKnownSymbols().get(JS::SymbolCode::replace));
-    if (!JS_DefineProperty(cx, global, "std_replace", std_replace,
-                           JSPROP_PERMANENT | JSPROP_READONLY))
-    {
-        return false;
-    }
-
-    RootedValue std_search(cx);
-    std_search.setSymbol(cx->wellKnownSymbols().get(JS::SymbolCode::search));
-    if (!JS_DefineProperty(cx, global, "std_search", std_search,
-                           JSPROP_PERMANENT | JSPROP_READONLY))
-    {
-        return false;
-    }
-
-    RootedValue std_species(cx);
-    std_species.setSymbol(cx->wellKnownSymbols().get(JS::SymbolCode::species));
-    if (!JS_DefineProperty(cx, global, "std_species", std_species,
-                           JSPROP_PERMANENT | JSPROP_READONLY))
-    {
-        return false;
-    }
-
-    RootedValue std_split(cx);
-    std_split.setSymbol(cx->wellKnownSymbols().get(JS::SymbolCode::split));
-    if (!JS_DefineProperty(cx, global, "std_split", std_split,
-                           JSPROP_PERMANENT | JSPROP_READONLY))
-    {
-        return false;
+    RootedValue symVal(cx);
+    for (const auto& sym : wellKnownSymbols) {
+        symVal.setSymbol(cx->wellKnownSymbols().get(sym.code));
+        if (!JS_DefineProperty(cx, global, sym.name, symVal,
+                               JSPROP_PERMANENT | JSPROP_READONLY)) {
+            return false;
+        }
     }
 
     return InitBareBuiltinCtor(cx, global, JSProto_Array) &&
@@ -619,17 +584,18 @@ GlobalObject::createBlankPrototypeInheriting(JSContext* cx, Handle<GlobalObject*
 }
 
 bool
-js::LinkConstructorAndPrototype(JSContext* cx, JSObject* ctor_, JSObject* proto_)
+js::LinkConstructorAndPrototype(JSContext* cx, JSObject* ctor_, JSObject* proto_,
+                                unsigned prototypeAttrs, unsigned constructorAttrs)
 {
     RootedObject ctor(cx, ctor_), proto(cx, proto_);
 
     RootedValue protoVal(cx, ObjectValue(*proto));
     RootedValue ctorVal(cx, ObjectValue(*ctor));
 
-    return DefineProperty(cx, ctor, cx->names().prototype, protoVal,
-                          nullptr, nullptr, JSPROP_PERMANENT | JSPROP_READONLY) &&
-           DefineProperty(cx, proto, cx->names().constructor, ctorVal,
-                          nullptr, nullptr, 0);
+    return DefineProperty(cx, ctor, cx->names().prototype, protoVal, nullptr, nullptr,
+                          prototypeAttrs) &&
+           DefineProperty(cx, proto, cx->names().constructor, ctorVal, nullptr, nullptr,
+                          constructorAttrs);
 }
 
 bool

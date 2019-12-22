@@ -32,6 +32,7 @@
 #include "vm/ErrorObject.h"
 #include "vm/GlobalObject.h"
 #include "vm/SavedStacks.h"
+#include "vm/SelfHosting.h"
 #include "vm/StringBuffer.h"
 
 #include "jsobjinlines.h"
@@ -205,7 +206,12 @@ size_t
 ExtraMallocSize(JSErrorReport* report)
 {
     if (report->linebuf())
-        return (report->linebufLength() + 1) * sizeof(char16_t);
+	/*
+	 * Mozilla bug 1352449. Count with null
+	 * terminator and alignment. See CopyExtraData for
+	 * the details about alignment.
+	 */    
+        return (report->linebufLength() + 1) * sizeof(char16_t) + 1;
 
     return 0;
 }
@@ -220,10 +226,20 @@ bool
 CopyExtraData(JSContext* cx, uint8_t** cursor, JSErrorReport* copy, JSErrorReport* report)
 {
     if (report->linebuf()) {
+	/*
+	 * Make sure cursor is properly aligned for char16_t for platforms
+	 * which need it and it's at the end of the buffer on exit.
+	 */
+	size_t alignment_backlog = 0;
+        if (size_t(*cursor) % 2)
+	    (*cursor)++;
+        else
+	    alignment_backlog = 1;	
+
         size_t linebufSize = (report->linebufLength() + 1) * sizeof(char16_t);
         const char16_t* linebufCopy = (const char16_t*)(*cursor);
         js_memcpy(*cursor, report->linebuf(), linebufSize);
-        *cursor += linebufSize;
+        *cursor += linebufSize + alignment_backlog;
         copy->initBorrowedLinebuf(linebufCopy, report->linebufLength(), report->tokenOffset());
     }
 
@@ -1075,4 +1091,20 @@ js::ValueToSourceForError(JSContext* cx, HandleValue val, JSAutoByteString& byte
     if (!str)
         return "<<error converting value to string>>";
     return bytes.encodeLatin1(cx, str);
+}
+
+bool
+js::GetInternalError(JSContext* cx, unsigned errorNumber, MutableHandleValue error)
+{
+    FixedInvokeArgs<1> args(cx);
+    args[0].set(Int32Value(errorNumber));
+    return CallSelfHostedFunction(cx, "GetInternalError", NullHandleValue, args, error);
+}
+
+bool
+js::GetTypeError(JSContext* cx, unsigned errorNumber, MutableHandleValue error)
+{
+    FixedInvokeArgs<1> args(cx);
+    args[0].set(Int32Value(errorNumber));
+    return CallSelfHostedFunction(cx, "GetTypeError", NullHandleValue, args, error);
 }

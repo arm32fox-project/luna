@@ -29,7 +29,10 @@
     macro(ArrayValuesAt, ArrayValuesAt, "ArrayValuesAt") \
     macro(as, as, "as") \
     macro(Async, Async, "Async") \
+    macro(AsyncFromSyncIterator, AsyncFromSyncIterator, "Async-from-Sync Iterator") \
     macro(AsyncFunction, AsyncFunction, "AsyncFunction") \
+    macro(AsyncGenerator, AsyncGenerator, "AsyncGenerator") \
+    macro(AsyncGeneratorFunction, AsyncGeneratorFunction, "AsyncGeneratorFunction") \
     macro(AsyncWrapped, AsyncWrapped, "AsyncWrapped") \
     macro(async, async, "async") \
     macro(await, await, "await") \
@@ -97,6 +100,7 @@
     macro(displayURL, displayURL, "displayURL") \
     macro(do, do_, "do") \
     macro(done, done, "done") \
+    macro(dotall, dotall, "dotall") \
     macro(dotGenerator, dotGenerator, ".generator") \
     macro(dotThis, dotThis, ".this") \
     macro(each, each, "each") \
@@ -281,6 +285,7 @@
     macro(RegExpFlagsGetter, RegExpFlagsGetter, "RegExpFlagsGetter") \
     macro(RegExpMatcher, RegExpMatcher, "RegExpMatcher") \
     macro(RegExpSearcher, RegExpSearcher, "RegExpSearcher") \
+    macro(RegExpStringIterator, RegExpStringIterator, "RegExp String Iterator") \
     macro(RegExpTester, RegExpTester, "RegExpTester") \
     macro(RegExp_prototype_Exec, RegExp_prototype_Exec, "RegExp_prototype_Exec") \
     macro(Reify, Reify, "Reify") \
@@ -309,6 +314,7 @@
     macro(star, star, "*") \
     macro(starDefaultStar, starDefaultStar, "*default*") \
     macro(StarGeneratorNext, StarGeneratorNext, "StarGeneratorNext") \
+    macro(StarGeneratorReturn, StarGeneratorReturn, "StarGeneratorReturn") \
     macro(StarGeneratorThrow, StarGeneratorThrow, "StarGeneratorThrow") \
     macro(startTimestamp, startTimestamp, "startTimestamp") \
     macro(state, state, "state") \

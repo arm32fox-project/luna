@@ -216,6 +216,11 @@ public:
   void RemoveContentChangeCallback(nsIDocument::IDTargetObserver aCallback,
                                 void* aData, bool aForImage);
 
+  /**
+   * Remove all elements and notify change listeners.
+   */
+  void ClearAndNotify();
+
   void Traverse(nsCycleCollectionTraversalCallback* aCallback);
 
   struct ChangeCallback {
@@ -948,11 +953,13 @@ public:
     ResolvePreloadImage(nsIURI *aBaseURI,
                         const nsAString& aSrcAttr,
                         const nsAString& aSrcsetAttr,
-                        const nsAString& aSizesAttr) override;
+                        const nsAString& aSizesAttr,
+                        bool *aIsImgSet) override;
 
   virtual void MaybePreLoadImage(nsIURI* uri,
                                  const nsAString &aCrossOriginAttr,
-                                 ReferrerPolicy aReferrerPolicy) override;
+                                 ReferrerPolicy aReferrerPolicy,
+                                 bool aIsImgSet) override;
   virtual void ForgetImagePreload(nsIURI* aURI) override;
 
   virtual void MaybePreconnect(nsIURI* uri,

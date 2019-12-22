@@ -1026,11 +1026,6 @@ public:
     return false;
   }
 
-  virtual bool watch(JSContext *cx, JS::Handle<JSObject*> proxy,
-                     JS::Handle<jsid> id, JS::Handle<JSObject*> callable) const override;
-  virtual bool unwatch(JSContext *cx, JS::Handle<JSObject*> proxy,
-                       JS::Handle<jsid> id) const override;
-
   static void ObjectMoved(JSObject *obj, const JSObject *old);
 
   static const nsOuterWindowProxy singleton;
@@ -1396,20 +1391,6 @@ nsOuterWindowProxy::AppendIndexedPropertyNames(JSContext *cx, JSObject *proxy,
   }
 
   return true;
-}
-
-bool
-nsOuterWindowProxy::watch(JSContext *cx, JS::Handle<JSObject*> proxy,
-                          JS::Handle<jsid> id, JS::Handle<JSObject*> callable) const
-{
-  return js::WatchGuts(cx, proxy, id, callable);
-}
-
-bool
-nsOuterWindowProxy::unwatch(JSContext *cx, JS::Handle<JSObject*> proxy,
-                            JS::Handle<jsid> id) const
-{
-  return js::UnwatchGuts(cx, proxy, id);
 }
 
 void
@@ -3224,6 +3205,12 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
         newInnerWindow->mLocalStorage = nullptr;
         newInnerWindow->mSessionStorage = nullptr;
 
+        newInnerWindow->mPerformance = nullptr;
+
+        // This must be called after nulling the internal objects because
+        // we might recreate them here by calling the getter methods, and
+        // store them into the JS slots. If we null them after, the slot
+        // values and the objects will be out of sync.
         newInnerWindow->ClearDocumentDependentSlots(cx);
       }
     } else {
@@ -3364,10 +3351,16 @@ nsGlobalWindow::InnerSetNewDocument(JSContext* aCx, nsIDocument* aDocument)
   }
 
   mDoc = aDocument;
-  ClearDocumentDependentSlots(aCx);
   mFocusedNode = nullptr;
   mLocalStorage = nullptr;
   mSessionStorage = nullptr;
+  mPerformance = nullptr;
+
+  // This must be called after nulling the internal objects because we might
+  // recreate them here by calling the getter methods, and store them into the JS
+  // slots. If we null them after, the slot values and the objects will be
+  // out of sync.
+  ClearDocumentDependentSlots(aCx);
 
 #ifdef DEBUG
   mLastOpenedURI = aDocument->GetDocumentURI();
@@ -10957,35 +10950,12 @@ nsGlobalWindow::GetComputedStyleHelperOuter(Element& aElt,
 {
   MOZ_RELEASE_ASSERT(IsOuterWindow());
 
-  if (!mDocShell) {
+  if (!mDoc) {
     return nullptr;
   }
 
-  nsCOMPtr<nsIPresShell> presShell = mDocShell->GetPresShell();
-
-  if (!presShell) {
-    // Try flushing frames on our parent in case there's a pending
-    // style change that will create the presshell.
-    auto* parent = nsGlobalWindow::Cast(GetPrivateParent());
-    if (!parent) {
-      return nullptr;
-    }
-
-    parent->FlushPendingNotifications(Flush_Frames);
-
-    // Might have killed mDocShell
-    if (!mDocShell) {
-      return nullptr;
-    }
-
-    presShell = mDocShell->GetPresShell();
-    if (!presShell) {
-      return nullptr;
-    }
-  }
-
   RefPtr<nsComputedDOMStyle> compStyle =
-    NS_NewComputedDOMStyle(&aElt, aPseudoElt, presShell,
+    NS_NewComputedDOMStyle(&aElt, aPseudoElt, mDoc,
                            aDefaultStylesOnly ? nsComputedDOMStyle::eDefaultOnly :
                                                 nsComputedDOMStyle::eAll);
 

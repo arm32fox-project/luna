@@ -2922,6 +2922,9 @@ extern JS_PUBLIC_API(bool)
 JS_GetOwnUCPropertyDescriptor(JSContext* cx, JS::HandleObject obj, const char16_t* name, size_t namelen,
                               JS::MutableHandle<JS::PropertyDescriptor> desc);
 
+extern JS_PUBLIC_API(bool)
+JS_GetOwnElement(JSContext* cx, JS::HandleObject obj, uint32_t index, JS::MutableHandleValue vp);
+
 /**
  * Like JS_GetOwnPropertyDescriptorById, but also searches the prototype chain
  * if no own property is found directly on obj. The object on which the
@@ -5084,7 +5087,9 @@ GetSymbolDescription(HandleSymbol symbol);
     macro(split) \
     macro(toPrimitive) \
     macro(toStringTag) \
-    macro(unscopables)
+    macro(unscopables) \
+    macro(asyncIterator) \
+    macro(matchAll)
 
 enum class SymbolCode : uint32_t {
     // There is one SymbolCode for each well-known symbol.
@@ -5701,6 +5706,7 @@ JS_ObjectIsDate(JSContext* cx, JS::HandleObject obj, bool* isDate);
 #define JSREG_MULTILINE 0x04u   /* treat ^ and $ as begin and end of line */
 #define JSREG_STICKY    0x08u   /* only match starting at lastIndex */
 #define JSREG_UNICODE   0x10u   /* unicode */
+#define JSREG_DOTALL    0x20u   /* match . to everything including newlines */
 
 extern JS_PUBLIC_API(JSObject*)
 JS_NewRegExpObject(JSContext* cx, const char* bytes, size_t length, unsigned flags);

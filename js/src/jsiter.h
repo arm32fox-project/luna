@@ -151,7 +151,7 @@ class StringIteratorObject : public JSObject
     static const Class class_;
 };
 
-class ListIteratorObject : public JSObject
+class RegExpStringIteratorObject : public JSObject
 {
   public:
     static const Class class_;
@@ -216,16 +216,18 @@ ThrowStopIteration(JSContext* cx);
 
 /*
  * Create an object of the form { value: VALUE, done: DONE }.
- * ES6 draft from 2013-09-05, section 25.4.3.4.
+ * ES 2017 draft 7.4.7.
  */
 extern JSObject*
-CreateItrResultObject(JSContext* cx, HandleValue value, bool done);
+CreateIterResultObject(JSContext* cx, HandleValue value, bool done);
 
 extern JSObject*
 InitLegacyIteratorClass(JSContext* cx, HandleObject obj);
 
 extern JSObject*
 InitStopIterationClass(JSContext* cx, HandleObject obj);
+
+enum class IteratorKind { Sync, Async };
 
 } /* namespace js */
 

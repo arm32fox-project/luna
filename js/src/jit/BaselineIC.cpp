@@ -4053,9 +4053,6 @@ TryAttachSetValuePropStub(JSContext* cx, HandleScript script, jsbytecode* pc, IC
 {
     MOZ_ASSERT(!*attached);
 
-    if (obj->watched())
-        return true;
-
     RootedShape shape(cx);
     RootedObject holder(cx);
     if (!EffectlesslyLookupProperty(cx, obj, id, &holder, &shape))
@@ -4150,9 +4147,6 @@ TryAttachSetAccessorPropStub(JSContext* cx, HandleScript script, jsbytecode* pc,
 {
     MOZ_ASSERT(!*attached);
     MOZ_ASSERT(!*isTemporarilyUnoptimizable);
-
-    if (obj->watched())
-        return true;
 
     RootedShape shape(cx);
     RootedObject holder(cx);
@@ -6606,12 +6600,13 @@ ICCall_IsSuspendedStarGenerator::Compiler::generateStubCode(MacroAssembler& masm
     masm.branchTestObjClass(Assembler::NotEqual, genObj, scratch, &StarGeneratorObject::class_,
                             &returnFalse);
 
-    // If the yield index slot holds an int32 value < YIELD_INDEX_CLOSING,
+    // If the yield index slot holds an int32 value < YIELD_AND_AWAIT_INDEX_CLOSING,
     // the generator is suspended.
-    masm.loadValue(Address(genObj, GeneratorObject::offsetOfYieldIndexSlot()), argVal);
+    masm.loadValue(Address(genObj, GeneratorObject::offsetOfYieldAndAwaitIndexSlot()), argVal);
     masm.branchTestInt32(Assembler::NotEqual, argVal, &returnFalse);
     masm.unboxInt32(argVal, scratch);
-    masm.branch32(Assembler::AboveOrEqual, scratch, Imm32(StarGeneratorObject::YIELD_INDEX_CLOSING),
+    masm.branch32(Assembler::AboveOrEqual, scratch,
+                  Imm32(StarGeneratorObject::YIELD_AND_AWAIT_INDEX_CLOSING),
                   &returnFalse);
 
     masm.moveValue(BooleanValue(true), R0);

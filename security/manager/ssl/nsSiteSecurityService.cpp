@@ -212,6 +212,7 @@ nsSiteSecurityService::nsSiteSecurityService()
   , mUsePreloadList(true)
   , mUseStsService(true)
   , mPreloadListTimeOffset(0)
+  , mHPKPEnabled(false)
 {
 }
 
@@ -240,6 +241,10 @@ nsSiteSecurityService::Init()
     "network.stricttransportsecurity.preloadlist", true);
   mozilla::Preferences::AddStrongObserver(this,
     "network.stricttransportsecurity.preloadlist");
+  mHPKPEnabled = mozilla::Preferences::GetBool(
+     "security.cert_pinning.hpkp.enabled", false);
+  mozilla::Preferences::AddStrongObserver(this,
+     "security.cert_pinning.hpkp.enabled");
   mUseStsService = mozilla::Preferences::GetBool(
     "network.stricttransportsecurity.enabled", true);
   mozilla::Preferences::AddStrongObserver(this,
@@ -330,20 +335,21 @@ nsSiteSecurityService::SetHSTSState(uint32_t aType,
                                     uint32_t flags,
                                     SecurityPropertyState aHSTSState)
 {
-  // If max-age is zero, that's an indication to immediately remove the
-  // security state, so here's a shortcut.
-  if (!maxage) {
-    return RemoveState(aType, aSourceURI, flags);
+  // Exit early if STS not enabled
+  if (!mUseStsService) {
+    return NS_OK;
+  }
+
+  // If max-age is zero, the host is no longer considered HSTS. If the host was
+  // preloaded, we store an entry indicating that this host is not HSTS, causing
+  // the preloaded information to be ignored.
+  if (maxage == 0) {
+    return RemoveState(aType, aSourceURI, flags, true);
   }
 
   MOZ_ASSERT((aHSTSState == SecurityPropertySet ||
               aHSTSState == SecurityPropertyNegative),
       "HSTS State must be SecurityPropertySet or SecurityPropertyNegative");
-
-  // Exit early if STS not enabled
-  if (!mUseStsService) {
-    return NS_OK;
-  }
 
   int64_t expiretime = ExpireTimeFromMaxAge(maxage);
   SiteHSTSState siteState(expiretime, aHSTSState, includeSubdomains);
@@ -367,7 +373,7 @@ nsSiteSecurityService::SetHSTSState(uint32_t aType,
 
 NS_IMETHODIMP
 nsSiteSecurityService::RemoveState(uint32_t aType, nsIURI* aURI,
-                                   uint32_t aFlags)
+                                   uint32_t aFlags, bool force = false)
 {
    // Child processes are not allowed direct access to this.
    if (!XRE_IsParentProcess()) {
@@ -387,8 +393,9 @@ nsSiteSecurityService::RemoveState(uint32_t aType, nsIURI* aURI,
   mozilla::DataStorageType storageType = isPrivate
                                          ? mozilla::DataStorage_Private
                                          : mozilla::DataStorage_Persistent;
-  // If this host is in the preload list, we have to store a knockout entry.
-  if (GetPreloadListEntry(hostname.get())) {
+  // If this host is in the preload list, we have to store a knockout entry
+  // if it's explicitly forced to not be HSTS anymore
+  if (force && GetPreloadListEntry(hostname.get())) {
     SSSLOG(("SSS: storing knockout entry for %s", hostname.get()));
     SiteHSTSState siteState(0, SecurityPropertyKnockout, false);
     nsAutoCString stateString;
@@ -685,6 +692,17 @@ nsSiteSecurityService::ProcessPKPHeader(nsIURI* aSourceURI,
   if (aFailureResult) {
     *aFailureResult = nsISiteSecurityService::ERROR_UNKNOWN;
   }
+  if (!mHPKPEnabled) {
+    SSSLOG(("SSS: HPKP disabled: not processing header '%s'", aHeader));
+    if (aMaxAge) {
+      *aMaxAge = 0;
+    }
+    if (aIncludeSubdomains) {
+      *aIncludeSubdomains = false;
+    }
+    return NS_OK;
+  }
+
   SSSLOG(("SSS: processing HPKP header '%s'", aHeader));
   NS_ENSURE_ARG(aSSLStatus);
 
@@ -769,7 +787,10 @@ nsSiteSecurityService::ProcessPKPHeader(nsIURI* aSourceURI,
     return NS_ERROR_FAILURE;
   }
 
-  // if maxAge == 0 we must delete all state, for now no hole-punching
+  // If maxAge == 0, we remove dynamic HPKP state for this host. Due to
+  // architectural constraints, if this host was preloaded, any future lookups
+  // will use the preloaded state (i.e. we can't store a "this host is not HPKP"
+  // entry like we can for HSTS).
   if (maxAge == 0) {
     return RemoveState(aType, aSourceURI, aFlags);
   }
@@ -1180,17 +1201,24 @@ nsSiteSecurityService::GetKeyPinsForHostname(const char* aHostname,
                                              mozilla::pkix::Time& aEvalTime,
                                              /*out*/ nsTArray<nsCString>& pinArray,
                                              /*out*/ bool* aIncludeSubdomains,
-                                             /*out*/ bool* afound) {
+                                             /*out*/ bool* aFound) {
    // Child processes are not allowed direct access to this.
    if (!XRE_IsParentProcess()) {
      MOZ_CRASH("Child process: no direct access to nsISiteSecurityService::GetKeyPinsForHostname");
    }
 
-  NS_ENSURE_ARG(afound);
+  NS_ENSURE_ARG(aFound);
   NS_ENSURE_ARG(aHostname);
 
+  if (!mHPKPEnabled) {
+    SSSLOG(("HPKP disabled - returning 'pins not found' for %s",
+            aHostname));
+    *aFound = false;
+    return NS_OK;
+  }
+
   SSSLOG(("Top of GetKeyPinsForHostname for %s", aHostname));
-  *afound = false;
+  *aFound = false;
   *aIncludeSubdomains = false;
   pinArray.Clear();
 
@@ -1223,7 +1251,7 @@ nsSiteSecurityService::GetKeyPinsForHostname(const char* aHostname,
   }
   pinArray = foundEntry.mSHA256keys;
   *aIncludeSubdomains = foundEntry.mIncludeSubdomains;
-  *afound = true;
+  *aFound = true;
   return NS_OK;
 }
 
@@ -1242,6 +1270,13 @@ nsSiteSecurityService::SetKeyPins(const char* aHost, bool aIncludeSubdomains,
   NS_ENSURE_ARG_POINTER(aHost);
   NS_ENSURE_ARG_POINTER(aResult);
   NS_ENSURE_ARG_POINTER(aSha256Pins);
+
+
+  if (!mHPKPEnabled) {
+    SSSLOG(("SSS: HPKP disabled: not setting pins"));
+    *aResult = false;
+    return NS_OK;
+  }
 
   SSSLOG(("Top of SetPins"));
 
@@ -1308,6 +1343,8 @@ nsSiteSecurityService::Observe(nsISupports *subject,
       "network.stricttransportsecurity.enabled", true);
     mPreloadListTimeOffset =
       mozilla::Preferences::GetInt("test.currentTimeOffsetSeconds", 0);
+    mHPKPEnabled = mozilla::Preferences::GetBool(
+      "security.cert_pinning.hpkp.enabled", false);
     mProcessPKPHeadersFromNonBuiltInRoots = mozilla::Preferences::GetBool(
       "security.cert_pinning.process_headers_from_non_builtin_roots", false);
     mMaxMaxAge = mozilla::Preferences::GetInt(

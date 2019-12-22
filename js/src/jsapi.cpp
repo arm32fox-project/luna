@@ -39,7 +39,6 @@
 #include "jsstr.h"
 #include "jstypes.h"
 #include "jsutil.h"
-#include "jswatchpoint.h"
 #include "jsweakmap.h"
 #include "jswrapper.h"
 
@@ -71,6 +70,7 @@
 #include "js/StructuredClone.h"
 #include "js/Utility.h"
 #include "vm/AsyncFunction.h"
+#include "vm/AsyncIteration.h"
 #include "vm/DateObject.h"
 #include "vm/Debugger.h"
 #include "vm/EnvironmentObject.h"
@@ -2011,6 +2011,28 @@ JS_GetOwnUCPropertyDescriptor(JSContext* cx, HandleObject obj, const char16_t* n
 }
 
 JS_PUBLIC_API(bool)
+JS_GetOwnElement(JSContext* cx, JS::HandleObject obj, uint32_t index, JS::MutableHandleValue vp)
+{
+    RootedId id(cx);
+    if (!IndexToId(cx, index, &id)) {
+        return false;
+    }
+
+    Rooted<PropertyDescriptor> desc(cx);
+    if (!JS_GetOwnPropertyDescriptorById(cx, obj, id, &desc)) {
+        return false;
+    }
+
+    if (desc.object() && desc.isDataDescriptor()) {
+        vp.set(desc.value());
+    } else {
+        vp.setUndefined();
+    }
+
+    return true;
+}
+
+JS_PUBLIC_API(bool)
 JS_GetPropertyDescriptorById(JSContext* cx, HandleObject obj, HandleId id,
                              MutableHandle<PropertyDescriptor> desc)
 {
@@ -3566,6 +3588,11 @@ CloneFunctionObject(JSContext* cx, HandleObject funobj, HandleObject env, Handle
     }
 
     if (IsWrappedAsyncFunction(fun)) {
+        JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr, JSMSG_CANT_CLONE_OBJECT);
+        return nullptr;
+    }
+
+    if (IsWrappedAsyncGenerator(fun)) {
         JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr, JSMSG_CANT_CLONE_OBJECT);
         return nullptr;
     }

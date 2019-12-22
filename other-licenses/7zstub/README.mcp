@@ -8,14 +8,15 @@ web page, this code is in the public domain. A few modifications have been
 made to this copy of the source code. Those modifications are contained in
 customizations.diff, which should be found in the same directory as this file.
 
-The palemoon/ and uxp/ directories contain 7zSD.sfx, a 32-bit Windows executable
-built from the Visual C++ 6 project found in the src/CPP/7zip/Bundles/SFXSetup/
+The uxp/ directory contains 7zSD.sfx, a 32-bit Windows executable built from
+the Visual C++ 6 project found in the src/CPP/7zip/Bundles/SFXSetup/
 directory with customizations. The "ReleaseD" configuration was used.
 The uxp/ version contains generic vendor information and can be used for any
-UXP application's installer with minimal confusion for the user. Basilisk
-uses this generic version.
-The ReleaseD/ directory contains 7zSD.sfx, which is an unmodified binary
-from that build process, ready to be customized for any target application.
+UXP application's installer with minimal confusion for the user.
+
+The ReleaseD/ directory contains 7zSD.sfx.exe, which is an unmodified binary
+from that build process, ready to be customized for any target application
+with a resource hacker (ResHacker, PE explorer, etc.).
 Including a compiled binary in the source tree is certainly not preferred, but
 is necessary in this case because the code does not build cleanly under more
 recent compilers. Using an older toolchain also allows us to keep this
@@ -27,10 +28,10 @@ used the newer toolchain and that isn't very helpful to most users.
 Using a precompiled binary also allows the installer build procedure to work
 without a compiler toolchain being configured.
 
-The palemoon/ and uxp/ directories also contain a manifest which was edited
-into 7zSD.sfx's resources after build time. The manifest had to be added
-this way because the older resource compiler does not support manifests
-(and the 7-zip build files do not try to use any).
+The uxp/ directory also contains a manifest which was edited into 7zSD.sfx's
+resources after build time. The manifest had to be added this way because the
+older resource compiler does not support manifests (and the 7-zip build files
+do not try to use any).
 
 The version info in the compiled binary was also edited after build time. There
 isn't a technical reason why the version info changes couldn't be included at

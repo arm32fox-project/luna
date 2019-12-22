@@ -336,6 +336,8 @@ def split_triplet(triplet):
         canonical_os = canonical_kernel = 'NetBSD'
     elif os.startswith('openbsd'):
         canonical_os = canonical_kernel = 'OpenBSD'
+    elif os.startswith('solaris'):
+        canonical_os = canonical_kernel = 'SunOS'
     else:
         die('Unknown OS: %s' % os)
 
@@ -569,6 +571,28 @@ def target_is_linux(target):
 
 set_define('XP_LINUX', target_is_linux)
 
+@depends(target)
+def target_is_solaris(target):
+    if target.kernel == 'SunOS':
+        return True
+
+set_define('XP_SOLARIS', target_is_solaris)
+
+@depends(target)
+def target_is_sparc(target):
+    if target.cpu == 'sparc':
+        return True
+
+set_define('SPARC', target_is_sparc)
+
+@depends(target)
+def target_is_sparc64(target):
+    if target.cpu == 'sparc64':
+        return True
+
+set_define('SPARC64', target_is_sparc64)
+
+
 # The application/project to build
 # ==============================================================
 option('--enable-application', nargs=1, env='MOZ_BUILD_APP',
@@ -607,17 +631,12 @@ def include_project_configure(project, external_source_dir, build_env, help):
 
     build_app = project[0]
 
-    # XXX: Change this when 'browser' becomes invalid as an alias
-    if build_app == 'browser':
-        build_app = 'basilisk'
-        #die('The project "browser" is no longer valid. Perhaps you meant "basilisk" or "palemoon"?')
-    
-    path_project_src_dir_application = os.path.join(base_dir, 'application/' + build_app, 'moz.configure')
+    if not external_source_dir and build_app not in ('xulrunner', 'js'):
+        die('Cannot find project %s', build_app)
+
     path_project_src_dir_root = os.path.join(base_dir, build_app, 'moz.configure')
     
-    if exists(path_project_src_dir_application):
-        return path_project_src_dir_application
-    elif exists(path_project_src_dir_root):
+    if exists(path_project_src_dir_root):
         return path_project_src_dir_root
     else:
         die('Cannot find project %s', build_app)

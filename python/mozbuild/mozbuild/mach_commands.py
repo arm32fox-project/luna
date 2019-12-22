@@ -544,9 +544,14 @@ class Build(MachCommandBase):
         # Check if there are any unpreprocessed files in '@MOZ_OBJDIR@/dist/bin'
         # See python/mozbuild/mozbuild/preprocessor.py#L293-L309 for the list of directives
         # We skip if, ifdef, ifndef, else, elif, elifdef and elifndef, because they are never used alone
-        grepcmd = 'grep -E -r "^(#|%)(define|endif|error|expand|filter|include|literal|undef|unfilter)" '\
-                  + '--include=\*.{css,dtd,html,js,jsm,xhtml,xml,xul,manifest,properties,rdf} '\
-                  + self.topobjdir + '/dist/bin | awk "/\.css:%/ || (!/\.css/ && /:#/)"'
+        #
+        # The original version of this script only worked with GNU grep because of the --include flag. 
+        # Not a problem in and of itself, except that it didn't take TOOLCHAIN_PREFIX and simply assumed 
+        # all operating systems use GNU grep as the system grep (often it's called ggrep or something). 
+        # This script is a bit slower, but should do the same thing on all Unix platforms. 
+
+        grepcmd = 'find ' + self.topobjdir + '/dist/bin' + ' -name \'\*.{css,dtd,html,js,jsm,xhtml,xml,xul,manifest,properties,rdf}\' ' + '| xargs grep -E "^(#|%)(define|endif|error|expand|filter|include|literal|undef|unfilter)" '\
+                  + '| awk "/\.css:%/ || (!/\.css/ && /:#/)"'
         grepresult = subprocess.Popen(grepcmd, stdout=subprocess.PIPE, shell=True).communicate()[0]
         if grepresult:
             print('\nERROR: preprocessor was not applied to the following files:\n\n' + grepresult)
@@ -1065,17 +1070,49 @@ class ClangCommands(MachCommandBase):
         print('-I%s/ipc/glue' % self.topsrcdir)
         print('-I%s/ipc/ipdl/_ipdlheaders' % self.topobjdir)
 
+@CommandProvider
+class Stage_Package(MachCommandBase):
+    """Stage the built product for distribution but do not create an archive."""
+
+    @Command('stage', category='post-build',
+        description='Stage the built product for distribution but do not create an archive.')
+    def stage_package(self):
+        return self._run_make(directory=".", target='stage-package', ensure_exit_code=False)
+
+@CommandProvider
+class L10n_Package(MachCommandBase):
+    """Build and package l10n as a language pack xpi."""
+
+    @Command('langpack', category='post-build',
+        description='Build and package l10n as a language pack.')
+    def l10n_package(self):
+        return self._run_make(directory=".", target='l10n-package', ensure_exit_code=False)
 
 @CommandProvider
 class Package(MachCommandBase):
     """Package the built product for distribution."""
 
     @Command('package', category='post-build',
-        description='Package the built product for distribution as an APK, DMG, etc.')
+        description='Package the built product for distribution as an archive.')
     @CommandArgument('-v', '--verbose', action='store_true',
         help='Verbose output for what commands the packaging process is running.')
     def package(self, verbose=False):
         ret = self._run_make(directory=".", target='package',
+                             silent=not verbose, ensure_exit_code=False)
+        if ret == 0:
+            self.notify('Packaging complete')
+        return ret
+
+@CommandProvider
+class Mozpackage(MachCommandBase):
+    """Package the built product for distribution."""
+
+    @Command('mozpackage', category='post-build',
+        description='Package the built product for distribution as an archive. (mozilla orginal routine)')
+    @CommandArgument('-v', '--verbose', action='store_true',
+        help='Verbose output for what commands the packaging process is running.')
+    def mozpackage(self, verbose=False):
+        ret = self._run_make(directory=".", target='mozpackage',
                              silent=not verbose, ensure_exit_code=False)
         if ret == 0:
             self.notify('Packaging complete')

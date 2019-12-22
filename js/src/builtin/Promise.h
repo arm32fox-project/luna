@@ -44,6 +44,8 @@ class PromiseObject : public NativeObject
     static PromiseObject* create(JSContext* cx, HandleObject executor,
                                  HandleObject proto = nullptr, bool needsWrapping = false);
 
+    static PromiseObject* createSkippingExecutor(JSContext* cx);
+
     static JSObject* unforgeableResolve(JSContext* cx, HandleValue value);
     static JSObject* unforgeableReject(JSContext* cx, HandleValue value);
 
@@ -128,6 +130,14 @@ OriginalPromiseThen(JSContext* cx, Handle<PromiseObject*> promise,
                     HandleValue onFulfilled, HandleValue onRejected,
                     MutableHandleObject dependent, bool createDependent);
 
+/**
+ * PromiseResolve ( C, x )
+ *
+ * The abstract operation PromiseResolve, given a constructor and a value,
+ * returns a new promise resolved with that value.
+ */
+MOZ_MUST_USE JSObject*
+PromiseResolve(JSContext* cx, HandleObject constructor, HandleValue value);
 
 MOZ_MUST_USE PromiseObject*
 CreatePromiseObjectForAsync(JSContext* cx, HandleValue generatorVal);
@@ -140,6 +150,26 @@ AsyncFunctionThrown(JSContext* cx, Handle<PromiseObject*> resultPromise);
 
 MOZ_MUST_USE bool
 AsyncFunctionAwait(JSContext* cx, Handle<PromiseObject*> resultPromise, HandleValue value);
+
+class AsyncGeneratorObject;
+
+MOZ_MUST_USE bool
+AsyncGeneratorAwait(JSContext* cx, Handle<AsyncGeneratorObject*> asyncGenObj, HandleValue value);
+
+MOZ_MUST_USE bool
+AsyncGeneratorResolve(JSContext* cx, Handle<AsyncGeneratorObject*> asyncGenObj,
+                      HandleValue value, bool done);
+
+MOZ_MUST_USE bool
+AsyncGeneratorReject(JSContext* cx, Handle<AsyncGeneratorObject*> asyncGenObj,
+                     HandleValue exception);
+
+MOZ_MUST_USE bool
+AsyncGeneratorEnqueue(JSContext* cx, HandleValue asyncGenVal, CompletionKind completionKind,
+                      HandleValue completionValue, MutableHandleValue result);
+
+bool
+AsyncFromSyncIteratorMethod(JSContext* cx, CallArgs& args, CompletionKind completionKind);
 
 /**
  * A PromiseTask represents a task that can be dispatched to a helper thread

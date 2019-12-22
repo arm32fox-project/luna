@@ -44,11 +44,11 @@ namespace irregexp {
 bool
 ParsePattern(frontend::TokenStream& ts, LifoAlloc& alloc, JSAtom* str,
              bool multiline, bool match_only, bool unicode, bool ignore_case,
-             bool global, bool sticky, RegExpCompileData* data);
+             bool global, bool sticky, bool dotall, RegExpCompileData* data);
 
 bool
 ParsePatternSyntax(frontend::TokenStream& ts, LifoAlloc& alloc, JSAtom* str,
-                   bool unicode);
+                   bool unicode, bool dotall);
 
 // A BufferedVector is an automatically growing list, just like (and backed
 // by) a Vector, that is optimized for the case of adding and removing
@@ -178,7 +178,7 @@ class RegExpParser
   public:
     RegExpParser(frontend::TokenStream& ts, LifoAlloc* alloc,
                  const CharT* chars, const CharT* end, bool multiline_mode, bool unicode,
-                 bool ignore_case);
+                 bool ignore_case, bool dotall);
 
     RegExpTree* ParsePattern();
     RegExpTree* ParseDisjunction();
@@ -229,7 +229,7 @@ class RegExpParser
     bool simple() { return simple_; }
     bool contains_anchor() { return contains_anchor_; }
     void set_contains_anchor() { contains_anchor_ = true; }
-    int captures_started() { return captures_ == nullptr ? 0 : captures_->length(); }
+    int captures_started() { return captures_started_; }
     const CharT* position() { return next_pos_ - 1; }
 
     static const int kMaxCaptures = 1 << 16;
@@ -239,8 +239,8 @@ class RegExpParser
     enum SubexpressionType {
         INITIAL,
         CAPTURE,  // All positive values represent captures.
-        POSITIVE_LOOKAHEAD,
-        NEGATIVE_LOOKAHEAD,
+        POSITIVE_LOOKAROUND,
+        NEGATIVE_LOOKAROUND,
         GROUPING
     };
 
@@ -249,10 +249,12 @@ class RegExpParser
         RegExpParserState(LifoAlloc* alloc,
                           RegExpParserState* previous_state,
                           SubexpressionType group_type,
+                          RegExpLookaround::Type lookaround_type,
                           int disjunction_capture_index)
             : previous_state_(previous_state),
               builder_(alloc->newInfallible<RegExpBuilder>(alloc)),
               group_type_(group_type),
+              lookaround_type_(lookaround_type),
               disjunction_capture_index_(disjunction_capture_index)
         {}
         // Parser state of containing expression, if any.
@@ -262,10 +264,15 @@ class RegExpParser
         RegExpBuilder* builder() { return builder_; }
         // Type of regexp being parsed (parenthesized group or entire regexp).
         SubexpressionType group_type() { return group_type_; }
+        // Lookahead or Lookbehind.
+        RegExpLookaround::Type lookaround_type() { return lookaround_type_; }
         // Index in captures array of first capture in this sub-expression, if any.
         // Also the capture index of this sub-expression itself, if group_type
         // is CAPTURE.
         int capture_index() { return disjunction_capture_index_; }
+
+        // Check whether the parser is inside a capture group with the given index.
+        bool IsInsideCaptureGroup(int index);
 
       private:
         // Linked list implementation of stack of states.
@@ -274,9 +281,14 @@ class RegExpParser
         RegExpBuilder* builder_;
         // Stored disjunction type (capture, look-ahead or grouping), if any.
         SubexpressionType group_type_;
+        // Stored read direction.
+        RegExpLookaround::Type lookaround_type_;
         // Stored disjunction's capture index (if any).
         int disjunction_capture_index_;
     };
+
+    // Return the 1-indexed RegExpCapture object, allocate if necessary.
+    RegExpCapture* GetCapture(int index);
 
     widechar current() { return current_; }
     bool has_more() { return has_more_; }
@@ -294,12 +306,14 @@ class RegExpParser
     const CharT* next_pos_;
     const CharT* end_;
     widechar current_;
+    int captures_started_;
     // The capture count is only valid after we have scanned for captures.
     int capture_count_;
     bool has_more_;
     bool multiline_;
     bool unicode_;
     bool ignore_case_;
+    bool dotall_;
     bool simple_;
     bool contains_anchor_;
     bool is_scanned_for_captures_;

@@ -2130,6 +2130,12 @@ IonBuilder::inspectOpcode(JSOp op)
       case JSOP_TOASYNC:
         return jsop_toasync();
 
+      case JSOP_TOASYNCGEN:
+        return jsop_toasyncgen();
+
+      case JSOP_TOASYNCITER:
+        return jsop_toasynciter();
+
       case JSOP_TOID:
         return jsop_toid();
 
@@ -3351,7 +3357,7 @@ IonBuilder::whileOrForInLoop(jssrcnote* sn)
 
     unsigned stackPhiCount;
     if (SN_TYPE(sn) == SRC_FOR_OF)
-        stackPhiCount = 2;
+        stackPhiCount = 3;
     else if (SN_TYPE(sn) == SRC_FOR_IN)
         stackPhiCount = 1;
     else
@@ -8895,10 +8901,8 @@ IonBuilder::jsop_getimport(PropertyName* name)
 
     if (!emitted) {
         // This can happen if we don't have type information.
-        TypeSet::ObjectKey* staticKey = TypeSet::ObjectKey::get(targetEnv);
         TemporaryTypeSet* types = bytecodeTypes(pc);
-        BarrierKind barrier = PropertyReadNeedsTypeBarrier(analysisContext, constraints(), staticKey,
-                                                           name, types, /* updateObserved = */ true);
+        BarrierKind barrier = BarrierKind::TypeSet;
 
         if (!loadStaticSlot(targetEnv, barrier, types, shape->slot()))
             return false;
@@ -13190,6 +13194,34 @@ IonBuilder::jsop_toasync()
     MOZ_ASSERT(unwrapped->type() == MIRType::Object);
 
     MToAsync* ins = MToAsync::New(alloc(), unwrapped);
+
+    current->add(ins);
+    current->push(ins);
+
+    return resumeAfter(ins);
+}
+
+bool
+IonBuilder::jsop_toasyncgen()
+{
+    MDefinition* unwrapped = current->pop();
+    MOZ_ASSERT(unwrapped->type() == MIRType::Object);
+
+    MToAsyncGen* ins = MToAsyncGen::New(alloc(), unwrapped);
+
+    current->add(ins);
+    current->push(ins);
+
+    return resumeAfter(ins);
+}
+
+bool
+IonBuilder::jsop_toasynciter()
+{
+    MDefinition* unwrapped = current->pop();
+    MOZ_ASSERT(unwrapped->type() == MIRType::Object);
+
+    MToAsyncIter* ins = MToAsyncIter::New(alloc(), unwrapped);
 
     current->add(ins);
     current->push(ins);
