@@ -704,5 +704,4 @@ dbm_big_split(
     else
         ret->oldp = tmpp;
     return (0);
-
 }

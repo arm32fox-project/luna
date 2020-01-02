@@ -205,4 +205,3 @@ hash4(const void *keyarg, register size_t len)
     }
     return (h);
 }
-

@@ -131,5 +131,4 @@ dbm_dbpanic(DB *dbp)
     dbp->put = (int (*)(const struct dbm_db *, DBT *, const DBT *, uint))dbm_dberr;
     dbp->seq = (int (*)(const struct dbm_db *, DBT *, DBT *, uint))dbm_dberr;
     dbp->sync = (int (*)(const struct dbm_db *, uint))dbm_dberr;
-
 }

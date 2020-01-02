@@ -141,6 +141,7 @@ rsa_FormatOneBlock(unsigned modulusLen,
             /*
              * 0x00 || BT || Pad || 0x00 || ActualData
              *   1      1   padLen    1      data->len
+             * padLen must be at least RSA_BLOCK_MIN_PAD_LEN (8) bytes.
              * Pad is either all 0x00 or all 0xff bytes, depending on blockType.
              */
             padLen = modulusLen - data->len - 3;
@@ -171,6 +172,7 @@ rsa_FormatOneBlock(unsigned modulusLen,
              * If we need more than that, refill the bytes after Pad with
              * new random bytes as necessary.
              */
+
             padLen = modulusLen - (data->len + 3);
             PORT_Assert(padLen >= RSA_BLOCK_MIN_PAD_LEN);
             if (padLen < RSA_BLOCK_MIN_PAD_LEN) {
@@ -239,7 +241,6 @@ rsa_FormatBlock(SECItem *result,
             if (data->len > (modulusLen - (3 + RSA_BLOCK_MIN_PAD_LEN))) {
                 return SECFailure;
             }
-
             result->data = rsa_FormatOneBlock(modulusLen, blockType, data);
             if (result->data == NULL) {
                 result->len = 0;

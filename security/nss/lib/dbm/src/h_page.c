@@ -1264,5 +1264,4 @@ print_chain(int addr)
     }
     (void)fprintf(stderr, "\n");
 }
-
 #endif

@@ -404,5 +404,4 @@ dbm_reclaim_buf(HTAB *hashp, BUFHEAD *bp)
     bp->flags = 0;
     BUF_REMOVE(bp);
     LRU_INSERT(bp);
-
 }
