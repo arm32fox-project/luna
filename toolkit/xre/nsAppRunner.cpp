@@ -2800,6 +2800,18 @@ XREMain::XRE_mainInit(bool* aExitFlag)
 #endif
 
   SetupErrorHandling(gArgv[0]);
+  
+  // Set up environment for NSS DBM database
+
+  // Allow iteration counts in DBM mode
+  SaveToEnv("NSS_ALLOW_LEGACY_DBM_ITERATION_COUNT=1");
+  // Set default Master Password rounds to a sane value for DBM which is slower
+  // than SQL for PKDBF. The NSS hard-coded default of 10,000 is too much.
+#ifdef DEBUG
+  SaveToEnv("NSS_MAX_MP_PBE_ITERATION_COUNT=15");
+#else
+  SaveToEnv("NSS_MAX_MP_PBE_ITERATION_COUNT=500");
+#endif
 
 #ifdef CAIRO_HAS_DWRITE_FONT
   {

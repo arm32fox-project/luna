@@ -1168,5 +1168,4 @@ swap_header(HTAB *hashp)
         M_16_SWAP(hdrp->bitmaps[i]);
     }
 }
-
 #endif

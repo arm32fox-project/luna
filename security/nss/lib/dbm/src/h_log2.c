@@ -51,5 +51,4 @@ dbm_log2(uint32 num)
     for (i = 0; limit < num; limit = limit << 1, i++) {
     }
     return (i);
-
 }

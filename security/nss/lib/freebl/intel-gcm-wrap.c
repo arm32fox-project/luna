@@ -62,6 +62,15 @@ intel_AES_GCM_CreateContext(void *context,
         PORT_SetError(SEC_ERROR_INVALID_ARGS);
         return NULL;
     }
+
+    if (gcmParams->ulTagBits != 128 && gcmParams->ulTagBits != 120 &&
+        gcmParams->ulTagBits != 112 && gcmParams->ulTagBits != 104 &&
+        gcmParams->ulTagBits != 96 && gcmParams->ulTagBits != 64 &&
+        gcmParams->ulTagBits != 32) {
+        PORT_SetError(SEC_ERROR_INVALID_ARGS);
+        return NULL;
+    }
+
     // Limit AADLen in accordance with SP800-38D
     if (sizeof(AAD_whole_len) >= 8 && AAD_whole_len > (1ULL << 61) - 1) {
         PORT_SetError(SEC_ERROR_INPUT_LEN);
@@ -80,7 +89,7 @@ intel_AES_GCM_CreateContext(void *context,
     gcm->Mlen = 0;
 
     /* first prepare H and its derivatives for ghash */
-    intel_aes_gcmINIT(gcm->Htbl, (unsigned char *)aes->expandedKey, aes->Nr);
+    intel_aes_gcmINIT(gcm->Htbl, (unsigned char *)aes->k.expandedKey, aes->Nr);
 
     /* Initial TAG value is zero */
     _mm_storeu_si128((__m128i *)gcm->T, _mm_setzero_si128());
@@ -149,6 +158,7 @@ loser:
 void
 intel_AES_GCM_DestroyContext(intel_AES_GCMContext *gcm, PRBool freeit)
 {
+    PORT_Memset(gcm, 0, sizeof(intel_AES_GCMContext));
     if (freeit) {
         PORT_Free(gcm);
     }
