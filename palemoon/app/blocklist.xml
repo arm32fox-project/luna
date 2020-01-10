@@ -3916,6 +3916,7 @@ xmlns="http://www.mozilla.org/2006/addons-blocklist">
         <device>NV96</device>
       </devices>
       <feature>FEATURE_CANVAS2D_ACCELERATION</feature>
+      <feature>FEATURE_OPENGL_LAYERS</feature>
       <featureStatus>FEATURE_BLOCKED_DEVICE</featureStatus>
     </gfxBlacklistEntry>
   </gfxItems>
