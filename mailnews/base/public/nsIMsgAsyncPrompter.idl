@@ -1,0 +1,79 @@
+/* -*- Mode: IDL; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "nsISupports.idl"
+
+interface nsIMsgAsyncPromptListener;
+
+/**
+ * The nsIMsgAsyncPrompter is intended to provide a way to make asynchoronous
+ * message prompts into synchronous ones - so that the user is only prompted
+ * with one at a time.
+ */
+[scriptable, uuid(15f67d0f-947a-4a1e-8f72-6ab7162b4b9c)]
+interface nsIMsgAsyncPrompter : nsISupports {
+  /**
+   * Queues an async prompt request. If there are none queued then this will be
+   * actioned straight away, otherwise the prompt will be queued for action
+   * once previous prompt(s) have been cleared.
+   *
+   * Queued prompts using the same aKey may be amalgamated into one prompt to
+   * save repeated prompts to the user.
+   *
+   * @param aKey    A key to determine whether or not the queued prompts can
+   *                be combined.
+   * @param aPromptImmediately If the user is retrying a failed password, we
+   *                           need to prompt right away, even if there is a
+   *                           prompt up, or prompts queued up. Note that
+   *                           immediately may not be synchronously, on OS/X.
+   * @param aCaller An nsIMsgAsyncPromptListener to call back to when the prompt
+   *                is ready to be made.
+   */
+  void queueAsyncAuthPrompt(in ACString aKey, in boolean aPromptImmediately,
+                            in nsIMsgAsyncPromptListener aCaller);
+};
+
+[scriptable, function, uuid(acca94c9-378e-46e3-9a91-6655bf9c91a3)]
+interface nsIMsgAsyncPromptCallback : nsISupports {
+  /**
+   * Called when an auth result is available. Can be passed as a function.
+   *
+   * @param aResult   True if there is auth information available following the
+   *                    prompt, false otherwise.
+   */
+  void onAuthResult(in boolean aResult);
+};
+
+/**
+ * This is used in combination with nsIMsgAsyncPrompter.
+ */
+[scriptable, uuid(fb5307a3-39d0-462e-92c8-c5c288a2612f)]
+interface nsIMsgAsyncPromptListener : nsISupports {
+  /**
+   * This method has been deprecated, please use onPromptStartAsync instead.
+   */
+  boolean onPromptStart();
+
+  /**
+   * Called when the listener should do its prompt. This can happen
+   * synchronously or asynchronously, but in any case when done the callback
+   * method should be called.
+   *
+   * @param aCallback   The callback to execute when auth prompt has completed.
+   */
+  void onPromptStartAsync(in nsIMsgAsyncPromptCallback aCallback);
+
+  /**
+   * Called in the case that the queued prompt was combined with another and
+   * there is now authentication information available.
+   */
+  void onPromptAuthAvailable();
+
+  /**
+   * Called in the case that the queued prompt was combined with another but
+   * the prompt was canceled.
+   */
+  void onPromptCanceled();
+};
