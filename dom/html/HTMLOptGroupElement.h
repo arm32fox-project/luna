@@ -46,10 +46,6 @@ public:
 
   virtual nsIDOMNode* AsDOMNode() override { return this; }
 
-  virtual bool IsDisabled() const override {
-    return HasAttr(kNameSpaceID_None, nsGkAtoms::disabled);
-  }
-
   bool Disabled() const
   {
     return GetBoolAttr(nsGkAtoms::disabled);
