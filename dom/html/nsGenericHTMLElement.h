@@ -818,7 +818,7 @@ public:
    * Returns the current disabled state of the element.
    */
   bool IsDisabled() const {
-    return State().HasState(NS_EVENT_STATE_DISABLED);
+    return HasAttr(kNameSpaceID_None, nsGkAtoms::disabled);
   }
 
   bool IsHidden() const
