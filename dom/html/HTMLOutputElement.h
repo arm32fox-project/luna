@@ -35,8 +35,6 @@ public:
   NS_IMETHOD Reset() override;
   NS_IMETHOD SubmitNamesValues(HTMLFormSubmission* aFormSubmission) override;
 
-  virtual bool IsDisabled() const override { return false; }
-
   nsresult Clone(mozilla::dom::NodeInfo* aNodeInfo, nsINode** aResult) const override;
 
   bool ParseAttribute(int32_t aNamespaceID, nsIAtom* aAttribute,

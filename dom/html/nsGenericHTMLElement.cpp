@@ -2109,14 +2109,6 @@ nsGenericHTMLFormElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
   return nsGenericHTMLElement::PreHandleEvent(aVisitor);
 }
 
-/* virtual */
-bool
-nsGenericHTMLFormElement::IsDisabled() const
-{
-  return HasAttr(kNameSpaceID_None, nsGkAtoms::disabled) ||
-         (mFieldSet && mFieldSet->IsDisabled());
-}
-
 void
 nsGenericHTMLFormElement::ForgetFieldSet(nsIContent* aFieldset)
 {
@@ -2308,14 +2300,13 @@ nsGenericHTMLFormElement::IsElementDisabledForEvents(EventMessage aMessage,
       break;
   }
 
-  bool disabled = IsDisabled();
-  if (!disabled && aFrame) {
-    const nsStyleUserInterface* uiStyle = aFrame->StyleUserInterface();
-    disabled = uiStyle->mUserInput == StyleUserInput::None ||
-               uiStyle->mUserInput == StyleUserInput::Disabled;
-
+  // FIXME(emilio): This poking at the style of the frame is slightly bogus
+  // unless we flush before every event, which we don't really want to do.
+  if (aFrame &&
+      aFrame->StyleUserInterface()->mUserInput == StyleUserInput::None) {
+    return true;
   }
-  return disabled;
+  return IsDisabled();
 }
 
 void
