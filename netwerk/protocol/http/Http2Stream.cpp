@@ -1478,12 +1478,8 @@ bool
 Http2Stream::Do0RTT()
 {
   MOZ_ASSERT(mTransaction);
-  if mTransaction->Do0RTT() {
-    mAttempting0RTT = true;
-  } else {
-    mAttempting0RTT = false;
-  }
-  return mAttempting0RTT;
+  mAttempting0RTT = true;
+  return mTransaction->Do0RTT();
 }
 
 nsresult
