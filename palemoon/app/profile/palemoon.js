@@ -860,7 +860,7 @@ pref("browser.sessionstore.restore_hidden_tabs", false);
 pref("browser.sessionstore.restore_pinned_tabs_on_demand", false);
 // Pale Moon: Allow the user to bypass cached versions of pages when restoring
 // tabs from a previous session
-// 0 = standard behavior: pull fully from cache
+// 0 = pull fully from cache
 // 1 = perform a soft refresh when restoring a tab (check network)
 // 2 = perform a hard refresh when restoring a tab (bypass cache completely)
 pref("browser.sessionstore.cache_behavior", 1);
