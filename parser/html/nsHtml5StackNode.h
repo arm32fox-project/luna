@@ -45,15 +45,16 @@
 #include "nsIUnicodeDecoder.h"
 #include "nsHtml5Macros.h"
 #include "nsIContentHandle.h"
+#include "nsHtml5Portability.h"
+#include "nsHtml5ContentCreatorFunction.h"
 
 class nsHtml5StreamParser;
 
+class nsHtml5AttributeName;
+class nsHtml5ElementName;
 class nsHtml5Tokenizer;
 class nsHtml5TreeBuilder;
 class nsHtml5MetaScanner;
-class nsHtml5AttributeName;
-class nsHtml5ElementName;
-class nsHtml5HtmlAttributes;
 class nsHtml5UTF16Buffer;
 class nsHtml5StateSnapshot;
 class nsHtml5Portability;
@@ -70,6 +71,7 @@ class nsHtml5StackNode
     nsHtml5HtmlAttributes* attributes;
   private:
     int32_t refcount;
+    mozilla::dom::HTMLContentCreatorFunction htmlCreator;
   public:
     inline int32_t getFlags()
     {
@@ -81,7 +83,8 @@ class nsHtml5StackNode
     bool isSpecial();
     bool isFosterParenting();
     bool isHtmlIntegrationPoint();
-    nsHtml5StackNode(int32_t flags, int32_t ns, nsIAtom* name, nsIContentHandle* node, nsIAtom* popName, nsHtml5HtmlAttributes* attributes);
+    mozilla::dom::HTMLContentCreatorFunction getHtmlCreator();
+    nsHtml5StackNode(int32_t flags, int32_t ns, nsIAtom* name, nsIContentHandle* node, nsIAtom* popName, nsHtml5HtmlAttributes* attributes, mozilla::dom::HTMLContentCreatorFunction htmlCreator);
     nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContentHandle* node);
     nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContentHandle* node, nsHtml5HtmlAttributes* attributes);
     nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContentHandle* node, nsIAtom* popName);
@@ -98,8 +101,6 @@ class nsHtml5StackNode
     static void initializeStatics();
     static void releaseStatics();
 };
-
-
 
 #endif
 
