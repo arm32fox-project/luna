@@ -334,12 +334,12 @@ CONFIG_STATUS_DEPS := \
 	$(wildcard $(TOPSRCDIR)/*/confvars.sh) \
 	$(wildcard $(TOPSRCDIR)/*/configure.in) \
 	$(wildcard $(TOPSRCDIR)/*/config/version.txt) \
-  $(wildcard $(CONFIGURES)) \
+	$(wildcard $(CONFIGURES)) \
+	$(TOPSRCDIR)/platform/CLOBBER \
 	$(wildcard $(TOPSRCDIR)/platform/nsprpub/configure) \
 	$(wildcard $(TOPSRCDIR)/platform/config/milestone.txt) \
 	$(wildcard $(TOPSRCDIR)/platform/ldap/sdks/c-sdk/configure) \
 	$(wildcard $(addsuffix confvars.sh,$(wildcard $(TOPSRCDIR)/*/))) \
-  $(TOPSRCDIR)/platform/CLOBBER \
 	$(NULL)
 
 CONFIGURE_ENV_ARGS += \
@@ -355,13 +355,14 @@ else
   CONFIGURE = $(TOPSRCDIR)/configure
 endif
 
-$(OBJDIR)/CLOBBER: $(TOPSRCDIR)/CLOBBER
+$(OBJDIR)/CLOBBER: $(TOPSRCDIR)/platform/CLOBBER
 	$(PYTHON) $(TOPSRCDIR)/platform/config/pythonpath.py -I $(TOPSRCDIR)/platform/testing/mozbase/mozfile \
-	    $(TOPSRCDIR)/platform/python/mozbuild/mozbuild/controller/clobber.py $(TOPSRCDIR)/platform $(OBJDIR)
+			$(TOPSRCDIR)/platform/python/mozbuild/mozbuild/controller/clobber.py $(TOPSRCDIR)/platform $(OBJDIR)
 
 configure-files: $(CONFIGURES)
 
 configure-preqs = \
+  $(OBJDIR)/CLOBBER \
   configure-files \
   $(call mkdir_deps,$(OBJDIR)) \
   $(if $(MOZ_BUILD_PROJECTS),$(call mkdir_deps,$(MOZ_OBJDIR))) \
