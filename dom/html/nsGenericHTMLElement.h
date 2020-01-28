@@ -817,8 +817,8 @@ public:
   /**
    * Returns the current disabled state of the element.
    */
-  virtual bool IsDisabled() const {
-    return false;
+  bool IsDisabled() const {
+    return HasAttr(kNameSpaceID_None, nsGkAtoms::disabled);
   }
 
   bool IsHidden() const
@@ -1221,8 +1221,6 @@ public:
 
   virtual nsresult PreHandleEvent(
                      mozilla::EventChainPreVisitor& aVisitor) override;
-
-  virtual bool IsDisabled() const override;
 
   /**
    * This callback is called by a fieldest on all its elements whenever its
