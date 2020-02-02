@@ -1192,7 +1192,6 @@ PaintRowBackground(nsTableRowFrame* aRow,
                    nsIFrame* aFrame,
                    nsDisplayListBuilder* aBuilder,
                    const nsDisplayListSet& aLists,
-                   const nsRect& aDirtyRect,
                    const nsPoint& aOffset = nsPoint())
 {
   // Compute background rect by iterating over all cell frames.
@@ -1202,9 +1201,6 @@ PaintRowBackground(nsTableRowFrame* aRow,
     }
 
     auto cellRect = cell->GetRectRelativeToSelf() + cell->GetNormalPosition() + aOffset;
-    if (!aDirtyRect.Intersects(cellRect)) {
-      continue;
-    }
     nsDisplayBackgroundImage::AppendBackgroundItemsToTop(aBuilder, aFrame, cellRect,
                                                          aLists.BorderBackground(),
                                                          true, nullptr,
@@ -1217,14 +1213,10 @@ static void
 PaintRowGroupBackground(nsTableRowGroupFrame* aRowGroup,
                         nsIFrame* aFrame,
                         nsDisplayListBuilder* aBuilder,
-                        const nsDisplayListSet& aLists,
-                        const nsRect& aDirtyRect)
+                        const nsDisplayListSet& aLists)
 {
   for (nsTableRowFrame* row = aRowGroup->GetFirstRow(); row; row = row->GetNextRow()) {
-     if (!aDirtyRect.Intersects(nsRect(row->GetNormalPosition(), row->GetSize()))) {
-       continue;
-     }
-    PaintRowBackground(row, aFrame, aBuilder, aLists, aDirtyRect, row->GetNormalPosition());
+    PaintRowBackground(row, aFrame, aBuilder, aLists, row->GetNormalPosition());
   }
 }
 
@@ -1237,10 +1229,6 @@ PaintRowGroupBackgroundByColIdx(nsTableRowGroupFrame* aRowGroup,
                                 const nsPoint& aOffset)
 {
   for (nsTableRowFrame* row = aRowGroup->GetFirstRow(); row; row = row->GetNextRow()) {
-    auto rowPos = row->GetNormalPosition() + aOffset;
-    if (!aDirtyRect.Intersects(nsRect(rowPos, row->GetSize()))) {
-      continue;
-    }
     for (nsTableCellFrame* cell = row->GetFirstCell(); cell; cell = cell->GetNextCell()) {
       if (!cell->ShouldPaintBackground(aBuilder)) {
         continue;
@@ -1249,11 +1237,7 @@ PaintRowGroupBackgroundByColIdx(nsTableRowGroupFrame* aRowGroup,
       int32_t curColIdx;
       cell->GetColIndex(curColIdx);
       if (aColIdx.Contains(curColIdx)) {
-        auto cellPos = cell->GetNormalPosition() + rowPos;
-        auto cellRect = nsRect(cellPos, cell->GetSize());
-        if (!aDirtyRect.Intersects(cellRect)) {
-          continue;
-        }
+        auto cellRect = cell->GetRectRelativeToSelf() + cell->GetNormalPosition() + row->GetNormalPosition() + aOffset;
         nsDisplayBackgroundImage::AppendBackgroundItemsToTop(aBuilder, aFrame, cellRect,
                                                              aLists.BorderBackground(),
                                                              true, nullptr,
@@ -1300,10 +1284,10 @@ nsTableFrame::DisplayGenericTablePart(nsDisplayListBuilder* aBuilder,
   // See spec at https://drafts.csswg.org/css-tables-3/#drawing-cell-backgrounds
   if (aFrame->GetType() == nsGkAtoms::tableRowGroupFrame) {
     nsTableRowGroupFrame* rowGroup = static_cast<nsTableRowGroupFrame*>(aFrame);
-    PaintRowGroupBackground(rowGroup, aFrame, aBuilder, aLists, aDirtyRect);
+    PaintRowGroupBackground(rowGroup, aFrame, aBuilder, aLists);
   } else if (aFrame->GetType() == nsGkAtoms::tableRowFrame) {
     nsTableRowFrame* row = static_cast<nsTableRowFrame*>(aFrame);
-    PaintRowBackground(row, aFrame, aBuilder, aLists, aDirtyRect);
+    PaintRowBackground(row, aFrame, aBuilder, aLists);
   } else if (aFrame->GetType() == nsGkAtoms::tableColGroupFrame) {
     // Compute background rect by iterating all cell frame.
     nsTableColGroupFrame* colGroup = static_cast<nsTableColGroupFrame*>(aFrame);
@@ -1318,10 +1302,7 @@ nsTableFrame::DisplayGenericTablePart(nsDisplayListBuilder* aBuilder,
     table->OrderRowGroups(rowGroups);
     for (nsTableRowGroupFrame* rowGroup : rowGroups) {
       auto offset = rowGroup->GetNormalPosition() - colGroup->GetNormalPosition();
-      if (!aDirtyRect.Intersects(nsRect(offset, rowGroup->GetSize()))) {
-        continue;
-      }
-      PaintRowGroupBackgroundByColIdx(rowGroup, aFrame, aBuilder, aLists, aDirtyRect, colIdx, offset);
+      PaintRowGroupBackgroundByColIdx(rowGroup, aFrame, aBuilder, aLists, colIdx, offset);
     }
   } else if (aFrame->GetType() == nsGkAtoms::tableColFrame) {
     // Compute background rect by iterating all cell frame.
@@ -1336,10 +1317,7 @@ nsTableFrame::DisplayGenericTablePart(nsDisplayListBuilder* aBuilder,
       auto offset = rowGroup->GetNormalPosition() -
                     col->GetNormalPosition() -
                     col->GetTableColGroupFrame()->GetNormalPosition();
-      if (!aDirtyRect.Intersects(nsRect(offset, rowGroup->GetSize()))) {
-        continue;
-      }
-      PaintRowGroupBackgroundByColIdx(rowGroup, aFrame, aBuilder, aLists, aDirtyRect, colIdx, offset);
+      PaintRowGroupBackgroundByColIdx(rowGroup, aFrame, aBuilder, aLists, colIdx, offset);
     }
   } else if (isVisible) {
     nsDisplayBackgroundImage::AppendBackgroundItemsToTop(aBuilder, aFrame,
