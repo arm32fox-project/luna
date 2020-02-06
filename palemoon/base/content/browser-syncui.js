@@ -20,7 +20,7 @@ var gSyncUI = {
 
   _unloaded: false,
 
-  init: function () {
+  init: function() {
     // Proceed to set up the UI if Sync has already started up.
     // Otherwise we'll do it when Sync is firing up.
     let xps = Components.classes["@mozilla.org/weave/service;1"]
@@ -48,7 +48,7 @@ var gSyncUI = {
     }, false);
   },
 
-  initUI: function () {
+  initUI: function() {
     // If this is a browser window?
     if (gBrowser) {
       this._obs.push("weave:notification:added");
@@ -64,7 +64,7 @@ var gSyncUI = {
     this.updateUI();
   },
 
-  initNotifications: function () {
+  initNotifications: function() {
     const XULNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
     let notificationbox = document.createElementNS(XULNS, "notificationbox");
     notificationbox.id = "sync-notifications";
@@ -82,13 +82,13 @@ var gSyncUI = {
 
   _wasDelayed: false,
 
-  _needsSetup: function () {
+  _needsSetup: function() {
     let firstSync = Services.prefs.getCharPref("services.sync.firstSync", "");
     return Weave.Status.checkSetup() == Weave.CLIENT_NOT_CONFIGURED ||
            firstSync == "notReady";
   },
 
-  updateUI: function () {
+  updateUI: function() {
     let needsSetup = this._needsSetup();
     document.getElementById("sync-setup-state").hidden = !needsSetup;
     document.getElementById("sync-syncnow-state").hidden = needsSetup;
@@ -116,7 +116,7 @@ var gSyncUI = {
 
 
   // Functions called by observers
-  onActivityStart: function () {
+  onActivityStart: function() {
     if (!gBrowser)
       return;
 
@@ -128,7 +128,7 @@ var gSyncUI = {
     button.setAttribute("label", this._stringBundle.GetStringFromName("syncing2.label"));
   },
 
-  onSyncDelay: function () {
+  onSyncDelay: function() {
     // basically, we want to just inform users that stuff is going to take a while
     let title = this._stringBundle.GetStringFromName("error.sync.no_node_found.title");
     let description = this._stringBundle.GetStringFromName("error.sync.no_node_found");
@@ -143,17 +143,17 @@ var gSyncUI = {
     this._wasDelayed = true;
   },
 
-  onLoginFinish: function () {
+  onLoginFinish: function() {
     // Clear out any login failure notifications
     let title = this._stringBundle.GetStringFromName("error.login.title");
     this.clearError(title);
   },
 
-  onSetupComplete: function () {
+  onSetupComplete: function() {
     this.onLoginFinish();
   },
 
-  onLoginError: function () {
+  onLoginError: function() {
     // if login fails, any other notifications are essentially moot
     Weave.Notifications.removeAll();
 
@@ -191,11 +191,11 @@ var gSyncUI = {
     this.updateUI();
   },
 
-  onLogout: function () {
+  onLogout: function() {
     this.updateUI();
   },
 
-  onStartOver: function () {
+  onStartOver: function() {
     this.clearError();
   },
 
@@ -214,17 +214,17 @@ var gSyncUI = {
     Weave.Notifications.replaceTitle(notification);
   },
 
-  openServerStatus: function () {
+  openServerStatus: function() {
     let statusURL = Services.prefs.getCharPref("services.sync.statusURL");
     window.openUILinkIn(statusURL, "tab");
   },
 
   // Commands
-  doSync: function () {
+  doSync: function() {
     setTimeout(function() Weave.Service.errorHandler.syncAndReportErrors(), 0);
   },
 
-  handleToolbarButton: function () {
+  handleToolbarButton: function() {
     if (this._needsSetup())
       this.openSetup();
     else
@@ -244,7 +244,7 @@ var gSyncUI = {
    *          "reset" -- reset sync
    */
 
-  openSetup: function (wizardType) {
+  openSetup: function(wizardType) {
     let win = Services.wm.getMostRecentWindow("Weave:AccountSetup");
     if (win)
       win.focus();
@@ -255,7 +255,7 @@ var gSyncUI = {
     }
   },
 
-  openAddDevice: function () {
+  openAddDevice: function() {
     if (!Weave.Utils.ensureMPUnlocked())
       return;
 
@@ -267,7 +267,7 @@ var gSyncUI = {
                         "syncAddDevice", "centerscreen,chrome,resizable=no");
   },
 
-  openQuotaDialog: function () {
+  openQuotaDialog: function() {
     let win = Services.wm.getMostRecentWindow("Sync:ViewQuota");
     if (win)
       win.focus();
@@ -277,13 +277,13 @@ var gSyncUI = {
         "centerscreen,chrome,dialog,modal");
   },
 
-  openPrefs: function () {
+  openPrefs: function() {
     openPreferences("paneSync");
   },
 
 
   // Helpers
-  _updateLastSyncTime: function () {
+  _updateLastSyncTime: function() {
     if (!gBrowser)
       return;
 
@@ -305,12 +305,12 @@ var gSyncUI = {
     syncButton.setAttribute("tooltiptext", lastSyncLabel);
   },
 
-  clearError: function (errorString) {
+  clearError: function(errorString) {
     Weave.Notifications.removeAll(errorString);
     this.updateUI();
   },
 
-  onSyncFinish: function () {
+  onSyncFinish: function() {
     let title = this._stringBundle.GetStringFromName("error.sync.title");
 
     // Clear out sync failures on a successful sync
@@ -323,7 +323,7 @@ var gSyncUI = {
     }
   },
 
-  onSyncError: function () {
+  onSyncError: function() {
     let title = this._stringBundle.GetStringFromName("error.sync.title");
 
     if (Weave.Status.login != Weave.LOGIN_SUCCEEDED) {
@@ -404,7 +404,7 @@ var gSyncUI = {
     this.updateUI();
   },
 
-  observe: function (subject, topic, data) {
+  observe: function(subject, topic, data) {
     if (this._unloaded) {
       Cu.reportError("SyncUI observer called after unload: " + topic);
       return;
