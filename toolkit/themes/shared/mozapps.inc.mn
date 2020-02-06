@@ -7,15 +7,6 @@
 # be specified once. As a result, the source file paths are relative
 # to the location of the actual manifest.
 
-#ifdef MOZ_WEBEXTENSIONS
-  skin/classic/mozapps/extensions/extensionGeneric.svg       (../../shared/webextensions/extensionGeneric.svg)
-  skin/classic/mozapps/extensions/utilities.svg              (../../shared/webextensions/utilities.svg)
-  skin/classic/mozapps/extensions/navigation.png             (../../shared/webextensions/navigation.png)
-  skin/classic/mozapps/extensions/alerticon-warning.svg      (../../shared/webextensions/alerticon-warning.svg)
-  skin/classic/mozapps/extensions/alerticon-error.svg        (../../shared/webextensions/alerticon-error.svg)
-  skin/classic/mozapps/extensions/alerticon-info-positive.svg (../../shared/webextensions/alerticon-info-positive.svg)
-  skin/classic/mozapps/extensions/alerticon-info-negative.svg (../../shared/webextensions/alerticon-info-negative.svg)
-#endif
   skin/classic/mozapps/formautofill/requestAutocomplete.css  (../../shared/formautofill/requestAutocomplete.css)
   skin/classic/mozapps/plugins/pluginProblem.css             (../../shared/plugins/pluginProblem.css)
   skin/classic/mozapps/aboutNetworking.css                   (../../shared/aboutNetworking.css)
