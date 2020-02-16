@@ -39,6 +39,7 @@ toolkit.jar:
   skin/classic/mozapps/extensions/heart.png                  (extensions/heart.png)
   skin/classic/mozapps/extensions/navigation.png             (extensions/navigation.png)
   skin/classic/mozapps/extensions/stripes-warning.png        (extensions/stripes-warning.png)
+  skin/classic/mozapps/extensions/stripes-compatibility.png  (extensions/stripes-compatibility.png)
   skin/classic/mozapps/extensions/stripes-error.png          (extensions/stripes-error.png)
   skin/classic/mozapps/extensions/stripes-info-positive.png  (extensions/stripes-info-positive.png)
   skin/classic/mozapps/extensions/stripes-info-negative.png  (extensions/stripes-info-negative.png)
