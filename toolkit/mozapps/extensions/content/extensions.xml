@@ -858,8 +858,8 @@
                            xbl:inherits="value=name,tooltiptext=name"/>
                 <xul:label anonid="version" class="version"/>
 #ifdef MOZ_PHOENIX_EXTENSIONS
-                <xul:label class="nativeIndicator nativeAddon" value="●" tooltiptext="&addon.nativeAddon;"/>
-                <xul:label class="nativeIndicator compatAddon" value="●" tooltiptext="&addon.compatAddon;"/>
+                <xul:label class="nativeIndicator nativeAddon" value="" tooltiptext="&addon.nativeAddon;"/>
+                <xul:label class="nativeIndicator compatAddon" value="⚠️" tooltiptext="&addon.compatAddon;"/>
 #endif
                 <xul:label class="disabled-postfix" value="&addon.disabled.postfix;"/>
                 <xul:label class="update-postfix" value="&addon.update.postfix;"/>
@@ -1359,8 +1359,16 @@
             } else {
               this.removeAttribute("notification");
 #ifdef MOZ_PHOENIX_EXTENSIONS
-              if (this.mAddon.type == "extension")
+              if (this.mAddon.type == "extension") {
                 this.setAttribute("native", this.mAddon.native);
+                if (this.mAddon.native == false) {
+                  this.setAttribute("notification", "warning");
+                  this._warning.textContent = gStrings.ext.formatStringFromName(
+                    "notification.compatibility",
+                    [this.mAddon.name, gStrings.brandShortName], 2
+                  );
+                }
+              }
 #endif
             }
           }

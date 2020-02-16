@@ -648,6 +648,13 @@
   background-repeat: repeat-x;
 }
 
+.addon-view[notification="warning"][native="false"] {
+  background-image: url("chrome://mozapps/skin/extensions/stripes-compatibility.png"),
+                    linear-gradient(rgba(255, 128, 0, 0.04),
+                                    rgba(255, 128, 0, 0));
+  background-repeat: repeat-x;
+}
+
 .addon-view[notification="error"] {
   background-image: url("chrome://mozapps/skin/extensions/stripes-error.png"),
                     linear-gradient(rgba(255, 0, 0, 0.04),
