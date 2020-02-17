@@ -6528,12 +6528,15 @@ AddonInternal.prototype = {
         app = targetApp;
     }
 #ifdef MOZ_PHOENIX_EXTENSIONS
-    //Special case: check for Firefox TargetApps. this has to be done AFTER
-    //the initial check to make sure appinfo.ID is preferred, even if
-    //Firefox is listed before it in the install manifest.
-    for (let targetApp of this.targetApplications) {
-      if (targetApp.id == FIREFOX_ID) //Firefox GUID
-        return targetApp;
+    // Special case: check for Firefox TargetApps. this has to be done AFTER
+    // the initial check to make sure appinfo.ID is preferred, even if
+    // Firefox is listed before it in the install manifest.
+    // Only do this for extensions. Other types should not be allowed.
+    if (this.type == "extension") {
+      for (let targetApp of this.targetApplications) {
+        if (targetApp.id == FIREFOX_ID) //Firefox GUID
+          return targetApp;
+      }
     }
 #endif
     // Return toolkit ID if toolkit.
