@@ -218,6 +218,11 @@ pref("extensions.install.requireSecureOrigin", false);
 // Allow installation of distribution/bundles extensions
 pref("extensions.installDistroAddons", true);
 
+#ifdef MOZ_PHOENIX_EXTENSIONS
+// Link to the forum topic "About using Firefox extensions on Pale Moon"
+pref("extensions.compatibility.url", "https://forum.palemoon.org/viewtopic.php?f=46&t=23697");
+#endif
+
 pref("lightweightThemes.update.enabled", true);
 pref("lightweightThemes.animation.enabled", false);
 
