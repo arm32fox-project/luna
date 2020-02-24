@@ -4998,7 +4998,6 @@ nsDisplayText::Paint(nsDisplayListBuilder* aBuilder,
 
 void
 nsTextFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                              const nsRect&           aDirtyRect,
                               const nsDisplayListSet& aLists)
 {
   if (!IsVisibleForPainting(aBuilder))
