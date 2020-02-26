@@ -2050,7 +2050,13 @@ BaselineCompiler::emit_JSOP_NEWARRAY()
     return true;
 }
 
-typedef ArrayObject* (*NewArrayCopyOnWriteFn)(JSContext*, HandleArrayObject, gc::InitialHeap);
+bool
+BaselineCompiler::emit_JSOP_SPREADCALLARRAY()
+{
+    return emit_JSOP_NEWARRAY();
+}
+
+typedef JSObject* (*NewArrayCopyOnWriteFn)(JSContext*, HandleArrayObject, gc::InitialHeap);
 const VMFunction jit::NewArrayCopyOnWriteInfo =
     FunctionInfo<NewArrayCopyOnWriteFn>(js::NewDenseCopyOnWriteArray, "NewDenseCopyOnWriteArray");
 
@@ -4181,14 +4187,14 @@ BaselineCompiler::emit_JSOP_REST()
 {
     frame.syncStack(0);
 
-    ArrayObject* templateObject =
+    JSObject* templateObject =
         ObjectGroup::newArrayObject(cx, nullptr, 0, TenuredObject,
                                     ObjectGroup::NewArrayKind::UnknownIndex);
     if (!templateObject)
         return false;
 
     // Call IC.
-    ICRest_Fallback::Compiler compiler(cx, templateObject);
+    ICRest_Fallback::Compiler compiler(cx, &templateObject->as<ArrayObject>());
     if (!emitOpIC(compiler.getStub(&stubSpace_)))
         return false;
 
