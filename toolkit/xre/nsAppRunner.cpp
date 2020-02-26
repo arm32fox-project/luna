@@ -23,7 +23,7 @@
 
 #include "nsAppRunner.h"
 #include "mozilla/AppData.h"
-#if defined(MOZ_UPDATER) && !defined(MOZ_WIDGET_ANDROID)
+#ifdef MOZ_UPDATER
 #include "nsUpdateDriver.h"
 #endif
 #include "ProfileReset.h"
@@ -185,10 +185,6 @@
 
 #include "base/command_line.h"
 #include "GTestRunner.h"
-
-#ifdef MOZ_WIDGET_ANDROID
-#include "GeneratedJNIWrappers.h"
-#endif
 
 extern uint32_t gRestartMode;
 extern void InstallSignalHandlers(const char *ProgramName);
@@ -1517,9 +1513,6 @@ static nsresult LaunchChild(nsINativeAppSupport* aNative,
 
   SaveToEnv("MOZ_LAUNCHED_CHILD=1");
 
-#if defined(MOZ_WIDGET_ANDROID)
-  java::GeckoAppShell::ScheduleRestart();
-#else
 #if defined(XP_MACOSX)
   CommandLineServiceMac::SetupMacCommandLine(gRestartArgc, gRestartArgv, true);
   LaunchChildMac(gRestartArgc, gRestartArgv);
@@ -1559,7 +1552,6 @@ static nsresult LaunchChild(nsINativeAppSupport* aNative,
 #endif // XP_UNIX
 #endif // WP_WIN
 #endif // WP_MACOSX
-#endif // MOZ_WIDGET_ANDROID
 
   return NS_ERROR_LAUNCHED_CHILD_PROCESS;
 }
@@ -1653,10 +1645,7 @@ ProfileLockedDialog(nsIFile* aProfileDir, nsIFile* aProfileLocalDir,
 
     if (aUnlocker) {
       int32_t button;
-#ifdef MOZ_WIDGET_ANDROID
-      java::GeckoAppShell::KillAnyZombies();
-      button = 0;
-#else
+
       const uint32_t flags =
         (nsIPromptService::BUTTON_TITLE_IS_STRING *
          nsIPromptService::BUTTON_POS_0) +
@@ -1668,7 +1657,6 @@ ProfileLockedDialog(nsIFile* aProfileDir, nsIFile* aProfileLocalDir,
                          killTitle, nullptr, nullptr, nullptr,
                          &checkState, &button);
       NS_ENSURE_SUCCESS_LOG(rv, rv);
-#endif
 
       if (button == 0) {
         rv = aUnlocker->Unlock(nsIProfileUnlocker::FORCE_QUIT);
@@ -1682,15 +1670,8 @@ ProfileLockedDialog(nsIFile* aProfileDir, nsIFile* aProfileLocalDir,
         return LaunchChild(aNative);
       }
     } else {
-#ifdef MOZ_WIDGET_ANDROID
-      if (java::GeckoAppShell::UnlockProfile()) {
-        return NS_LockProfilePath(aProfileDir, aProfileLocalDir,
-                                  nullptr, aResult);
-      }
-#else
       rv = ps->Alert(nullptr, killTitle, killMessage);
       NS_ENSURE_SUCCESS_LOG(rv, rv);
-#endif
     }
 
     return NS_ERROR_ABORT;
@@ -3409,7 +3390,7 @@ XREMain::XRE_mainStartup(bool* aExitFlag)
   }
 #endif
 
-#if defined(MOZ_UPDATER) && !defined(MOZ_WIDGET_ANDROID)
+#ifdef MOZ_UPDATER
   // Check for and process any available updates
   nsCOMPtr<nsIFile> updRoot;
   bool persistent;
