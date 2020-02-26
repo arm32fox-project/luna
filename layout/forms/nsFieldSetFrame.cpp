@@ -153,6 +153,7 @@ nsDisplayFieldSetBorderBackground::ComputeInvalidationRegion(nsDisplayListBuilde
 
 void
 nsFieldSetFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                                  const nsRect&           aDirtyRect,
                                   const nsDisplayListSet& aLists) {
   // Paint our background and border in a special way.
   // REVIEW: We don't really need to check frame emptiness here; if it's empty,
@@ -165,11 +166,9 @@ nsFieldSetFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
         nsDisplayBoxShadowOuter(aBuilder, this));
     }
 
-    const nsRect rect =
-        VisualBorderRectRelativeToSelf() + aBuilder->ToReferenceFrame(this);
-
     nsDisplayBackgroundImage::AppendBackgroundItemsToTop(
-      aBuilder, this, rect, aLists.BorderBackground(),
+      aBuilder, this, VisualBorderRectRelativeToSelf(),
+      aLists.BorderBackground(),
       /* aAllowWillPaintBorderOptimization = */ false);
 
     aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
@@ -181,10 +180,10 @@ nsFieldSetFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   }
 
   if (GetPrevInFlow()) {
-    DisplayOverflowContainers(aBuilder, aLists);
+    DisplayOverflowContainers(aBuilder, aDirtyRect, aLists);
   }
 
-  nsDisplayListCollection contentDisplayItems(aBuilder);
+  nsDisplayListCollection contentDisplayItems;
   if (nsIFrame* inner = GetInner()) {
     // Collect the inner frame's display items into their own collection.
     // We need to be calling BuildDisplayList on it before the legend in
@@ -192,13 +191,13 @@ nsFieldSetFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     // legend. However, we want the inner frame's display items to be
     // after the legend's display items in z-order, so we need to save them
     // and append them later.
-    BuildDisplayListForChild(aBuilder, inner, contentDisplayItems);
+    BuildDisplayListForChild(aBuilder, inner, aDirtyRect, contentDisplayItems);
   }
   if (nsIFrame* legend = GetLegend()) {
     // The legend's background goes on our BlockBorderBackgrounds list because
     // it's a block child.
     nsDisplayListSet set(aLists, aLists.BlockBorderBackgrounds());
-    BuildDisplayListForChild(aBuilder, legend, set);
+    BuildDisplayListForChild(aBuilder, legend, aDirtyRect, set);
   }
   // Put the inner frame's display items on the master list. Note that this
   // moves its border/background display items to our BorderBackground() list,

@@ -311,6 +311,7 @@ nsSliderFrame::AttributeChanged(int32_t aNameSpaceID,
 
 void
 nsSliderFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                                const nsRect&           aDirtyRect,
                                 const nsDisplayListSet& aLists)
 {
   if (aBuilder->IsForEventDelivery() && isDraggingThumb()) {
@@ -321,11 +322,12 @@ nsSliderFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     return;
   }
   
-  nsBoxFrame::BuildDisplayList(aBuilder, aLists);
+  nsBoxFrame::BuildDisplayList(aBuilder, aDirtyRect, aLists);
 }
 
 void
 nsSliderFrame::BuildDisplayListForChildren(nsDisplayListBuilder*   aBuilder,
+                                           const nsRect&           aDirtyRect,
                                            const nsDisplayListSet& aLists)
 {
   // if we are too small to have a thumb don't paint it.
@@ -358,8 +360,8 @@ nsSliderFrame::BuildDisplayListForChildren(nsDisplayListBuilder*   aBuilder,
     nsLayoutUtils::SetScrollbarThumbLayerization(thumb, thumbGetsLayer);
 
     if (thumbGetsLayer) {
-      nsDisplayListCollection tempLists (aBuilder);
-      nsBoxFrame::BuildDisplayListForChildren(aBuilder, tempLists);
+      nsDisplayListCollection tempLists;
+      nsBoxFrame::BuildDisplayListForChildren(aBuilder, aDirtyRect, tempLists);
 
       // This is a bit of a hack. Collect up all descendant display items
       // and merge them into a single Content() list.
@@ -380,7 +382,7 @@ nsSliderFrame::BuildDisplayListForChildren(nsDisplayListBuilder*   aBuilder,
     }
   }
   
-  nsBoxFrame::BuildDisplayListForChildren(aBuilder, aLists);
+  nsBoxFrame::BuildDisplayListForChildren(aBuilder, aDirtyRect, aLists);
 }
 
 NS_IMETHODIMP

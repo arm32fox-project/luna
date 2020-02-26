@@ -70,9 +70,10 @@ PaintCheckedRadioButton(nsIFrame* aFrame,
 
 void
 nsGfxRadioControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                                         const nsRect&           aDirtyRect,
                                          const nsDisplayListSet& aLists)
 {
-  nsFormControlFrame::BuildDisplayList(aBuilder, aLists);
+  nsFormControlFrame::BuildDisplayList(aBuilder, aDirtyRect, aLists);
 
   if (!IsVisibleForPainting(aBuilder))
     return;

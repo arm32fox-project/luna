@@ -140,6 +140,7 @@ nsSVGDisplayContainerFrame::Init(nsIContent*       aContent,
 
 void
 nsSVGDisplayContainerFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                                             const nsRect&           aDirtyRect,
                                              const nsDisplayListSet& aLists)
 {
   // mContent could be a XUL element so check for an SVG element before casting
@@ -148,7 +149,7 @@ nsSVGDisplayContainerFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     return;
   }
   DisplayOutline(aBuilder, aLists);
-  return BuildDisplayListForNonBlockChildren(aBuilder, aLists);
+  return BuildDisplayListForNonBlockChildren(aBuilder, aDirtyRect, aLists);
 }
 
 void

@@ -156,7 +156,7 @@ nsTableRowGroupFrame::InitRepeatedFrame(nsTableRowGroupFrame* aHeaderFooterFrame
 // Handle the child-traversal part of DisplayGenericTablePart
 static void
 DisplayRows(nsDisplayListBuilder* aBuilder, nsFrame* aFrame,
-            const nsDisplayListSet& aLists)
+            const nsRect& aDirtyRect, const nsDisplayListSet& aLists)
 {
   nscoord overflowAbove;
   nsTableRowGroupFrame* f = static_cast<nsTableRowGroupFrame*>(aFrame);
@@ -168,16 +168,16 @@ DisplayRows(nsDisplayListBuilder* aBuilder, nsFrame* aFrame,
   // the rows in |f|, but that's exactly what we're trying to avoid, so we
   // approximate it by checking it for |f|: if it's true for any row
   // in |f| then it's true for |f| itself.
-  nsIFrame* kid = aBuilder->ShouldDescendIntoFrame(f, true) ?
-    nullptr : f->GetFirstRowContaining(aBuilder->GetVisibleRect().y, &overflowAbove);
+  nsIFrame* kid = aBuilder->ShouldDescendIntoFrame(f) ?
+    nullptr : f->GetFirstRowContaining(aDirtyRect.y, &overflowAbove);
 
   if (kid) {
     // If we have a cursor, use it
     while (kid) {
-      if (kid->GetRect().y - overflowAbove >= aBuilder->GetDirtyRect().YMost()) {
+      if (kid->GetRect().y - overflowAbove >= aDirtyRect.YMost()) {
         break;
       }
-      f->BuildDisplayListForChild(aBuilder, kid, aLists);
+      f->BuildDisplayListForChild(aBuilder, kid, aDirtyRect, aLists);
       kid = kid->GetNextSibling();
     }
     return;
@@ -187,7 +187,7 @@ DisplayRows(nsDisplayListBuilder* aBuilder, nsFrame* aFrame,
   nsTableRowGroupFrame::FrameCursorData* cursor = f->SetupRowCursor();
   kid = f->PrincipalChildList().FirstChild();
   while (kid) {
-    f->BuildDisplayListForChild(aBuilder, kid, aLists);
+    f->BuildDisplayListForChild(aBuilder, kid, aDirtyRect, aLists);
 
     if (cursor) {
       if (!cursor->AppendFrame(kid)) {
@@ -205,45 +205,11 @@ DisplayRows(nsDisplayListBuilder* aBuilder, nsFrame* aFrame,
 
 void
 nsTableRowGroupFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                                       const nsRect&           aDirtyRect,
                                        const nsDisplayListSet& aLists)
 {
-  if (IsVisibleForPainting(aBuilder)) {
-    // XXXbz should box-shadow for rows/rowgroups/columns/colgroups get painted
-    // just because we're visible?  Or should it depend on the cell visibility
-    // when we're not the whole table?
-
-    // Paint the outset box-shadows for the table frames
-    if (StyleEffects()->mBoxShadow) {
-      aLists.BorderBackground()->AppendNewToTop(
-        new (aBuilder) nsDisplayBoxShadowOuter
-          (aBuilder, this));
-    }
-  }
-
-  for (nsTableRowFrame* row = GetFirstRow(); row; row = row->GetNextRow()) {
-    if (!aBuilder->GetDirtyRect().Intersects(row->GetVisualOverflowRect() + row->GetNormalPosition())) {
-      continue;
-    }
-    row->PaintCellBackgroundsForFrame(this, aBuilder, aLists,
-                                      row->GetNormalPosition());
-  }
-
-  if (IsVisibleForPainting(aBuilder)) {
-    // XXXbz should box-shadow for rows/rowgroups/columns/colgroups get painted
-    // just because we're visible?  Or should it depend on the cell visibility
-    // when we're not the whole table?
-
-    // Paint the inset box-shadows for the table frames
-    if (StyleEffects()->mBoxShadow) {
-      aLists.BorderBackground()->AppendNewToTop(
-        new (aBuilder) nsDisplayBoxShadowInner
-          (aBuilder, this));
-    }
-  }
-
-  DisplayOutline(aBuilder, aLists);
-
-  DisplayRows(aBuilder, this, aLists);
+  nsTableFrame::DisplayGenericTablePart(aBuilder, this, aDirtyRect,
+                                        aLists, DisplayRows);
 }
 
 nsIFrame::LogicalSides
