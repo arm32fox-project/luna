@@ -721,6 +721,7 @@ nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
     : mReferenceFrame(aReferenceFrame),
       mIgnoreScrollFrame(nullptr),
       mLayerEventRegions(nullptr),
+      mCurrentTableItem(nullptr),
       mCurrentFrame(aReferenceFrame),
       mCurrentReferenceFrame(aReferenceFrame),
       mCurrentAGR(&mRootAGR),
@@ -730,7 +731,6 @@ nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
       mGlassDisplayItem(nullptr),
       mScrollInfoItemsForHoisting(nullptr),
       mMode(aMode),
-      mTableBackgroundSet(nullptr),
       mCurrentScrollParentId(FrameMetrics::NULL_SCROLL_ID),
       mCurrentScrollbarTarget(FrameMetrics::NULL_SCROLL_ID),
       mCurrentScrollbarFlags(0),
@@ -783,31 +783,12 @@ nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
                 "Check nsDisplayItem::TYPE_MAX should not overflow");
 }
 
-void 
-nsDisplayListBuilder::MarkFrameForDisplay(nsIFrame* aFrame, nsIFrame* aStopAtFrame) 
-{
-  mFramesMarkedForDisplay.AppendElement(aFrame);
+static void MarkFrameForDisplay(nsIFrame* aFrame, nsIFrame* aStopAtFrame) {
   for (nsIFrame* f = aFrame; f;
        f = nsLayoutUtils::GetParentOrPlaceholderFor(f)) {
     if (f->GetStateBits() & NS_FRAME_FORCE_DISPLAY_LIST_DESCEND_INTO)
       return;
     f->AddStateBits(NS_FRAME_FORCE_DISPLAY_LIST_DESCEND_INTO);
-    if (f == aStopAtFrame) {
-      // we've reached a frame that we know will be painted, so we can stop.
-      break;
-    }
-  }
-}
-
-void
-nsDisplayListBuilder::MarkFrameForDisplayIfVisible(nsIFrame* aFrame, nsIFrame* aStopAtFrame)
-{
-  mFramesMarkedForDisplay.AppendElement(aFrame);
-  for (nsIFrame* f = aFrame; f;
-       f = nsLayoutUtils::GetParentOrPlaceholderFor(f)) {
-    if (f->ForceDescendIntoIfVisible())
-      return;
-    f->SetForceDescendIntoIfVisible(true);
     if (f == aStopAtFrame) {
       // we've reached a frame that we know will be painted, so we can stop.
       break;
@@ -883,10 +864,10 @@ nsDisplayListBuilder::FindAnimatedGeometryRootFor(nsDisplayItem* aItem)
 
 
 void nsDisplayListBuilder::MarkOutOfFlowFrameForDisplay(nsIFrame* aDirtyFrame,
-                                                        nsIFrame* aFrame)
+                                                        nsIFrame* aFrame,
+                                                        const nsRect& aDirtyRect)
 {
-  nsRect visible = GetVisibleRect();
-  nsRect dirtyRectRelativeToDirtyFrame = GetDirtyRect();
+  nsRect dirtyRectRelativeToDirtyFrame = aDirtyRect;
   if (nsLayoutUtils::IsFixedPosFrameInDisplayPort(aFrame) &&
       IsPaintingToWindow()) {
     NS_ASSERTION(aDirtyFrame == aFrame->GetParent(), "Dirty frame should be viewport frame");
@@ -900,14 +881,8 @@ void nsDisplayListBuilder::MarkOutOfFlowFrameForDisplay(nsIFrame* aDirtyFrame,
     } else {
       dirtyRectRelativeToDirtyFrame.SizeTo(aDirtyFrame->GetSize());
     }
-    // TODO: We probably don't want visible and dirty to be the same here, figure
-    // out what to do.
-    visible = dirtyRectRelativeToDirtyFrame;
   }
-
-  nsPoint offset = aFrame->GetOffsetTo(aDirtyFrame);
-  visible -= offset;
-  nsRect dirty = dirtyRectRelativeToDirtyFrame - offset;
+  nsRect dirty = dirtyRectRelativeToDirtyFrame - aFrame->GetOffsetTo(aDirtyFrame);
   nsRect overflowRect = aFrame->GetVisualOverflowRect();
 
   if (aFrame->IsTransformed() &&
@@ -920,18 +895,15 @@ void nsDisplayListBuilder::MarkOutOfFlowFrameForDisplay(nsIFrame* aDirtyFrame,
     */
     overflowRect.Inflate(nsPresContext::CSSPixelsToAppUnits(32));
   }
-  visible.IntersectRect(visible, overflowRect);
-  dirty.IntersectRect(dirty, overflowRect);
-  if (!(aFrame->GetStateBits() & NS_FRAME_FORCE_DISPLAY_LIST_DESCEND_INTO) &&
-      dirty.IsEmpty() &&
-      (!aFrame->ForceDescendIntoIfVisible() ||
-       visible.IsEmpty())) {
+
+  if (!dirty.IntersectRect(dirty, overflowRect) &&
+      !(aFrame->GetStateBits() & NS_FRAME_FORCE_DISPLAY_LIST_DESCEND_INTO)) {
     return;
   }
 
   const DisplayItemClip* oldClip = mClipState.GetClipForContainingBlockDescendants();
   const DisplayItemScrollClip* sc = mClipState.GetCurrentInnermostScrollClip();
-  OutOfFlowDisplayData* data = new OutOfFlowDisplayData(oldClip, sc, visible, dirty);
+  OutOfFlowDisplayData* data = new OutOfFlowDisplayData(oldClip, sc, dirty);
   aFrame->SetProperty(nsDisplayListBuilder::OutOfFlowDisplayDataProperty(), data);
 
   MarkFrameForDisplay(aFrame, aDirtyFrame);
@@ -942,11 +914,9 @@ static void UnmarkFrameForDisplay(nsIFrame* aFrame) {
 
   for (nsIFrame* f = aFrame; f;
        f = nsLayoutUtils::GetParentOrPlaceholderFor(f)) {
-    if (!(f->GetStateBits() & NS_FRAME_FORCE_DISPLAY_LIST_DESCEND_INTO) &&
-      !f->ForceDescendIntoIfVisible())
+    if (!(f->GetStateBits() & NS_FRAME_FORCE_DISPLAY_LIST_DESCEND_INTO))
       return;
     f->RemoveStateBits(NS_FRAME_FORCE_DISPLAY_LIST_DESCEND_INTO);
-    f->SetForceDescendIntoIfVisible(false);
   }
 }
 
@@ -955,6 +925,7 @@ nsDisplayListBuilder::~nsDisplayListBuilder() {
                "All frames should have been unmarked");
   NS_ASSERTION(mPresShellStates.Length() == 0,
                "All presshells should have been exited");
+  NS_ASSERTION(!mCurrentTableItem, "No table item should be active");
 
   nsCSSRendering::EndFrameTreesLocked();
 
@@ -1037,27 +1008,22 @@ nsDisplayListBuilder::EnterPresShell(nsIFrame* aReferenceFrame,
   }
   state->mInsidePointerEventsNoneDoc = pointerEventsNone;
 
-  state->mPresShellIgnoreScrollFrame =
-      state->mPresShell->IgnoringViewportScrolling()
-          ? state->mPresShell->GetRootScrollFrame()
-          : nullptr;
-
-   nsPresContext* pc = aReferenceFrame->PresContext();
-   nsCOMPtr<nsIDocShell> docShell = pc->GetDocShell();
-   if (docShell) {
-     docShell->GetWindowDraggingAllowed(&mWindowDraggingAllowed);
-   }
-
-   mIsInChromePresContext = pc->IsChrome();
-
   if (!buildCaret)
     return;
 
   RefPtr<nsCaret> caret = state->mPresShell->GetCaret();
   state->mCaretFrame = caret->GetPaintGeometry(&state->mCaretRect);
   if (state->mCaretFrame) {
+    mFramesMarkedForDisplay.AppendElement(state->mCaretFrame);
     MarkFrameForDisplay(state->mCaretFrame, nullptr);
   }
+
+  nsPresContext* pc = aReferenceFrame->PresContext();
+  nsCOMPtr<nsIDocShell> docShell = pc->GetDocShell();
+  if (docShell) {
+    docShell->GetWindowDraggingAllowed(&mWindowDraggingAllowed);
+  }
+  mIsInChromePresContext = pc->IsChrome();
 }
 
 // A non-blank paint is a paint that does not just contain the canvas background.
@@ -1128,7 +1094,8 @@ nsDisplayListBuilder::ResetMarkedFramesForDisplayList()
 
 void
 nsDisplayListBuilder::MarkFramesForDisplayList(nsIFrame* aDirtyFrame,
-                                               const nsFrameList& aFrames) {
+                                               const nsFrameList& aFrames,
+                                               const nsRect& aDirtyRect) {
   for (nsIFrame* e : aFrames) {
     // Skip the AccessibleCaret frame when building no caret.
     if (!IsBuildingCaret()) {
@@ -1141,7 +1108,8 @@ nsDisplayListBuilder::MarkFramesForDisplayList(nsIFrame* aDirtyFrame,
       }
     }
     
-    MarkOutOfFlowFrameForDisplay(aDirtyFrame, e);
+    mFramesMarkedForDisplay.AppendElement(e);
+    MarkOutOfFlowFrameForDisplay(aDirtyFrame, e, aDirtyRect);
   }
 }
 
@@ -1164,6 +1132,7 @@ nsDisplayListBuilder::MarkPreserve3DFramesForDisplayList(nsIFrame* aDirtyFrame)
     for (; !childFrames.AtEnd(); childFrames.Next()) {
       nsIFrame *child = childFrames.get();
       if (child->Combines3DTransformWithAncestors()) {
+        mFramesMarkedForDisplay.AppendElement(child);
         MarkFrameForDisplay(child, aDirtyFrame);
       }
     }
@@ -2349,11 +2318,11 @@ nsDisplayItem::nsDisplayItem(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame,
   mAnimatedGeometryRoot = aBuilder->FindAnimatedGeometryRootFor(aFrame);
   MOZ_ASSERT(nsLayoutUtils::IsAncestorFrameCrossDoc(aBuilder->RootReferenceFrame(),
                                                     *mAnimatedGeometryRoot), "Bad");
-  NS_ASSERTION(aBuilder->GetVisibleRect().width >= 0 ||
-               !aBuilder->IsForPainting(), "visible rect not set");
-  // The visible rect is for mCurrentFrame, so we have to use
+  NS_ASSERTION(aBuilder->GetDirtyRect().width >= 0 ||
+               !aBuilder->IsForPainting(), "dirty rect not set");
+  // The dirty rect is for mCurrentFrame, so we have to use
   // mCurrentOffsetToReferenceFrame
-  mVisibleRect = aBuilder->GetVisibleRect() +
+  mVisibleRect = aBuilder->GetDirtyRect() +
       aBuilder->GetCurrentFrameOffsetToReferenceFrame();
 }
 
@@ -2604,7 +2573,8 @@ static nsStyleContext* GetBackgroundStyleContext(nsIFrame* aFrame)
 
 /* static */ void
 SetBackgroundClipRegion(DisplayListClipState::AutoSaveRestore& aClipState,
-                        nsIFrame* aFrame, const nsStyleImageLayers::Layer& aLayer,
+                        nsIFrame* aFrame, const nsPoint& aToReferenceFrame,
+                        const nsStyleImageLayers::Layer& aLayer,
                         const nsRect& aBackgroundRect,
                         bool aWillPaintBorder)
 {
@@ -2656,6 +2626,7 @@ SpecialCutoutRegionCase(nsDisplayListBuilder* aBuilder,
   return true;
 }
 
+
 /*static*/ bool
 nsDisplayBackgroundImage::AppendBackgroundItemsToTop(nsDisplayListBuilder* aBuilder,
                                                      nsIFrame* aFrame,
@@ -2664,16 +2635,14 @@ nsDisplayBackgroundImage::AppendBackgroundItemsToTop(nsDisplayListBuilder* aBuil
                                                      bool aAllowWillPaintBorderOptimization,
                                                      nsStyleContext* aStyleContext,
                                                      const nsRect& aBackgroundOriginRect,
-                                                     nsIFrame* aSecondaryReferenceFrame,
-                                                     Maybe<nsDisplayListBuilder::AutoBuildingDisplayList>*
-                                                         aAutoBuildingDisplayList)
+                                                     nsIFrame* aSecondaryReferenceFrame)
 {
   nsStyleContext* bgSC = aStyleContext;
   const nsStyleBackground* bg = nullptr;
-  nsRect bgRect = aBackgroundRect;
+  nsRect bgRect = aBackgroundRect + aBuilder->ToReferenceFrame(aFrame);
   nsRect bgOriginRect = bgRect;
   if (!aBackgroundOriginRect.IsEmpty()) {
-    bgOriginRect = aBackgroundOriginRect;
+    bgOriginRect = aBackgroundOriginRect + aBuilder->ToReferenceFrame(aFrame);
   }
   nsPresContext* presContext = aFrame->PresContext();
   bool isThemed = aFrame->IsThemed();
@@ -2709,6 +2678,8 @@ nsDisplayBackgroundImage::AppendBackgroundItemsToTop(nsDisplayListBuilder* aBuil
                          !isThemed && !hasInsetShadow &&
                          borderStyle->HasBorder();
 
+  nsPoint toRef = aBuilder->ToReferenceFrame(aFrame);
+
   // An auxiliary list is necessary in case we have background blending; if that
   // is the case, background items need to be wrapped by a blend container to
   // isolate blending to the background
@@ -2717,9 +2688,6 @@ nsDisplayBackgroundImage::AppendBackgroundItemsToTop(nsDisplayListBuilder* aBuil
   // to create an item for hit testing.
   if ((drawBackgroundColor && color != NS_RGBA(0,0,0,0)) ||
       aBuilder->IsForEventDelivery()) {
-    if (aAutoBuildingDisplayList && !*aAutoBuildingDisplayList) {
-      aAutoBuildingDisplayList->emplace(aBuilder, aFrame);
-    }
     DisplayListClipState::AutoSaveRestore clipState(aBuilder);
     if (bg && !aBuilder->IsForEventDelivery()) {
       // Disable the will-paint-border optimization for background
@@ -2731,7 +2699,7 @@ nsDisplayBackgroundImage::AppendBackgroundItemsToTop(nsDisplayListBuilder* aBuil
       // artifacts along the rounded corners.
       bool useWillPaintBorderOptimization = willPaintBorder &&
           nsLayoutUtils::HasNonZeroCorner(borderStyle->mBorderRadius);
-      SetBackgroundClipRegion(clipState, aFrame,
+      SetBackgroundClipRegion(clipState, aFrame, toRef,
                               bg->BottomLayer(), bgRect,
                               useWillPaintBorderOptimization);
     }
@@ -2784,10 +2752,6 @@ nsDisplayBackgroundImage::AppendBackgroundItemsToTop(nsDisplayListBuilder* aBuil
       continue;
     }
 
-    if (aAutoBuildingDisplayList && !*aAutoBuildingDisplayList) {
-      aAutoBuildingDisplayList->emplace(aBuilder, aFrame);
-    }
-
     if (bg->mImage.mLayers[i].mBlendMode != NS_STYLE_BLEND_NORMAL) {
       needBlendContainer = true;
     }
@@ -2795,8 +2759,8 @@ nsDisplayBackgroundImage::AppendBackgroundItemsToTop(nsDisplayListBuilder* aBuil
     DisplayListClipState::AutoSaveRestore clipState(aBuilder);
     if (!aBuilder->IsForEventDelivery()) {
       const nsStyleImageLayers::Layer& layer = bg->mImage.mLayers[i];
-      SetBackgroundClipRegion(clipState, aFrame, layer, bgRect, 
-                              willPaintBorder);
+      SetBackgroundClipRegion(clipState, aFrame, toRef,
+                              layer, bgRect, willPaintBorder);
     }
 
     nsDisplayList thisItemList;
@@ -4378,7 +4342,7 @@ nsDisplayWrapList::nsDisplayWrapList(nsDisplayListBuilder* aBuilder,
     mReferenceFrame = i->ReferenceFrame();
     mToReferenceFrame = i->ToReferenceFrame();
   }
-  mVisibleRect = aBuilder->GetVisibleRect() +
+  mVisibleRect = aBuilder->GetDirtyRect() +
       aBuilder->GetCurrentFrameOffsetToReferenceFrame();
 }
 
@@ -4404,7 +4368,7 @@ nsDisplayWrapList::nsDisplayWrapList(nsDisplayListBuilder* aBuilder,
     mReferenceFrame = aItem->ReferenceFrame();
     mToReferenceFrame = aItem->ToReferenceFrame();
   }
-  mVisibleRect = aBuilder->GetVisibleRect() +
+  mVisibleRect = aBuilder->GetDirtyRect() +
       aBuilder->GetCurrentFrameOffsetToReferenceFrame();
 }
 

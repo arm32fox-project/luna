@@ -68,6 +68,7 @@ public:
   // nsIFrame
   virtual void DestroyFrom(nsIFrame* aDestructRoot) override;
   virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                                const nsRect&           aDirtyRect,
                                 const nsDisplayListSet& aLists) override;
   virtual nsIAtom* GetType() const override;
   virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext) override;

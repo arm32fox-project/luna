@@ -50,9 +50,10 @@ nsFirstLetterFrame::GetType() const
 
 void
 nsFirstLetterFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                                     const nsRect&           aDirtyRect,
                                      const nsDisplayListSet& aLists)
 {
-  BuildDisplayListForInline(aBuilder, aLists);
+  BuildDisplayListForInline(aBuilder, aDirtyRect, aLists);
 }
 
 void

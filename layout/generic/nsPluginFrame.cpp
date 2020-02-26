@@ -1182,6 +1182,7 @@ nsPluginFrame::IsTransparentMode() const
 
 void
 nsPluginFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                                const nsRect&           aDirtyRect,
                                 const nsDisplayListSet& aLists)
 {
   // XXX why are we painting collapsed object frames?

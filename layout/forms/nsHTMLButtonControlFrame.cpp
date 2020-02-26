@@ -97,6 +97,7 @@ nsHTMLButtonControlFrame::ShouldClipPaintingToBorderBox()
 
 void
 nsHTMLButtonControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                                           const nsRect&           aDirtyRect,
                                            const nsDisplayListSet& aLists)
 {
   // Clip to our border area for event hit testing.
@@ -115,7 +116,7 @@ nsHTMLButtonControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     mRenderer.DisplayButton(aBuilder, aLists.BorderBackground(), &onTop);
   }
 
-  nsDisplayListCollection set (aBuilder);
+  nsDisplayListCollection set;
 
   // Do not allow the child subtree to receive events.
   if (!isForEventDelivery) {
@@ -130,7 +131,7 @@ nsHTMLButtonControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       clipState.ClipContainingBlockDescendants(rect, hasRadii ? radii : nullptr);
     }
 
-    BuildDisplayListForChild(aBuilder, mFrames.FirstChild(), set,
+    BuildDisplayListForChild(aBuilder, mFrames.FirstChild(), aDirtyRect, set,
                              DISPLAY_CHILD_FORCE_PSEUDO_STACKING_CONTEXT);
     // That should put the display items in set.Content()
   }

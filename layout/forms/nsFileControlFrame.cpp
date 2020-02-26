@@ -485,9 +485,10 @@ nsFileControlFrame::SetFormProperty(nsIAtom* aName,
 
 void
 nsFileControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                                     const nsRect&           aDirtyRect,
                                      const nsDisplayListSet& aLists)
 {
-  BuildDisplayListForInline(aBuilder, aLists);
+  BuildDisplayListForInline(aBuilder, aDirtyRect, aLists);
 }
 
 #ifdef ACCESSIBILITY
