@@ -69,7 +69,7 @@ extern  "C" void sync_instruction_memory(caddr_t v, u_int len);
 #include <sys/cachectl.h>
 #endif
 
-#ifdef JS_CODEGEN_ARM
+#if defined(JS_CODEGEN_ARM) && defined(XP_IOS)
 #include <libkern/OSCacheControl.h>
 #endif
 
@@ -255,6 +255,11 @@ class ExecutableAllocator
     static void cacheFlush(void* code, size_t size)
     {
         __clear_cache(code, reinterpret_cast<char*>(code) + size);
+    }
+#elif (defined(JS_CODEGEN_ARM) || defined(JS_CODEGEN_ARM64)) && defined(XP_IOS)
+    static void cacheFlush(void* code, size_t size)
+    {
+        sys_icache_invalidate(code, size);
     }
 #elif defined(JS_CODEGEN_ARM) && (defined(__linux__) || defined(ANDROID)) && defined(__GNUC__)
     static void cacheFlush(void* code, size_t size)
