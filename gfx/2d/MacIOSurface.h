@@ -17,12 +17,6 @@ typedef _CGLContextObject* CGLContextObj;
 typedef struct CGContext* CGContextRef;
 typedef struct CGImage* CGImageRef;
 typedef uint32_t IOSurfaceID;
-
-#ifdef XP_IOS
-typedef kern_return_t IOReturn;
-typedef int CGLError;
-#endif
-
 typedef CFTypeRef IOSurfacePtr;
 typedef IOSurfacePtr (*IOSurfaceCreateFunc) (CFDictionaryRef properties);
 typedef IOSurfacePtr (*IOSurfaceLookupFunc) (uint32_t io_surface_id);
