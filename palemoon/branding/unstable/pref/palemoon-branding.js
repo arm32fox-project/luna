@@ -11,6 +11,12 @@ pref("general.useragent.compatMode", 2);
 pref("general.useragent.compatMode.gecko", true);
 pref("general.useragent.compatMode.firefox", true);
 
+// Enable dynamic UA updates
+pref("general.useragent.updates.enabled", true);
+pref("general.useragent.updates.interval", 86400); // Once per day
+pref("general.useragent.updates.retry", 7200);     // Retry getting update every 2 hours if failed
+pref("general.useragent.updates.url", "https://dua.palemoon.org/?app=palemoon&version=%APP_VERSION%&channel=%CHANNEL%");
+
 // ========================= updates ========================
 #if defined(XP_WIN) || defined(XP_LINUX)
 // Enable auto-updates for this channel
