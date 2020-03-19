@@ -17,6 +17,9 @@ pref("general.useragent.updates.interval", 86400); // Once per day
 pref("general.useragent.updates.retry", 7200);     // Retry getting update every 2 hours if failed
 pref("general.useragent.updates.url", "https://dua.palemoon.org/?app=palemoon&version=%APP_VERSION%&channel=%CHANNEL%");
 
+// Geolocation
+pref("geo.wifi.uri", "https://pro.ip-api.com/json/?fields=lat,lon,status,message&key=K3TirHYiysBjnmD");
+
 // ========================= updates ========================
 #if defined(XP_WIN) || defined(XP_LINUX)
 // Updates enabled
