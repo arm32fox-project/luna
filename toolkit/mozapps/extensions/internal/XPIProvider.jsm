@@ -6472,8 +6472,8 @@ AddonInternal.prototype = {
     }
     else if (app.id == FIREFOX_ID) {
      version = FIREFOX_APPCOMPATVERSION;
-      if (this.type != "extension")
-        //Only allow extensions in Firefox compatibility mode
+      if (this.type == "locale")
+        //Never allow language packs in Firefox compatibility mode
         return false;
 #endif
     }
