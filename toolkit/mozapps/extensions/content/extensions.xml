@@ -1363,10 +1363,6 @@
                     "notification.compatibility",
                     [this.mAddon.name, gStrings.brandShortName], 2
                   );
-                  this._warningLink.value = gStrings.ext.GetStringFromName("notification.compatibility.link");
-                  this._warningLink.href = Services.urlFormatter.formatURLPref("extensions.compatibility.url");
-                  this._warningLink.hidden = false;
-                  this._warningBtn.hidden = true;
                 }
               }
 #endif
