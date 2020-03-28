@@ -10,7 +10,7 @@ The shared Unified XUL Platform source code is referenced here as a git submodul
 
 ## Resources
 
- * [Build Pale Moon for Windows](https://forum.palemoon.org/viewtopic.php?f=19&t=13556)
- * [Build Pale Moon for Linux](https://developer.palemoon.org/Developer_Guide:Build_Instructions/Pale_Moon/Linux)
+ * [Build Pale Moon for Windows](https://developer.palemoon.org/build/windows/)
+ * [Build Pale Moon for Linux](https://developer.palemoon.org/build/linux/)
  * [Pale Moon home page](http://www.palemoon.org/)
  * [Code of Conduct, Contributing, and UXP Coding style](https://github.com/MoonchildProductions/UXP/tree/master/docs)
