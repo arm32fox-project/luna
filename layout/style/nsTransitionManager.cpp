@@ -44,6 +44,7 @@ using mozilla::dom::CSSTransition;
 using mozilla::dom::KeyframeEffectReadOnly;
 
 using namespace mozilla;
+using namespace mozilla::dom;
 using namespace mozilla::css;
 
 namespace {
