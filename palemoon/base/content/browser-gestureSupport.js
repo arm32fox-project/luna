@@ -25,7 +25,11 @@ var gGestureSupport = {
    *        True to add/init listeners and false to remove/uninit
    */
   init: function(aAddListener) {
-    const gestureEvents = ["SwipeGestureMayStart", "SwipeGestureStart",
+    // Bug 863514 - Make gesture support work in electrolysis
+    if (gMultiProcessBrowser)
+      return;
+
+    const gestureEvents = ["SwipeGestureStart",
       "SwipeGestureUpdate", "SwipeGestureEnd", "SwipeGesture",
       "MagnifyGestureStart", "MagnifyGestureUpdate", "MagnifyGesture",
       "RotateGestureStart", "RotateGestureUpdate", "RotateGesture",
@@ -34,9 +38,8 @@ var gGestureSupport = {
     let addRemove = aAddListener ? window.addEventListener :
       window.removeEventListener;
 
-    for (let event of gestureEvents) {
-      addRemove("Moz" + event, this, true);
-    }
+    gestureEvents.forEach(function(event) addRemove("Moz" + event, this, true),
+                          this);
   },
 
   /**
@@ -54,18 +57,13 @@ var gGestureSupport = {
     }
 
     // Create a preference object with some defaults
-    let def = (aThreshold, aLatched) =>
+    let def = function(aThreshold, aLatched)
       ({ threshold: aThreshold, latched: !!aLatched });
 
     switch (aEvent.type) {
-      case "MozSwipeGestureMayStart":
-        if (this._shouldDoSwipeGesture(aEvent)) {
-          aEvent.preventDefault();
-        }
-        break;
       case "MozSwipeGestureStart":
         aEvent.preventDefault();
-        this._setupSwipeGesture();
+        this._setupSwipeGesture(aEvent);
         break;
       case "MozSwipeGestureUpdate":
         aEvent.preventDefault();
@@ -177,17 +175,14 @@ var gGestureSupport = {
   },
 
   /**
-   * Checks whether we want to start a swipe for aEvent and sets
-   * aEvent.allowedDirections to the right values.
+   * Sets up the history swipe animations for a swipe gesture event, if enabled.
    *
    * @param aEvent
-   *        The swipe gesture "MayStart" event.
-   * @return true if we're willing to start a swipe for this event, false
-   *         otherwise.
+   *        The swipe gesture start event.
    */
-  _shouldDoSwipeGesture: function(aEvent) {
+  _setupSwipeGesture: function(aEvent) {
     if (!this._swipeNavigatesHistory(aEvent))
-      return false;
+      return;
 
     let canGoBack = gHistorySwipeAnimation.canGoBack();
     let canGoForward = gHistorySwipeAnimation.canGoForward();
@@ -200,20 +195,7 @@ var gGestureSupport = {
       aEvent.allowedDirections |= isLTR ? aEvent.DIRECTION_RIGHT :
                                           aEvent.DIRECTION_LEFT;
 
-    return true;
-  },
-
-  /**
-   * Sets up swipe gestures. This includes setting up swipe animations for the
-   * gesture, if enabled.
-   *
-   * @param aEvent
-   *        The swipe gesture start event.
-   * @return true if swipe gestures could successfully be set up, false
-   *         othwerwise.
-   */
-  _setupSwipeGesture: function() {
-    gHistorySwipeAnimation.startAnimation(false);
+    gHistorySwipeAnimation.startAnimation();
 
     this._doUpdate = function(aEvent) {
       gHistorySwipeAnimation.updateAnimation(aEvent.delta);
@@ -509,6 +491,10 @@ var gGestureSupport = {
    * image
    */
   restoreRotationState: function() {
+    // Bug 863514 - Make gesture support work in electrolysis
+    if (gMultiProcessBrowser)
+      return;
+
     if (!(content.document instanceof ImageDocument))
       return;
 
@@ -560,7 +546,8 @@ var gHistorySwipeAnimation = {
       return;
 
     this.active = false;
-    this.isLTR = document.documentElement.matches(":-moz-locale-dir(ltr)");
+    this.isLTR = document.documentElement.mozMatchesSelector(
+                                            ":-moz-locale-dir(ltr)");
     this._trackedSnapshots = [];
     this._historyIndex = -1;
     this._boxWidth = -1;
@@ -574,7 +561,6 @@ var gHistorySwipeAnimation = {
       gBrowser.addEventListener("pagehide", this, false);
       gBrowser.addEventListener("pageshow", this, false);
       gBrowser.addEventListener("popstate", this, false);
-      gBrowser.addEventListener("DOMModalDialogClosed", this, false);
       gBrowser.tabContainer.addEventListener("TabClose", this, false);
     }
   },
@@ -586,7 +572,6 @@ var gHistorySwipeAnimation = {
     gBrowser.removeEventListener("pagehide", this, false);
     gBrowser.removeEventListener("pageshow", this, false);
     gBrowser.removeEventListener("popstate", this, false);
-    gBrowser.removeEventListener("DOMModalDialogClosed", this, false);
     gBrowser.tabContainer.removeEventListener("TabClose", this, false);
 
     this.active = false;
@@ -624,7 +609,6 @@ var gHistorySwipeAnimation = {
    */
   stopAnimation: function() {
     gHistorySwipeAnimation._removeBoxes();
-    this._historyIndex = gBrowser.webNavigation.sessionHistory.index;
   },
 
   /**
@@ -659,6 +643,7 @@ var gHistorySwipeAnimation = {
     else {
       if (aVal < -1)
         aVal = -1; // Cap value to avoid sliding the page further than allowed.
+
       // The intention is to go forward. If there is a page to go forward to,
       // it should slide in from the right (LTR) or left (RTL).
       // Otherwise, the current page should slide to the left (LTR) or
@@ -666,10 +651,9 @@ var gHistorySwipeAnimation = {
       // For the backdrop to be visible in that case, the previous page needs
       // to be hidden (if it exists).
       if (this._canGoForward) {
-        this._nextBox.collapsed = false;
         let offset = this.isLTR ? 1 : -1;
         this._positionBox(this._curBox, 0);
-        this._positionBox(this._nextBox, offset + aVal); // aval is negative
+        this._positionBox(this._nextBox, offset + aVal); // aVal is negative
       }
       else {
         this._prevBox.collapsed = true;
@@ -685,34 +669,25 @@ var gHistorySwipeAnimation = {
    *        An event to process.
    */
   handleEvent: function(aEvent) {
-    let browser = gBrowser.selectedBrowser;
     switch (aEvent.type) {
       case "TabClose":
-        let browserForTab = gBrowser.getBrowserForTab(aEvent.target);
-        this._removeTrackedSnapshot(-1, browserForTab);
-        break;
-      case "DOMModalDialogClosed":
-        this.stopAnimation();
+        let browser = gBrowser.getBrowserForTab(aEvent.target);
+        this._removeTrackedSnapshot(-1, browser);
         break;
       case "pageshow":
-        if (aEvent.target == browser.contentDocument) {
-          this.stopAnimation();
-        }
-        break;
       case "popstate":
-        if (aEvent.target == browser.contentDocument.defaultView) {
+        if (this.isAnimationRunning()) {
+          if (aEvent.target != gBrowser.selectedBrowser.contentDocument)
+            break;
           this.stopAnimation();
         }
+        this._historyIndex = gBrowser.webNavigation.sessionHistory.index;
         break;
       case "pagehide":
-        if (aEvent.target == browser.contentDocument) {
-          // Take and compress a snapshot of a page whenever it's about to be
-          // navigated away from. We already have a snapshot of the page if an
-          // animation is running, so we're left with compressing it.
-          if (!this.isAnimationRunning()) {
-            this._takeSnapshot();
-          }
-          this._compressSnapshotAtCurrentIndex();
+        if (aEvent.target == gBrowser.selectedBrowser.contentDocument) {
+          // Take a snapshot of a page whenever it's about to be navigated away
+          // from.
+          this._takeSnapshot();
         }
         break;
     }
@@ -801,10 +776,9 @@ var gHistorySwipeAnimation = {
    * |this|.
    */
   _navigateToHistoryIndex: function() {
-    if (this._doesIndexExistInHistory(this._historyIndex))
+    if (this._doesIndexExistInHistory(this._historyIndex)) {
       gBrowser.webNavigation.gotoIndex(this._historyIndex);
-    else
-      this.stopAnimation();
+    }
   },
 
   /**
@@ -892,48 +866,27 @@ var gHistorySwipeAnimation = {
    */
   _positionBox: function(aBox, aPosition) {
     aBox.style.transform = "translateX(" + this._boxWidth * aPosition + "px)";
-    let transform = "";
-
-    aBox.style.transform = transform;
-  },
-
-  /**
-   * Verifies that we're ready to take snapshots based on the global pref and
-   * the current index in history.
-   *
-   * @return true if we're ready to take snapshots, false otherwise.
-   */
-  _readyToTakeSnapshots: function() {
-    if ((this._maxSnapshots < 1) ||
-        (gBrowser.webNavigation.sessionHistory.index < 0)) {
-      return false;
-    }
-    return true;
   },
 
   /**
    * Takes a snapshot of the page the browser is currently on.
    */
   _takeSnapshot: function() {
-    if (!this._readyToTakeSnapshots()) {
+    if ((this._maxSnapshots < 1) ||
+        (gBrowser.webNavigation.sessionHistory.index < 0))
       return;
-    }
-
-    let canvas = null;
 
     let browser = gBrowser.selectedBrowser;
     let r = browser.getBoundingClientRect();
-    canvas = document.createElementNS("http://www.w3.org/1999/xhtml",
-                                      "canvas");
+    let canvas = document.createElementNS("http://www.w3.org/1999/xhtml",
+                                          "canvas");
     canvas.mozOpaque = true;
-    let scale = window.devicePixelRatio;
-    canvas.width = r.width * scale;
-    canvas.height = r.height * scale;
+    canvas.width = r.width;
+    canvas.height = r.height;
     let ctx = canvas.getContext("2d");
-    let zoom = browser.markupDocumentViewer.fullZoom * scale;
+    let zoom = browser.markupDocumentViewer.fullZoom;
     ctx.scale(zoom, zoom);
-    ctx.drawWindow(browser.contentWindow,
-                   0, 0, canvas.width / zoom, canvas.height / zoom, "white",
+    ctx.drawWindow(browser.contentWindow, 0, 0, r.width, r.height, "white",
                    ctx.DRAWWINDOW_DO_NOT_FLUSH | ctx.DRAWWINDOW_DRAW_VIEW |
                    ctx.DRAWWINDOW_ASYNC_DECODE_IMAGES |
                    ctx.DRAWWINDOW_USE_WIDGET_LAYERS);
@@ -972,34 +925,11 @@ var gHistorySwipeAnimation = {
     // Temporarily store the canvas as the compressed snapshot.
     // This avoids a blank page if the user swipes quickly
     // between pages before the compression could complete.
-    snapshots[currIndex] = {
-      image: aCanvas,
-      scale: window.devicePixelRatio
-    };
-  },
-
-  /**
-   * Compresses the HTMLCanvasElement that's stored at the current history
-   * index in the snapshot array and stores the compressed image in its place.
-   */
-  _compressSnapshotAtCurrentIndex:
-  function() {
-    if (!this._readyToTakeSnapshots()) {
-      // We didn't take a snapshot earlier because we weren't ready to, so
-      // there's nothing to compress.
-      return;
-    }
-
-    let browser = gBrowser.selectedBrowser;
-    let snapshots = browser.snapshots;
-    let currIndex = browser.webNavigation.sessionHistory.index;
+    snapshots[currIndex] = aCanvas;
 
     // Kick off snapshot compression.
-    let canvas = snapshots[currIndex].image;
-    canvas.toBlob(function(aBlob) {
-        if (snapshots[currIndex]) {
-          snapshots[currIndex].image = aBlob;
-        }
+    aCanvas.toBlob(function(aBlob) {
+        snapshots[currIndex] = aBlob;
       }, "image/png"
     );
   },
@@ -1050,7 +980,6 @@ var gHistorySwipeAnimation = {
 
     while (arr.length > this._maxSnapshots) {
       let lastElem = arr[arr.length - 1];
-      delete lastElem.browser.snapshots[lastElem.index].image;
       delete lastElem.browser.snapshots[lastElem.index];
       arr.splice(-1, 1);
     }
@@ -1075,42 +1004,12 @@ var gHistorySwipeAnimation = {
       return aBlob;
 
     let img = new Image();
-    let url = "";
-    try {
-      url = URL.createObjectURL(aBlob);
-      img.onload = function() {
-        URL.revokeObjectURL(url);
-      };
-    }
-    finally {
-      img.src = url;
-      return img;
-    }
-  },
-
-  /**
-   * Scales the background of a given box element (which uses a given snapshot
-   * as background) based on a given scale factor.
-   * @param aSnapshot
-   *        The snapshot that is used as background of aBox.
-   * @param aScale
-   *        The scale factor to use.
-   * @param aBox
-   *        The box element that uses aSnapshot as background.
-   */
-  _scaleSnapshot: function(aSnapshot, aScale, aBox) {
-    if (aSnapshot && aScale != 1 && aBox) {
-      if (aSnapshot instanceof HTMLCanvasElement) {
-        aBox.style.backgroundSize =
-          aSnapshot.width / aScale + "px " + aSnapshot.height / aScale + "px";
-      } else {
-        // snapshot is instanceof HTMLImageElement
-        aSnapshot.addEventListener("load", function() {
-          aBox.style.backgroundSize =
-            aSnapshot.width / aScale + "px " + aSnapshot.height / aScale + "px";
-        });
-      }
-    }
+    let url = URL.createObjectURL(aBlob);
+    img.onload = function() {
+      URL.revokeObjectURL(url);
+    };
+    img.src = url;
+    return img;
   },
 
   /**
@@ -1125,17 +1024,12 @@ var gHistorySwipeAnimation = {
   _installCurrentPageSnapshot:
   function(aCanvas) {
     let currSnapshot = aCanvas;
-    let scale = window.devicePixelRatio;
     if (!currSnapshot) {
       let snapshots = gBrowser.selectedBrowser.snapshots || {};
       let currIndex = this._historyIndex;
-      if (currIndex in snapshots) {
-        currSnapshot = this._convertToImg(snapshots[currIndex].image);
-        scale = snapshots[currIndex].scale;
-      }
+      if (currIndex in snapshots)
+        currSnapshot = this._convertToImg(snapshots[currIndex]);
     }
-    this._scaleSnapshot(currSnapshot, scale, this._curBox ? this._curBox :
-                                                            null);
     document.mozSetImageElement("historySwipeAnimationCurrentPageSnapshot",
                                   currSnapshot);
   },
@@ -1150,21 +1044,15 @@ var gHistorySwipeAnimation = {
     let currIndex = this._historyIndex;
     let prevIndex = currIndex - 1;
     let prevSnapshot = null;
-    if (prevIndex in snapshots) {
-      prevSnapshot = this._convertToImg(snapshots[prevIndex].image);
-      this._scaleSnapshot(prevSnapshot, snapshots[prevIndex].scale,
-                          this._prevBox);
-    }
+    if (prevIndex in snapshots)
+      prevSnapshot = this._convertToImg(snapshots[prevIndex]);
     document.mozSetImageElement("historySwipeAnimationPreviousPageSnapshot",
                                 prevSnapshot);
 
     let nextIndex = currIndex + 1;
     let nextSnapshot = null;
-    if (nextIndex in snapshots) {
-      nextSnapshot = this._convertToImg(snapshots[nextIndex].image);
-      this._scaleSnapshot(nextSnapshot, snapshots[nextIndex].scale,
-                          this._nextBox);
-    }
+    if (nextIndex in snapshots)
+      nextSnapshot = this._convertToImg(snapshots[nextIndex]);
     document.mozSetImageElement("historySwipeAnimationNextPageSnapshot",
                                 nextSnapshot);
   },
