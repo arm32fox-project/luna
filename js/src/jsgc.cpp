@@ -6176,6 +6176,12 @@ gc::MergeCompartments(JSCompartment* source, JSCompartment* target)
     for (auto group = source->zone()->cellIter<ObjectGroup>(); !group.done(); group.next()) {
         group->setGeneration(target->zone()->types.generation);
         group->compartment_ = target;
+
+        // Remove any unboxed layouts from the list in the off thread
+        // compartment. These do not need to be reinserted in the target
+        // compartment's list, as the list is not required to be complete.
+        if (UnboxedLayout* layout = group->maybeUnboxedLayoutDontCheckGeneration())
+            layout->detachFromCompartment();
     }
 
     // Fixup zone pointers in source's zone to refer to target's zone.
@@ -6778,6 +6784,7 @@ js::gc::NextCellUniqueId(JSRuntime* rt)
 
 namespace js {
 namespace gc {
+#ifdef MOZ_DEVTOOLS_SERVER
 namespace MemInfo {
 
 static bool
@@ -6993,6 +7000,7 @@ NewMemoryInfoObject(JSContext* cx)
 
     return obj;
 }
+#endif // MOZ_DEVTOOLS_SERVER
 
 const char*
 StateName(State state)

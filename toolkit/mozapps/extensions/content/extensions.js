@@ -3059,6 +3059,19 @@ var gDetailView = {
         warning.textContent =
           gStrings.ext.formatStringFromName("details.notification.gmpPending",
                                             [this._addon.name], 1);
+#ifdef MOZ_PHOENIX_EXTENSIONS
+      } else if (this._addon.native == false) {
+        this.node.setAttribute("notification", "warning");
+        this.node.setAttribute("native", "false");
+        document.getElementById("detail-warning").textContent = gStrings.ext.formatStringFromName(
+          "details.notification.compatibility",
+          [this._addon.name, gStrings.brandShortName], 2
+        );
+        var warningLink = document.getElementById("detail-warning-link");
+        warningLink.value = gStrings.ext.GetStringFromName("details.notification.compatibility.link");
+        warningLink.href = Services.urlFormatter.formatURLPref("extensions.compatibility.url");
+        warningLink.hidden = false;
+#endif
       } else {
         this.node.removeAttribute("notification");
       }

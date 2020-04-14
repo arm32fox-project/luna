@@ -39,8 +39,6 @@ class WakeLock;
 class ArrayBufferViewOrBlobOrStringOrFormData;
 class ServiceWorkerContainer;
 class DOMRequest;
-struct FlyWebPublishOptions;
-struct FlyWebFilter;
 } // namespace dom
 } // namespace mozilla
 
@@ -74,7 +72,6 @@ class Connection;
 } // namespace network
 
 class PowerManager;
-class Presentation;
 class LegacyMozTCPSocket;
 class StorageManager;
 
@@ -141,9 +138,6 @@ public:
   Geolocation* GetGeolocation(ErrorResult& aRv);
   Promise* GetBattery(ErrorResult& aRv);
 
-  already_AddRefed<Promise> PublishServer(const nsAString& aName,
-                                          const FlyWebPublishOptions& aOptions,
-                                          ErrorResult& aRv);
   static void AppName(nsAString& aAppName, bool aUsePrefOverriddenValue);
 
   static nsresult GetPlatform(nsAString& aPlatform,
@@ -209,8 +203,6 @@ public:
 #ifdef MOZ_AUDIO_CHANNEL_MANAGER
   system::AudioChannelManager* GetMozAudioChannelManager(ErrorResult& aRv);
 #endif // MOZ_AUDIO_CHANNEL_MANAGER
-
-  Presentation* GetPresentation(ErrorResult& aRv);
 
   bool SendBeacon(const nsAString& aUrl,
                   const Nullable<ArrayBufferViewOrBlobOrStringOrFormData>& aData,
@@ -288,7 +280,6 @@ private:
   RefPtr<time::TimeManager> mTimeManager;
   RefPtr<ServiceWorkerContainer> mServiceWorkerContainer;
   nsCOMPtr<nsPIDOMWindowInner> mWindow;
-  RefPtr<Presentation> mPresentation;
 #ifdef MOZ_GAMEPAD
   RefPtr<GamepadServiceTest> mGamepadServiceTest;
 #endif

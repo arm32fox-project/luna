@@ -2436,6 +2436,11 @@ public:
   nsIWidget* GetNearestWidget(nsPoint& aOffset) const;
 
   /**
+   * Whether the content for this frame is disabled, used for event handling.
+   */
+  bool IsContentDisabled() const;
+
+  /**
    * Get the "type" of the frame. May return nullptr.
    *
    * @see nsGkAtoms

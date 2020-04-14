@@ -6,6 +6,7 @@
 #include "mozilla/StaticPtr.h"
 #include "mozilla/ClearOnShutdown.h"
 #include "nsIDocShell.h"
+#include "nsNetCID.h"
 
 namespace mozilla {
 namespace dom {

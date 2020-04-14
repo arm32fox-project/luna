@@ -132,12 +132,6 @@ partial interface Navigator {
   Promise<BatteryManager> getBattery();
 };
 
-partial interface Navigator {
-  [NewObject, Pref="dom.flyweb.enabled"]
-  Promise<FlyWebPublishedServer> publishServer(DOMString name,
-                                               optional FlyWebPublishOptions options);
-};
-
 // http://www.w3.org/TR/vibration/#vibration-interface
 partial interface Navigator {
     // We don't support sequences in unions yet
@@ -328,11 +322,6 @@ partial interface Navigator {
   [Throws, Pref="beacon.enabled"]
   boolean sendBeacon(DOMString url,
                      optional (ArrayBufferView or Blob or DOMString or FormData)? data = null);
-};
-
-partial interface Navigator {
-  [Throws, Pref="dom.presentation.enabled", SameObject]
-  readonly attribute Presentation? presentation;
 };
 
 partial interface Navigator {

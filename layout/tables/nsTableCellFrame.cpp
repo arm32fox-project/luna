@@ -59,20 +59,6 @@ nsTableCellFrame::~nsTableCellFrame()
 
 NS_IMPL_FRAMEARENA_HELPERS(nsTableCellFrame)
 
-nsTableCellFrame*
-nsTableCellFrame::GetNextCell() const
-{
-  nsIFrame* childFrame = GetNextSibling();
-  while (childFrame) {
-    nsTableCellFrame *cellFrame = do_QueryFrame(childFrame);
-    if (cellFrame) {
-      return cellFrame;
-    }
-    childFrame = childFrame->GetNextSibling();
-  }
-  return nullptr;
-}
-
 void
 nsTableCellFrame::Init(nsIContent*       aContent,
                        nsContainerFrame* aParent,
@@ -88,8 +74,7 @@ nsTableCellFrame::Init(nsIContent*       aContent,
   if (aPrevInFlow) {
     // Set the column index
     nsTableCellFrame* cellFrame = (nsTableCellFrame*)aPrevInFlow;
-    int32_t           colIndex;
-    cellFrame->GetColIndex(colIndex);
+    uint32_t colIndex = cellFrame->ColIndex();
     SetColIndex(colIndex);
   }
 }
@@ -183,34 +168,6 @@ nsTableCellFrame::NeedsToObserve(const ReflowInput& aReflowInput)
 }
 
 nsresult
-nsTableCellFrame::GetRowIndex(int32_t &aRowIndex) const
-{
-  nsresult result;
-  nsTableRowFrame* row = static_cast<nsTableRowFrame*>(GetParent());
-  if (row) {
-    aRowIndex = row->GetRowIndex();
-    result = NS_OK;
-  }
-  else {
-    aRowIndex = 0;
-    result = NS_ERROR_NOT_INITIALIZED;
-  }
-  return result;
-}
-
-nsresult
-nsTableCellFrame::GetColIndex(int32_t &aColIndex) const
-{
-  if (GetPrevInFlow()) {
-    return static_cast<nsTableCellFrame*>(FirstInFlow())->GetColIndex(aColIndex);
-  }
-  else {
-    aColIndex = mColIndex;
-    return  NS_OK;
-  }
-}
-
-nsresult
 nsTableCellFrame::AttributeChanged(int32_t         aNameSpaceID,
                                    nsIAtom*        aAttribute,
                                    int32_t         aModType)
@@ -238,13 +195,13 @@ nsTableCellFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
   nsTableFrame* tableFrame = GetTableFrame();
   if (tableFrame->IsBorderCollapse() &&
       tableFrame->BCRecalcNeeded(aOldStyleContext, StyleContext())) {
-    int32_t colIndex, rowIndex;
-    GetColIndex(colIndex);
-    GetRowIndex(rowIndex);
+    uint32_t colIndex = ColIndex();
+    uint32_t rowIndex = RowIndex();
     // row span needs to be clamped as we do not create rows in the cellmap
     // which do not have cells originating in them
     TableArea damageArea(colIndex, rowIndex, GetColSpan(),
-      std::min(GetRowSpan(), tableFrame->GetRowCount() - rowIndex));
+      std::min(static_cast<uint32_t>(GetRowSpan()),
+               tableFrame->GetRowCount() - rowIndex));
     tableFrame->AddBCDamageArea(damageArea);
   }
 }
@@ -464,19 +421,40 @@ PaintTableCellSelection(nsIFrame* aFrame, DrawTarget* aDrawTarget,
                                                                aPt);
 }
 
+bool
+nsTableCellFrame::ShouldPaintBordersAndBackgrounds() const
+{
+  // If we're not visible, we don't paint.
+  if (!StyleVisibility()->IsVisible()) {
+    return false;
+  }
+
+  // Consider 'empty-cells', but only in separated borders mode.
+  if (!GetContentEmpty()) {
+    return true;
+  }
+
+  nsTableFrame* tableFrame = GetTableFrame();
+  if (tableFrame->IsBorderCollapse()) {
+    return true;
+  }
+
+  return StyleTableBorder()->mEmptyCells == NS_STYLE_TABLE_EMPTY_CELLS_SHOW;
+}
+
+bool
+nsTableCellFrame::ShouldPaintBackground(nsDisplayListBuilder* aBuilder)
+{
+  return ShouldPaintBordersAndBackgrounds() && IsVisibleInSelection(aBuilder);
+}
+
 void
 nsTableCellFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                    const nsRect&           aDirtyRect,
                                    const nsDisplayListSet& aLists)
 {
   DO_GLOBAL_REFLOW_COUNT_DSP("nsTableCellFrame");
-  nsTableFrame* tableFrame = GetTableFrame();
-  int32_t emptyCellStyle = GetContentEmpty() && !tableFrame->IsBorderCollapse() ?
-                              StyleTableBorder()->mEmptyCells
-                              : NS_STYLE_TABLE_EMPTY_CELLS_SHOW;
-  // take account of 'empty-cells'
-  if (StyleVisibility()->IsVisible() &&
-      (NS_STYLE_TABLE_EMPTY_CELLS_HIDE != emptyCellStyle)) {
+  if (ShouldPaintBordersAndBackgrounds()) {
     // display outset box-shadows if we need to.
     bool hasBoxShadow = !!StyleEffects()->mBoxShadow;
     if (hasBoxShadow) {
@@ -501,7 +479,7 @@ nsTableCellFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     }
 
     // display borders if we need to
-    ProcessBorders(tableFrame, aBuilder, aLists);
+    ProcessBorders(GetTableFrame(), aBuilder, aLists);
 
     // and display the selection border if we need to
     if (IsSelected()) {
@@ -704,16 +682,18 @@ nsTableCellFrame::GetCellBaseline() const
          borderPadding;
 }
 
-int32_t nsTableCellFrame::GetRowSpan()
+int32_t
+nsTableCellFrame::GetRowSpan()
 {
   int32_t rowSpan=1;
-  nsGenericHTMLElement *hc = nsGenericHTMLElement::FromContent(mContent);
 
   // Don't look at the content's rowspan if we're a pseudo cell
-  if (hc && !StyleContext()->GetPseudo()) {
-    const nsAttrValue* attr = hc->GetParsedAttr(nsGkAtoms::rowspan);
+  if (!StyleContext()->GetPseudo()) {
+    dom::Element* elem = mContent->AsElement();
+    const nsAttrValue* attr = elem->GetParsedAttr(nsGkAtoms::rowspan);
     // Note that we don't need to check the tag name, because only table cells
-    // and table headers parse the "rowspan" attribute into an integer.
+    // (including MathML <mtd>) and table headers parse the "rowspan" attribute
+    // into an integer.
     if (attr && attr->Type() == nsAttrValue::eInteger) {
        rowSpan = attr->GetIntegerValue();
     }
@@ -721,16 +701,20 @@ int32_t nsTableCellFrame::GetRowSpan()
   return rowSpan;
 }
 
-int32_t nsTableCellFrame::GetColSpan()
+int32_t 
+nsTableCellFrame::GetColSpan()
 {
   int32_t colSpan=1;
-  nsGenericHTMLElement *hc = nsGenericHTMLElement::FromContent(mContent);
 
   // Don't look at the content's colspan if we're a pseudo cell
-  if (hc && !StyleContext()->GetPseudo()) {
-    const nsAttrValue* attr = hc->GetParsedAttr(nsGkAtoms::colspan);
+  if (!StyleContext()->GetPseudo()) {
+    dom::Element* elem = mContent->AsElement();
+    const nsAttrValue* attr = elem->GetParsedAttr(
+      MOZ_UNLIKELY(elem->IsMathMLElement()) ? nsGkAtoms::columnspan_
+                                            : nsGkAtoms::colspan);
     // Note that we don't need to check the tag name, because only table cells
-    // and table headers parse the "colspan" attribute into an integer.
+    // (including MathML <mtd>) and table headers parse the "colspan" attribute
+    // into an integer.
     if (attr && attr->Type() == nsAttrValue::eInteger) {
        colSpan = attr->GetIntegerValue();
     }
@@ -807,14 +791,13 @@ CalcUnpaginatedBSize(nsTableCellFrame& aCellFrame,
   nsTableRowGroupFrame* firstRGInFlow =
     static_cast<nsTableRowGroupFrame*>(row->GetParent());
 
-  int32_t rowIndex;
-  firstCellInFlow->GetRowIndex(rowIndex);
+  uint32_t rowIndex = firstCellInFlow->RowIndex();
   int32_t rowSpan = aTableFrame.GetEffectiveRowSpan(*firstCellInFlow);
 
   nscoord computedBSize = firstTableInFlow->GetRowSpacing(rowIndex,
                                                           rowIndex + rowSpan - 1);
   computedBSize -= aBlockDirBorderPadding;
-  int32_t rowX;
+  uint32_t rowX;
   for (row = firstRGInFlow->GetFirstRow(), rowX = 0; row; row = row->GetNextRow(), rowX++) {
     if (rowX > rowIndex + rowSpan - 1) {
       break;
@@ -1029,12 +1012,7 @@ nsTableCellFrame::AccessibleType()
 NS_IMETHODIMP
 nsTableCellFrame::GetCellIndexes(int32_t &aRowIndex, int32_t &aColIndex)
 {
-  nsresult res = GetRowIndex(aRowIndex);
-  if (NS_FAILED(res))
-  {
-    aColIndex = 0;
-    return res;
-  }
+  aRowIndex = RowIndex();
   aColIndex = mColIndex;
   return  NS_OK;
 }

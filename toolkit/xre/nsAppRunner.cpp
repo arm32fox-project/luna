@@ -23,7 +23,7 @@
 
 #include "nsAppRunner.h"
 #include "mozilla/AppData.h"
-#if defined(MOZ_UPDATER) && !defined(MOZ_WIDGET_ANDROID)
+#ifdef MOZ_UPDATER
 #include "nsUpdateDriver.h"
 #endif
 #include "ProfileReset.h"
@@ -185,10 +185,6 @@
 
 #include "base/command_line.h"
 #include "GTestRunner.h"
-
-#ifdef MOZ_WIDGET_ANDROID
-#include "GeneratedJNIWrappers.h"
-#endif
 
 extern uint32_t gRestartMode;
 extern void InstallSignalHandlers(const char *ProgramName);
@@ -1517,9 +1513,6 @@ static nsresult LaunchChild(nsINativeAppSupport* aNative,
 
   SaveToEnv("MOZ_LAUNCHED_CHILD=1");
 
-#if defined(MOZ_WIDGET_ANDROID)
-  java::GeckoAppShell::ScheduleRestart();
-#else
 #if defined(XP_MACOSX)
   CommandLineServiceMac::SetupMacCommandLine(gRestartArgc, gRestartArgv, true);
   LaunchChildMac(gRestartArgc, gRestartArgv);
@@ -1559,7 +1552,6 @@ static nsresult LaunchChild(nsINativeAppSupport* aNative,
 #endif // XP_UNIX
 #endif // WP_WIN
 #endif // WP_MACOSX
-#endif // MOZ_WIDGET_ANDROID
 
   return NS_ERROR_LAUNCHED_CHILD_PROCESS;
 }
@@ -1653,10 +1645,7 @@ ProfileLockedDialog(nsIFile* aProfileDir, nsIFile* aProfileLocalDir,
 
     if (aUnlocker) {
       int32_t button;
-#ifdef MOZ_WIDGET_ANDROID
-      java::GeckoAppShell::KillAnyZombies();
-      button = 0;
-#else
+
       const uint32_t flags =
         (nsIPromptService::BUTTON_TITLE_IS_STRING *
          nsIPromptService::BUTTON_POS_0) +
@@ -1668,7 +1657,6 @@ ProfileLockedDialog(nsIFile* aProfileDir, nsIFile* aProfileLocalDir,
                          killTitle, nullptr, nullptr, nullptr,
                          &checkState, &button);
       NS_ENSURE_SUCCESS_LOG(rv, rv);
-#endif
 
       if (button == 0) {
         rv = aUnlocker->Unlock(nsIProfileUnlocker::FORCE_QUIT);
@@ -1682,15 +1670,8 @@ ProfileLockedDialog(nsIFile* aProfileDir, nsIFile* aProfileLocalDir,
         return LaunchChild(aNative);
       }
     } else {
-#ifdef MOZ_WIDGET_ANDROID
-      if (java::GeckoAppShell::UnlockProfile()) {
-        return NS_LockProfilePath(aProfileDir, aProfileLocalDir,
-                                  nullptr, aResult);
-      }
-#else
       rv = ps->Alert(nullptr, killTitle, killMessage);
       NS_ENSURE_SUCCESS_LOG(rv, rv);
-#endif
     }
 
     return NS_ERROR_ABORT;
@@ -2800,18 +2781,25 @@ XREMain::XRE_mainInit(bool* aExitFlag)
 #endif
 
   SetupErrorHandling(gArgv[0]);
-  
-  // Set up environment for NSS DBM database
 
+  // Set up environment for NSS database choice
+#ifndef NSS_DISABLE_DBM
   // Allow iteration counts in DBM mode
   SaveToEnv("NSS_ALLOW_LEGACY_DBM_ITERATION_COUNT=1");
+#endif
+
+#ifdef DEBUG
+  // Reduce the number of rounds for debug builds for perf/test reasons.
+  SaveToEnv("NSS_MAX_MP_PBE_ITERATION_COUNT=15");
+#else
+#ifdef MOZ_SECURITY_SQLSTORE
+  // We're using SQL; NSS's defaults for rounds are fine.
+#else
   // Set default Master Password rounds to a sane value for DBM which is slower
   // than SQL for PBKDF. The NSS hard-coded default of 10,000 is too much.
   // See also Bug 1606992 for perf issues.
-#ifdef DEBUG
-  SaveToEnv("NSS_MAX_MP_PBE_ITERATION_COUNT=15");
-#else
   SaveToEnv("NSS_MAX_MP_PBE_ITERATION_COUNT=500");
+#endif
 #endif
 
 #ifdef CAIRO_HAS_DWRITE_FONT
@@ -3409,7 +3397,7 @@ XREMain::XRE_mainStartup(bool* aExitFlag)
   }
 #endif
 
-#if defined(MOZ_UPDATER) && !defined(MOZ_WIDGET_ANDROID)
+#ifdef MOZ_UPDATER
   // Check for and process any available updates
   nsCOMPtr<nsIFile> updRoot;
   bool persistent;
@@ -4131,45 +4119,49 @@ XRE_InitCommandLine(int aArgc, char* aArgv[])
   delete[] canonArgs;
 #endif
 
-  const char *path = nullptr;
-  ArgResult ar = CheckArg("greomni", true, &path);
-  if (ar == ARG_BAD) {
-    PR_fprintf(PR_STDERR, 
-               "Error: argument --greomni requires a path argument or the "
-               "--osint argument was specified with the --greomni argument "
-               "which is invalid.\n");
-    return NS_ERROR_FAILURE;
-  }
+  if (PR_GetEnv("UXP_CUSTOM_OMNI")) {
+    // Process CLI parameters for specifying custom omnijars
+    const char *path = nullptr;
+    ArgResult ar = CheckArg("greomni", true, &path);
+    if (ar == ARG_BAD) {
+      PR_fprintf(PR_STDERR, 
+                 "Error: argument --greomni requires a path argument or the "
+                 "--osint argument was specified with the --greomni argument "
+                 "which is invalid.\n");
+      return NS_ERROR_FAILURE;
+    }
 
-  if (!path)
-    return rv;
+    if (!path)
+      return rv;
 
-  nsCOMPtr<nsIFile> greOmni;
-  rv = XRE_GetFileFromPath(path, getter_AddRefs(greOmni));
-  if (NS_FAILED(rv)) {
-    PR_fprintf(PR_STDERR, "Error: argument --greomni requires a valid path\n");
-    return rv;
-  }
+    nsCOMPtr<nsIFile> greOmni;
+    rv = XRE_GetFileFromPath(path, getter_AddRefs(greOmni));
+    if (NS_FAILED(rv)) {
+      PR_fprintf(PR_STDERR, "Error: argument --greomni requires a valid path\n");
+      return rv;
+    }
 
-  ar = CheckArg("appomni", true, &path);
-  if (ar == ARG_BAD) {
-    PR_fprintf(PR_STDERR,
-               "Error: argument --appomni requires a path argument or the "
-               "--osint argument was specified with the --appomni argument "
-               "which is invalid.\n");
-    return NS_ERROR_FAILURE;
-  }
+    ar = CheckArg("appomni", true, &path);
+    if (ar == ARG_BAD) {
+      PR_fprintf(PR_STDERR,
+                 "Error: argument --appomni requires a path argument or the "
+                 "--osint argument was specified with the --appomni argument "
+                 "which is invalid.\n");
+      return NS_ERROR_FAILURE;
+    }
 
-  nsCOMPtr<nsIFile> appOmni;
-  if (path) {
-      rv = XRE_GetFileFromPath(path, getter_AddRefs(appOmni));
-      if (NS_FAILED(rv)) {
-        PR_fprintf(PR_STDERR, "Error: argument --appomni requires a valid path\n");
-        return rv;
-      }
-  }
+    nsCOMPtr<nsIFile> appOmni;
+    if (path) {
+        rv = XRE_GetFileFromPath(path, getter_AddRefs(appOmni));
+        if (NS_FAILED(rv)) {
+          PR_fprintf(PR_STDERR, "Error: argument --appomni requires a valid path\n");
+          return rv;
+        }
+    }
 
-  mozilla::Omnijar::Init(greOmni, appOmni);
+    mozilla::Omnijar::Init(greOmni, appOmni);
+  } // UXP_CUSTOM_OMNI
+
   return rv;
 }
 

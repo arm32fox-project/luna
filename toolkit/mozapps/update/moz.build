@@ -11,19 +11,13 @@ DIRS += [
     'updater',
 ]
 
-XPIDL_SOURCES += [
-    'nsIUpdateService.idl',
-]
-
-TEST_DIRS += ['tests']
+XPIDL_SOURCES += ['nsIUpdateService.idl']
 
 EXTRA_COMPONENTS += [
-    'nsUpdateService.js',
     'nsUpdateService.manifest',
     'nsUpdateServiceStub.js',
 ]
 
-JAR_MANIFESTS += ['jar.mn']
+EXTRA_PP_COMPONENTS += ['nsUpdateService.js']
 
-with Files('**'):
-    BUG_COMPONENT = ('Toolkit', 'Application Update')
+JAR_MANIFESTS += ['jar.mn']

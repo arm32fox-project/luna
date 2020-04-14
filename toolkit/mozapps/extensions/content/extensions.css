@@ -152,8 +152,6 @@ setting[type="menulist"] {
 .addon:not([notification="info"]) .info,
 .addon:not([pending]) .pending,
 .addon:not([upgrade="true"]) .update-postfix,
-.addon:not([native="true"]) .nativeAddon,
-.addon:not([native="false"]) .compatAddon,
 .addon[active="true"] .disabled-postfix,
 .addon[pending="install"] .update-postfix,
 .addon[pending="install"] .disabled-postfix,
@@ -264,21 +262,6 @@ richlistitem:not([selected]) * {
 .addon[type="experiment"][status="installing"] .experiment-time,
 .addon[type="experiment"][status="installing"] .experiment-state {
   display: none;
-}
-
-/* Indicator style for extension target application */
-.addon[native] .nativeIndicator {
-  margin-left: 5pt;
-  padding-bottom: 1pt;
-}
-.addon[native][active="false"] .nativeIndicator {
-  opacity: 0.4;
-}
-.addon[native] .nativeAddon {
-  color: #3366FF;
-}
-.addon[native] .compatAddon {
-  color: #FF6600;
 }
 
 /* Translators for Language Pack details */

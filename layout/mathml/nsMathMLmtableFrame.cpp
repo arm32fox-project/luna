@@ -183,10 +183,8 @@ static void
 ApplyBorderToStyle(const nsMathMLmtdFrame* aFrame,
                    nsStyleBorder& aStyleBorder)
 {
-  int32_t rowIndex;
-  int32_t columnIndex;
-  aFrame->GetRowIndex(rowIndex);
-  aFrame->GetColIndex(columnIndex);
+  uint32_t rowIndex = aFrame->RowIndex();
+  uint32_t columnIndex = aFrame->ColIndex();
 
   nscoord borderWidth =
     aFrame->PresContext()->GetBorderWidthTable()[NS_STYLE_BORDER_WIDTH_THIN];
@@ -201,7 +199,7 @@ ApplyBorderToStyle(const nsMathMLmtdFrame* aFrame,
   if (rowIndex > 0 && rowLinesList) {
     // If the row number is greater than the number of provided rowline
     // values, we simply repeat the last value.
-    int32_t listLength = rowLinesList->Length();
+    uint32_t listLength = rowLinesList->Length();
     if (rowIndex < listLength) {
       aStyleBorder.SetBorderStyle(NS_SIDE_TOP,
                     rowLinesList->ElementAt(rowIndex - 1));
@@ -216,7 +214,7 @@ ApplyBorderToStyle(const nsMathMLmtdFrame* aFrame,
   if (columnIndex > 0 && columnLinesList) {
     // If the column number is greater than the number of provided columline
     // values, we simply repeat the last value.
-    int32_t listLength = columnLinesList->Length();
+    uint32_t listLength = columnLinesList->Length();
     if (columnIndex < listLength) {
       aStyleBorder.SetBorderStyle(NS_SIDE_LEFT,
                     columnLinesList->ElementAt(columnIndex - 1));
@@ -1160,47 +1158,6 @@ nsMathMLmtdFrame::Init(nsIContent*       aContent,
   RemoveStateBits(NS_FRAME_FONT_INFLATION_FLOW_ROOT);
 }
 
-int32_t
-nsMathMLmtdFrame::GetRowSpan()
-{
-  int32_t rowspan = 1;
-
-  // Don't look at the content's rowspan if we're not an mtd or a pseudo cell.
-  if (mContent->IsMathMLElement(nsGkAtoms::mtd_) &&
-      !StyleContext()->GetPseudo()) {
-    nsAutoString value;
-    mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::rowspan, value);
-    if (!value.IsEmpty()) {
-      nsresult error;
-      rowspan = value.ToInteger(&error);
-      if (NS_FAILED(error) || rowspan < 0)
-        rowspan = 1;
-      rowspan = std::min(rowspan, MAX_ROWSPAN);
-    }
-  }
-  return rowspan;
-}
-
-int32_t
-nsMathMLmtdFrame::GetColSpan()
-{
-  int32_t colspan = 1;
-
-  // Don't look at the content's colspan if we're not an mtd or a pseudo cell.
-  if (mContent->IsMathMLElement(nsGkAtoms::mtd_) &&
-      !StyleContext()->GetPseudo()) {
-    nsAutoString value;
-    mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::columnspan_, value);
-    if (!value.IsEmpty()) {
-      nsresult error;
-      colspan = value.ToInteger(&error);
-      if (NS_FAILED(error) || colspan <= 0 || colspan > MAX_COLSPAN)
-        colspan = 1;
-    }
-  }
-  return colspan;
-}
-
 nsresult
 nsMathMLmtdFrame::AttributeChanged(int32_t  aNameSpaceID,
                                    nsIAtom* aAttribute,
@@ -1243,12 +1200,11 @@ nsMathMLmtdFrame::GetVerticalAlign() const
   nsTArray<int8_t>* alignmentList = FindCellProperty(this, RowAlignProperty());
 
   if (alignmentList) {
-    int32_t rowIndex;
-    GetRowIndex(rowIndex);
+    uint32_t rowIndex = RowIndex();
 
     // If the row number is greater than the number of provided rowalign values,
     // we simply repeat the last value.
-    if (rowIndex < (int32_t)alignmentList->Length())
+    if (rowIndex < alignmentList->Length())
       alignment = alignmentList->ElementAt(rowIndex);
     else
       alignment = alignmentList->ElementAt(alignmentList->Length() - 1);
@@ -1335,12 +1291,11 @@ nsStyleText* nsMathMLmtdInnerFrame::StyleTextForLineLayout()
 
   if (alignmentList) {
     nsMathMLmtdFrame* cellFrame = (nsMathMLmtdFrame*)GetParent();
-    int32_t columnIndex;
-    cellFrame->GetColIndex(columnIndex);
+    uint32_t columnIndex = cellFrame->ColIndex();
 
     // If the column number is greater than the number of provided columalign
     // values, we simply repeat the last value.
-    if (columnIndex < (int32_t)alignmentList->Length())
+    if (columnIndex < alignmentList->Length())
       alignment = alignmentList->ElementAt(columnIndex);
     else
       alignment = alignmentList->ElementAt(alignmentList->Length() - 1);

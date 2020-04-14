@@ -5557,6 +5557,19 @@ nsFrame::Reflow(nsPresContext*          aPresContext,
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowInput, aDesiredSize);
 }
 
+bool
+nsIFrame::IsContentDisabled() const
+{
+  // FIXME(emilio): Doing this via CSS means callers must ensure the style is up
+  // to date, and they don't!
+  if (StyleUserInterface()->mUserInput == StyleUserInput::None) {
+    return true;
+  }
+
+  auto* element = nsGenericHTMLElement::FromContentOrNull(GetContent());
+  return element && element->IsDisabled();
+}
+
 nsresult
 nsFrame::CharacterDataChanged(CharacterDataChangeInfo* aInfo)
 {
@@ -8434,9 +8447,13 @@ UnionBorderBoxes(nsIFrame* aFrame, bool aApplyTransform,
   Maybe<nsRect> clipPropClipRect =
     aFrame->GetClipPropClipRect(disp, effects, bounds.Size());
 
-  // Iterate over all children except pop-ups.
+  // Iterate over all children except pop-ups, absolutely positioned children,
+  // fixed-positioned children and floats.
   const nsIFrame::ChildListIDs skip(nsIFrame::kPopupList |
-                                    nsIFrame::kSelectPopupList);
+                                    nsIFrame::kSelectPopupList |
+                                    nsIFrame::kAbsoluteList |
+                                    nsIFrame::kFixedList |
+                                    nsIFrame::kFloatList);
   for (nsIFrame::ChildListIterator childLists(aFrame);
        !childLists.IsDone(); childLists.Next()) {
     if (skip.Contains(childLists.CurrentID())) {
@@ -8446,6 +8463,12 @@ UnionBorderBoxes(nsIFrame* aFrame, bool aApplyTransform,
     nsFrameList children = childLists.CurrentList();
     for (nsFrameList::Enumerator e(children); !e.AtEnd(); e.Next()) {
       nsIFrame* child = e.get();
+      
+      if (child->GetType() == nsGkAtoms::placeholderFrame) {
+        // Skip placeholders too.
+        continue;
+      }
+
       // Note that passing |true| for aApplyTransform when
       // child->Combines3DTransformWithAncestors() is incorrect if our
       // aApplyTransform is false... but the opposite would be as

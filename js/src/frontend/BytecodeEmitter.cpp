@@ -3459,10 +3459,12 @@ BytecodeEmitter::checkSideEffects(ParseNode* pn, bool* answer)
 
       case PNK_CATCH:
         MOZ_ASSERT(pn->isArity(PN_TERNARY));
-        if (!checkSideEffects(pn->pn_kid1, answer))
-            return false;
-        if (*answer)
-            return true;
+        if (ParseNode* name = pn->pn_kid1) {
+            if (!checkSideEffects(name, answer))
+                return false;
+            if (*answer)
+                return true;
+        }
         if (ParseNode* cond = pn->pn_kid2) {
             if (!checkSideEffects(cond, answer))
                 return false;
@@ -6495,8 +6497,8 @@ ParseNode::getConstantValue(ExclusiveContext* cx, AllowConstantObjects allowObje
         }
         MOZ_ASSERT(idx == count);
 
-        ArrayObject* obj = ObjectGroup::newArrayObject(cx, values.begin(), values.length(),
-                                                       newKind, arrayKind);
+        JSObject* obj = ObjectGroup::newArrayObject(cx, values.begin(), values.length(),
+                                                    newKind, arrayKind);
         if (!obj)
             return false;
 
@@ -6638,24 +6640,31 @@ BytecodeEmitter::emitCatch(ParseNode* pn)
         return false;
 
     ParseNode* pn2 = pn->pn_kid1;
-    switch (pn2->getKind()) {
-      case PNK_ARRAY:
-      case PNK_OBJECT:
-        if (!emitDestructuringOps(pn2, DestructuringDeclaration))
-            return false;
-        if (!emit1(JSOP_POP))
-            return false;
-        break;
+    if (!pn2) {
+      // See ES2019 13.15.7 Runtime Semantics: CatchClauseEvaluation
+      // Catch variable was omitted: discard the exception.
+      if (!emit1(JSOP_POP))
+        return false;
+    } else {
+      switch (pn2->getKind()) {
+        case PNK_ARRAY:
+        case PNK_OBJECT:
+          if (!emitDestructuringOps(pn2, DestructuringDeclaration))
+              return false;
+          if (!emit1(JSOP_POP))
+              return false;
+          break;
 
-      case PNK_NAME:
-        if (!emitLexicalInitialization(pn2))
-            return false;
-        if (!emit1(JSOP_POP))
-            return false;
-        break;
+        case PNK_NAME:
+          if (!emitLexicalInitialization(pn2))
+              return false;
+          if (!emit1(JSOP_POP))
+              return false;
+          break;
 
-      default:
-        MOZ_ASSERT(0);
+        default:
+          MOZ_ASSERT(0);
+      }
     }
 
     // If there is a guard expression, emit it and arrange to jump to the next
@@ -6899,7 +6908,9 @@ BytecodeEmitter::emitLexicalScope(ParseNode* pn)
     EmitterScope emitterScope(this);
     ScopeKind kind;
     if (body->isKind(PNK_CATCH))
-        kind = body->pn_kid1->isKind(PNK_NAME) ? ScopeKind::SimpleCatch : ScopeKind::Catch;
+        kind = (!body->pn_kid1 || body->pn_kid1->isKind(PNK_NAME)) ?
+               ScopeKind::SimpleCatch :
+               ScopeKind::Catch;
     else
         kind = ScopeKind::Lexical;
 
@@ -9623,7 +9634,7 @@ BytecodeEmitter::emitCallOrNew(ParseNode* pn, ValueUsage valueUsage /* = ValueUs
                 return false;
         }
 
-        if (!emitArray(args, argc))
+        if (!emitArray(args, argc, JSOP_SPREADCALLARRAY))
             return false;
 
         if (optCodeEmitted) {
@@ -10138,11 +10149,11 @@ BytecodeEmitter::emitArrayLiteral(ParseNode* pn)
         }
     }
 
-    return emitArray(pn->pn_head, pn->pn_count);
+    return emitArray(pn->pn_head, pn->pn_count, JSOP_NEWARRAY);
 }
 
 bool
-BytecodeEmitter::emitArray(ParseNode* pn, uint32_t count)
+BytecodeEmitter::emitArray(ParseNode* pn, uint32_t count, JSOp op)
 {
 
     /*
@@ -10153,6 +10164,7 @@ BytecodeEmitter::emitArray(ParseNode* pn, uint32_t count)
      * to avoid dup'ing and popping the array as each element is added, as
      * JSOP_SETELEM/JSOP_SETPROP would do.
      */
+    MOZ_ASSERT(op == JSOP_NEWARRAY || op == JSOP_SPREADCALLARRAY);
 
     uint32_t nspread = 0;
     for (ParseNode* elt = pn; elt; elt = elt->pn_next) {
@@ -10173,7 +10185,7 @@ BytecodeEmitter::emitArray(ParseNode* pn, uint32_t count)
 
     // For arrays with spread, this is a very pessimistic allocation, the
     // minimum possible final size.
-    if (!emitUint32Operand(JSOP_NEWARRAY, count - nspread))         // ARRAY
+    if (!emitUint32Operand(op, count - nspread))                    // ARRAY
         return false;
 
     ParseNode* pn2 = pn;

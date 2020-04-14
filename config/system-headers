@@ -1253,9 +1253,6 @@ soundtouch/SoundTouchFactory.h
 #if MOZ_LIBAV_FFT==1
 libavcodec/avfft.h
 #endif
-#if MOZ_SYSTEM_PNG==1
-png.h
-#endif
 #if MOZ_SYSTEM_ZLIB==1
 zlib.h
 #endif
@@ -1291,15 +1288,6 @@ QtSparql/qsparqlresult.h
 #if MOZ_TREE_PIXMAN!=1
 pixman.h
 #endif
-#if MOZ_SYSTEM_LIBVPX==1
-vpx/svc_context.h
-vpx/vpx_codec.h
-vpx/vpx_decoder.h
-vpx/vpx_encoder.h
-vpx/vp8cx.h
-vpx/vp8dx.h
-vpx_mem/vpx_mem.h
-#endif
 gst/gst.h
 gst/app/gstappsink.h
 gst/app/gstappsrc.h
@@ -1312,22 +1300,6 @@ kvm.h
 spawn.h
 err.h
 xlocale.h
-#ifdef MOZ_SYSTEM_ICU
-unicode/locid.h
-unicode/numsys.h
-unicode/timezone.h
-unicode/ucal.h
-unicode/uchar.h
-unicode/uclean.h
-unicode/ucol.h
-unicode/udat.h
-unicode/udatpg.h
-unicode/uenum.h
-unicode/unorm.h
-unicode/unum.h
-unicode/ustring.h
-unicode/utypes.h
-#endif
 libutil.h
 unwind.h
 fenv.h

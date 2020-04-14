@@ -6,10 +6,8 @@
 
 external_dirs = []
 
-DIRS += [
-    'lgpllibs',
-    'sqlite',
-]
+DIRS += ['lgpllibs']
+
 if not CONFIG['MOZ_SYSTEM_JPEG']:
     external_dirs += ['media/libjpeg']
 
@@ -30,14 +28,12 @@ if CONFIG['MOZ_TREMOR']:
 if CONFIG['MOZ_WEBM_ENCODER']:
     external_dirs += ['media/libmkv']
 
-if not CONFIG['MOZ_SYSTEM_LIBVPX']:
-    external_dirs += ['media/libvpx']
+external_dirs += ['media/libvpx']
 
 if CONFIG['MOZ_AV1']:
     external_dirs += ['media/libaom']
 
-if not CONFIG['MOZ_SYSTEM_PNG']:
-    external_dirs += ['media/libpng']
+external_dirs += ['media/libpng']
 
 external_dirs += ['media/libwebp']
 

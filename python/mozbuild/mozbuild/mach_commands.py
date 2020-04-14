@@ -541,20 +541,24 @@ class Build(MachCommandBase):
                 # as when doing OSX Universal builds)
                 pass
 
-        # Check if there are any unpreprocessed files in '@MOZ_OBJDIR@/dist/bin'
-        # See python/mozbuild/mozbuild/preprocessor.py#L293-L309 for the list of directives
-        # We skip if, ifdef, ifndef, else, elif, elifdef and elifndef, because they are never used alone
-        #
-        # The original version of this script only worked with GNU grep because of the --include flag. 
-        # Not a problem in and of itself, except that it didn't take TOOLCHAIN_PREFIX and simply assumed 
-        # all operating systems use GNU grep as the system grep (often it's called ggrep or something). 
-        # This script is a bit slower, but should do the same thing on all Unix platforms. 
+        # Check for un-preprocessed files.. In case something goes wrong it will be noted
+        ppcheck_script = mozpath.join(self.topsrcdir, "build", "ppCheck.py")
+        ppcheck_path = mozpath.join(self.topobjdir, "dist", "bin")
+        if not os.path.exists(ppcheck_script):
+            ppcheck_script = mozpath.join(self.topsrcdir, "mozilla", "build", "ppCheck.py")
 
-        grepcmd = 'find ' + self.topobjdir + '/dist/bin' + ' -name \'\*.{css,dtd,html,js,jsm,xhtml,xml,xul,manifest,properties,rdf}\' ' + '| xargs grep -E "^(#|%)(define|endif|error|expand|filter|include|literal|undef|unfilter)" '\
-                  + '| awk "/\.css:%/ || (!/\.css/ && /:#/)"'
-        grepresult = subprocess.Popen(grepcmd, stdout=subprocess.PIPE, shell=True).communicate()[0]
-        if grepresult:
-            print('\nERROR: preprocessor was not applied to the following files:\n\n' + grepresult)
+        if not os.path.exists(ppcheck_script):
+            ppcheck_script = mozpath.join(self.topsrcdir, "platform", "build", "ppCheck.py")
+        else:
+            ppcheck_script = None
+        
+        if ppcheck_script:
+            ppcheck_cmd = [which.which("python2.7"), ppcheck_script, ppcheck_path]
+            ppcheck_result = subprocess.call(ppcheck_cmd, cwd=self.topsrcdir)
+        
+        if not ppcheck_script or ppcheck_result: 
+            print("\nWARNING: Something has gone wrong with the check for un-preprocessed files. " +
+                  "Please manually verify that files are properly preprocessed.")
 
         return status
 

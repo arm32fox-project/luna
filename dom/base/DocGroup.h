@@ -7,6 +7,7 @@
 #ifndef DocGroup_h
 #define DocGroup_h
 
+#include "nsIDocument.h"
 #include "nsISupports.h"
 #include "nsISupportsImpl.h"
 #include "nsIPrincipal.h"

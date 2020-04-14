@@ -2297,14 +2297,9 @@ LIRGenerator::visitToObjectOrNull(MToObjectOrNull* ins)
 void
 LIRGenerator::visitRegExp(MRegExp* ins)
 {
-    if (ins->mustClone()) {
-        LRegExp* lir = new(alloc()) LRegExp();
-        defineReturn(lir, ins);
-        assignSafepoint(lir, ins);
-    } else {
-        RegExpObject* source = ins->source();
-        define(new(alloc()) LPointer(source), ins);
-    }
+    LRegExp* lir = new(alloc()) LRegExp();
+    defineReturn(lir, ins);
+    assignSafepoint(lir, ins);
 }
 
 void
@@ -2895,6 +2890,32 @@ LIRGenerator::visitSetInitializedLength(MSetInitializedLength* ins)
 }
 
 void
+LIRGenerator::visitUnboxedArrayLength(MUnboxedArrayLength* ins)
+{
+    define(new(alloc()) LUnboxedArrayLength(useRegisterAtStart(ins->object())), ins);
+}
+
+void
+LIRGenerator::visitUnboxedArrayInitializedLength(MUnboxedArrayInitializedLength* ins)
+{
+    define(new(alloc()) LUnboxedArrayInitializedLength(useRegisterAtStart(ins->object())), ins);
+}
+
+void
+LIRGenerator::visitIncrementUnboxedArrayInitializedLength(MIncrementUnboxedArrayInitializedLength* ins)
+{
+    add(new(alloc()) LIncrementUnboxedArrayInitializedLength(useRegister(ins->object())), ins);
+}
+
+void
+LIRGenerator::visitSetUnboxedArrayInitializedLength(MSetUnboxedArrayInitializedLength* ins)
+{
+    add(new(alloc()) LSetUnboxedArrayInitializedLength(useRegister(ins->object()),
+                                                       useRegisterOrConstant(ins->length()),
+                                                       temp()), ins);
+}
+
+void
 LIRGenerator::visitNot(MNot* ins)
 {
     MDefinition* op = ins->input();
@@ -3143,16 +3164,22 @@ LIRGenerator::visitStoreElementHole(MStoreElementHole* ins)
     const LUse elements = useRegister(ins->elements());
     const LAllocation index = useRegisterOrConstant(ins->index());
 
+    // Use a temp register when adding new elements to unboxed arrays.
+    LDefinition tempDef = LDefinition::BogusTemp();
+    if (ins->unboxedType() != JSVAL_TYPE_MAGIC)
+        tempDef = temp();
+
     LInstruction* lir;
     switch (ins->value()->type()) {
       case MIRType::Value:
-        lir = new(alloc()) LStoreElementHoleV(object, elements, index, useBox(ins->value()));
+        lir = new(alloc()) LStoreElementHoleV(object, elements, index, useBox(ins->value()),
+                                              tempDef);
         break;
 
       default:
       {
         const LAllocation value = useRegisterOrNonDoubleConstant(ins->value());
-        lir = new(alloc()) LStoreElementHoleT(object, elements, index, value);
+        lir = new(alloc()) LStoreElementHoleT(object, elements, index, value, tempDef);
         break;
       }
     }
@@ -3171,14 +3198,20 @@ LIRGenerator::visitFallibleStoreElement(MFallibleStoreElement* ins)
     const LUse elements = useRegister(ins->elements());
     const LAllocation index = useRegisterOrConstant(ins->index());
 
+    // Use a temp register when adding new elements to unboxed arrays.
+    LDefinition tempDef = LDefinition::BogusTemp();
+    if (ins->unboxedType() != JSVAL_TYPE_MAGIC)
+        tempDef = temp();
+
     LInstruction* lir;
     switch (ins->value()->type()) {
       case MIRType::Value:
-        lir = new(alloc()) LFallibleStoreElementV(object, elements, index, useBox(ins->value()));
+        lir = new(alloc()) LFallibleStoreElementV(object, elements, index, useBox(ins->value()),
+                                                  tempDef);
         break;
       default:
         const LAllocation value = useRegisterOrNonDoubleConstant(ins->value());
-        lir = new(alloc()) LFallibleStoreElementT(object, elements, index, value);
+        lir = new(alloc()) LFallibleStoreElementT(object, elements, index, value, tempDef);
         break;
     }
 
@@ -3217,6 +3250,14 @@ LIRGenerator::visitStoreUnboxedString(MStoreUnboxedString* ins)
 
     LInstruction* lir = new(alloc()) LStoreUnboxedPointer(elements, index, value);
     add(lir, ins);
+}
+
+void
+LIRGenerator::visitConvertUnboxedObjectToNative(MConvertUnboxedObjectToNative* ins)
+{
+    LInstruction* check = new(alloc()) LConvertUnboxedObjectToNative(useRegister(ins->object()));
+    add(check, ins);
+    assignSafepoint(check, ins);
 }
 
 void
@@ -3734,6 +3775,24 @@ LIRGenerator::visitGuardReceiverPolymorphic(MGuardReceiverPolymorphic* ins)
     assignSnapshot(guard, Bailout_ShapeGuard);
     add(guard, ins);
     redefine(ins, ins->object());
+}
+
+void
+LIRGenerator::visitGuardUnboxedExpando(MGuardUnboxedExpando* ins)
+{
+    LGuardUnboxedExpando* guard =
+        new(alloc()) LGuardUnboxedExpando(useRegister(ins->object()));
+    assignSnapshot(guard, ins->bailoutKind());
+    add(guard, ins);
+    redefine(ins, ins->object());
+}
+
+void
+LIRGenerator::visitLoadUnboxedExpando(MLoadUnboxedExpando* ins)
+{
+    LLoadUnboxedExpando* lir =
+        new(alloc()) LLoadUnboxedExpando(useRegisterAtStart(ins->object()));
+    define(lir, ins);
 }
 
 void

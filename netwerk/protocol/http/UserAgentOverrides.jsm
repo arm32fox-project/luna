@@ -2,6 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#ifdef XP_WIN
+#define UA_SPARE_PLATFORM
+#endif
+
 "use strict";
 
 this.EXPORTED_SYMBOLS = [ "UserAgentOverrides" ];
@@ -18,6 +22,14 @@ const PREF_OVERRIDES_ENABLED = "general.useragent.site_specific_overrides";
 const DEFAULT_UA = Cc["@mozilla.org/network/protocol;1?name=http"]
                      .getService(Ci.nsIHttpProtocolHandler)
                      .userAgent;
+const OSCPU = Cc["@mozilla.org/network/protocol;1?name=http"]
+                .getService(Ci.nsIHttpProtocolHandler)
+                .oscpu;
+#ifndef UA_SPARE_PLATFORM
+const PLATFORM = Cc["@mozilla.org/network/protocol;1?name=http"]
+                   .getService(Ci.nsIHttpProtocolHandler)
+                   .platform;
+#endif
 const MAX_OVERRIDE_FOR_HOST_CACHE_SIZE = 250;
 
 XPCOMUtils.defineLazyServiceGetter(this, "ppmm",
@@ -27,17 +39,26 @@ XPCOMUtils.defineLazyServiceGetter(this, "ppmm",
 var gPrefBranch;
 var gOverrides = new Map;
 var gUpdatedOverrides;
+var gOldDynOverrides;
 var gOverrideForHostCache = new Map;
 var gInitialized = false;
 var gOverrideFunctions = [
   function (aHttpChannel) { return UserAgentOverrides.getOverrideForURI(aHttpChannel.URI); }
 ];
 var gBuiltUAs = new Map;
+var gOSSlice;
 
 this.UserAgentOverrides = {
   init: function uao_init() {
     if (gInitialized)
       return;
+
+    gOSSlice = OSCPU + ";";
+#ifndef UA_SPARE_PLATFORM
+    if (PLATFORM != "") {
+      gOSSlice = PLATFORM + "; " + gOSSlice;
+    }
+#endif
 
     gPrefBranch = Services.prefs.getBranch("general.useragent.override.");
     gPrefBranch.addObserver("", buildOverrides, false);
@@ -52,7 +73,10 @@ this.UserAgentOverrides = {
     }
 
     UserAgentUpdates.init(function(overrides) {
-      gOverrideForHostCache.clear();
+      if (overrides == gOldDynOverrides) {
+        return;
+      }
+      gOldDynOverrides = overrides;
       if (overrides) {
         for (let domain in overrides) {
           overrides[domain] = getUserAgentFromOverride(overrides[domain]);
@@ -60,6 +84,7 @@ this.UserAgentOverrides = {
         overrides.get = function(key) { return this[key]; };
       }
       gUpdatedOverrides = overrides;
+      buildOverrides();
     });
 
     buildOverrides();
@@ -143,7 +168,7 @@ function getUserAgentFromOverride(override)
   if (search && replace) {
     userAgent = DEFAULT_UA.replace(new RegExp(search, "g"), replace);
   } else {
-    userAgent = override;
+    userAgent = override.replace(/%OS_SLICE%/g, gOSSlice);
   }
   gBuiltUAs.set(override, userAgent);
   return userAgent;
@@ -156,15 +181,22 @@ function buildOverrides() {
   if (!Services.prefs.getBoolPref(PREF_OVERRIDES_ENABLED))
     return;
 
-  let builtUAs = new Map;
   let domains = gPrefBranch.getChildList("");
 
+  // Since the static override map has the highest priority, we build it so
+  // that it includes only domains with user-set overrides and domains with
+  // default pre-set overrides that are not overridden by dynamic updates.
   for (let domain of domains) {
-    let override = gPrefBranch.getCharPref(domain);
-    let userAgent = getUserAgentFromOverride(override);
+    if (!(gUpdatedOverrides && gUpdatedOverrides.get(domain)) ||
+        gPrefBranch.prefHasUserValue(domain)) {
+      // Here we selected domains that are not dynamically overridden
+      // or have a user-set override.
+      let override = gPrefBranch.getCharPref(domain);
+      let userAgent = getUserAgentFromOverride(override);
 
-    if (userAgent != DEFAULT_UA) {
-      gOverrides.set(domain, userAgent);
+      if (userAgent != DEFAULT_UA) {
+        gOverrides.set(domain, userAgent);
+      }
     }
   }
 }

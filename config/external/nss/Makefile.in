@@ -3,8 +3,6 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-ifndef MOZ_SYSTEM_NSS
-
 CC_WRAPPER =
 CXX_WRAPPER =
 
@@ -121,15 +119,9 @@ DEFAULT_GMAKE_FLAGS += NSS_ENABLE_TLS_1_3=1
 ifeq ($(OS_ARCH)_$(GNU_CC),WINNT_1)
 DEFAULT_GMAKE_FLAGS += OS_DLLFLAGS='-static-libgcc' NSPR31_LIB_PREFIX=lib
 endif
-ifndef MOZ_SYSTEM_SQLITE
-ifdef MOZ_FOLD_LIBS
-DEFAULT_GMAKE_FLAGS += SQLITE_LIB_NAME=nss3
-else
 DEFAULT_GMAKE_FLAGS += SQLITE_LIB_NAME=mozsqlite3
-DEFAULT_GMAKE_FLAGS += SQLITE_LIB_DIR=$(ABS_DIST)/../config/external/sqlite
-endif # MOZ_FOLD_LIBS
+DEFAULT_GMAKE_FLAGS += SQLITE_LIB_DIR=$(ABS_DIST)/../db/sqlite3/src
 DEFAULT_GMAKE_FLAGS += SQLITE_INCLUDE_DIR=$(ABS_DIST)/include
-endif
 ifdef NSS_DISABLE_DBM 
 DEFAULT_GMAKE_FLAGS += NSS_DISABLE_DBM=1
 endif
@@ -475,4 +467,3 @@ endif # MOZ_FOLD_LIBS
 # security/nss/lib/ckfw/builtins. See bug #836220.
 libs-nss/lib$(if $(MOZ_FOLD_LIBS),/ckfw): $(call mkdir_deps,$(DEPTH)/security/nss/lib/ckfw/builtins)
 
-endif

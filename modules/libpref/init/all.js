@@ -1260,6 +1260,7 @@ pref("javascript.options.strict",           false);
 #ifdef DEBUG
 pref("javascript.options.strict.debug",     false);
 #endif
+pref("javascript.options.unboxed_objects",  false);
 pref("javascript.options.baselinejit",      true);
 pref("javascript.options.ion",              true);
 pref("javascript.options.asmjs",            true);
@@ -2036,8 +2037,6 @@ pref("network.proxy.autoconfig_retry_interval_max", 300);  // 5 minutes
 
 // Master switch for HSTS usage (security <-> privacy tradeoff)
 pref("network.stricttransportsecurity.enabled", true);
-// Use the HSTS preload list by default
-pref("network.stricttransportsecurity.preloadlist", true);
 
 // Use JS mDNS as a fallback
 pref("network.mdns.use_js_fallback", false);
@@ -2527,6 +2526,9 @@ pref("layout.css.image-orientation.enabled", true);
 
 // Is support for the font-display @font-face descriptor enabled?
 pref("layout.css.font-display.enabled", false);
+
+// Enable the font variation stub code?
+pref("layout.css.font-variations.stub", true);
 
 // Are sets of prefixed properties supported?
 pref("layout.css.prefixes.border-image", true);
@@ -4497,25 +4499,22 @@ pref("network.tcp.keepalive.probe_count", 4);
 #endif
 
 // Whether to disable acceleration for all widgets.
-pref("layers.acceleration.disabled", false);
+#if defined(XP_UNIX) && !defined(XP_MACOSX)
+// On Linux this is disabled by default for known issues with "free" drivers
+pref("layers.acceleration.enabled", false);
+#else
+pref("layers.acceleration.enabled", true);
+#endif
+// Whether to force acceleration on, ignoring blacklists.
+// This requires layers.acceleration.enabled to be set to true
+pref("layers.acceleration.force", false);
+
 // Preference that when switched at runtime will run a series of benchmarks
 // and output the result to stderr.
 pref("layers.bench.enabled", false);
 
 #if defined(XP_WIN) && defined(NIGHTLY_BUILD)
 pref("layers.gpu-process.dev.enabled", true);
-#endif
-
-// Whether to force acceleration on, ignoring blacklists.
-#ifdef ANDROID
-// bug 838603 -- on Android, accidentally blacklisting OpenGL layers
-// means a startup crash for everyone.
-// Temporarily force-enable GL compositing.  This is default-disabled
-// deep within the bowels of the widgetry system.  Remove me when GL
-// compositing isn't default disabled in widget/android.
-pref("layers.acceleration.force-enabled", true);
-#else
-pref("layers.acceleration.force-enabled", false);
 #endif
 
 pref("layers.acceleration.draw-fps", false);
@@ -4966,8 +4965,6 @@ pref("dom.forms.inputmode", true);
 
 // InputMethods for soft keyboards in B2G
 pref("dom.mozInputMethod.enabled", false);
-
-pref("dom.flyweb.enabled", false);
 
 // Enable mapped array buffer by default.
 pref("dom.mapped_arraybuffer.enabled", true);

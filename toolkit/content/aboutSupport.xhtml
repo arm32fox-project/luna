@@ -61,9 +61,6 @@
     </div>
 
     <div>
-      <button id="copy-raw-data-to-clipboard">
-        &aboutSupport.copyRawDataToClipboard.label;
-      </button>
       <button id="copy-to-clipboard">
         &aboutSupport.copyTextToClipboard.label;
       </button>
@@ -104,7 +101,6 @@
             <td id="buildid-box"></td>
           </tr>
 
-#ifndef ANDROID
 #ifdef MOZ_UPDATER
           <tr class="no-copy">
             <th class="column">
@@ -117,7 +113,6 @@
               </button>
             </td>
           </tr>
-#endif
 #endif
 
 #ifdef MOZ_UPDATER
@@ -243,7 +238,6 @@
             </td>
           </tr>
 
-#ifndef ANDROID
           <tr class="no-copy">
             <th class="column">
               &aboutSupport.appBasicsProfiles;
@@ -253,8 +247,6 @@
               <a href="about:profiles">about:profiles</a>
             </td>
           </tr>
-#endif
-
         </tbody>
       </table>
 

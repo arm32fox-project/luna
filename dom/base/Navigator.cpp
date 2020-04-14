@@ -37,10 +37,7 @@
 #include "mozilla/dom/PowerManager.h"
 #include "mozilla/dom/WakeLock.h"
 #include "mozilla/dom/power/PowerManagerService.h"
-#include "mozilla/dom/FlyWebPublishedServer.h"
-#include "mozilla/dom/FlyWebService.h"
 #include "mozilla/dom/Permissions.h"
-#include "mozilla/dom/Presentation.h"
 #include "mozilla/dom/ServiceWorkerContainer.h"
 #include "mozilla/dom/StorageManager.h"
 #include "mozilla/dom/TCPSocket.h"
@@ -67,8 +64,6 @@
 #include "nsIAppsService.h"
 #include "mozIApplication.h"
 #include "WidgetUtils.h"
-#include "nsIPresentationService.h"
-
 #include "mozilla/dom/MediaDevices.h"
 #include "MediaManager.h"
 
@@ -218,7 +213,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(Navigator)
 #ifdef MOZ_EME
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mMediaKeySystemAccessManager)
 #endif
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPresentation)
 #ifdef MOZ_GAMEPAD
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mGamepadServiceTest)
 #endif
@@ -282,10 +276,6 @@ Navigator::Invalidate()
 
   if (mTimeManager) {
     mTimeManager = nullptr;
-  }
-
-  if (mPresentation) {
-    mPresentation = nullptr;
   }
 
   mServiceWorkerContainer = nullptr;
@@ -1364,41 +1354,6 @@ Navigator::GetBattery(ErrorResult& aRv)
   return mBatteryPromise;
 }
 
-already_AddRefed<Promise>
-Navigator::PublishServer(const nsAString& aName,
-                         const FlyWebPublishOptions& aOptions,
-                         ErrorResult& aRv)
-{
-  RefPtr<FlyWebService> service = FlyWebService::GetOrCreate();
-  if (!service) {
-    aRv.Throw(NS_ERROR_FAILURE);
-    return nullptr;
-  }
-
-  RefPtr<FlyWebPublishPromise> mozPromise =
-    service->PublishServer(aName, aOptions, mWindow);
-  MOZ_ASSERT(mozPromise);
-
-  nsCOMPtr<nsIGlobalObject> global = do_QueryInterface(mWindow);
-  ErrorResult result;
-  RefPtr<Promise> domPromise = Promise::Create(global, result);
-  if (result.Failed()) {
-    aRv.Throw(NS_ERROR_FAILURE);
-    return nullptr;
-  }
-
-  mozPromise->Then(AbstractThread::MainThread(),
-                   __func__,
-                   [domPromise] (FlyWebPublishedServer* aServer) {
-                     domPromise->MaybeResolve(aServer);
-                   },
-                   [domPromise] (nsresult aStatus) {
-                     domPromise->MaybeReject(aStatus);
-                   });
-
-  return domPromise.forget();
-}
-
 PowerManager*
 Navigator::GetMozPower(ErrorResult& aRv)
 {
@@ -1930,20 +1885,6 @@ Navigator::RequestMediaKeySystemAccess(const nsAString& aKeySystem,
   return promise.forget();
 }
 #endif
-
-Presentation*
-Navigator::GetPresentation(ErrorResult& aRv)
-{
-  if (!mPresentation) {
-    if (!mWindow) {
-      aRv.Throw(NS_ERROR_UNEXPECTED);
-      return nullptr;
-    }
-    mPresentation = Presentation::Create(mWindow);
-  }
-
-  return mPresentation;
-}
 
 } // namespace dom
 } // namespace mozilla

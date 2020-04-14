@@ -6,10 +6,7 @@
 
 DIRS += ['crmf']
 
-if CONFIG['MOZ_SYSTEM_NSS']:
-    Library('nss')
-    OS_LIBS += CONFIG['NSS_LIBS']
-elif CONFIG['MOZ_FOLD_LIBS']:
+if CONFIG['MOZ_FOLD_LIBS']:
     GeckoSharedLibrary('nss', linkage=None)
     # TODO: The library name can be changed when bug 845217 is fixed.
     SHARED_LIBRARY_NAME = 'nss3'
@@ -32,8 +29,9 @@ else:
         '/security/nss/lib/smime/smime3',
         '/security/nss/lib/ssl/ssl3',
         '/security/nss/lib/util/nssutil3',
-        'sqlite',
     ]
+
+USE_LIBS += ['sqlite']
 
 # XXX: We should fix these warnings.
 ALLOW_COMPILER_WARNINGS = True

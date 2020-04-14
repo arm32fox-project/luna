@@ -52,10 +52,10 @@ DIRS += [
     'fetch',
     'filehandle',
     'filesystem',
-    'flyweb',
     'gamepad',
     'geolocation',
     'grid',
+    'heapsnapshot',
     'html',
     'json',
     'jsurl',
@@ -106,8 +106,6 @@ if CONFIG['OS_ARCH'] == 'WINNT':
 
 if CONFIG['MOZ_SECUREELEMENT']:
     DIRS += ['secureelement']
-
-DIRS += ['presentation']
 
 TEST_DIRS += [
     'tests',

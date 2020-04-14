@@ -8,7 +8,6 @@ const Ci = Components.interfaces;
 const Cc = Components.classes;
 const Cr = Components.results;
 
-Components.utils.import("resource://gre/modules/AppConstants.jsm");
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 
 this.Services = {};
@@ -52,9 +51,6 @@ XPCOMUtils.defineLazyGetter(Services, "ppmm", () => {
 });
 
 var initTable = [
-#ifdef MOZ_WIDGET_ANDROID
-  ["androidBridge", "@mozilla.org/android/bridge;1", "nsIAndroidBridge"],
-#endif
   ["appShell", "@mozilla.org/appshell/appShellService;1", "nsIAppShellService"],
   ["cache", "@mozilla.org/network/cache-service;1", "nsICacheService"],
   ["cache2", "@mozilla.org/netwerk/cache-storage-service;1", "nsICacheStorageService"],

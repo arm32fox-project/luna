@@ -15,7 +15,6 @@ this.EXPORTED_SYMBOLS = [ "GMP_PLUGIN_IDS",
 
 Cu.import("resource://gre/modules/Preferences.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/AppConstants.jsm");
 
 // GMP IDs
 const OPEN_H264_ID  = "gmp-gmpopenh264";
@@ -71,21 +70,25 @@ this.GMPUtils = {
       return true;
     }
     if (aPlugin.id == WIDEVINE_ID) {
+
+#if defined(XP_WIN) || defined(XP_LINUX) || defined(XP_MACOSX)
       // The Widevine plugin is available for Windows versions Vista and later,
       // Mac OSX, and Linux.
-      return AppConstants.isPlatformAndVersionAtLeast("win", "6") ||
-             AppConstants.platform == "macosx" ||
-             AppConstants.platform == "linux";
+      return true;
+#else
+      return false;
+#endif
     }
 
     return true;
   },
 
   _is32bitModeMacOS: function() {
-    if (AppConstants.platform != "macosx") {
-      return false;
-    }
+#ifdef XP_MACOSX
     return Services.appinfo.XPCOMABI.split("-")[0] == "x86";
+#else
+    return false;
+#endif
   },
 
   /**
