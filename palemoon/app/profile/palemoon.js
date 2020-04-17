@@ -329,6 +329,10 @@ pref("browser.identity.display_punycode", 1);
 // Address bar RSS icon control, show by default
 pref("browser.urlbar.rss", true);
 
+// If changed to true, copying the entire URL from the location bar will put
+// the human readable (percent-decoded) URL on the clipboard.
+pref("browser.urlbar.decodeURLsOnCopy", false);
+
 pref("browser.altClickSave", true);
 
 // Enable logging downloads operations to the Error Console.
@@ -870,7 +874,7 @@ pref("browser.sessionstore.restore_pinned_tabs_on_demand", false);
 // 0 = pull fully from cache
 // 1 = perform a soft refresh when restoring a tab (check network)
 // 2 = perform a hard refresh when restoring a tab (bypass cache completely)
-pref("browser.sessionstore.cache_behavior", 1);
+pref("browser.sessionstore.cache_behavior", 0);
 // Pale Moon: Allow exact positioning of windows to previous locations, even
 // if they would be outside of the screen bounds
 pref("browser.sessionstore.exactPos", false);
@@ -947,6 +951,9 @@ pref("security.alternate_certificate_error_page", "certerror");
 
 // Whether to start the private browsing mode at application startup
 pref("browser.privatebrowsing.autostart", false);
+
+// Whether to immediately open the bookmark edit panel for new bookmarks
+pref("browser.bookmarks.editDialog.showForNewBookmarks", false);
 
 // Don't try to alter this pref, it'll be reset the next time you use the
 // bookmarking dialog

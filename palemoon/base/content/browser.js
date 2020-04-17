@@ -4783,7 +4783,7 @@ var TabsOnTop = {
 
 var TabsInTitlebar = {
   init: function() {
-#ifdef CAN_DRAW_IN_TITLEBAR
+#ifdef MOZ_CAN_DRAW_IN_TITLEBAR
     this._readPref();
     Services.prefs.addObserver(this._prefName, this, false);
 
@@ -4796,7 +4796,7 @@ var TabsInTitlebar = {
   },
 
   allowedBy: function(condition, allow) {
-#ifdef CAN_DRAW_IN_TITLEBAR
+#ifdef MOZ_CAN_DRAW_IN_TITLEBAR
     if (allow) {
       if (condition in this._disallowed) {
         delete this._disallowed[condition];
@@ -4815,7 +4815,7 @@ var TabsInTitlebar = {
     return document.documentElement.getAttribute("tabsintitlebar") == "true";
   },
 
-#ifdef CAN_DRAW_IN_TITLEBAR
+#ifdef MOZ_CAN_DRAW_IN_TITLEBAR
   observe: function(subject, topic, data) {
     if (topic == "nsPref:changed")
       this._readPref();
@@ -4890,7 +4890,7 @@ var TabsInTitlebar = {
 #endif
 
   uninit: function() {
-#ifdef CAN_DRAW_IN_TITLEBAR
+#ifdef MOZ_CAN_DRAW_IN_TITLEBAR
     this._initialized = false;
     Services.prefs.removeObserver(this._prefName, this);
 #endif
@@ -4904,7 +4904,7 @@ function updateAppButtonDisplay() {
     window.menubar.visible &&
     document.getElementById("toolbar-menubar").getAttribute("autohide") == "true";
 
-#ifdef CAN_DRAW_IN_TITLEBAR
+#ifdef MOZ_CAN_DRAW_IN_TITLEBAR
   document.getElementById("titlebar").hidden = !displayAppButton;
 
   if (displayAppButton) {
@@ -4921,7 +4921,7 @@ function updateAppButtonDisplay() {
 }
 #endif
 
-#ifdef CAN_DRAW_IN_TITLEBAR
+#ifdef MOZ_CAN_DRAW_IN_TITLEBAR
 function onTitlebarMaxClick() {
   if (window.windowState == window.STATE_MAXIMIZED) {
     window.restore();
@@ -7089,7 +7089,7 @@ var gPrivateBrowsingUI = {
     document.getElementById("Tools:Sanitize").setAttribute("disabled", "true");
 
     if (window.location.href == getBrowserURL()) {
-#ifdef XP_MACOSX
+#if defined(XP_MACOSX) && defined(MOZ_CAN_DRAW_IN_TITLEBAR)
       if (!PrivateBrowsingUtils.permanentPrivateBrowsing) {
         document.documentElement.setAttribute("drawintitlebar", true);
       }
