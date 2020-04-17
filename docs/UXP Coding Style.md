@@ -126,7 +126,7 @@ switch (variable) {
     code_for_1;
     code_for_1;
     break;
-  case value2:
+  case value2: // Comment describing 2 (alternative)
     code_for_2;
     code_for_2;
     // fallthrough
@@ -273,7 +273,7 @@ Applies to `*.js` and `*.jsm`.
       }
     }, false);
   ```
-- Use a single space between `{` `}` braces in empty js objects.
+- Don't use a space between `{` `}` braces in empty js objects, `{` `}` braces in empty function scopes, or `[` `]` brackets in empty arrays.
 
 ### Flow control
 Flow control expressions should follow the following guidelines:
@@ -343,7 +343,7 @@ switch (variable) {
     code_for_1;
     code_for_1;
     break;
-  case value2:
+  case value2: // Comment describing 2 (alternative)
     code_for_2;
     code_for_2;
     // fallthrough
@@ -397,8 +397,7 @@ try {
 
 try {
   do_something();
-} catch(e) {
-}
+} catch(e) {}
 
 try {
   do_something();
@@ -414,11 +413,6 @@ try {
   // No error processing
   do_something_else();
 }
-
-// No closing brace on its own line
-try {
-  do_something();
-} catch(ex) { }
 ```
 
 ### Long line wrapping
