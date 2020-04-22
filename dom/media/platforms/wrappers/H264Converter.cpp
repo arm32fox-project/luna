@@ -6,6 +6,7 @@
 
 #include "mozilla/TaskQueue.h"
 
+#include "DecoderDoctorDiagnostics.h"
 #include "H264Converter.h"
 #include "ImageContainer.h"
 #include "MediaInfo.h"
