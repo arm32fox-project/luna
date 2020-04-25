@@ -8,6 +8,7 @@
 #define PlatformDecoderModule_h_
 
 #include "ImageContainer.h"
+#include "DecoderDoctorDiagnostics.h"
 #include "MediaDecoderReader.h"
 #include "MediaInfo.h"
 #include "mozilla/MozPromise.h"
