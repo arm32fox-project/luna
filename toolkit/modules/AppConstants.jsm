@@ -194,13 +194,6 @@ MOZ_SAFE_BROWSING:
   false,
 #endif
 
-  MOZ_REQUIRE_SIGNING:
-#ifdef MOZ_REQUIRE_SIGNING
-  true,
-#else
-  false,
-#endif
-
   MENUBAR_CAN_AUTOHIDE:
 #ifdef MENUBAR_CAN_AUTOHIDE
   true,
@@ -209,7 +202,7 @@ MOZ_SAFE_BROWSING:
 #endif
 
   CAN_DRAW_IN_TITLEBAR:
-#ifdef CAN_DRAW_IN_TITLEBAR
+#ifdef MOZ_CAN_DRAW_IN_TITLEBAR
   true,
 #else
   false,
