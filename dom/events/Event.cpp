@@ -44,9 +44,6 @@ extern bool IsCurrentThreadRunningChromeWorker();
 
 static char *sPopupAllowedEvents;
 
-static bool sReturnHighResTimeStamp = false;
-static bool sReturnHighResTimeStampIsSet = false;
-
 Event::Event(EventTarget* aOwner,
              nsPresContext* aPresContext,
              WidgetEvent* aEvent)
@@ -66,13 +63,6 @@ Event::ConstructorInit(EventTarget* aOwner,
 {
   SetOwner(aOwner);
   mIsMainThreadEvent = NS_IsMainThread();
-
-  if (mIsMainThreadEvent && !sReturnHighResTimeStampIsSet) {
-    Preferences::AddBoolVarCache(&sReturnHighResTimeStamp,
-                                 "dom.event.highrestimestamp.enabled",
-                                 sReturnHighResTimeStamp);
-    sReturnHighResTimeStampIsSet = true;
-  }
 
   mPrivateDataDuplicated = false;
   mWantsPopupControlCheck = false;
@@ -1109,10 +1099,6 @@ Event::TimeStamp() const
 double
 Event::TimeStampImpl() const
 {
-  if (!sReturnHighResTimeStamp) {
-    return static_cast<double>(mEvent->mTime);
-  }
-
   if (mEvent->mTimeStamp.IsNull()) {
     return 0.0;
   }
