@@ -162,47 +162,6 @@ CloneAndAppend(nsIFile* aFile, const nsAString& aDir)
   return f.forget();
 }
 
-static void
-MoveAndOverwrite(nsIFile* aOldParentDir,
-                 nsIFile* aNewParentDir,
-                 const nsAString& aSubDir)
-{
-  nsresult rv;
-
-  nsCOMPtr<nsIFile> srcDir(CloneAndAppend(aOldParentDir, aSubDir));
-  if (NS_WARN_IF(!srcDir)) {
-    return;
-  }
-
-  if (!FileExists(srcDir)) {
-    // No sub-directory to be migrated.
-    return;
-  }
-
-  // Ensure destination parent directory exists.
-  rv = aNewParentDir->Create(nsIFile::DIRECTORY_TYPE, 0700);
-  if (rv != NS_ERROR_FILE_ALREADY_EXISTS && NS_WARN_IF(NS_FAILED(rv))) {
-    return;
-  }
-
-  nsCOMPtr<nsIFile> dstDir(CloneAndAppend(aNewParentDir, aSubDir));
-  if (FileExists(dstDir)) {
-    // We must have migrated before already, and then ran an old version
-    // of Gecko again which created storage at the old location. Overwrite
-    // the previously migrated storage.
-    rv = dstDir->Remove(true);
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-      // MoveTo will fail.
-      return;
-    }
-  }
-
-  rv = srcDir->MoveTo(aNewParentDir, EmptyString());
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return;
-  }
-}
-
 static nsresult
 GMPPlatformString(nsAString& aOutPlatform)
 {
