@@ -15,6 +15,7 @@
 #include "nsIContentSecurityPolicy.h"
 #include "nsIURI.h"
 #include "nsPrintfCString.h"
+#include "nsContentUtils.h"
 
 using namespace mozilla;
 
