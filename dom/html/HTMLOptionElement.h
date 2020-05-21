@@ -69,6 +69,10 @@ public:
 
   nsresult CopyInnerTo(mozilla::dom::Element* aDest);
 
+  virtual bool IsDisabled() const override {
+    return HasAttr(kNameSpaceID_None, nsGkAtoms::disabled);
+  }
+
   bool Disabled() const
   {
     return GetBoolAttr(nsGkAtoms::disabled);
