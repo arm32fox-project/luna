@@ -807,8 +807,8 @@ public:
   /**
    * Returns the current disabled state of the element.
    */
-  bool IsDisabled() const {
-    return HasAttr(kNameSpaceID_None, nsGkAtoms::disabled);
+  virtual bool IsDisabled() const {
+    return false;
   }
 
   bool IsHidden() const
@@ -1219,6 +1219,8 @@ public:
   virtual nsresult PreHandleEvent(
                      mozilla::EventChainVisitor& aVisitor) override;
 
+  virtual bool IsDisabled() const override;
+
   /**
    * This callback is called by a fieldest on all its elements whenever its
    * disabled attribute is changed so the element knows its disabled state
@@ -1305,7 +1307,7 @@ protected:
                               void* aData);
 
   // Returns true if the event should not be handled from GetEventTargetParent
-  bool IsElementDisabledForEvents(mozilla::EventMessage aMessage,
+  bool IsElementDisabledForEvents(mozilla::WidgetEvent* aEvent,
                                   nsIFrame* aFrame);
 
   // The focusability state of this form control.  eUnfocusable means that it

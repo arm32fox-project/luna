@@ -183,8 +183,10 @@ nsFormControlFrame::HandleEvent(nsPresContext* aPresContext,
                                 WidgetGUIEvent* aEvent,
                                 nsEventStatus* aEventStatus)
 {
-  // Check for disabled content so that selection works properly (?).
-  if (IsContentDisabled()) {
+  // Check for user-input:none style
+  const nsStyleUserInterface* uiStyle = StyleUserInterface();
+  if (uiStyle->mUserInput == StyleUserInput::None ||
+      uiStyle->mUserInput == StyleUserInput::Disabled) {
     return nsFrame::HandleEvent(aPresContext, aEvent, aEventStatus);
   }
   return NS_OK;

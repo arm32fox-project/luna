@@ -2108,6 +2108,14 @@ nsGenericHTMLFormElement::PreHandleEvent(EventChainVisitor& aVisitor)
   return nsGenericHTMLElement::PreHandleEvent(aVisitor);
 }
 
+/* virtual */
+bool
+nsGenericHTMLFormElement::IsDisabled() const
+{
+  return HasAttr(kNameSpaceID_None, nsGkAtoms::disabled) ||
+         (mFieldSet && mFieldSet->IsDisabled());
+}
+
 void
 nsGenericHTMLFormElement::ForgetFieldSet(nsIContent* aFieldset)
 {
@@ -2277,10 +2285,17 @@ nsGenericHTMLFormElement::FormIdUpdated(Element* aOldElement,
 }
 
 bool 
-nsGenericHTMLFormElement::IsElementDisabledForEvents(EventMessage aMessage,
+nsGenericHTMLFormElement::IsElementDisabledForEvents(WidgetEvent* aEvent,
                                                      nsIFrame* aFrame)
 {
-  switch (aMessage) {
+  MOZ_ASSERT(aEvent);
+
+  // Allow dispatch of CustomEvent and untrusted Events.
+  if (!aEvent->IsTrusted()) {
+    return false;
+  }
+
+  switch (aEvent->mMessage) {
     case eMouseMove:
     case eMouseOver:
     case eMouseOut:
@@ -2299,13 +2314,14 @@ nsGenericHTMLFormElement::IsElementDisabledForEvents(EventMessage aMessage,
       break;
   }
 
-  // FIXME(emilio): This poking at the style of the frame is slightly bogus
-  // unless we flush before every event, which we don't really want to do.
-  if (aFrame &&
-      aFrame->StyleUserInterface()->mUserInput == StyleUserInput::None) {
-    return true;
+  bool disabled = IsDisabled();
+  if (!disabled && aFrame) {
+    const nsStyleUserInterface* uiStyle = aFrame->StyleUserInterface();
+    disabled = uiStyle->mUserInput == StyleUserInput::None ||
+               uiStyle->mUserInput == StyleUserInput::Disabled;
+
   }
-  return IsDisabled();
+  return disabled;
 }
 
 void
@@ -2445,8 +2461,9 @@ nsGenericHTMLFormElement::IsLabelable() const
 void
 nsGenericHTMLElement::Click()
 {
-  if (HandlingClick())
+  if (IsDisabled() || HandlingClick()) {
     return;
+  }
 
   // Strong in case the event kills it
   nsCOMPtr<nsIDocument> doc = GetComposedDoc();
