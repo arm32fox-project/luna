@@ -227,7 +227,10 @@ nsGfxButtonControlFrame::HandleEvent(nsPresContext* aPresContext,
   // from being called. The nsFrame::HandleEvent causes the button label
   // to be selected (Drawn with an XOR rectangle over the label)
 
-  if (IsContentDisabled()) {
+  // do we have user-input style?
+  const nsStyleUserInterface* uiStyle = StyleUserInterface();
+  if (uiStyle->mUserInput == StyleUserInput::None ||
+      uiStyle->mUserInput == StyleUserInput::Disabled) {
     return nsFrame::HandleEvent(aPresContext, aEvent, aEventStatus);
   }
   return NS_OK;

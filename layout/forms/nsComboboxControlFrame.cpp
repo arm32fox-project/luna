@@ -1165,7 +1165,9 @@ nsComboboxControlFrame::HandleEvent(nsPresContext* aPresContext,
 
   // If we have style that affects how we are selected, feed event down to
   // nsFrame::HandleEvent so that selection takes place when appropriate.
-  if (IsContentDisabled()) {
+  const nsStyleUserInterface* uiStyle = StyleUserInterface();
+  if (uiStyle->mUserInput == StyleUserInput::None ||
+      uiStyle->mUserInput == StyleUserInput::Disabled) {
     return nsBlockFrame::HandleEvent(aPresContext, aEvent, aEventStatus);
   }
   return NS_OK;

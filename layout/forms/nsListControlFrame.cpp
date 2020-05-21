@@ -919,11 +919,16 @@ nsListControlFrame::HandleEvent(nsPresContext* aPresContext,
   if (nsEventStatus_eConsumeNoDefault == *aEventStatus)
     return NS_OK;
 
-  // disabled state affects how we're selected, but we don't want to go through
-  // nsHTMLScrollFrame if we're disabled.
-  if (IsContentDisabled()) {
+  // do we have style that affects how we are selected?
+  // do we have user-input style?
+  const nsStyleUserInterface* uiStyle = StyleUserInterface();
+  if (uiStyle->mUserInput == StyleUserInput::None ||
+      uiStyle->mUserInput == StyleUserInput::Disabled) {
     return nsFrame::HandleEvent(aPresContext, aEvent, aEventStatus);
   }
+  EventStates eventStates = mContent->AsElement()->State();
+  if (eventStates.HasState(NS_EVENT_STATE_DISABLED))
+    return NS_OK;
 
   return nsHTMLScrollFrame::HandleEvent(aPresContext, aEvent, aEventStatus);
 }

@@ -53,14 +53,15 @@ HTMLOptGroupElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
   aVisitor.mCanHandle = false;
   // Do not process any DOM events if the element is disabled
   // XXXsmaug This is not the right thing to do. But what is?
-  if (IsDisabled()) {
+  if (HasAttr(kNameSpaceID_None, nsGkAtoms::disabled)) {
     return NS_OK;
   }
 
-  if (nsIFrame* frame = GetPrimaryFrame()) {
-    // FIXME(emilio): This poking at the style of the frame is broken unless we
-    // flush before every event handling, which we don't really want to.
-    if (frame->StyleUserInterface()->mUserInput == StyleUserInput::None) {
+  nsIFrame* frame = GetPrimaryFrame();
+  if (frame) {
+    const nsStyleUserInterface* uiStyle = frame->StyleUserInterface();
+    if (uiStyle->mUserInput == StyleUserInput::None ||
+        uiStyle->mUserInput == StyleUserInput::Disabled) {
       return NS_OK;
     }
   }
