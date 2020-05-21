@@ -241,6 +241,8 @@ enum class StyleUserSelect : uint8_t {
 // user-input
 enum class StyleUserInput : uint8_t {
   None,
+  Enabled,
+  Disabled,
   Auto,
 };
 

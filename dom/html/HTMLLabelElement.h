@@ -59,6 +59,8 @@ public:
   using nsGenericHTMLElement::Focus;
   virtual void Focus(mozilla::ErrorResult& aError) override;
 
+  virtual bool IsDisabled() const override { return false; }
+
   // nsIContent
   virtual nsresult PostHandleEvent(
                      EventChainPostVisitor& aVisitor) override;
