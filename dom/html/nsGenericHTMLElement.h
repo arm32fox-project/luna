@@ -1308,7 +1308,7 @@ protected:
                               void* aData);
 
   // Returns true if the event should not be handled from PreHandleEvent
-  bool IsElementDisabledForEvents(mozilla::EventMessage aMessage,
+  bool IsElementDisabledForEvents(mozilla::WidgetEvent* aEvent,
                                   nsIFrame* aFrame);
 
   // The focusability state of this form control.  eUnfocusable means that it
