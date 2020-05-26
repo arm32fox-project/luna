@@ -15,6 +15,7 @@
 #include "nsIdentifierMapEntry.h"
 #include "nsTHashtable.h"
 #include "nsXBLBinding.h"
+#include "nsIDOMDocument.h"
 
 class nsIAtom;
 class nsIContent;
