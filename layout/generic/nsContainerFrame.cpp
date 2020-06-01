@@ -29,10 +29,12 @@
 #include "nsBoxLayoutState.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsBlockFrame.h"
+#include "nsBulletFrame.h"
 #include "nsPlaceholderFrame.h"
 #include "mozilla/AutoRestore.h"
 #include "nsIFrameInlines.h"
 #include "nsPrintfCString.h"
+#include "nsAttrValueInlines.h"
 #include <algorithm>
 
 using namespace mozilla;
@@ -329,17 +331,15 @@ nsContainerFrame::GetChildLists(nsTArray<ChildList>* aLists) const
 
 void
 nsContainerFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                   const nsRect&           aDirtyRect,
                                    const nsDisplayListSet& aLists)
 {
   DisplayBorderBackgroundOutline(aBuilder, aLists);
 
-  BuildDisplayListForNonBlockChildren(aBuilder, aDirtyRect, aLists);
+  BuildDisplayListForNonBlockChildren(aBuilder, aLists);
 }
 
 void
 nsContainerFrame::BuildDisplayListForNonBlockChildren(nsDisplayListBuilder*   aBuilder,
-                                                      const nsRect&           aDirtyRect,
                                                       const nsDisplayListSet& aLists,
                                                       uint32_t                aFlags)
 {
@@ -348,7 +348,7 @@ nsContainerFrame::BuildDisplayListForNonBlockChildren(nsDisplayListBuilder*   aB
   nsDisplayListSet set(aLists, aLists.Content());
   // The children should be in content order
   while (kid) {
-    BuildDisplayListForChild(aBuilder, kid, aDirtyRect, set, aFlags);
+    BuildDisplayListForChild(aBuilder, kid, set, aFlags);
     kid = kid->GetNextSibling();
   }
 }
@@ -1338,13 +1338,12 @@ nsContainerFrame::ReflowOverflowContainerChildren(nsPresContext*           aPres
 
 void
 nsContainerFrame::DisplayOverflowContainers(nsDisplayListBuilder*   aBuilder,
-                                            const nsRect&           aDirtyRect,
                                             const nsDisplayListSet& aLists)
 {
   nsFrameList* overflowconts = GetPropTableFrames(OverflowContainersProperty());
   if (overflowconts) {
     for (nsIFrame* frame : *overflowconts) {
-      BuildDisplayListForChild(aBuilder, frame, aDirtyRect, aLists);
+      BuildDisplayListForChild(aBuilder, frame, aLists);
     }
   }
 }

@@ -16,6 +16,7 @@
 #include "nsAbsoluteContainingBlock.h"
 #include "GeckoProfiler.h"
 #include "nsIMozBrowserFrame.h"
+#include "nsPlaceholderFrame.h"
 
 using namespace mozilla;
 typedef nsAbsoluteContainingBlock::AbsPosReflowFlags AbsPosReflowFlags;
@@ -48,7 +49,6 @@ ViewportFrame::Init(nsIContent*       aContent,
 
 void
 ViewportFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
                                 const nsDisplayListSet& aLists)
 {
   PROFILER_LABEL("ViewportFrame", "BuildDisplayList",
@@ -58,7 +58,7 @@ ViewportFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     // make the kid's BorderBackground our own. This ensures that the canvas
     // frame's background becomes our own background and therefore appears
     // below negative z-index elements.
-    BuildDisplayListForChild(aBuilder, kid, aDirtyRect, aLists);
+    BuildDisplayListForChild(aBuilder, kid, aLists);
   }
 
   nsDisplayList topLayerList;
@@ -109,8 +109,12 @@ BuildDisplayListForTopLayerFrame(nsDisplayListBuilder* aBuilder,
     clipState.SetScrollClipForContainingBlockDescendants(
       aBuilder, savedOutOfFlowData->mContainingBlockScrollClip);
   }
+  nsDisplayListBuilder::AutoBuildingDisplayList
+    buildingForChild(aBuilder, aFrame, dirty,
+                     aBuilder->IsAtRootOfPseudoStackingContext());
+
   nsDisplayList list;
-  aFrame->BuildDisplayListForStackingContext(aBuilder, dirty, &list);
+  aFrame->BuildDisplayListForStackingContext(aBuilder, &list);
   aList->AppendToTop(&list);
 }
 

@@ -12,6 +12,7 @@
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsIDOMElement.h"
+#include "nsIDOMEvent.h"
 #include "nsDisplayList.h"
 #include "nsContentUtils.h"
 #include "mozilla/dom/Element.h"
@@ -91,13 +92,12 @@ nsButtonBoxFrame::DestroyFrom(nsIFrame* aDestructRoot)
 
 void
 nsButtonBoxFrame::BuildDisplayListForChildren(nsDisplayListBuilder*   aBuilder,
-                                              const nsRect&           aDirtyRect,
                                               const nsDisplayListSet& aLists)
 {
   // override, since we don't want children to get events
   if (aBuilder->IsForEventDelivery())
     return;
-  nsBoxFrame::BuildDisplayListForChildren(aBuilder, aDirtyRect, aLists);
+  nsBoxFrame::BuildDisplayListForChildren(aBuilder, aLists);
 }
 
 nsresult
