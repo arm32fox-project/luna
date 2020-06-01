@@ -347,16 +347,6 @@ static const nsRoleMapEntry sWAIRoleMaps[] =
     eLandmark,
     kNoReqStates
   },
-  { // marquee
-    &nsGkAtoms::marquee,
-    roles::ANIMATION,
-    kUseMapRole,
-    eNoValue,
-    eNoAction,
-    eOffLiveAttr,
-    kGenericAccType,
-    kNoReqStates
-  },
   { // math
     &nsGkAtoms::math,
     roles::FLAT_EQUATION,

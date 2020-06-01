@@ -340,7 +340,6 @@ class nsHtml5ElementName
     static nsHtml5ElementName* ELT_LOGBASE;
     static nsHtml5ElementName* ELT_MSPACE;
     static nsHtml5ElementName* ELT_MODE;
-    static nsHtml5ElementName* ELT_MARQUEE;
     static nsHtml5ElementName* ELT_MTABLE;
     static nsHtml5ElementName* ELT_MSTYLE;
     static nsHtml5ElementName* ELT_MENCLOSE;

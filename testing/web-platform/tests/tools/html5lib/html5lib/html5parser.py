@@ -898,7 +898,6 @@ def getPhases(debug):
                   "strong", "tt", "u"), self.startTagFormatting),
                 ("nobr", self.startTagNobr),
                 ("button", self.startTagButton),
-                (("applet", "marquee", "object"), self.startTagAppletMarqueeObject),
                 ("xmp", self.startTagXmp),
                 ("table", self.startTagTable),
                 (("area", "br", "embed", "img", "keygen", "wbr"),
@@ -935,7 +934,6 @@ def getPhases(debug):
                 (headingElements, self.endTagHeading),
                 (("a", "b", "big", "code", "em", "font", "i", "nobr", "s", "small",
                   "strike", "strong", "tt", "u"), self.endTagFormatting),
-                (("applet", "marquee", "object"), self.endTagAppletMarqueeObject),
                 ("br", self.endTagBr),
             ])
             self.endTagHandler.default = self.endTagOther
@@ -1132,12 +1130,6 @@ def getPhases(debug):
                 self.tree.reconstructActiveFormattingElements()
                 self.tree.insertElement(token)
                 self.parser.framesetOK = False
-
-        def startTagAppletMarqueeObject(self, token):
-            self.tree.reconstructActiveFormattingElements()
-            self.tree.insertElement(token)
-            self.tree.activeFormattingElements.append(Marker)
-            self.parser.framesetOK = False
 
         def startTagXmp(self, token):
             if self.tree.elementInScope("p", variant="button"):
@@ -1557,18 +1549,6 @@ def getPhases(debug):
                 self.tree.openElements.remove(formattingElement)
                 self.tree.openElements.insert(
                     self.tree.openElements.index(furthestBlock) + 1, clone)
-
-        def endTagAppletMarqueeObject(self, token):
-            if self.tree.elementInScope(token["name"]):
-                self.tree.generateImpliedEndTags()
-            if self.tree.openElements[-1].name != token["name"]:
-                self.parser.parseError("end-tag-too-early", {"name": token["name"]})
-
-            if self.tree.elementInScope(token["name"]):
-                element = self.tree.openElements.pop()
-                while element.name != token["name"]:
-                    element = self.tree.openElements.pop()
-                self.tree.clearActiveFormattingElements()
 
         def endTagBr(self, token):
             self.parser.parseError("unexpected-end-tag-treated-as",

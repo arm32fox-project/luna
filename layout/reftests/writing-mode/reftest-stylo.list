@@ -65,8 +65,6 @@ HTTP(..) == 1115916-1-vertical-metrics.html 1115916-1-vertical-metrics.html
 == ua-style-sheet-border-3.html ua-style-sheet-border-3.html
 == ua-style-sheet-border-4.html ua-style-sheet-border-4.html
 == ua-style-sheet-border-5.html ua-style-sheet-border-5.html
-== ua-style-sheet-size-1.html ua-style-sheet-size-1.html
-== ua-style-sheet-size-2.html ua-style-sheet-size-2.html
 
 == ua-style-sheet-fieldset-1.html ua-style-sheet-fieldset-1.html
 skip-if(Android||B2G||Mulet||(winWidget&&!/^Windows\x20NT\x205\.1/.test(http.oscpu))) == ua-style-sheet-textarea-1.html ua-style-sheet-textarea-1.html

@@ -64,7 +64,6 @@ legend,
 li,
 listing,
 main,
-marquee,
 menu,
 nav,
 noframes,
@@ -824,24 +823,8 @@ dialog:not([open]) {
   display: none;
 }
 
-/* emulation of non-standard HTML <marquee> tag */
-marquee {
-  inline-size: -moz-available;
-  display: inline-block;
-  vertical-align: text-bottom;
-  text-align: start;
-  -moz-binding: url('chrome://xbl-marquee/content/xbl-marquee.xml#marquee-horizontal');
-}
-
-marquee[direction="up"], marquee[direction="down"] {
-  -moz-binding: url('chrome://xbl-marquee/content/xbl-marquee.xml#marquee-vertical');
-  block-size: 200px;
-}
-
 /* PRINT ONLY rules follow */
 @media print {
-
-  marquee { -moz-binding: none; }
 
 }
 
