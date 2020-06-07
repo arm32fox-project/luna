@@ -166,8 +166,11 @@ NS_INTERFACE_MAP_END
 /* static */ bool
 CustomElementRegistry::IsCustomElementEnabled(JSContext* aCx, JSObject* aObject)
 {
+  return false;
+/*
   return Preferences::GetBool("dom.webcomponents.customelements.enabled") ||
          Preferences::GetBool("dom.webcomponents.enabled");
+*/
 }
 
 /* static */ already_AddRefed<CustomElementRegistry>
