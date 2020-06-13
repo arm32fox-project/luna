@@ -79,6 +79,11 @@ MOZ_JSDOWNLOADS=1
 # conformant implementations.
 MOZ_WEBGL_CONFORMANT=1
 
+# Platform Feature: Enable drawing in the titlebar on Windows
+if test "$OS_ARCH" = "WINNT"; then
+  MOZ_CAN_DRAW_IN_TITLEBAR=1
+fi
+
 # Set the chrome packing format
 # Possible values are omni, jar, and flat
 # Currently, only omni and flat are supported
@@ -95,5 +100,3 @@ fi
 
 # Short-circuit a few services to be removed
 MOZ_SERVICES_HEALTHREPORT=
-MOZ_ADDON_SIGNING=0
-MOZ_REQUIRE_SIGNING=0

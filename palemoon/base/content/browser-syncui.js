@@ -117,12 +117,14 @@ var gSyncUI = {
 
   // Functions called by observers
   onActivityStart: function() {
-    if (!gBrowser)
+    if (!gBrowser) {
       return;
+    }
 
     let button = document.getElementById("sync-button");
-    if (!button)
+    if (!button) {
       return;
+    }
 
     button.setAttribute("status", "active");
     button.setAttribute("label", this._stringBundle.GetStringFromName("syncing2.label"));
@@ -182,7 +184,10 @@ var gSyncUI = {
     buttons.push(new Weave.NotificationButton(
       this._stringBundle.GetStringFromName("error.login.prefs.label"),
       this._stringBundle.GetStringFromName("error.login.prefs.accesskey"),
-      function() { gSyncUI.openPrefs(); return true; }
+      function() {
+        gSyncUI.openPrefs();
+        return true;
+      }
     ));
 
     let notification = new Weave.Notification(title, description, null,
@@ -206,7 +211,10 @@ var gSyncUI = {
     buttons.push(new Weave.NotificationButton(
       this._stringBundle.GetStringFromName("error.sync.viewQuotaButton.label"),
       this._stringBundle.GetStringFromName("error.sync.viewQuotaButton.accesskey"),
-      function() { gSyncUI.openQuotaDialog(); return true; }
+      function() {
+        gSyncUI.openQuotaDialog();
+        return true;
+      }
     ));
 
     let notification = new Weave.Notification(
@@ -225,10 +233,11 @@ var gSyncUI = {
   },
 
   handleToolbarButton: function() {
-    if (this._needsSetup())
+    if (this._needsSetup()) {
       this.openSetup();
-    else
+    } else {
       this.doSync();
+    }
   },
 
   //XXXzpao should be part of syncCommon.js - which we might want to make a module...
@@ -246,9 +255,9 @@ var gSyncUI = {
 
   openSetup: function(wizardType) {
     let win = Services.wm.getMostRecentWindow("Weave:AccountSetup");
-    if (win)
+    if (win) {
       win.focus();
-    else {
+    } else {
       window.openDialog("chrome://browser/content/sync/setup.xul",
                         "weaveSetup", "centerscreen,chrome,resizable=no",
                         wizardType);
@@ -256,25 +265,28 @@ var gSyncUI = {
   },
 
   openAddDevice: function() {
-    if (!Weave.Utils.ensureMPUnlocked())
+    if (!Weave.Utils.ensureMPUnlocked()) {
       return;
+    }
 
     let win = Services.wm.getMostRecentWindow("Sync:AddDevice");
-    if (win)
+    if (win) {
       win.focus();
-    else
+    } else {
       window.openDialog("chrome://browser/content/sync/addDevice.xul",
                         "syncAddDevice", "centerscreen,chrome,resizable=no");
+    }
   },
 
   openQuotaDialog: function() {
     let win = Services.wm.getMostRecentWindow("Sync:ViewQuota");
-    if (win)
+    if (win) {
       win.focus();
-    else
+    } else {
       Services.ww.activeWindow.openDialog(
         "chrome://browser/content/sync/quota.xul", "",
         "centerscreen,chrome,dialog,modal");
+    }
   },
 
   openPrefs: function() {
@@ -284,12 +296,14 @@ var gSyncUI = {
 
   // Helpers
   _updateLastSyncTime: function() {
-    if (!gBrowser)
+    if (!gBrowser) {
       return;
+    }
 
     let syncButton = document.getElementById("sync-button");
-    if (!syncButton)
+    if (!syncButton) {
       return;
+    }
 
     let lastSync = Services.prefs.getCharPref("services.sync.lastSync", "");
     if (!lastSync || this._needsSetup()) {
@@ -348,8 +362,9 @@ var gSyncUI = {
 
     // Check if the client is outdated in some way
     let outdated = Weave.Status.sync == Weave.VERSION_OUT_OF_DATE;
-    for (let [engine, reason] in Iterator(Weave.Status.engines))
+    for (let [engine, reason] in Iterator(Weave.Status.engines)) {
       outdated = outdated || reason == Weave.VERSION_OUT_OF_DATE;
+    }
 
     if (outdated) {
       description = this._stringBundle.GetStringFromName(
@@ -362,8 +377,7 @@ var gSyncUI = {
           return true;
         }
       ));
-    }
-    else if (Weave.Status.sync == Weave.OVER_QUOTA) {
+    } else if (Weave.Status.sync == Weave.OVER_QUOTA) {
       description = this._stringBundle.GetStringFromName(
         "error.sync.quota.description");
       buttons.push(new Weave.NotificationButton(
@@ -371,23 +385,30 @@ var gSyncUI = {
           "error.sync.viewQuotaButton.label"),
         this._stringBundle.GetStringFromName(
           "error.sync.viewQuotaButton.accesskey"),
-        function() { gSyncUI.openQuotaDialog(); return true; } )
-      );
-    }
-    else if (Weave.Status.enforceBackoff) {
+        function() {
+          gSyncUI.openQuotaDialog();
+          return true;
+        }
+      ));
+    } else if (Weave.Status.enforceBackoff) {
       priority = Weave.Notifications.PRIORITY_INFO;
       buttons.push(new Weave.NotificationButton(
         this._stringBundle.GetStringFromName("error.sync.serverStatusButton.label"),
         this._stringBundle.GetStringFromName("error.sync.serverStatusButton.accesskey"),
-        function() { gSyncUI.openServerStatus(); return true; }
+        function() {
+          gSyncUI.openServerStatus();
+          return true;
+        }
       ));
-    }
-    else {
+    } else {
       priority = Weave.Notifications.PRIORITY_INFO;
       buttons.push(new Weave.NotificationButton(
         this._stringBundle.GetStringFromName("error.sync.tryAgainButton.label"),
         this._stringBundle.GetStringFromName("error.sync.tryAgainButton.accesskey"),
-        function() { gSyncUI.doSync(); return true; }
+        function() {
+          gSyncUI.doSync();
+          return true;
+        }
       ));
     }
 
