@@ -1880,7 +1880,7 @@ nsDocument::Init()
   mScopeObject = do_GetWeakReference(global);
   MOZ_ASSERT(mScopeObject);
 
-  mScriptLoader = new nsScriptLoader(this);
+  mScriptLoader = new dom::ScriptLoader(this);
 
   mozilla::HoldJSObjects(this);
 
@@ -4685,7 +4685,7 @@ nsDocument::GetWindowInternal() const
   return win;
 }
 
-nsScriptLoader*
+ScriptLoader*
 nsDocument::ScriptLoader()
 {
   return mScriptLoader;
@@ -5709,9 +5709,9 @@ nsDocument::IsWebComponentsEnabled(JSContext* aCx, JSObject* aObject)
 {
   JS::Rooted<JSObject*> obj(aCx, aObject);
 
-  if (Preferences::GetBool("dom.webcomponents.enabled")) {
-    return true;
-  }
+  //if (Preferences::GetBool("dom.webcomponents.enabled")) {
+  //  return true;
+  //}
 
   // Check for the webcomponents permission. See Bug 1181555.
   JSAutoCompartment ac(aCx, obj);
@@ -5725,9 +5725,9 @@ nsDocument::IsWebComponentsEnabled(JSContext* aCx, JSObject* aObject)
 bool
 nsDocument::IsWebComponentsEnabled(dom::NodeInfo* aNodeInfo)
 {
-  if (Preferences::GetBool("dom.webcomponents.enabled")) {
-    return true;
-  }
+  //if (Preferences::GetBool("dom.webcomponents.enabled")) {
+  //  return true;
+  //}
 
   nsIDocument* doc = aNodeInfo->GetDocument();
   // Use GetScopeObject() here so that data documents work the same way as the
@@ -5740,6 +5740,7 @@ nsDocument::IsWebComponentsEnabled(dom::NodeInfo* aNodeInfo)
 bool
 nsDocument::IsWebComponentsEnabled(nsPIDOMWindowInner* aWindow)
 {
+/*
   if (aWindow) {
     nsresult rv;
     nsCOMPtr<nsIPermissionManager> permMgr =
@@ -5753,7 +5754,7 @@ nsDocument::IsWebComponentsEnabled(nsPIDOMWindowInner* aWindow)
 
     return perm == nsIPermissionManager::ALLOW_ACTION;
   }
-
+*/
   return false;
 }
 

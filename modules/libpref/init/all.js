@@ -251,6 +251,10 @@ pref("browser.sessionhistory.max_total_viewers", -1);
 pref("browser.newtabpage.add_to_session_history", false);
 
 pref("ui.use_native_colors", true);
+#ifdef MOZ_WIDGET_GTK
+// Determines whether the menubar is shown in the global menubar or not.
+pref("ui.use_global_menubar", false);
+#endif
 pref("ui.click_hold_context_menus", false);
 // Duration of timeout of incremental search in menus (ms).  0 means infinite.
 pref("ui.menu.incremental_search.timeout", 1000);
@@ -1248,8 +1252,10 @@ pref("privacy.trackingprotection.pbmode.enabled",  false);
 pref("dom.event.contextmenu.enabled",       true);
 pref("dom.event.clipboardevents.enabled",   true);
 
+/*
 pref("dom.webcomponents.enabled",           false);
 pref("dom.webcomponents.customelements.enabled", false);
+*/
 
 pref("javascript.enabled",                  true);
 // Enable Array.prototype.values
@@ -4735,6 +4741,9 @@ pref("dom.vibrator.max_vibrate_list_len", 128);
 // Disabled by default to reduce private data exposure.
 pref("dom.battery.enabled", false);
 
+// Abort API
+pref("dom.abortController.enabled", true);
+
 // Push
 
 pref("dom.push.enabled", false);
@@ -5376,13 +5385,6 @@ pref("layout.css.color-adjust.enabled", true);
 
 pref("dom.audiochannel.audioCompeting", false);
 pref("dom.audiochannel.audioCompeting.allAgents", false);
-
-// Disable Node.rootNode in release builds.
-#ifdef RELEASE_OR_BETA
-pref("dom.node.rootNode.enabled", false);
-#else
-pref("dom.node.rootNode.enabled", true);
-#endif
 
 // Default media volume
 pref("media.default_volume", "1.0");

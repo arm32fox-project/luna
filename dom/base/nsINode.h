@@ -83,6 +83,7 @@ template<typename> class Sequence;
 class Text;
 class TextOrElementOrDocument;
 struct DOMPointInit;
+struct GetRootNodeOptions;
 } // namespace dom
 } // namespace mozilla
 
@@ -942,10 +943,11 @@ public:
    */
   nsINode* SubtreeRoot() const;
 
-  nsINode* RootNode() const
-  {
-    return SubtreeRoot();
-  }
+  /*
+   * Get context object's shadow-including root if options's composed is true,
+   * and context object's root otherwise.
+   */
+  nsINode* GetRootNode(const mozilla::dom::GetRootNodeOptions& aOptions);
 
   /**
    * See nsIDOMEventTarget
