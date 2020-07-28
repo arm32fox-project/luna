@@ -64,7 +64,6 @@ LOCAL_INCLUDES += [
 
 LOCAL_INCLUDES += [
     '/dom/base',
-    '/dom/battery',
     '/dom/canvas',
     '/dom/geolocation',
     '/dom/html',
