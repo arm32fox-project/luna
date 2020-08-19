@@ -68,7 +68,7 @@ MOZ_DEVTOOLS=1
 # Allows installation of Firefox GUID targeted extensions despite having
 # a different Application ID
 # On UXP this is a possible feature only for the Tycho Add-ons Manager
-MOZ_PHOENIX_EXTENSIONS=1
+#MOZ_PHOENIX_EXTENSIONS=1
 
 # Platform Feature: Sync Service
 MOZ_SERVICES_COMMON=1
