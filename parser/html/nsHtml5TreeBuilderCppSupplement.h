@@ -167,16 +167,20 @@ nsHtml5TreeBuilder::createElement(int32_t aNamespace, nsIAtom* aName,
               aAttributes->getValue(nsHtml5AttributeName::ATTR_CROSSORIGIN);
             nsHtml5String integrity =
               aAttributes->getValue(nsHtml5AttributeName::ATTR_INTEGRITY);
+            bool async =
+              aAttributes->contains(nsHtml5AttributeName::ATTR_ASYNC);
+            bool defer =
+              aAttributes->contains(nsHtml5AttributeName::ATTR_DEFER);
             mSpeculativeLoadQueue.AppendElement()->InitScript(
               url,
               charset,
               type,
               crossOrigin,
               integrity,
-              mode == NS_HTML5TREE_BUILDER_IN_HEAD);
-            mCurrentHtmlScriptIsAsyncOrDefer =
-              aAttributes->contains(nsHtml5AttributeName::ATTR_ASYNC) ||
-              aAttributes->contains(nsHtml5AttributeName::ATTR_DEFER);
+              mode == NS_HTML5TREE_BUILDER_IN_HEAD,
+              async,
+              defer);
+            mCurrentHtmlScriptIsAsyncOrDefer = async || defer;
           }
         } else if (nsHtml5Atoms::link == aName) {
           nsHtml5String rel =
@@ -279,7 +283,9 @@ nsHtml5TreeBuilder::createElement(int32_t aNamespace, nsIAtom* aName,
               type,
               crossOrigin,
               integrity,
-              mode == NS_HTML5TREE_BUILDER_IN_HEAD);
+              mode == NS_HTML5TREE_BUILDER_IN_HEAD,
+              false /* async */, 
+              false /* defer */);
           }
         } else if (nsHtml5Atoms::style == aName) {
           nsHtml5TreeOperation* treeOp = mOpQueue.AppendElement();
