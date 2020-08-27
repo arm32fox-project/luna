@@ -1407,10 +1407,19 @@ ScriptSourceObject::initFromOptions(JSContext* cx, HandleScriptSource source,
     MOZ_ASSERT(source->getReservedSlot(ELEMENT_PROPERTY_SLOT).isMagic(JS_GENERIC_MAGIC));
     MOZ_ASSERT(source->getReservedSlot(INTRODUCTION_SCRIPT_SLOT).isMagic(JS_GENERIC_MAGIC));
 
-    RootedObject element(cx, options.element());
-    RootedString elementAttributeName(cx, options.elementAttributeName());
-    if (!initElementProperties(cx, source, element, elementAttributeName))
+    RootedValue element(cx, ObjectOrNullValue(options.element()));
+    if (!cx->compartment()->wrap(cx, &element))
         return false;
+    source->setReservedSlot(ELEMENT_SLOT, element);
+
+    RootedValue elementAttributeName(cx);
+    if (options.elementAttributeName())
+        elementAttributeName = StringValue(options.elementAttributeName());
+    else
+        elementAttributeName = UndefinedValue();
+    if (!cx->compartment()->wrap(cx, &elementAttributeName))
+        return false;
+    source->setReservedSlot(ELEMENT_PROPERTY_SLOT, elementAttributeName);
 
     // There is no equivalent of cross-compartment wrappers for scripts. If the
     // introduction script and ScriptSourceObject are in different compartments,
@@ -1424,26 +1433,6 @@ ScriptSourceObject::initFromOptions(JSContext* cx, HandleScriptSource source,
     } else {
         source->setReservedSlot(INTRODUCTION_SCRIPT_SLOT, UndefinedValue());
     }
-
-    return true;
-}
-
-bool
-ScriptSourceObject::initElementProperties(JSContext* cx, HandleScriptSource source,
-                                          HandleObject element, HandleString elementAttrName)
-{
-    RootedValue elementValue(cx, ObjectOrNullValue(element));
-    if (!cx->compartment()->wrap(cx, &elementValue))
-        return false;
-
-    RootedValue nameValue(cx);
-    if (elementAttrName)
-        nameValue = StringValue(elementAttrName);
-    if (!cx->compartment()->wrap(cx, &nameValue))
-        return false;
-
-    source->setReservedSlot(ELEMENT_SLOT, elementValue);
-    source->setReservedSlot(ELEMENT_PROPERTY_SLOT, nameValue);
 
     return true;
 }

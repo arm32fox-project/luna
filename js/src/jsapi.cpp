@@ -4432,17 +4432,6 @@ JS::CompileFunction(JSContext* cx, AutoObjectVector& envChain,
                            chars.get(), length, fun);
 }
 
-JS_PUBLIC_API(bool)
-JS::InitScriptSourceElement(JSContext* cx, HandleScript script,
-                            HandleObject element, HandleString elementAttrName)
-{
-    MOZ_ASSERT(cx);
-    MOZ_ASSERT(CurrentThreadCanAccessRuntime(cx->runtime()));
-
-    RootedScriptSource sso(cx, &script->sourceObject()->as<ScriptSourceObject>());
-    return ScriptSourceObject::initElementProperties(cx, sso, element, elementAttrName);
-}
-
 JS_PUBLIC_API(JSString*)
 JS_DecompileScript(JSContext* cx, HandleScript script, const char* name, unsigned indent)
 {
