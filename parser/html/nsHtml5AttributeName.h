@@ -355,6 +355,7 @@ class nsHtml5AttributeName
     static nsHtml5AttributeName* ATTR_ONREPEAT;
     static nsHtml5AttributeName* ATTR_ONSELECT;
     static nsHtml5AttributeName* ATTR_NOTATION;
+    static nsHtml5AttributeName* ATTR_NOMODULE;
     static nsHtml5AttributeName* ATTR_NORESIZE;
     static nsHtml5AttributeName* ATTR_MANIFEST;
     static nsHtml5AttributeName* ATTR_MATHSIZE;
