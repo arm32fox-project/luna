@@ -1185,6 +1185,14 @@ pref("dom.storage.default_quota",      5120);
 
 pref("dom.send_after_paint_to_content", false);
 
+// Whether the disabled attribute in HTMLLinkElement disables the sheet loading
+// altogether, or forwards to the inner stylesheet method without attribute
+// reflection.
+//
+// Historical behavior is the second, the first is being discussed at:
+// https://github.com/whatwg/html/issues/3840
+pref("dom.link.disabled_attribute.enabled", true);
+
 // Timeout clamp in ms for timeouts we clamp
 pref("dom.min_timeout_value", 4);
 // And for background windows
@@ -4739,6 +4747,8 @@ pref("dom.push.enabled", false);
 
 pref("dom.push.loglevel", "error");
 
+pref("dom.getRootNode.enabled", false);
+
 pref("dom.push.serverURL", "wss://push.services.mozilla.com/");
 pref("dom.push.userAgentID", "");
 
@@ -4812,6 +4822,12 @@ pref("media.ondevicechange.fakeDeviceChangeEvent.enabled", false);
 // those platforms we don't handle touch events anyway so it's conceptually
 // a no-op.
 pref("layout.css.touch_action.enabled", true);
+ 
+// WHATWG computed intrinsic aspect ratio for an img element
+// https://html.spec.whatwg.org/multipage/rendering.html#attributes-for-embedded-content-and-images
+// Are the width and height attributes on image-like elements mapped to the
+// internal-for-now aspect-ratio property?
+pref("layout.css.intrinsic-aspect-ratio.enabled", true);
 
 // Enables some assertions in nsStyleContext that are too expensive
 // for general use, but might be useful to enable for specific tests.
@@ -5430,3 +5446,11 @@ pref("prompts.authentication_dialog_abuse_limit", 0);
 // Whether module scripts (<script type="module">) are enabled for content.
 pref("dom.moduleScripts.enabled", true);
 
+// Report details when a media source error occurs?
+// Enabled by default in debug builds, otherwise should be explicitly enabled
+// by the user to prevent XO leaking of the response status (CVE-2020-15666)
+#ifdef DEBUG
+pref("media.sourceErrorDetails.enabled", true);
+#else
+pref("media.sourceErrorDetails.enabled", false);
+#endif

@@ -1408,6 +1408,7 @@ nsStylePosition::nsStylePosition(StyleStructContext aContext)
   , mGridAutoColumnsMax(eStyleUnit_Auto)
   , mGridAutoRowsMin(eStyleUnit_Auto)
   , mGridAutoRowsMax(eStyleUnit_Auto)
+  , mAspectRatio(0.0f)
   , mGridAutoFlow(NS_STYLE_GRID_AUTO_FLOW_ROW)
   , mBoxSizing(StyleBoxSizing::Content)
   , mAlignContent(NS_STYLE_ALIGN_NORMAL)
@@ -1466,6 +1467,7 @@ nsStylePosition::nsStylePosition(const nsStylePosition& aSource)
   , mGridAutoColumnsMax(aSource.mGridAutoColumnsMax)
   , mGridAutoRowsMin(aSource.mGridAutoRowsMin)
   , mGridAutoRowsMax(aSource.mGridAutoRowsMax)
+  , mAspectRatio(aSource.mAspectRatio)
   , mGridAutoFlow(aSource.mGridAutoFlow)
   , mBoxSizing(aSource.mBoxSizing)
   , mAlignContent(aSource.mAlignContent)
@@ -1635,6 +1637,11 @@ nsStylePosition::CalcDifference(const nsStylePosition& aNewData,
 
     if (isVertical ? heightChanged : widthChanged) {
       hint |= nsChangeHint_ReflowHintsForISizeChange;
+    }
+
+    if (mAspectRatio != aNewData.mAspectRatio) {
+      hint |= nsChangeHint_ReflowHintsForISizeChange |
+              nsChangeHint_ReflowHintsForBSizeChange;
     }
   } else {
     if (widthChanged || heightChanged) {
@@ -2731,7 +2738,7 @@ nsStyleImageLayers::Size::DependsOnPositioningAreaSize(const nsStyleImage& aImag
     }
     if (imgContainer) {
       CSSIntSize imageSize;
-      nsSize imageRatio;
+      AspectRatio imageRatio;
       bool hasWidth, hasHeight;
       nsLayoutUtils::ComputeSizeForDrawing(imgContainer, imageSize, imageRatio,
                                            hasWidth, hasHeight);
@@ -2744,7 +2751,7 @@ nsStyleImageLayers::Size::DependsOnPositioningAreaSize(const nsStyleImage& aImag
 
       // If the image has an intrinsic ratio, rendering will depend on frame
       // size when background-size is all auto.
-      if (imageRatio != nsSize(0, 0)) {
+      if (imageRatio) {
         return mWidthType == mHeightType;
       }
 

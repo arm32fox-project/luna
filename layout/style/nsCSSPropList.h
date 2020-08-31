@@ -470,6 +470,19 @@ CSS_PROP_DISPLAY(
     kAppearanceKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_Discrete)
+#ifndef CSS_PROP_LIST_EXCLUDE_INTERNAL
+CSS_PROP_POSITION(
+    aspect-ratio,
+    aspect_ratio,
+    AspectRatio,
+    CSS_PROPERTY_INTERNAL |
+        CSS_PROPERTY_PARSE_INACCESSIBLE,
+    "",
+    VARIANT_NUMBER,
+    nullptr,
+    offsetof(nsStylePosition, mAspectRatio),
+    eStyleAnimType_None)
+#endif // CSS_PROP_LIST_EXCLUDE_INTERNAL
 CSS_PROP_DISPLAY(
     backface-visibility,
     backface_visibility,

@@ -2872,6 +2872,8 @@ public:
   virtual void ScheduleIntersectionObserverNotification() = 0;
   virtual void NotifyIntersectionObservers() = 0;
 
+  bool ModuleScriptsEnabled();
+
 protected:
   bool GetUseCounter(mozilla::UseCounter aUseCounter)
   {

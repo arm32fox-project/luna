@@ -86,7 +86,7 @@ public:
   virtual nscoord GetMinISize(nsRenderingContext *aRenderingContext) override;
   virtual nscoord GetPrefISize(nsRenderingContext *aRenderingContext) override;
   virtual mozilla::IntrinsicSize GetIntrinsicSize() override;
-  virtual nsSize GetIntrinsicRatio() override;
+  virtual mozilla::AspectRatio GetIntrinsicRatio() override;
   virtual void Reflow(nsPresContext*           aPresContext,
                       ReflowOutput&     aDesiredSize,
                       const ReflowInput& aReflowInput,
@@ -273,21 +273,19 @@ private:
   void GetDocumentCharacterSet(nsACString& aCharset) const;
   bool ShouldDisplaySelection();
 
+  // Whether the image frame should use the mapped aspect ratio from width=""
+  // and height="".
+  bool ShouldUseMappedAspectRatio() const;
+
   /**
    * Recalculate mIntrinsicSize from the image.
-   *
-   * @return whether aImage's size did _not_
-   *         match our previous intrinsic size.
    */
-  bool UpdateIntrinsicSize(imgIContainer* aImage);
+  bool UpdateIntrinsicSize();
 
   /**
    * Recalculate mIntrinsicRatio from the image.
-   *
-   * @return whether aImage's ratio did _not_
-   *         match our previous intrinsic ratio.
    */
-  bool UpdateIntrinsicRatio(imgIContainer* aImage);
+  bool UpdateIntrinsicRatio();
 
   /**
    * This function calculates the transform for converting between
@@ -306,6 +304,12 @@ private:
    * returns true.
    */
   bool IsPendingLoad(imgIRequest* aRequest) const;
+
+  /**
+   * Updates mImage based on the current image request (cannot be null), and the
+   * image passed in (can be null), and invalidate layout and paint as needed.
+   */
+  void UpdateImage(imgIRequest* aRequest, imgIContainer* aImage);
 
   /**
    * Function to convert a dirty rect in the source image to a dirty
@@ -333,7 +337,7 @@ private:
   nsCOMPtr<imgIContainer> mPrevImage;
   nsSize mComputedSize;
   mozilla::IntrinsicSize mIntrinsicSize;
-  nsSize mIntrinsicRatio;
+  mozilla::AspectRatio mIntrinsicRatio;
 
   bool mDisplayingIcon;
   bool mFirstFrameComplete;
