@@ -5941,8 +5941,6 @@ CSSParserImpl::ParseAttributeSelector(int32_t&       aDataMask,
               "language",
               "defer",
               "type",
-              // additional attributes not in HTML4
-              "direction", // marquee
               nullptr
             };
             short i = 0;

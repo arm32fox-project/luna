@@ -358,7 +358,6 @@ class nsHtml5ElementName
     static nsHtml5ElementName* ELT_LISTING;
     static nsHtml5ElementName* ELT_MFENCED;
     static nsHtml5ElementName* ELT_MPADDED;
-    static nsHtml5ElementName* ELT_MARQUEE;
     static nsHtml5ElementName* ELT_MACTION;
     static nsHtml5ElementName* ELT_MSUBSUP;
     static nsHtml5ElementName* ELT_NOEMBED;

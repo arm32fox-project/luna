@@ -247,9 +247,6 @@ include mathml/reftest.list
 # margin-collapsing
 include margin-collapsing/reftest.list
 
-# marquee/
-include marquee/reftest.list
-
 # native-theme/
 # (no XUL theme on Android)
 skip-if(Android) include native-theme/reftest.list

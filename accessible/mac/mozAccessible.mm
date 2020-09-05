@@ -732,8 +732,6 @@ using namespace mozilla::a11y;
       return @"AXDocument";
     if (roleAtom == nsGkAtoms::log_)
       return @"AXApplicationLog";
-    if (roleAtom == nsGkAtoms::marquee)
-      return @"AXApplicationMarquee";
     if (roleAtom == nsGkAtoms::math)
       return @"AXDocumentMath";
     if (roleAtom == nsGkAtoms::note_)
@@ -869,7 +867,6 @@ static const RoleDescrMap sRoleDescrMap[] = {
   { @"AXApplicationAlert", NS_LITERAL_STRING("alert") },
   { @"AXApplicationAlertDialog", NS_LITERAL_STRING("alertDialog") },
   { @"AXApplicationLog", NS_LITERAL_STRING("log") },
-  { @"AXApplicationMarquee", NS_LITERAL_STRING("marquee") },
   { @"AXApplicationStatus", NS_LITERAL_STRING("status") },
   { @"AXApplicationTimer", NS_LITERAL_STRING("timer") },
   { @"AXContentSeparator", NS_LITERAL_STRING("separator") },

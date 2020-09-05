@@ -782,18 +782,6 @@
 |     <applet>
 
 #data
-<!doctype html><marquee><frameset>
-#errors
-(1,34): unexpected-start-tag
-(1,34): expected-closing-tag-but-got-eof
-#document
-| <!DOCTYPE html>
-| <html>
-|   <head>
-|   <body>
-|     <marquee>
-
-#data
 <!doctype html><object><frameset>
 #errors
 (1,33): unexpected-start-tag
