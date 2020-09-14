@@ -220,7 +220,7 @@ STDMETHODIMP nsFilePicker::QueryInterface(REFIID refiid, void** ppvResult)
 
 
 /*
- * Vista+ callbacks
+ * Callbacks
  */
 
 HRESULT

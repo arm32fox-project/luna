@@ -7,6 +7,8 @@
 
 #include "InkCollector.h"
 
+using namespace mozilla;
+
 // Msinkaut_i.c and Msinkaut.h should both be included
 // https://msdn.microsoft.com/en-us/library/windows/desktop/ms695519.aspx
 #include <msinkaut_i.c>

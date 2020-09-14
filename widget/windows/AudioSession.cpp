@@ -13,7 +13,7 @@
 #include "nsIUUIDGenerator.h"
 #include "nsIXULAppInfo.h"
 
-//#include "AudioSession.h"
+#include "AudioSession.h"
 #include "nsCOMPtr.h"
 #include "nsServiceManagerUtils.h"
 #include "nsString.h"
@@ -27,7 +27,7 @@ namespace mozilla {
 namespace widget {
 
 /*
- * To take advantage of what Vista+ have to offer with respect to audio,
+ * To take advantage of what Windows has to offer with respect to audio,
  * we need to maintain an audio session.  This class wraps IAudioSessionControl
  * and implements IAudioSessionEvents (for callbacks from Windows)
  */
