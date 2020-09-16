@@ -59,6 +59,7 @@
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/PendingAnimationTracker.h"
 #include "mozilla/dom/DOMImplementation.h"
+#include "mozilla/dom/ResizeObserverController.h"
 #include "mozilla/dom/ScriptLoader.h"
 #include "mozilla/dom/StyleSheetList.h"
 #include "nsDataHashtable.h"
@@ -1206,6 +1207,10 @@ public:
 
   virtual void UnblockDOMContentLoaded() override;
 
+  void AddResizeObserver(mozilla::dom::ResizeObserver* aResizeObserver) override;
+
+  void ScheduleResizeObserversNotification() const override;
+
 protected:
   friend class nsNodeUtils;
   friend class nsDocumentOnStack;
@@ -1341,6 +1346,9 @@ protected:
   bool ApplyFullscreen(const FullscreenRequest& aRequest);
 
   nsTArray<nsIObserver*> mCharSetObservers;
+
+  mozilla::UniquePtr<mozilla::dom::ResizeObserverController>
+    mResizeObserverController;
 
   PLDHashTable *mSubDocuments;
 
