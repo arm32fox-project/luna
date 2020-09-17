@@ -399,14 +399,6 @@ public:
                                              REFIID riid, void **ppv);
 
   /**
-   * SHGetKnownFolderPath() calls native SHGetKnownFolderPath()
-   * API which is available on Vista and up.
-   */
-  static HRESULT SHGetKnownFolderPath(REFKNOWNFOLDERID rfid,
-                                      DWORD dwFlags,
-                                      HANDLE hToken,
-                                      PWSTR *ppszPath);
-  /**
    * GetShellItemPath return the file or directory path of a shell item.
    * Internally calls IShellItem's GetDisplayName.
    *
@@ -529,12 +521,6 @@ private:
                                                             REFIID riid,
                                                             void **ppv);
   static SHCreateItemFromParsingNamePtr sCreateItemFromParsingName;
-  typedef HRESULT (WINAPI * SHGetKnownFolderPathPtr)(REFKNOWNFOLDERID rfid,
-                                                     DWORD dwFlags,
-                                                     HANDLE hToken,
-                                                     PWSTR *ppszPath);
-  static SHGetKnownFolderPathPtr sGetKnownFolderPath;
-
   static void GetWhitelistedPaths(
       nsTArray<mozilla::Pair<nsString,nsDependentString>>& aOutput);
 };
