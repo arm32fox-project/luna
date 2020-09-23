@@ -54,9 +54,6 @@ XPCOMUtils.defineLazyGetter(this, "gBrowserBundle", function() {
   return Services.strings.createBundle('chrome://browser/locale/browser.properties');
 });
 
-const PREF_PLUGINS_NOTIFYUSER = "plugins.update.notifyUser";
-const PREF_PLUGINS_UPDATEURL  = "plugins.update.url";
-
 // We try to backup bookmarks at idle times, to avoid doing that at shutdown.
 // Number of idle seconds before trying to backup bookmarks.  15 minutes.
 const BOOKMARKS_BACKUP_IDLE_TIME = 15 * 60;
@@ -289,6 +286,7 @@ BrowserGlue.prototype = {
         break;
       case "profile-after-change":
          this._onProfileAfterChange();
+         this._promptForMasterPassword();
          break;
       case "browser-search-engine-modified":
         if (data != "engine-default" && data != "engine-current") {
@@ -408,9 +406,28 @@ BrowserGlue.prototype = {
   },
 
   // profile is available
-  _onProfileAfterChange: function()
-  {
+  _onProfileAfterChange: function() {
     this._copyDefaultProfileFiles();
+  },
+  
+  _promptForMasterPassword: function() {
+    if (!Services.prefs.getBoolPref("signon.startup.prompt", false))
+      return;
+
+    // Try to avoid the multiple master password prompts on startup scenario
+    // by prompting for the master password upfront.
+    let token = Components.classes["@mozilla.org/security/pk11tokendb;1"]
+                          .getService(Components.interfaces.nsIPK11TokenDB)
+                          .getInternalKeyToken();
+
+    // Only log in to the internal token if it is already initialized,
+    // otherwise we get a "Change Master Password" dialog.
+    try {
+      if (!token.needsUserInit)
+        token.login(false);
+    } catch (ex) {
+      // If user cancels an exception is expected.
+    }
   },
 
   _onAppDefaults: function() {
@@ -455,11 +472,10 @@ BrowserGlue.prototype = {
     Services.obs.notifyObservers(null, "browser-ui-startup-complete", "");
   },
 
-  // Copies additional profile files from the default profile tho the current profile.
+  // Copies additional profile files from the default profile to the current profile.
   // Only files not covered by the regular profile creation process.
   // Currently only the userchrome examples.
-  _copyDefaultProfileFiles: function()
-  {
+  _copyDefaultProfileFiles: function() {
     // Copy default chrome example files if they do not exist in the current profile.
     var profileDir = Services.dirsvc.get("ProfD", Components.interfaces.nsILocalFile);
     profileDir.append("chrome");
@@ -975,21 +991,6 @@ BrowserGlue.prototype = {
     } catch(e) {
       Cu.reportError(e);
     }
-  },
-
-  _showPluginUpdatePage: function() {
-    // Pale Moon: disable this functionality from BrowserGlue, people are 
-    // already notified if they visit a page with an outdated plugin, and
-    // they can check properly from the plugins page as well. 
-
-//    Services.prefs.setBoolPref(PREF_PLUGINS_NOTIFYUSER, false);
-//
-//    var formatter = Cc["@mozilla.org/toolkit/URLFormatterService;1"].
-//                    getService(Ci.nsIURLFormatter);
-//    var updateUrl = formatter.formatURLPref(PREF_PLUGINS_UPDATEURL);
-//
-//    var win = this.getMostRecentBrowserWindow();
-//    win.openUILinkIn(updateUrl, "tab");
   },
 
   /**
