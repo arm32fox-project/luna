@@ -2609,6 +2609,9 @@ pref("layout.css.grid-template-subgrid-value.enabled", false);
 // Is support for CSS contain enabled?
 pref("layout.css.contain.enabled", false);
 
+// Is support for CSS display:flow-root enabled?
+pref("layout.css.display-flow-root.enabled", true);
+
 // Is support for CSS display:contents enabled?
 pref("layout.css.display-contents.enabled", true);
 
@@ -2651,6 +2654,9 @@ pref("layout.css.font-loading-api.enabled", true);
 
 // Should stray control characters be rendered visibly?
 pref("layout.css.control-characters.visible", false);
+
+// Is support for ResizeObservers enabled?
+pref("layout.css.resizeobserver.enabled", true);
 
 // pref for which side vertical scrollbars should be on
 // 0 = end-side in UI direction

@@ -72,7 +72,6 @@ function testInDocument(doc, documentID) {
     HTML_TAG("link", "Link")
     HTML_TAG("listing", "Span")
     HTML_TAG("map", "Map")
-    HTML_TAG("marquee", "Div")
     HTML_TAG("menu", "Shared")
     HTML_TAG("meta", "Meta")
     HTML_TAG("multicol", "Unknown")

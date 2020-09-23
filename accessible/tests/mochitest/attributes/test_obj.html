@@ -62,7 +62,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=558036
       testAbsentAttrs("live3", {"live" : ""});
       testAttrs("log", {"live" : "polite"}, true);
       testAttrs("logAssertive", {"live" : "assertive"}, true);
-      testAttrs("marquee", {"live" : "off"}, true);
       testAttrs("status", {"live" : "polite"}, true);
       testAttrs("timer", {"live" : "off"}, true);
       testAbsentAttrs("tablist", {"live" : "polite"});
@@ -72,7 +71,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=558036
       testAttrs("live2Child", {"container-live" : "polite"}, true);
       testAttrs("logChild", {"container-live" : "polite"}, true);
       testAttrs("logAssertiveChild", {"container-live" : "assertive"}, true);
-      testAttrs("marqueeChild", {"container-live" : "off"}, true);
       testAttrs("statusChild", {"container-live" : "polite"}, true);
       testAttrs("timerChild", {"container-live" : "off"}, true);
       testAbsentAttrs("tablistChild", {"container-live" : "polite"});
@@ -80,13 +78,11 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=558036
       // container-live-role object attribute
       testAttrs("log", {"container-live-role" : "log"}, true);
       testAttrs("logAssertive", {"container-live-role" : "log"}, true);
-      testAttrs("marquee", {"container-live-role" : "marquee"}, true);
       testAttrs("status", {"container-live-role" : "status"}, true);
       testAttrs("timer", {"container-live-role" : "timer"}, true);
       testAttrs("logChild", {"container-live-role" : "log"}, true);
       testAttrs("logAssertive", {"container-live-role" : "log"}, true);
       testAttrs("logAssertiveChild", {"container-live-role" : "log"}, true);
-      testAttrs("marqueeChild", {"container-live-role" : "marquee"}, true);
       testAttrs("statusChild", {"container-live-role" : "status"}, true);
       testAttrs("timerChild", {"container-live-role" : "timer"}, true);
       testAbsentAttrs("tablistChild", {"container-live-role" : "tablist"});
@@ -230,11 +226,9 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=558036
 
   <!-- back to aria -->
   <div id="live" aria-live="polite">excuse <div id="liveChild">me</div></div>
-  <div id="live2" role="marquee" aria-live="polite">excuse <div id="live2Child">me</div></div>
   <div id="live3" role="region">excuse</div>
   <div id="log" role="log">excuse <div id="logChild">me</div></div>
   <div id="logAssertive" role="log" aria-live="assertive">excuse <div id="logAssertiveChild">me</div></div>
-  <div id="marquee" role="marquee">excuse <div id="marqueeChild">me</div></div>
   <div id="status" role="status">excuse <div id="statusChild">me</div></div>
   <div id="tablist" role="tablist">tablist <div id="tablistChild">tab</div></div>
   <div id="timer" role="timer">excuse <div id="timerChild">me</div></div>

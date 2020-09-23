@@ -79,7 +79,7 @@ class html(Namespace):
         'colgroup,comment,dd,del,dfn,dir,div,dl,dt,em,embed,'
         'fieldset,font,form,frameset,h1,h2,h3,h4,h5,h6,head,html,'
         'i,iframe,img,input,ins,kbd,label,legend,li,link,listing,'
-        'map,marquee,menu,meta,multicol,nobr,noembed,noframes,'
+        'map,menu,meta,multicol,nobr,noembed,noframes,'
         'noscript,object,ol,optgroup,option,p,pre,q,s,script,'
         'select,small,span,strike,strong,style,sub,sup,table,'
         'tbody,td,textarea,tfoot,th,thead,title,tr,tt,u,ul,xmp,'

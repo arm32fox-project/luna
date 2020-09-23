@@ -201,8 +201,6 @@ with Files('list-item/**'):
     BUG_COMPONENT = ('Core', 'Layout: Block and Inline')
 with Files('margin-collapsing/**'):
     BUG_COMPONENT = ('Core', 'Layout: Block and Inline')
-with Files('marquee/**'):
-    BUG_COMPONENT = ('Core', 'CSS Parsing and Computation')
 with Files('mathml/**'):
     BUG_COMPONENT = ('Core', 'MathML')
 with Files('native-theme/**'):

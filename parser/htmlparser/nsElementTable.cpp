@@ -320,10 +320,6 @@ const nsHTMLElement gHTMLElements[] = {
     /*parent,leaf*/ kSpecial, false
   },
   {
-    /*tag*/         eHTMLTag_marquee,
-    /*parent,leaf*/ kSpecial, false
-  },
-  {
     /*tag*/         eHTMLTag_menu,
     /*parent,leaf*/ kList, false
   },

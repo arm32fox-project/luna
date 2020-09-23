@@ -249,9 +249,6 @@ include mathml/reftest-stylo.list
 # margin-collapsing
 include margin-collapsing/reftest-stylo.list
 
-# marquee/
-include marquee/reftest-stylo.list
-
 # native-theme/
 # skipping for B2G since something around radio-nonnative.html makes the whole suite hang
 skip-if(B2G||Android||Mulet) include native-theme/reftest-stylo.list

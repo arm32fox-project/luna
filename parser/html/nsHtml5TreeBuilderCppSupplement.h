@@ -171,6 +171,8 @@ nsHtml5TreeBuilder::createElement(int32_t aNamespace, nsIAtom* aName,
               aAttributes->contains(nsHtml5AttributeName::ATTR_ASYNC);
             bool defer =
               aAttributes->contains(nsHtml5AttributeName::ATTR_DEFER);
+            bool noModule =
+              aAttributes->contains(nsHtml5AttributeName::ATTR_NOMODULE);
             mSpeculativeLoadQueue.AppendElement()->InitScript(
               url,
               charset,
@@ -179,7 +181,8 @@ nsHtml5TreeBuilder::createElement(int32_t aNamespace, nsIAtom* aName,
               integrity,
               mode == NS_HTML5TREE_BUILDER_IN_HEAD,
               async,
-              defer);
+              defer,
+              noModule);
             mCurrentHtmlScriptIsAsyncOrDefer = async || defer;
           }
         } else if (nsHtml5Atoms::link == aName) {
@@ -285,7 +288,8 @@ nsHtml5TreeBuilder::createElement(int32_t aNamespace, nsIAtom* aName,
               integrity,
               mode == NS_HTML5TREE_BUILDER_IN_HEAD,
               false /* async */, 
-              false /* defer */);
+              false /* defer */,
+              false /* noModule */);
           }
         } else if (nsHtml5Atoms::style == aName) {
           nsHtml5TreeOperation* treeOp = mOpQueue.AppendElement();
@@ -918,6 +922,9 @@ nsHtml5TreeBuilder::elementPopped(int32_t aNamespace, nsIAtom* aName, nsIContent
   }
   if (aNamespace == kNameSpaceID_SVG) {
     if (aName == nsHtml5Atoms::svg) {
+      if (!scriptingEnabled || mPreventScriptExecution) {
+        return;
+      }
       if (mBuilder) {
         nsHtml5TreeOperation::SvgLoad(static_cast<nsIContent*>(aElement));
         return;

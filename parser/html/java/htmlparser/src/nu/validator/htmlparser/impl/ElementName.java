@@ -690,7 +690,6 @@ public final class ElementName
     public static final ElementName LISTING = new ElementName("listing", "listing", TreeBuilder.PRE_OR_LISTING | SPECIAL);
     public static final ElementName MFENCED = new ElementName("mfenced", "mfenced", TreeBuilder.OTHER);
     public static final ElementName MPADDED = new ElementName("mpadded", "mpadded", TreeBuilder.OTHER);
-    public static final ElementName MARQUEE = new ElementName("marquee", "marquee", TreeBuilder.MARQUEE_OR_APPLET | SPECIAL | SCOPING);
     public static final ElementName MACTION = new ElementName("maction", "maction", TreeBuilder.OTHER);
     public static final ElementName MSUBSUP = new ElementName("msubsup", "msubsup", TreeBuilder.OTHER);
     public static final ElementName NOEMBED = new ElementName("noembed", "noembed", TreeBuilder.NOEMBED | SPECIAL);
@@ -1089,7 +1088,6 @@ public final class ElementName
     LISTING,
     MFENCED,
     MPADDED,
-    MARQUEE,
     MACTION,
     MSUBSUP,
     NOEMBED,
@@ -1489,7 +1487,6 @@ public final class ElementName
     247707956,
     248648814,
     248648836,
-    248682161,
     248986932,
     249058914,
     249697357,

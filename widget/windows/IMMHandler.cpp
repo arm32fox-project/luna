@@ -17,6 +17,8 @@
 #include "mozilla/MiscEvents.h"
 #include "mozilla/TextEvents.h"
 
+using namespace mozilla;
+
 #ifndef IME_PROP_ACCEPT_WIDE_VKEY
 #define IME_PROP_ACCEPT_WIDE_VKEY 0x20
 #endif
