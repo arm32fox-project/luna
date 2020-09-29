@@ -4024,6 +4024,7 @@ nsStyleUserInterface::nsStyleUserInterface(StyleStructContext aContext)
   , mUserFocus(StyleUserFocus::None)
   , mPointerEvents(NS_STYLE_POINTER_EVENTS_AUTO)
   , mCursor(NS_STYLE_CURSOR_AUTO)
+  , mCaretColor(StyleComplexColor::Auto())
 {
   MOZ_COUNT_CTOR(nsStyleUserInterface);
 }
@@ -4035,6 +4036,7 @@ nsStyleUserInterface::nsStyleUserInterface(const nsStyleUserInterface& aSource)
   , mPointerEvents(aSource.mPointerEvents)
   , mCursor(aSource.mCursor)
   , mCursorImages(aSource.mCursorImages)
+  , mCaretColor(aSource.mCaretColor)
 {
   MOZ_COUNT_CTOR(nsStyleUserInterface);
 }
@@ -4081,6 +4083,10 @@ nsStyleUserInterface::CalcDifference(const nsStyleUserInterface& aNewData) const
 
   if (mUserFocus != aNewData.mUserFocus) {
     hint |= nsChangeHint_NeutralChange;
+  }
+
+  if (mCaretColor != aNewData.mCaretColor) {
+    hint |= nsChangeHint_RepaintFrame;
   }
 
   return hint;
