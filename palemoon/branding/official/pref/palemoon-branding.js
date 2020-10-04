@@ -25,6 +25,10 @@ pref("geo.wifi.uri", "https://pro.ip-api.com/json/?fields=lat,lon,status,message
 // Updates enabled
 pref("app.update.enabled", true);
 pref("app.update.cert.checkAttributes", true);
+pref("app.update.certs.1.issuerName", "CN=COMODO RSA Domain Validation Secure Server CA,O=COMODO CA Limited,L=Salford,ST=Greater Manchester,C=GB");
+pref("app.update.certs.1.commonName", "*.palemoon.org");
+pref("app.update.certs.2.issuerName", "CN=Sectigo RSA Domain Validation Secure Server CA,O=Sectigo Limited,L=Salford,ST=Greater Manchester,C=GB");
+pref("app.update.certs.2.commonName", "*.palemoon.org");
 
 // Interval: Time between checks for a new version (in seconds) -- 2 days for Pale Moon
 pref("app.update.interval", 172800);
