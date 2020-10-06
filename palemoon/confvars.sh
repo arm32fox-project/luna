@@ -58,7 +58,7 @@ MOZ_PROFILE_MIGRATOR=
 # If more than one ID is needed, then you should use a comma seperated list.
 MOZ_UPDATER=
 MAR_CHANNEL_ID=unofficial
-ACCEPTED_MAR_CHANNEL_IDS=unofficial,unstable,release
+ACCEPTED_MAR_CHANNEL_IDS=unofficial,unstable,beta,release
 
 # Platform Feature: Developer Tools
 # XXX: Devtools are disabled until they can be made to work with Pale Moon
