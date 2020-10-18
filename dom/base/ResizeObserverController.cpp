@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -16,7 +15,7 @@ namespace dom {
 void
 ResizeObserverNotificationHelper::WillRefresh(TimeStamp aTime)
 {
-  MOZ_ASSERT(mOwner, "Why is mOwner already dead when this RefreshObserver is still registered?");
+  MOZ_DIAGNOSTIC_ASSERT(mOwner, "RefreshObserver should have been de-registered on time, but isn't.");
   if (mOwner) {
     mOwner->Notify();
   }
@@ -59,15 +58,19 @@ ResizeObserverNotificationHelper::Register()
 void
 ResizeObserverNotificationHelper::Unregister()
 {
+  if (!mOwner) {
+    // We've outlived our owner, so there's nothing registered anymore.
+    mRegistered = false;
+    return;
+  }
+
   if (!mRegistered) {
     return;
   }
 
   nsRefreshDriver* refreshDriver = GetRefreshDriver();
-  if (!refreshDriver) {
-    // We can't access RefreshDriver now. Just abort the Unregister().
-    return;
-  }
+  MOZ_RELEASE_ASSERT(refreshDriver,
+                     "We should not leave a dangling reference to the observer around");
 
   refreshDriver->RemoveRefreshObserver(this, Flush_Display);
   mRegistered = false;
@@ -76,9 +79,8 @@ ResizeObserverNotificationHelper::Unregister()
 void
 ResizeObserverNotificationHelper::Disconnect()
 {
-  Unregister();
-  // Our owner is dying. Clear our pointer to it, in case we outlive it.
-  mOwner = nullptr;
+  MOZ_RELEASE_ASSERT(!mRegistered, "How can we die when registered?");
+  MOZ_RELEASE_ASSERT(!mOwner, "Forgot to clear weak pointer?");
 }
 
 ResizeObserverNotificationHelper::~ResizeObserverNotificationHelper()
@@ -106,6 +108,10 @@ ResizeObserverController::AddResizeObserver(ResizeObserver* aObserver)
   mResizeObservers.AppendElement(aObserver);
 }
 
+void ResizeObserverController::DetachFromDocument() {
+  mResizeObserverNotificationHelper->Unregister();
+}
+
 void
 ResizeObserverController::Notify()
 {
@@ -113,6 +119,10 @@ ResizeObserverController::Notify()
     return;
   }
 
+  // Hold a strong reference to the document, because otherwise calling
+  // all active observers on it might yank it out from under us.
+  RefPtr<nsIDocument> document(mDocument);
+  
   uint32_t shallowestTargetDepth = 0;
 
   GatherAllActiveObservations(shallowestTargetDepth);
@@ -147,7 +157,7 @@ ResizeObserverController::Notify()
     nsEventStatus status = nsEventStatus_eIgnore;
 
     nsCOMPtr<nsPIDOMWindowInner> window =
-      mDocument->GetWindow()->GetCurrentInnerWindow();
+      document->GetWindow()->GetCurrentInnerWindow();
 
     if (window) {
       nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(window);
@@ -179,7 +189,11 @@ ResizeObserverController::BroadcastAllActiveObservations()
 {
   uint32_t shallowestTargetDepth = UINT32_MAX;
 
-  for (auto observer : mResizeObservers) {
+  // Use a copy of the observers as this invokes the callbacks of the observers
+  // which could register/unregister observers at will.
+  nsTArray<RefPtr<ResizeObserver>> tempObservers(mResizeObservers);
+  
+  for (auto observer : tempObservers) {
 
     uint32_t targetDepth = observer->BroadcastActiveObservations();
 
@@ -227,7 +241,10 @@ ResizeObserverController::GetShell() const
 
 ResizeObserverController::~ResizeObserverController()
 {
-  mResizeObserverNotificationHelper->Disconnect();
+  MOZ_RELEASE_ASSERT(
+      !mResizeObserverNotificationHelper->IsRegistered(),
+      "Nothing else should keep a reference to our notification helper when we go away");
+  mResizeObserverNotificationHelper->DetachFromOwner();
 }
 
 } // namespace dom

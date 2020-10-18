@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=4 et sw=4 tw=80:
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -297,6 +296,12 @@ public:
     gfxFloat GetAdvanceWidth() const {
         return GetAdvanceWidth(Range(this), nullptr);
     }
+
+    /**
+     * Computes the minimum advance width for a substring assuming line
+     * breaking is allowed everywhere.
+     */
+    gfxFloat GetMinAdvanceWidth(Range aRange);
 
     /**
      * Clear all stored line breaks for the given range (both before and after),
