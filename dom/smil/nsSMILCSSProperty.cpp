@@ -195,6 +195,7 @@ nsSMILCSSProperty::IsPropertyAnimatable(nsCSSPropertyID aPropID)
   //   writing-mode
 
   switch (aPropID) {
+    case eCSSProperty_caret_color:
     case eCSSProperty_clip:
     case eCSSProperty_clip_rule:
     case eCSSProperty_clip_path:
