@@ -23,7 +23,7 @@ Generally not security vulnerabilities:
 ## Reporting a Vulnerability
 
 If you find an issue in UXP or the applications it builds on that could impact the security or safety of users please **do not**
-make an issue on GitHub about it. GitHub does not support restricted viewability for security sensitive bugs.
+make an issue on Gitea about it. Gitea does not support restricted viewability for security sensitive bugs.
 
 If you want to report a security-sensitive issue then please go to the [forum](https://forum.palemoon.org) and report the issue
 via a **private message** to **Moonchild** (the founder and prime responsible for security issues).
