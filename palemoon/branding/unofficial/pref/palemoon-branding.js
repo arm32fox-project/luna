@@ -4,6 +4,7 @@
 
 pref("app.vendorURL", "http://www.palemoon.org/");
 pref("browser.identity.ssl_domain_display", 1);
+pref("browser.newtab.url","about:blank");
 pref("extensions.getMoreThemesURL", "https://addons.palemoon.org/themes/");
 pref("extensions.update.autoUpdateDefault", true);
 pref("extensions.getAddons.maxResults", 10);
