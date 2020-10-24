@@ -1,0 +1,5 @@
+# -*- Mode: python; c-basic-offset: 4; indent-tabs-mode: nil; tab-width: 40 -*-
+
+DEFINES['MOZ_DISTRIBUTION_ID_UNQUOTED'] = CONFIG['MOZ_DISTRIBUTION_ID']
+
+JAR_MANIFESTS += ['jar.mn']

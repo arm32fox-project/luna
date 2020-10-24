@@ -1,0 +1,2 @@
+MOZ_APP_DISPLAYNAME="Pale Moon"
+
