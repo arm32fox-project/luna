@@ -4510,7 +4510,7 @@ TruncateStringToSingleGrapheme(nsAString& aStr)
 
 struct LengthNumberCalcObj
 {
-  float LengthNumberCalcObj;
+  float mValue;
   bool mIsNumber;
 };
 
