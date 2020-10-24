@@ -1152,13 +1152,16 @@ SetComplexColor(const nsCSSValue& aValue,
     aResult = StyleComplexColor::CurrentColor();
   } else if (unit == eCSSUnit_ComplexColor) {
     aResult = aValue.GetStyleComplexColorValue();
+  } else if (unit == eCSSUnit_Auto) {
+    aResult = StyleComplexColor::Auto();
   } else {
+    nscolor resultColor;
     if (!SetColor(aValue, aParentColor.mColor, aPresContext,
-                  nullptr, aResult.mColor, aConditions)) {
+                  nullptr, resultColor, aConditions)) {
       MOZ_ASSERT_UNREACHABLE("Unknown color value");
       return;
     }
-    aResult.mForegroundRatio = 0;
+    aResult = StyleComplexColor::FromColor(resultColor);
   }
 }
 
@@ -5139,6 +5142,13 @@ nsRuleNode::ComputeUserInterfaceData(void* aStartStruct,
 {
   COMPUTE_START_INHERITED(UserInterface, ui, parentUI)
 
+  auto setComplexColor = [&](const nsCSSValue* aValue,
+                             StyleComplexColor nsStyleUserInterface::* aField) {
+    SetComplexColor<eUnsetInherit>(*aValue, parentUI->*aField,
+                                   StyleComplexColor::Auto(),
+                                   mPresContext, ui->*aField, conditions);
+  };
+
   // cursor: enum, url, inherit
   const nsCSSValue* cursorValue = aRuleData->ValueForCursor();
   nsCSSUnit cursorUnit = cursorValue->GetUnit();
@@ -5209,6 +5219,10 @@ nsRuleNode::ComputeUserInterfaceData(void* aStartStruct,
            SETVAL_ENUMERATED | SETVAL_UNSET_INHERIT,
            parentUI->mPointerEvents,
            NS_STYLE_POINTER_EVENTS_AUTO);
+
+  // caret-color: auto, color, inherit
+  setComplexColor(aRuleData->ValueForCaretColor(),
+                  &nsStyleUserInterface::mCaretColor);
 
   COMPUTE_END_INHERITED(UserInterface, ui)
 }
