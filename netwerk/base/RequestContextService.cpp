@@ -33,6 +33,7 @@ private:
   char mCID[NSID_LENGTH];
   Atomic<uint32_t>       mBlockingTransactionCount;
   nsAutoPtr<SpdyPushCache> mSpdyCache;
+  nsCString mUserAgentOverride;
 };
 
 NS_IMPL_ISUPPORTS(RequestContext, nsIRequestContext)
@@ -93,6 +94,21 @@ RequestContext::GetID(nsID *outval)
   *outval = mID;
   return NS_OK;
 }
+
+NS_IMETHODIMP
+RequestContext::GetUserAgentOverride(nsACString& aUserAgentOverride)
+{
+  aUserAgentOverride = mUserAgentOverride;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+RequestContext::SetUserAgentOverride(const nsACString& aUserAgentOverride)
+{
+  mUserAgentOverride = aUserAgentOverride;
+  return NS_OK;
+}
+
 
 //nsIRequestContextService
 RequestContextService *RequestContextService::sSelf = nullptr;

@@ -24,7 +24,7 @@ class SpdyPushCache;
  *
  * This used to be known as nsILoadGroupConnectionInfo and nsISchedulingContext.
  */
-[scriptable, uuid(a1b5c243-ab9b-41a7-a208-f8a9c0c43dc2)]
+[scriptable, uuid(658e3e6e-8633-4b1a-8d66-fa9f72293e63)]
 interface nsIRequestContext : nsISupports
 {
   /**
@@ -58,6 +58,10 @@ interface nsIRequestContext : nsISupports
    */
   [noscript] attribute SpdyPushCachePtr spdyPushCache;
 
+  /**
+   * This holds a cached value of the user agent override.
+   */
+  [noscript] attribute ACString userAgentOverride;
 };
 
 /**
