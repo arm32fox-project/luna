@@ -349,13 +349,11 @@ add_old_configure_assignment('MOZ_FMP4', fmp4)
 option(name='--enable-chrome-format',
        help='Select FORMAT of chrome files during packaging.',
        nargs=1,
-       choices=('optimized', 'omni', 'jar', 'flat'),
+       choices=('omni', 'jar', 'flat'),
        default='omni')
 
 @depends('--enable-chrome-format')
 def packager_format(value):
-    if value[0] == 'optimized':
-        return 'omni'
     return value[0]
 
 set_config('MOZ_PACKAGER_FORMAT', packager_format)
@@ -370,20 +368,11 @@ def jar_maker_format(host, build_project):
 
 set_config('MOZ_JAR_MAKER_FILE_FORMAT', jar_maker_format)
 
-@depends('--enable-chrome-format', toolkit)
-def omnijar_name(value, toolkit):
-    if value[0] == 'optimized':
-        return '$(DLL_PREFIX)core$(DLL_SUFFIX)'
+@depends(toolkit)
+def omnijar_name(toolkit):
     return 'omni.ja'
 
 set_config('OMNIJAR_NAME', omnijar_name)
-
-@depends('--enable-chrome-format')
-def compression_format(value):
-    if value[0] == 'optimized':
-        return 'brotli'
-
-set_config('JAR_COMPRESSION', compression_format)
 
 # Permissions system
 # ==============================================================
