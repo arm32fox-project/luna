@@ -685,11 +685,6 @@ nsHttpHandler::BuildAppVersion()
 const nsAFlatCString &
 nsHttpHandler::UserAgent()
 {
-    if (mUserAgentOverride) {
-        LOG(("using general.useragent.override : %s\n", mUserAgentOverride.get()));
-        return mUserAgentOverride;
-    }
-
     if (mUserAgentIsDirty) {
         BuildUserAgent();
         mUserAgentIsDirty = false;
@@ -988,13 +983,6 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
         mCompatFirefox.AssignLiteral("Firefox/");
         mCompatFirefox += mCompatFirefoxVersion;
         
-        mUserAgentIsDirty = true;
-    }
-
-    // general.useragent.override
-    if (PREF_CHANGED(UA_PREF("override"))) {
-        prefs->GetCharPref(UA_PREF("override"),
-                           getter_Copies(mUserAgentOverride));
         mUserAgentIsDirty = true;
     }
 

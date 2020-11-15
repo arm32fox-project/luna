@@ -506,7 +506,6 @@ private:
     nsCString      mDeviceModelId;
 
     nsCString      mUserAgent;
-    nsXPIDLCString mUserAgentOverride;
     bool           mUserAgentIsDirty; // true if mUserAgent should be rebuilt
     bool           mAcceptLanguagesIsDirty;
 
