@@ -90,6 +90,8 @@ fi
 # Possible values are omni, jar, and flat
 # Currently, only omni and flat are supported
 MOZ_CHROME_FILE_FORMAT=omni
+JAR_COMPRESSION=brotli
+OMNIJAR_NAME=palemoon.res
 
 # Set the default top-level extensions
 MOZ_EXTENSIONS_DEFAULT=" gio"
