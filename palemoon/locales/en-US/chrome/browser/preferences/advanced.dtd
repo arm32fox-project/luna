@@ -36,6 +36,8 @@
 <!ENTITY setDefault.accesskey            "d">
 <!ENTITY isDefault.label                 "&brandShortName; is currently your default browser">
 
+<!ENTITY UAWarning.label                 "Warning: your user-agent is globally overridden">
+<!ENTITY UAWarning.reset                 "Reset">
 <!ENTITY UACompatGroup.label             "Compatibility">
 <!ENTITY UACompat.label                  "User Agent Mode:">
 <!ENTITY UACompat.Native                 "Native">
