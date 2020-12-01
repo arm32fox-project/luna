@@ -1443,14 +1443,7 @@ class JSScript : public js::gc::TenuredCell
         return res;
     }
     bool canIonCompile() const {
-        // Exclude function scopes from Ion compilation.
-        // This is necessary to work around an issue with module scripts causing crashes
-        // with the function stack in Ion if module code is declared in-line.
-        // See Issue #1624
-        // XXX: Perhaps we can further fine-grain select which types of function scope
-        // we have to exclude?
-        return (ion != ION_DISABLED_SCRIPT &&
-                !bodyScope()->is<js::FunctionScope>());
+        return ion != ION_DISABLED_SCRIPT;
     }
     bool isIonCompilingOffThread() const {
         return ion == ION_COMPILING_SCRIPT;
