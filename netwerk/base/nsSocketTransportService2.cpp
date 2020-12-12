@@ -42,6 +42,7 @@ Atomic<PRThread*, Relaxed> gSocketThread;
 #define KEEPALIVE_PROBE_COUNT_PREF "network.tcp.keepalive.probe_count"
 #define SOCKET_LIMIT_TARGET 1000U
 #define SOCKET_LIMIT_MIN      50U
+#define SOCKET_CLAMP_PREF "network.websocket.timeout.clamped"
 #define BLIP_INTERVAL_PREF "network.activity.blipIntervalMilliseconds"
 #define MAX_TIME_BETWEEN_TWO_POLLS "network.sts.max_time_for_events_between_two_polls"
 #define MAX_TIME_FOR_PR_CLOSE_DURING_SHUTDOWN "network.sts.max_time_for_pr_close_during_shutdown"
@@ -120,6 +121,7 @@ nsSocketTransportService::nsSocketTransportService()
     , mKeepaliveEnabledPref(false)
     , mServingPendingQueue(false)
     , mMaxTimePerPollIter(100)
+    , mClampSocketTimeout(false)
     , mMaxTimeForPrClosePref(PR_SecondsToInterval(5))
     , mProbedMaxCount(false)
 #if defined(XP_WIN)
@@ -485,7 +487,11 @@ nsSocketTransportService::Poll(PRIntervalTime ts)
         mPollList[0].out_flags = 0;
         pollList = mPollList;
         pollCount = mActiveCount + 1;
-        pollTimeout = pendingEvents ? PR_INTERVAL_NO_WAIT : PollTimeout(ts);
+        pollTimeout = IsSocketTimeoutClamped() ?
+                        PR_MillisecondsToInterval(100) :
+                        pendingEvents ?
+                          PR_INTERVAL_NO_WAIT :
+                          PollTimeout(ts);
     }
     else {
         // no pollable event, so busy wait...
@@ -494,8 +500,11 @@ nsSocketTransportService::Poll(PRIntervalTime ts)
             pollList = &mPollList[1];
         else
             pollList = nullptr;
-        pollTimeout =
-            pendingEvents ? PR_INTERVAL_NO_WAIT : PR_MillisecondsToInterval(25);
+        pollTimeout = IsSocketTimeoutClamped() ?
+                        PR_MillisecondsToInterval(25) :
+                        pendingEvents ? 
+                          PR_INTERVAL_NO_WAIT :
+                          PR_MillisecondsToInterval(25);
     }
 
     SOCKET_LOG(("    timeout = %i milliseconds\n",
@@ -554,6 +563,7 @@ nsSocketTransportService::Init()
         tmpPrefService->AddObserver(KEEPALIVE_RETRY_INTERVAL_PREF, this, false);
         tmpPrefService->AddObserver(KEEPALIVE_PROBE_COUNT_PREF, this, false);
         tmpPrefService->AddObserver(MAX_TIME_BETWEEN_TWO_POLLS, this, false);
+        tmpPrefService->AddObserver(SOCKET_CLAMP_PREF, this, false);
         tmpPrefService->AddObserver(MAX_TIME_FOR_PR_CLOSE_DURING_SHUTDOWN, this, false);
     }
     UpdatePrefs();
@@ -1150,6 +1160,13 @@ nsSocketTransportService::UpdatePrefs()
         if (NS_SUCCEEDED(rv) && maxTimePref >= 0) {
             mMaxTimePerPollIter = maxTimePref;
         }
+        
+        bool socketTimeoutClamped = false;
+        rv = tmpPrefService->GetBoolPref(SOCKET_CLAMP_PREF,
+                                         &socketTimeoutClamped);
+        if (NS_SUCCEEDED(rv)) {
+            mClampSocketTimeout = socketTimeoutClamped;
+        }      
 
         int32_t maxTimeForPrClosePref;
         rv = tmpPrefService->GetIntPref(MAX_TIME_FOR_PR_CLOSE_DURING_SHUTDOWN,
