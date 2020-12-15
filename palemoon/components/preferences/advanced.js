@@ -52,6 +52,8 @@ var gAdvancedPane = {
     this.updateActualAppCacheSize();
 
     this.updateHWADisplay();
+    
+    this.updateUAODisplay();
 
     // Notify observers that the UI is now ready
     Services.obs.notifyObservers(window, "advanced-pane-loaded", null);
@@ -171,7 +173,21 @@ var gAdvancedPane = {
     let HWA = document.getElementById("layers.acceleration.enabled");
     document.getElementById("forceHWAccel").disabled = !HWA.value;
 #endif
-  },  
+  },
+  
+  updateUAODisplay: function()
+  {
+    let GUAO = Services.prefs.getCharPref("network.http.useragent.global_override", "");
+    let overridden = (GUAO != "");
+    document.getElementById("UACompatGroup").hidden = overridden;
+    document.getElementById("GUAOwarning").hidden = !overridden;
+  },
+  
+  GUAOReset: function()
+  {
+    Services.prefs.clearUserPref("network.http.useragent.global_override");
+    this.updateUAODisplay();
+  },
 
   // DATA CHOICES TAB
 

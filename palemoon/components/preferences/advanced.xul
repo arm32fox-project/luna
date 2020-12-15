@@ -196,6 +196,10 @@
           </groupbox>
 #endif
           <!-- User Agent compatibility -->
+          <hbox id="GUAOwarning" align="center" hidden="true">
+            <label style="color:red;" id="UAWarning">&UAWarning.label;</label>
+            <button label="&UAWarning.reset;" oncommand="gAdvancedPane.GUAOReset();" />
+          </hbox>
           <groupbox id="UACompatGroup" orient="vertical">
             <caption label="&UACompatGroup.label;"/>
             <hbox align="center">
