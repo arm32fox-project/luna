@@ -80,7 +80,8 @@
 #include "mozilla/net/HttpChannelChild.h"
 
 
-#define UA_PREF_PREFIX          "general.useragent."
+#define UA_PREF_PREFIX          "useragent."
+#define GENERAL_UA_PREF_PREFIX  "general.useragent."
 #ifdef XP_WIN
 #define UA_SPARE_PLATFORM
 #endif
@@ -95,7 +96,8 @@
 #define SECURITY_PREFIX          "security."
 #define NEW_TAB_REMOTE_MODE           "browser.newtabpage.remote.mode"
 
-#define UA_PREF(_pref) UA_PREF_PREFIX _pref
+#define GUA_PREF(_pref) GENERAL_UA_PREF_PREFIX _pref
+#define UA_PREF(_pref) HTTP_PREF_PREFIX UA_PREF_PREFIX _pref
 #define HTTP_PREF(_pref) HTTP_PREF_PREFIX _pref
 #define BROWSER_PREF(_pref) BROWSER_PREF_PREFIX _pref
 
@@ -686,7 +688,7 @@ const nsAFlatCString &
 nsHttpHandler::UserAgent()
 {
     if (mUserAgentOverride) {
-        LOG(("using general.useragent.override : %s\n", mUserAgentOverride.get()));
+        LOG(("Using user-agent override : %s\n", mUserAgentOverride.get()));
         return mUserAgentOverride;
     }
 
@@ -843,8 +845,8 @@ nsHttpHandler::InitUserAgentComponents()
 #elif defined(__i386__) || defined(__x86_64__)
     mOscpu.AssignLiteral("Intel Mac OS X");
 #endif
-    SInt32 majorVersion = nsCocoaFeatures::OSXVersionMajor();
-    SInt32 minorVersion = nsCocoaFeatures::OSXVersionMinor();
+    SInt32 majorVersion = nsCocoaFeatures::macOSVersionMajor();
+    SInt32 minorVersion = nsCocoaFeatures::macOSVersionMinor();
     mOscpu += nsPrintfCString(" %d.%d", majorVersion, minorVersion);
 #elif defined (XP_UNIX)
     struct utsname name;
@@ -931,8 +933,8 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
 
     bool cVar = false;
 
-    if (PREF_CHANGED(UA_PREF("appVersionIsBuildID"))) {
-        rv = prefs->GetBoolPref(UA_PREF("appVersionIsBuildID"), &cVar);
+    if (PREF_CHANGED(GUA_PREF("appVersionIsBuildID"))) {
+        rv = prefs->GetBoolPref(GUA_PREF("appVersionIsBuildID"), &cVar);
         mAppVersionIsBuildID = (NS_SUCCEEDED(rv) && cVar);
         
         // Rebuild application version string.
@@ -941,8 +943,8 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
         mUserAgentIsDirty = true;
     }
 
-    if (PREF_CHANGED(UA_PREF("compatMode.gecko"))) {
-        rv = prefs->GetBoolPref(UA_PREF("compatMode.gecko"), &cVar);
+    if (PREF_CHANGED(GUA_PREF("compatMode.gecko"))) {
+        rv = prefs->GetBoolPref(GUA_PREF("compatMode.gecko"), &cVar);
         mCompatGeckoEnabled = (NS_SUCCEEDED(rv) && cVar);
         
         // Rebuild rv: and Goanna slice version
@@ -965,8 +967,8 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
         mUserAgentIsDirty = true;
     }
 
-    if (PREF_CHANGED(UA_PREF("compatMode.firefox"))) {
-        rv = prefs->GetBoolPref(UA_PREF("compatMode.firefox"), &cVar);
+    if (PREF_CHANGED(GUA_PREF("compatMode.firefox"))) {
+        rv = prefs->GetBoolPref(GUA_PREF("compatMode.firefox"), &cVar);
         mCompatFirefoxEnabled = (NS_SUCCEEDED(rv) && cVar);
         mUserAgentIsDirty = true;
     }
@@ -974,8 +976,8 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
     // general.useragent.compatMode.version
     // This is the version number used in rv: for Gecko compatibility
     // and in the Firefox/nn.nn slice when compatMode.firefox is enabled.
-    if (PREF_CHANGED(UA_PREF("compatMode.version"))) {
-        prefs->GetCharPref(UA_PREF("compatMode.version"),
+    if (PREF_CHANGED(GUA_PREF("compatMode.version"))) {
+        prefs->GetCharPref(GUA_PREF("compatMode.version"),
                            getter_Copies(mCompatFirefoxVersion));
         
         // rebuild mMisc and compatMode slice
@@ -992,8 +994,8 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
     }
 
     // general.useragent.override
-    if (PREF_CHANGED(UA_PREF("override"))) {
-        prefs->GetCharPref(UA_PREF("override"),
+    if (PREF_CHANGED(UA_PREF("global_override"))) {
+        prefs->GetCharPref(UA_PREF("global_override"),
                            getter_Copies(mUserAgentOverride));
         mUserAgentIsDirty = true;
     }
