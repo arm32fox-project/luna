@@ -116,9 +116,6 @@ public:
 
     // Returns true if keepalives are enabled in prefs.
     bool IsKeepaliveEnabled() { return mKeepaliveEnabledPref; }
-    
-    // Returns true if socket timeout clamping is enabled in prefs.
-    bool IsSocketTimeoutClamped() { return mClampSocketTimeout; }
 
     PRIntervalTime MaxTimeForPrClosePref() {return mMaxTimeForPrClosePref; }
 protected:
@@ -256,12 +253,13 @@ private:
     int32_t     mKeepaliveProbeCount;
     // True if TCP keepalive is enabled globally.
     bool        mKeepaliveEnabledPref;
-    // True if socket polling should be clamped.
-    bool        mClampSocketTimeout;
 
     Atomic<bool>                    mServingPendingQueue;
     Atomic<int32_t, Relaxed>        mMaxTimePerPollIter;
     Atomic<PRIntervalTime, Relaxed> mMaxTimeForPrClosePref;
+
+    Atomic<bool, Relaxed>           mSleepPhase;
+    nsCOMPtr<nsITimer>              mAfterWakeUpTimer;
 
     void OnKeepaliveEnabledPrefChange();
     void NotifyKeepaliveEnabledPrefChange(SocketContext *sock);
