@@ -1663,11 +1663,6 @@ pref("network.websocket.timeout.open", 20);
 // close message
 pref("network.websocket.timeout.close", 20);
 
-// Setting this to true will clamp the websocket timeout value to a minimum
-// regardless if there are pending events on the thread.
-// This is a workaround for runaway polling, see issue #1695
-pref("network.websocket.timeout.clamped", false);
-
 // the number of seconds of idle read activity to sustain before sending a
 // ping probe. 0 to disable.
 pref("network.websocket.timeout.ping.request", 0);
