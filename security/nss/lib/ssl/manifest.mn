@@ -5,6 +5,10 @@ CORE_DEPTH = ../..
 
 # DEFINES = -DTRACE
 
+ifdef ZLIB_INCLUDE_DIR
+INCLUDES += -I$(ZLIB_INCLUDE_DIR)
+endif
+
 EXPORTS = \
         ssl.h \
         sslt.h \
@@ -52,6 +56,7 @@ CSRCS = \
         tls13exthandle.c \
         tls13hashstate.c \
         tls13hkdf.c \
+        tls13psk.c \
         tls13replay.c \
         sslcert.c \
         sslgrp.c \

@@ -101,6 +101,11 @@ extern void
 nsspkcs5_DestroyPBEParameter(NSSPKCS5PBEParameter *param);
 
 HASH_HashType HASH_FromHMACOid(SECOidTag oid);
+SECOidTag HASH_HMACOidFromHash(HASH_HashType);
+
+/* fips selftest */
+extern SECStatus
+sftk_fips_pbkdf_PowerUpSelfTests(void);
 
 SEC_END_PROTOS
 

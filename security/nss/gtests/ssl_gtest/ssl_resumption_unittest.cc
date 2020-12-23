@@ -1,4 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -836,8 +837,8 @@ TEST_F(TlsConnectTest, TestTls13ResumptionDuplicateNST) {
   Connect();
 
   // Clear the session ticket keys to invalidate the old ticket.
-  SSLInt_ClearSelfEncryptKey();
-  SSL_SendSessionTicket(server_->ssl_fd(), NULL, 0);
+  ClearServerCache();
+  EXPECT_EQ(SECSuccess, SSL_SendSessionTicket(server_->ssl_fd(), NULL, 0));
 
   SendReceive();  // Need to read so that we absorb the session tickets.
   CheckKeys();
@@ -884,7 +885,7 @@ TEST_F(TlsConnectTest, TestTls13ResumptionDuplicateNSTWithToken) {
   Connect();
 
   // Clear the session ticket keys to invalidate the old ticket.
-  SSLInt_ClearSelfEncryptKey();
+  ClearServerCache();
   nst_capture->Reset();
   uint8_t token[] = {0x20, 0x20, 0xff, 0x00};
   EXPECT_EQ(SECSuccess,
@@ -914,8 +915,7 @@ TEST_F(TlsConnectTest, SendSessionTicketWithTicketsDisabled) {
   ConfigureSessionCache(RESUME_BOTH, RESUME_TICKET);
   ConfigureVersion(SSL_LIBRARY_VERSION_TLS_1_3);
 
-  EXPECT_EQ(SECSuccess, SSL_OptionSet(server_->ssl_fd(),
-                                      SSL_ENABLE_SESSION_TICKETS, PR_FALSE));
+  server_->SetOption(SSL_ENABLE_SESSION_TICKETS, PR_FALSE);
 
   auto nst_capture =
       MakeTlsFilter<TlsHandshakeRecorder>(server_, ssl_hs_new_session_ticket);
@@ -930,6 +930,50 @@ TEST_F(TlsConnectTest, SendSessionTicketWithTicketsDisabled) {
   SendReceive();  // Ensure that the client reads the ticket.
 
   // Resume the connection.
+  Reset();
+  ConfigureSessionCache(RESUME_BOTH, RESUME_TICKET);
+  ConfigureVersion(SSL_LIBRARY_VERSION_TLS_1_3);
+  ExpectResumption(RESUME_TICKET);
+
+  auto psk_capture =
+      MakeTlsFilter<TlsExtensionCapture>(client_, ssl_tls13_pre_shared_key_xtn);
+  Connect();
+  SendReceive();
+
+  NstTicketMatchesPskIdentity(nst_capture->buffer(), psk_capture->extension());
+}
+
+// Successfully send a session ticket after resuming and then use it.
+TEST_F(TlsConnectTest, SendTicketAfterResumption) {
+  ConfigureSessionCache(RESUME_BOTH, RESUME_TICKET);
+  ConfigureVersion(SSL_LIBRARY_VERSION_TLS_1_3);
+  Connect();
+
+  SendReceive();  // Need to read so that we absorb the session tickets.
+  CheckKeys();
+
+  // Resume the connection.
+  Reset();
+  ConfigureSessionCache(RESUME_BOTH, RESUME_TICKET);
+  ConfigureVersion(SSL_LIBRARY_VERSION_TLS_1_3);
+  ExpectResumption(RESUME_TICKET);
+
+  // We need to capture just one ticket, so
+  // disable automatic sending of tickets at the server.
+  // ConfigureSessionCache enables this option, so revert that.
+  server_->SetOption(SSL_ENABLE_SESSION_TICKETS, PR_FALSE);
+  auto nst_capture =
+      MakeTlsFilter<TlsHandshakeRecorder>(server_, ssl_hs_new_session_ticket);
+  nst_capture->EnableDecryption();
+  Connect();
+
+  ClearServerCache();
+  EXPECT_EQ(SECSuccess, SSL_SendSessionTicket(server_->ssl_fd(), NULL, 0));
+  SendReceive();
+
+  // Reset stats so that the counters for resumptions match up.
+  ClearStats();
+  // Resume again and ensure that we get the same ticket.
   Reset();
   ConfigureSessionCache(RESUME_BOTH, RESUME_TICKET);
   ConfigureVersion(SSL_LIBRARY_VERSION_TLS_1_3);
@@ -1004,7 +1048,8 @@ TEST_F(TlsConnectStreamTls13, ExternalResumptionUseSecondTicket) {
     state->invoked++;
     return SECSuccess;
   };
-  SSL_SetResumptionTokenCallback(client_->ssl_fd(), cb, &ticket_state);
+  EXPECT_EQ(SECSuccess, SSL_SetResumptionTokenCallback(client_->ssl_fd(), cb,
+                                                       &ticket_state));
 
   Connect();
   EXPECT_EQ(SECSuccess, SSL_SendSessionTicket(server_->ssl_fd(), nullptr, 0));
@@ -1442,6 +1487,36 @@ TEST_F(TlsConnectStreamTls13, ExternalTokenAfterHrr) {
 
   Handshake();
   CheckConnected();
+  SendReceive();
+}
+
+TEST_F(TlsConnectStreamTls13, ExternalTokenWithPeerId) {
+  ConfigureSessionCache(RESUME_BOTH, RESUME_BOTH);
+  ConfigureVersion(SSL_LIBRARY_VERSION_TLS_1_3);
+  EXPECT_EQ(SECSuccess, SSL_SetSockPeerID(client_->ssl_fd(), "testPeerId"));
+  std::vector<uint8_t> ticket_state;
+  auto cb = [](PRFileDesc* fd, const PRUint8* ticket, unsigned int ticket_len,
+               void* arg) -> SECStatus {
+    EXPECT_NE(0U, ticket_len);
+    EXPECT_NE(nullptr, ticket);
+    auto ticket_state_ = reinterpret_cast<std::vector<uint8_t>*>(arg);
+    ticket_state_->assign(ticket, ticket + ticket_len);
+    return SECSuccess;
+  };
+  EXPECT_EQ(SECSuccess, SSL_SetResumptionTokenCallback(client_->ssl_fd(), cb,
+                                                       &ticket_state));
+
+  Connect();
+  SendReceive();
+  EXPECT_NE(0U, ticket_state.size());
+
+  Reset();
+  ConfigureSessionCache(RESUME_BOTH, RESUME_BOTH);
+  EXPECT_EQ(SECSuccess, SSL_SetSockPeerID(client_->ssl_fd(), "testPeerId"));
+  client_->SetResumptionToken(ticket_state);
+  ASSERT_TRUE(client_->MaybeSetResumptionToken());
+  ExpectResumption(RESUME_TICKET);
+  Connect();
   SendReceive();
 }
 
