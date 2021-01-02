@@ -3,6 +3,7 @@
  * Copyright (c) 2008-2011, by Randall Stewart. All rights reserved.
  * Copyright (c) 2008-2011, by Michael Tuexen. All rights reserved.
  * Copyright (c) 2008-2011, by Brad Penoff. All rights reserved.
+ * Copyright (c) 2020 by Moonchild Productions. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -49,46 +50,13 @@
 #include <Windows.h>
 #include "user_environment.h"
 typedef CRITICAL_SECTION userland_mutex_t;
-#if WINVER < 0x0600
-enum {
-	C_SIGNAL = 0,
-	C_BROADCAST = 1,
-	C_MAX_EVENTS = 2
-};
-typedef struct
-{
-	u_int waiters_count;
-	CRITICAL_SECTION waiters_count_lock;
-	HANDLE events_[C_MAX_EVENTS];
-} userland_cond_t;
-void InitializeXPConditionVariable(userland_cond_t *);
-void DeleteXPConditionVariable(userland_cond_t *);
-int SleepXPConditionVariable(userland_cond_t *, userland_mutex_t *);
-void WakeAllXPConditionVariable(userland_cond_t *);
-#define InitializeConditionVariable(cond) InitializeXPConditionVariable(cond)
-#define DeleteConditionVariable(cond) DeleteXPConditionVariable(cond)
-#define SleepConditionVariableCS(cond, mtx, time) SleepXPConditionVariable(cond, mtx)
-#define WakeAllConditionVariable(cond) WakeAllXPConditionVariable(cond)
-#else
 #define DeleteConditionVariable(cond)
 typedef CONDITION_VARIABLE userland_cond_t;
-#endif
 typedef HANDLE userland_thread_t;
 #define ADDRESS_FAMILY	unsigned __int8
 #define IPVERSION  4
 #define MAXTTL     255
-/* VS2010 comes with stdint.h */
-#if _MSC_VER >= 1600
 #include <stdint.h>
-#else
-#define uint64_t   unsigned __int64
-#define uint32_t   unsigned __int32
-#define int32_t    __int32
-#define uint16_t   unsigned __int16
-#define int16_t    __int16
-#define uint8_t    unsigned __int8
-#define int8_t     __int8
-#endif
 #ifndef _SIZE_T_DEFINED
 #define size_t     __int32
 #endif
@@ -218,9 +186,6 @@ typedef char* caddr_t;
 
 #define bzero(buf, len) memset(buf, 0, len)
 #define bcopy(srcKey, dstKey, len) memcpy(dstKey, srcKey, len)
-#if _MSC_VER < 1900
-#define snprintf(data, size, format, ...) _snprintf_s(data, size, _TRUNCATE, format, __VA_ARGS__)
-#endif
 #define inline __inline
 #define __inline__ __inline
 #define	MSG_EOR		0x8		/* data completes record */
