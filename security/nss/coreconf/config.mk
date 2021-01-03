@@ -139,29 +139,11 @@ endif
 #######################################################################
 # Master "Core Components" macros for Hardware features               #
 #######################################################################
-ifndef NSS_DISABLE_AVX2
-    ifneq ($(CPU_ARCH),x86_64)
-        # Disable AVX2 entirely on non-Intel platforms
-        NSS_DISABLE_AVX2 = 1
-        $(warning CPU_ARCH is not x86_64, disabling -mavx2)
-    else
-        # Clang reports its version as an older gcc, but it's OK
-        ifndef CC_IS_CLANG
-            ifneq (,$(filter 0 1 2 3,$(word 1,$(GCC_VERSION))))
-                NSS_DISABLE_AVX2 = 1
-            endif
-            ifeq (4,$(word 1,$(GCC_VERSION)))
-                ifeq (,$(filter 8 9,$(word 2,$(GCC_VERSION))))
-                    NSS_DISABLE_AVX2 = 1
-                endif
-            endif
-        endif
-        ifeq (1,$(NSS_DISABLE_AVX2))
-            $(warning Unable to find gcc 4.8 or greater, disabling -mavx2)
-            export NSS_DISABLE_AVX2
-        endif
-    endif
-endif #ndef NSS_DISABLE_AVX2
+# NSS Build system does not properly support MozillaBuild 2 MSYS1
+# So we simply aren't going to enable AVX2 at all
+# Plus there seems to be an issue with it anyway for other reasons
+NSS_DISABLE_AVX2 = 1
+export NSS_DISABLE_AVX2
 
 #######################################################################
 # [15.0] Dependencies.
