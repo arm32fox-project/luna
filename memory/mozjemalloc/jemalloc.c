@@ -4758,7 +4758,7 @@ huge_dalloc(void *ptr)
 	base_node_dealloc(node);
 }
 
-/*
+/* 
  * Platform-specific methods to determine the number of CPUs in a system.
  * This will be used to determine the desired number of arenas.
  */
@@ -4845,7 +4845,7 @@ static inline unsigned
 malloc_ncpus(void)
 {
 	SYSTEM_INFO info;
-
+	
 	GetSystemInfo(&info);
 	return (info.dwNumberOfProcessors);
 }
@@ -5246,7 +5246,6 @@ malloc_init_hard(void)
 	malloc_mutex_lock(&init_lock);
 #endif
 
-#ifndef __FreeBSD__
 	if (malloc_initialized) {
 		/*
 		 * Another thread initialized the allocator before this one
@@ -5257,11 +5256,6 @@ malloc_init_hard(void)
 #endif
 		return (false);
 	}
-#else
-	if (__atomic_load_n(&malloc_initialized, __ATOMIC_ACQUIRE)) {
-		return (false);
-	}
-#endif
 
 #ifdef MOZ_MEMORY_WINDOWS
 	/* get a thread local storage index */
@@ -5687,11 +5681,7 @@ MALLOC_OUT:
 	if (chunk_rtree == NULL)
 		return (true);
 
-#ifndef __FreeBSD__
 	malloc_initialized = true;
-#else
-	__atomic_store_n(&malloc_initialized, true, __ATOMIC_RELEASE);
-#endif
 
 #if !defined(MOZ_MEMORY_WINDOWS) && !defined(MOZ_MEMORY_DARWIN)
 	/* Prevent potential deadlock on malloc locks after fork. */
