@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -497,7 +496,7 @@ nsGenericHTMLElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
   // We need to consider a labels element is moved to another subtree
   // with different root, it needs to update labels list and its root
   // as well.
-  nsDOMSlots* slots = GetExistingDOMSlots();
+  nsExtendedDOMSlots* slots = GetExistingExtendedDOMSlots();
   if (slots && slots->mLabelsList) {
     slots->mLabelsList->MaybeResetRoot(SubtreeRoot());
   }
@@ -524,7 +523,7 @@ nsGenericHTMLElement::UnbindFromTree(bool aDeep, bool aNullParent)
 
   // We need to consider a labels element is removed from tree,
   // it needs to update labels list and its root as well.
-  nsDOMSlots* slots = GetExistingDOMSlots();
+  nsExtendedDOMSlots* slots = GetExistingExtendedDOMSlots();
   if (slots && slots->mLabelsList) {
     slots->mLabelsList->MaybeResetRoot(SubtreeRoot());
   }
@@ -607,16 +606,16 @@ nsGenericHTMLElement::CheckHandleEventForAnchorsPreconditions(
 }
 
 nsresult
-nsGenericHTMLElement::PreHandleEventForAnchors(EventChainPreVisitor& aVisitor)
+nsGenericHTMLElement::GetEventTargetParentForAnchors(EventChainPreVisitor& aVisitor)
 {
-  nsresult rv = nsGenericHTMLElementBase::PreHandleEvent(aVisitor);
+  nsresult rv = nsGenericHTMLElementBase::GetEventTargetParent(aVisitor);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (!CheckHandleEventForAnchorsPreconditions(aVisitor)) {
     return NS_OK;
   }
 
-  return PreHandleEventForLinks(aVisitor);
+  return GetEventTargetParentForLinks(aVisitor);
 }
 
 nsresult
@@ -655,8 +654,46 @@ nsGenericHTMLElement::GetHrefURIForAnchors() const
 }
 
 nsresult
+nsGenericHTMLElement::BeforeSetAttr(int32_t aNamespaceID, nsIAtom* aName,
+                                    const nsAttrValueOrString* aValue,
+                                    bool aNotify)
+{
+  if (aNamespaceID == kNameSpaceID_None) {
+    if (aName == nsGkAtoms::accesskey) {
+      // Have to unregister before clearing flag. See UnregAccessKey
+      UnregAccessKey();
+      if (!aValue) {
+        UnsetFlags(NODE_HAS_ACCESSKEY);
+      }
+    } else if (aName == nsGkAtoms::name) {
+      // Have to do this before clearing flag. See RemoveFromNameTable
+      RemoveFromNameTable();
+      if (!aValue || aValue->IsEmpty()) {
+        ClearHasName();
+      }
+    } else if (aName == nsGkAtoms::contenteditable) {
+      if (aValue) {
+        // Set this before the attribute is set so that any subclass code that
+        // runs before the attribute is set won't think we're missing a
+        // contenteditable attr when we actually have one.
+        SetMayHaveContentEditableAttr();
+      }
+    }
+    if (!aValue && IsEventAttributeName(aName)) {
+      if (EventListenerManager* manager = GetExistingListenerManager()) {
+        manager->RemoveEventHandler(aName, EmptyString());
+      }
+    }
+  }
+
+  return nsGenericHTMLElementBase::BeforeSetAttr(aNamespaceID, aName, aValue,
+                                                 aNotify);
+}
+
+nsresult
 nsGenericHTMLElement::AfterSetAttr(int32_t aNamespaceID, nsIAtom* aName,
-                                   const nsAttrValue* aValue, bool aNotify)
+                                   const nsAttrValue* aValue,
+                                   const nsAttrValue* aOldValue, bool aNotify)
 {
   if (aNamespaceID == kNameSpaceID_None) {
     if (IsEventAttributeName(aName) && aValue) {
@@ -670,34 +707,83 @@ nsGenericHTMLElement::AfterSetAttr(int32_t aNamespaceID, nsIAtom* aName,
     }
     else if (aName == nsGkAtoms::dir) {
       Directionality dir = eDir_LTR;
+      // A boolean tracking whether we need to recompute our directionality.
+      // This needs to happen after we update our internal "dir" attribute
+      // state but before we call SetDirectionalityOnDescendants.
+      bool recomputeDirectionality = false;
+      // We don't want to have to keep getting the "dir" attribute in
+      // IntrinsicState, so we manually recompute our dir-related event states
+      // here and send the relevant update notifications.
+      EventStates dirStates;
       if (aValue && aValue->Type() == nsAttrValue::eEnum) {
         SetHasValidDir();
+        dirStates |= NS_EVENT_STATE_HAS_DIR_ATTR;
         Directionality dirValue = (Directionality)aValue->GetEnumValue();
         if (dirValue == eDir_Auto) {
-          SetHasDirAuto();
-          ClearHasFixedDir();
+          dirStates |= NS_EVENT_STATE_DIR_ATTR_LIKE_AUTO;
         } else {
           dir = dirValue;
           SetDirectionality(dir, aNotify);
-          ClearHasDirAuto();
-          SetHasFixedDir();
+          if (dirValue == eDir_LTR) {
+            dirStates |= NS_EVENT_STATE_DIR_ATTR_LTR;
+          } else {
+            MOZ_ASSERT(dirValue == eDir_RTL);
+            dirStates |= NS_EVENT_STATE_DIR_ATTR_RTL;
+          }
         }
       } else {
+        if (aValue) {
+          // We have a value, just not a valid one.
+          dirStates |= NS_EVENT_STATE_HAS_DIR_ATTR;
+        }
         ClearHasValidDir();
-        ClearHasFixedDir();
         if (NodeInfo()->Equals(nsGkAtoms::bdi)) {
-          SetHasDirAuto();
+          dirStates |= NS_EVENT_STATE_DIR_ATTR_LIKE_AUTO;
         } else {
-          ClearHasDirAuto();
-          dir = RecomputeDirectionality(this, aNotify);
+          recomputeDirectionality = true;
         }
       }
+      // Now figure out what's changed about our dir states.
+      EventStates oldDirStates = State() & DIR_ATTR_STATES;
+      EventStates changedStates = dirStates ^ oldDirStates;
+      ToggleStates(changedStates, aNotify);
+      if (recomputeDirectionality) {
+        dir = RecomputeDirectionality(this, aNotify);
+      }
       SetDirectionalityOnDescendants(this, dir, aNotify);
+    } else if (aName == nsGkAtoms::contenteditable) {
+      int32_t editableCountDelta = 0;
+      if (aOldValue &&
+          (aOldValue->Equals(NS_LITERAL_STRING("true"), eIgnoreCase) ||
+          aOldValue->Equals(EmptyString(), eIgnoreCase))) {
+        editableCountDelta = -1;
+      }
+      if (aValue && (aValue->Equals(NS_LITERAL_STRING("true"), eIgnoreCase) ||
+                     aValue->Equals(EmptyString(), eIgnoreCase))) {
+        ++editableCountDelta;
+      }
+      ChangeEditableState(editableCountDelta);
+    } else if (aName == nsGkAtoms::accesskey) {
+      if (aValue && !aValue->Equals(EmptyString(), eIgnoreCase)) {
+        SetFlags(NODE_HAS_ACCESSKEY);
+        RegAccessKey();
+      }
+    } else if (aName == nsGkAtoms::name) {
+      if (aValue && !aValue->Equals(EmptyString(), eIgnoreCase) &&
+          CanHaveName(NodeInfo()->NameAtom())) {
+        // This may not be quite right because we can have subclass code run
+        // before here. But in practice subclasses don't care about this flag,
+        // and in particular selector matching does not care.  Otherwise we'd
+        // want to handle it like we handle id attributes (in PreIdMaybeChange
+        // and PostIdMaybeChange).
+        SetHasName();
+        AddToNameTable(aValue->GetAtomValue());
+      }
     }
   }
 
   return nsGenericHTMLElementBase::AfterSetAttr(aNamespaceID, aName,
-                                                aValue, aNotify);
+                                                aValue, aOldValue, aNotify);
 }
 
 EventListenerManager*
@@ -818,87 +904,6 @@ nsGenericHTMLElement::SetOn##name_(EventHandlerNonNull* handler)              \
 #undef FORWARDED_EVENT
 #undef EVENT
 
-nsresult
-nsGenericHTMLElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                              nsIAtom* aPrefix, const nsAString& aValue,
-                              bool aNotify)
-{
-  bool contentEditable = aNameSpaceID == kNameSpaceID_None &&
-                           aName == nsGkAtoms::contenteditable;
-  bool accessKey = aName == nsGkAtoms::accesskey && 
-                     aNameSpaceID == kNameSpaceID_None;
-
-  int32_t change = 0;
-  if (contentEditable) {
-    change = GetContentEditableValue() == eTrue ? -1 : 0;
-    SetMayHaveContentEditableAttr();
-  }
-
-  if (accessKey) {
-    UnregAccessKey();
-  }
-
-  nsresult rv = nsStyledElement::SetAttr(aNameSpaceID, aName, aPrefix, aValue,
-                                         aNotify);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (contentEditable) {
-    if (aValue.IsEmpty() || aValue.LowerCaseEqualsLiteral("true")) {
-      change += 1;
-    }
-
-    ChangeEditableState(change);
-  }
-
-  if (accessKey && !aValue.IsEmpty()) {
-    SetFlags(NODE_HAS_ACCESSKEY);
-    RegAccessKey();
-  }
-
-  return NS_OK;
-}
-
-nsresult
-nsGenericHTMLElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
-                                bool aNotify)
-{
-  bool contentEditable = false;
-  int32_t contentEditableChange = 0;
-
-  // Check for event handlers
-  if (aNameSpaceID == kNameSpaceID_None) {
-    if (aAttribute == nsGkAtoms::name) {
-      // Have to do this before clearing flag. See RemoveFromNameTable
-      RemoveFromNameTable();
-      ClearHasName();
-    }
-    else if (aAttribute == nsGkAtoms::contenteditable) {
-      contentEditable = true;
-      contentEditableChange = GetContentEditableValue() == eTrue ? -1 : 0;
-    }
-    else if (aAttribute == nsGkAtoms::accesskey) {
-      // Have to unregister before clearing flag. See UnregAccessKey
-      UnregAccessKey();
-      UnsetFlags(NODE_HAS_ACCESSKEY);
-    }
-    else if (IsEventAttributeName(aAttribute)) {
-      if (EventListenerManager* manager = GetExistingListenerManager()) {
-        manager->RemoveEventHandler(aAttribute, EmptyString());
-      }
-    }
-  }
-
-  nsresult rv = nsGenericHTMLElementBase::UnsetAttr(aNameSpaceID, aAttribute,
-                                                    aNotify);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (contentEditable) {
-    ChangeEditableState(contentEditableChange);
-  }
-
-  return NS_OK;
-}
-
 void
 nsGenericHTMLElement::GetBaseTarget(nsAString& aBaseTarget) const
 {
@@ -928,19 +933,13 @@ nsGenericHTMLElement::ParseAttribute(int32_t aNamespaceID,
 
     if (aAttribute == nsGkAtoms::name) {
       // Store name as an atom.  name="" means that the element has no name,
-      // not that it has an emptystring as the name.
-      RemoveFromNameTable();
+      // not that it has an empty string as the name.
       if (aValue.IsEmpty()) {
         ClearHasName();
         return false;
       }
 
       aResult.ParseAtom(aValue);
-
-      if (CanHaveName(NodeInfo()->NameAtom())) {
-        SetHasName();
-        AddToNameTable(aResult.GetAtomValue());
-      }
       
       return true;
     }
@@ -1758,7 +1757,7 @@ nsGenericHTMLElement::Labels()
 {
   MOZ_ASSERT(IsLabelable(),
              "Labels() only allow labelable elements to use it.");
-  nsDOMSlots* slots = DOMSlots();
+  nsExtendedDOMSlots* slots = ExtendedDOMSlots();
 
   if (!slots->mLabelsList) {
     slots->mLabelsList = new nsLabelsNodeList(SubtreeRoot(), MatchLabelsElement,
@@ -1990,7 +1989,7 @@ nsGenericHTMLFormElement::UnbindFromTree(bool aDeep, bool aNullParent)
 
 nsresult
 nsGenericHTMLFormElement::BeforeSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                                        nsAttrValueOrString* aValue,
+                                        const nsAttrValueOrString* aValue,
                                         bool aNotify)
 {
   if (aNameSpaceID == kNameSpaceID_None) {
@@ -2023,13 +2022,6 @@ nsGenericHTMLFormElement::BeforeSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
       }
 
       mForm->RemoveElement(this, false);
-
-      // Removing the element from the form can make it not be the default
-      // control anymore.  Go ahead and notify on that change, though we might
-      // end up readding and becoming the default control again in
-      // AfterSetAttr.
-      // FIXME: Bug 656197
-      UpdateState(aNotify);
     }
 
     if (aName == nsGkAtoms::form) {
@@ -2050,7 +2042,8 @@ nsGenericHTMLFormElement::BeforeSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
 
 nsresult
 nsGenericHTMLFormElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                                       const nsAttrValue* aValue, bool aNotify)
+                                       const nsAttrValue* aValue,
+                                       const nsAttrValue* aOldValue, bool aNotify)
 {
   if (aNameSpaceID == kNameSpaceID_None) {
     // add the control to the hashtable as needed
@@ -2079,12 +2072,6 @@ nsGenericHTMLFormElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
       }
 
       mForm->AddElement(this, false, aNotify);
-
-      // Adding the element to the form can make it be the default control .
-      // Go ahead and notify on that change.
-      // Note: no need to notify on CanBeDisabled(), since type attr
-      // changes can't affect that.
-      UpdateState(aNotify);
     }
 
     if (aName == nsGkAtoms::form) {
@@ -2105,11 +2092,23 @@ nsGenericHTMLFormElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
   }
 
   return nsGenericHTMLElement::AfterSetAttr(aNameSpaceID, aName,
-                                            aValue, aNotify);
+                                            aValue, aOldValue, aNotify);
 }
 
 nsresult
-nsGenericHTMLFormElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
+nsGenericHTMLFormElement::GetEventTargetParent(EventChainPreVisitor& aVisitor)
+{
+  if (aVisitor.mEvent->IsTrusted() && (aVisitor.mEvent->mMessage == eFocus ||
+                                       aVisitor.mEvent->mMessage == eBlur)) {
+    // We have to handle focus/blur event to change focus states in
+    // PreHandleEvent to prevent it breaks event target chain creation.
+    aVisitor.mWantsPreHandleEvent = true;
+  }
+  return nsGenericHTMLElement::GetEventTargetParent(aVisitor);
+}
+
+nsresult
+nsGenericHTMLFormElement::PreHandleEvent(EventChainVisitor& aVisitor)
 {
   if (aVisitor.mEvent->IsTrusted()) {
     switch (aVisitor.mEvent->mMessage) {
@@ -2133,7 +2132,6 @@ nsGenericHTMLFormElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
         break;
     }
   }
-
   return nsGenericHTMLElement::PreHandleEvent(aVisitor);
 }
 

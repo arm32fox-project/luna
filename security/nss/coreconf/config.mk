@@ -137,6 +137,15 @@ include $(CORE_DEPTH)/coreconf/ruleset.mk
 endif
 
 #######################################################################
+# Master "Core Components" macros for Hardware features               #
+#######################################################################
+# NSS Build system does not properly support MozillaBuild 2 MSYS1
+# So we simply aren't going to enable AVX2 at all
+# Plus there seems to be an issue with it anyway for other reasons
+NSS_DISABLE_AVX2 = 1
+export NSS_DISABLE_AVX2
+
+#######################################################################
 # [15.0] Dependencies.
 #######################################################################
 
@@ -162,12 +171,28 @@ ifdef NSS_DISABLE_DBM
 DEFINES += -DNSS_DISABLE_DBM
 endif
 
+ifdef NSS_DISABLE_AVX2
+DEFINES += -DNSS_DISABLE_AVX2
+endif
+
 ifdef NSS_DISABLE_CHACHAPOLY
 DEFINES += -DNSS_DISABLE_CHACHAPOLY
 endif
 
+ifdef NSS_DISABLE_DEPRECATED_SEED
+DEFINES += -DNSS_DISABLE_DEPRECATED_SEED
+endif
+
+ifdef NSS_DISABLE_DEPRECATED_RC2
+DEFINES += -DNSS_DISABLE_DEPRECATED_RC2
+endif
+
 ifdef NSS_PKIX_NO_LDAP
 DEFINES += -DNSS_PKIX_NO_LDAP
+endif
+
+ifdef NSS_ENABLE_DRAFT_HPKE
+DEFINES += -DNSS_ENABLE_DRAFT_HPKE
 endif
 
 # FIPS support requires startup tests to be executed at load time of shared modules.
@@ -194,6 +219,16 @@ ifndef BUILD_OPT
 ifdef PKIX_OBJECT_LEAK_TEST
 DEFINES += -DPKIX_OBJECT_LEAK_TEST
 endif
+endif
+
+# Avoid building with Neon acceleration on Arm32
+ifdef NSS_DISABLE_ARM32_NEON
+DEFINES += -DNSS_DISABLE_ARM32_NEON
+endif
+
+# Avoid building with PowerPC's Altivec acceleration
+ifdef NSS_DISABLE_ALTIVEC
+DEFINES += -DNSS_DISABLE_ALTIVEC
 endif
 
 # This allows all library and tools code to use the util function

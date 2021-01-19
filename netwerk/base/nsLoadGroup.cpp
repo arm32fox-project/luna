@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* vim: set sw=4 ts=4 sts=4 et cin: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -108,6 +107,9 @@ nsLoadGroup::nsLoadGroup(nsISupports* outer)
     , mStatus(NS_OK)
     , mPriority(PRIORITY_NORMAL)
     , mIsCanceling(false)
+    , mDefaultLoadIsTimed(false)
+    , mTimedRequests(0)
+    , mCachedRequests(0)
     , mTimedNonCachedRequestsUntilOnEndPageLoad(0)
 {
     NS_INIT_AGGREGATED(outer);
@@ -428,6 +430,12 @@ nsLoadGroup::SetDefaultLoadRequest(nsIRequest *aRequest)
         // in particular, nsIChannel::LOAD_DOCUMENT_URI...
         //
         mLoadFlags &= nsIRequest::LOAD_REQUESTMASK;
+
+        nsCOMPtr<nsITimedChannel> timedChannel = do_QueryInterface(aRequest);
+        mDefaultLoadIsTimed = timedChannel != nullptr;
+        if (mDefaultLoadIsTimed) {
+            timedChannel->SetTimingEnabled(true);
+        }
     }
     // Else, do not change the group's load flags (see bug 95981)
     return NS_OK;
@@ -481,6 +489,10 @@ nsLoadGroup::AddRequest(nsIRequest *request, nsISupports* ctxt)
 
     if (mPriority != 0)
         RescheduleRequest(request, mPriority);
+
+    nsCOMPtr<nsITimedChannel> timedChannel = do_QueryInterface(request);
+    if (timedChannel)
+        timedChannel->SetTimingEnabled(true);
 
     if (!(flags & nsIRequest::LOAD_BACKGROUND)) {
         // Update the count of foreground URIs..

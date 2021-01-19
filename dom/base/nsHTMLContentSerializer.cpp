@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -15,6 +14,7 @@
 #include "nsIDOMElement.h"
 #include "nsIContent.h"
 #include "nsIDocument.h"
+#include "nsElementTable.h"
 #include "nsNameSpaceManager.h"
 #include "nsString.h"
 #include "nsUnicharUtils.h"
@@ -347,20 +347,13 @@ nsHTMLContentSerializer::AppendElementEnd(Element* aElement,
   }
   
   if (ns == kNameSpaceID_XHTML) {
-    nsIParserService* parserService = nsContentUtils::GetParserService();
-
-    if (parserService) {
-      bool isContainer;
-
-      parserService->
-        IsContainer(parserService->HTMLCaseSensitiveAtomTagToId(name),
-                    isContainer);
-      if (!isContainer) {
-        // Keep this in sync with the cleanup at the end of this method.
-        MOZ_ASSERT(name != nsGkAtoms::body);
-        MaybeLeaveFromPreContent(content);
-        return NS_OK;
-      }
+    bool isContainer =
+      nsHTMLElement::IsContainer(nsHTMLTags::CaseSensitiveAtomTagToId(name));
+    if (!isContainer) {
+      // Keep this in sync with the cleanup at the end of this method.
+      MOZ_ASSERT(name != nsGkAtoms::body);
+      MaybeLeaveFromPreContent(content);
+      return NS_OK;
     }
   }
 

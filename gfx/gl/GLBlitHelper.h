@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* vim: set ts=8 sts=4 et sw=4 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -108,11 +107,6 @@ class GLBlitHelper final
     void BindAndUploadEGLImage(EGLImage image, GLuint target);
 
     bool BlitPlanarYCbCrImage(layers::PlanarYCbCrImage* yuvImage);
-#ifdef MOZ_WIDGET_ANDROID
-    // Blit onto the current FB.
-    bool BlitSurfaceTextureImage(layers::SurfaceTextureImage* stImage);
-    bool BlitEGLImageImage(layers::EGLImageImage* eglImage);
-#endif
 #ifdef XP_MACOSX
     bool BlitMacIOSurfaceImage(layers::MacIOSurfaceImage* ioImage);
 #endif

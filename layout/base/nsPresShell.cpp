@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * vim: set ts=2 sw=2 et tw=78:
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -197,10 +196,6 @@
 #include "mozilla/StyleSheet.h"
 #include "mozilla/StyleSheetInlines.h"
 #include "mozilla/dom/ImageTracker.h"
-
-#ifdef ANDROID
-#include "nsIDocShellTreeOwner.h"
-#endif
 
 #ifdef MOZ_TASK_TRACER
 #include "GeckoTaskTracer.h"
@@ -2832,10 +2827,9 @@ PresShell::CancelAllPendingReflows()
 }
 
 void
-PresShell::DestroyFramesFor(nsIContent*  aContent,
-                            nsIContent** aDestroyedFramesFor)
+PresShell::DestroyFramesForAndRestyle(Element* aElement)
 {
-  MOZ_ASSERT(aContent);
+  MOZ_ASSERT(aElement);
   NS_ENSURE_TRUE_VOID(mPresContext);
   if (!mDidInitialize) {
     return;
@@ -2847,43 +2841,20 @@ PresShell::DestroyFramesFor(nsIContent*  aContent,
   ++mChangeNestCount;
 
   nsCSSFrameConstructor* fc = FrameConstructor();
+  bool didReconstruct;
   fc->BeginUpdate();
-  fc->DestroyFramesFor(aContent, aDestroyedFramesFor);
+  fc->DestroyFramesFor(aElement, &didReconstruct);
   fc->EndUpdate();
 
-  --mChangeNestCount;
-}
+  auto changeHint = didReconstruct
+    ? nsChangeHint(0)
+    : nsChangeHint_ReconstructFrame;
 
-void
-PresShell::CreateFramesFor(nsIContent* aContent)
-{
-  NS_ENSURE_TRUE_VOID(mPresContext);
-  if (!mDidInitialize) {
-    // Nothing to do here.  In fact, if we proceed and aContent is the
-    // root we will crash.
-    return;
-  }
-
-  // Don't call RecreateFramesForContent since that is not exported and we want
-  // to keep the number of entrypoints down.
-
-  NS_ASSERTION(mViewManager, "Should have view manager");
-  MOZ_ASSERT(aContent);
-
-  // Have to make sure that the content notifications are flushed before we
-  // start messing with the frame model; otherwise we can get content doubling.
-  mDocument->FlushPendingNotifications(Flush_ContentAndNotify);
-
-  nsAutoScriptBlocker scriptBlocker;
-
-  // Mark ourselves as not safe to flush while we're doing frame construction.
-  ++mChangeNestCount;
-
-  nsCSSFrameConstructor* fc = FrameConstructor();
-  nsILayoutHistoryState* layoutState = fc->GetLastCapturedLayoutHistoryState();
-  fc->BeginUpdate();
-  fc->ContentInserted(aContent->GetParent(), aContent, layoutState, false);
-  fc->EndUpdate();
+  // NOTE(emilio): eRestyle_Subtree is needed to force also a full subtree
+  // restyle for the content (in Stylo, where the existence of frames != the
+  // existence of styles).
+  mPresContext->RestyleManager()->PostRestyleEvent(
+    aElement, eRestyle_Subtree, changeHint);
 
   --mChangeNestCount;
 }
@@ -3360,7 +3331,7 @@ static void ScrollToShowRect(nsIScrollableFrame*      aFrameAsScrollable,
       aHorizontal.mWhenToScroll == nsIPresShell::SCROLL_IF_NOT_VISIBLE) {
     lineSize = aFrameAsScrollable->GetLineScrollAmount();
   }
-  ScrollbarStyles ss = aFrameAsScrollable->GetScrollbarStyles();
+  ScrollStyles ss = aFrameAsScrollable->GetScrollStyles();
   nsRect allowedRange(scrollPt, nsSize(0, 0));
   bool needToScroll = false;
   uint32_t directions = aFrameAsScrollable->GetPerceivedScrollingDirections();
@@ -3417,7 +3388,7 @@ static void ScrollToShowRect(nsIScrollableFrame*      aFrameAsScrollable,
   // a current smooth scroll operation.
   if (needToScroll) {
     nsIScrollableFrame::ScrollMode scrollMode = nsIScrollableFrame::INSTANT;
-    bool autoBehaviorIsSmooth = (aFrameAsScrollable->GetScrollbarStyles().mScrollBehavior
+    bool autoBehaviorIsSmooth = (aFrameAsScrollable->GetScrollStyles().mScrollBehavior
                                   == NS_STYLE_SCROLL_BEHAVIOR_SMOOTH);
     bool smoothScroll = (aFlags & nsIPresShell::SCROLL_SMOOTH) ||
                           ((aFlags & nsIPresShell::SCROLL_SMOOTH_AUTO) && autoBehaviorIsSmooth);
@@ -4448,14 +4419,14 @@ PresShell::NotifyCounterStylesAreDirty()
   mFrameConstructor->EndUpdate();
 }
 
-nsresult
-PresShell::ReconstructFrames(void)
+void
+PresShell::ReconstructFrames()
 {
   NS_PRECONDITION(!mFrameConstructor->GetRootFrame() || mDidInitialize,
                   "Must not have root frame before initial reflow");
   if (!mDidInitialize || mIsDestroying) {
     // Nothing to do here
-    return NS_OK;
+    return;
   }
 
   nsCOMPtr<nsIPresShell> kungFuDeathGrip(this);
@@ -4465,16 +4436,14 @@ PresShell::ReconstructFrames(void)
   mDocument->FlushPendingNotifications(Flush_ContentAndNotify);
 
   if (mIsDestroying) {
-    return NS_OK;
+    return;
   }
 
   nsAutoCauseReflowNotifier crNotifier(this);
   mFrameConstructor->BeginUpdate();
-  nsresult rv = mFrameConstructor->ReconstructDocElementHierarchy();
+  mFrameConstructor->ReconstructDocElementHierarchy();
   VERIFY_STYLE_TREE;
   mFrameConstructor->EndUpdate();
-
-  return rv;
 }
 
 void
@@ -4600,12 +4569,6 @@ void
 PresShell::StyleRuleRemoved(StyleSheet* aStyleSheet)
 {
   RecordStyleSheetChange(aStyleSheet);
-}
-
-nsIFrame*
-PresShell::GetPlaceholderFrameFor(nsIFrame* aFrame) const
-{
-  return mFrameConstructor->GetPlaceholderFrameFor(aFrame);
 }
 
 nsresult
@@ -4759,9 +4722,11 @@ PresShell::ClipListToRange(nsDisplayListBuilder *aBuilder,
         frame->GetOffsets(frameStartOffset, frameEndOffset);
 
         int32_t hilightStart =
-          atStart ? std::max(aRange->StartOffset(), frameStartOffset) : frameStartOffset;
+          atStart ? std::max(static_cast<int32_t>(aRange->StartOffset()),
+                             frameStartOffset) : frameStartOffset;
         int32_t hilightEnd =
-          atEnd ? std::min(aRange->EndOffset(), frameEndOffset) : frameEndOffset;
+          atEnd ? std::min(static_cast<int32_t>(aRange->EndOffset()),
+                           frameEndOffset) : frameEndOffset;
         if (hilightStart < hilightEnd) {
           // determine the location of the start and end edges of the range.
           nsPoint startPoint, endPoint;
@@ -7318,12 +7283,6 @@ PresShell::HandleEvent(nsIFrame* aFrame,
       // if the mouse is being captured then retarget the mouse event at the
       // document that is being captured.
       retargetEventDoc = capturingContent->GetComposedDoc();
-#ifdef ANDROID
-    } else if ((aEvent->mClass == eTouchEventClass) ||
-               (aEvent->mClass == eMouseEventClass) ||
-               (aEvent->mClass == eWheelEventClass)) {
-      retargetEventDoc = GetTouchEventTargetDocument();
-#endif
     }
 
     if (retargetEventDoc) {
@@ -7876,38 +7835,6 @@ PresShell::HandleEvent(nsIFrame* aFrame,
 
   return rv;
 }
-
-#ifdef ANDROID
-nsIDocument*
-PresShell::GetTouchEventTargetDocument()
-{
-  nsPresContext* context = GetPresContext();
-  if (!context || !context->IsRoot()) {
-    return nullptr;
-  }
-
-  nsCOMPtr<nsIDocShellTreeItem> shellAsTreeItem = context->GetDocShell();
-  if (!shellAsTreeItem) {
-    return nullptr;
-  }
-
-  nsCOMPtr<nsIDocShellTreeOwner> owner;
-  shellAsTreeItem->GetTreeOwner(getter_AddRefs(owner));
-  if (!owner) {
-    return nullptr;
-  }
-
-  // now get the primary content shell (active tab)
-  nsCOMPtr<nsIDocShellTreeItem> item;
-  owner->GetPrimaryContentShell(getter_AddRefs(item));
-  nsCOMPtr<nsIDocShell> childDocShell = do_QueryInterface(item);
-  if (!childDocShell) {
-    return nullptr;
-  }
-
-  return childDocShell->GetDocument();
-}
-#endif
 
 #ifdef DEBUG
 void

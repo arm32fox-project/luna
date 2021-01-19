@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -779,7 +778,7 @@ struct JSClass {
 // application.
 #define JSCLASS_GLOBAL_APPLICATION_SLOTS 5
 #define JSCLASS_GLOBAL_SLOT_COUNT                                             \
-    (JSCLASS_GLOBAL_APPLICATION_SLOTS + JSProto_LIMIT * 2 + 45)
+    (JSCLASS_GLOBAL_APPLICATION_SLOTS + JSProto_LIMIT * 2 + 46)
 #define JSCLASS_GLOBAL_FLAGS_WITH_SLOTS(n)                                    \
     (JSCLASS_IS_GLOBAL | JSCLASS_HAS_RESERVED_SLOTS(JSCLASS_GLOBAL_SLOT_COUNT + (n)))
 #define JSCLASS_GLOBAL_FLAGS                                                  \

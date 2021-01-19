@@ -17,6 +17,9 @@ enum VisibilityState { "hidden", "visible", "prerender" };
 /* https://dom.spec.whatwg.org/#dictdef-elementcreationoptions */
 dictionary ElementCreationOptions {
   DOMString is;
+
+  [ChromeOnly]
+  DOMString pseudo;
 };
 
 /* http://dom.spec.whatwg.org/#interface-document */
@@ -65,9 +68,9 @@ interface Document : Node {
   [NewObject, Throws]
   ProcessingInstruction createProcessingInstruction(DOMString target, DOMString data);
 
-  [Throws]
+  [CEReactions, Throws]
   Node importNode(Node node, optional boolean deep = false);
-  [Throws]
+  [CEReactions, Throws]
   Node adoptNode(Node node);
 
   [NewObject, Throws]
@@ -108,9 +111,9 @@ partial interface Document {
 
   // DOM tree accessors
   //(Not proxy yet)getter object (DOMString name);
-  [SetterThrows, Pure]
+  [CEReactions, SetterThrows, Pure]
            attribute DOMString title;
-  [Pure]
+  [CEReactions, Pure]
            attribute DOMString dir;
   //(HTML only)         attribute HTMLElement? body;
   //(HTML only)readonly attribute HTMLHeadElement? head;
@@ -133,7 +136,6 @@ partial interface Document {
   // user interaction
   [Pure]
   readonly attribute WindowProxy? defaultView;
-  readonly attribute Element? activeElement;
   [Throws]
   boolean hasFocus();
   //(HTML only)         attribute DOMString designMode;
@@ -268,13 +270,6 @@ partial interface Document {
   attribute EventHandler onpointerlockerror;
 };
 
-//http://dvcs.w3.org/hg/webcomponents/raw-file/tip/spec/custom/index.html#dfn-document-register
-partial interface Document {
-    // this is deprecated from CustomElements v0
-    [Throws, Func="CustomElementRegistry::IsCustomElementEnabled"]
-    object registerElement(DOMString name, optional ElementRegistrationOptions options);
-};
-
 // https://w3c.github.io/page-visibility/#extensions-to-the-document-interface
 partial interface Document {
   [Pref="dom.visibilityAPI.enabled"]
@@ -287,8 +282,6 @@ partial interface Document {
 
 // http://dev.w3.org/csswg/cssom/#extensions-to-the-document-interface
 partial interface Document {
-    [Constant]
-    readonly attribute StyleSheetList styleSheets;
     attribute DOMString? selectedStyleSheetSet;
     readonly attribute DOMString? lastStyleSheetSet;
     readonly attribute DOMString? preferredStyleSheetSet;
@@ -319,9 +312,9 @@ partial interface Document {
 
 // http://w3c.github.io/web-animations/#extensions-to-the-document-interface
 partial interface Document {
-  [Func="nsDocument::IsWebAnimationsEnabled"]
+  [Func="nsDocument::AreWebAnimationsTimelinesEnabled"]
   readonly attribute DocumentTimeline timeline;
-  [Func="nsDocument::IsWebAnimationsEnabled"]
+  [Func="nsDocument::IsWebAnimationsGetAnimationsEnabled"]
   sequence<Animation> getAnimations();
 };
 
@@ -460,3 +453,4 @@ Document implements ParentNode;
 Document implements OnErrorEventHandlerForNodes;
 Document implements GeometryUtils;
 Document implements FontFaceSource;
+Document implements DocumentOrShadowRoot;

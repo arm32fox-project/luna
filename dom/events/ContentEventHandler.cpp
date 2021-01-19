@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -980,11 +979,7 @@ ContentEventHandler::SetRangeFromFlatTextOffset(nsRange* aRange,
 
   // Special case like <br contenteditable>
   if (!mRootContent->HasChildren()) {
-    nsresult rv = aRange->SetStart(mRootContent, 0);
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-      return rv;
-    }
-    rv = aRange->SetEnd(mRootContent, 0);
+    nsresult rv = aRange->CollapseTo(mRootContent, 0);
     if (NS_WARN_IF(NS_FAILED(rv))) {
       return rv;
     }
@@ -2880,8 +2875,7 @@ ContentEventHandler::AdjustCollapsedRangeMaybeIntoTextNode(nsRange* aRange)
     return NS_OK;
   }
 
-  nsresult rv = aRange->Set(childNode, offsetInChildNode,
-                            childNode, offsetInChildNode);
+  nsresult rv = aRange->CollapseTo(childNode, offsetInChildNode);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
   }

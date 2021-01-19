@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -813,10 +812,11 @@ nsFocusManager::ContentRemoved(nsIDocument* aDocument, nsIContent* aContent)
   if (!window)
     return NS_OK;
 
-  // if the content is currently focused in the window, or is an ancestor
-  // of the currently focused element, reset the focus within that window.
+  // if the content is currently focused in the window, or is an
+  // shadow-including inclusive ancestor of the currently focused element,
+  // reset the focus within that window.
   nsIContent* content = window->GetFocusedNode();
-  if (content && nsContentUtils::ContentIsDescendantOf(content, aContent)) {
+  if (content && nsContentUtils::ContentIsHostIncludingDescendantOf(content, aContent)) {
     bool shouldShowFocusRing = window->ShouldShowFocusRing();
     window->SetFocusedNode(nullptr);
 
@@ -2457,7 +2457,7 @@ nsFocusManager::GetSelectionLocation(nsIDocument* aDocument,
   nsCOMPtr<nsIDOMNode> startNode, endNode;
   bool isCollapsed = false;
   nsCOMPtr<nsIContent> startContent, endContent;
-  int32_t startOffset = 0;
+  uint32_t startOffset = 0;
   if (domSelection) {
     domSelection->GetIsCollapsed(&isCollapsed);
     nsCOMPtr<nsIDOMRange> domRange;
@@ -2471,7 +2471,6 @@ nsFocusManager::GetSelectionLocation(nsIDocument* aDocument,
 
       startContent = do_QueryInterface(startNode);
       if (startContent && startContent->IsElement()) {
-        NS_ASSERTION(startOffset >= 0, "Start offset cannot be negative");  
         childContent = startContent->GetChildAt(startOffset);
         if (childContent) {
           startContent = childContent;
@@ -2480,9 +2479,8 @@ nsFocusManager::GetSelectionLocation(nsIDocument* aDocument,
 
       endContent = do_QueryInterface(endNode);
       if (endContent && endContent->IsElement()) {
-        int32_t endOffset = 0;
+        uint32_t endOffset = 0;
         domRange->GetEndOffset(&endOffset);
-        NS_ASSERTION(endOffset >= 0, "End offset cannot be negative");
         childContent = endContent->GetChildAt(endOffset);
         if (childContent) {
           endContent = childContent;
@@ -2510,7 +2508,7 @@ nsFocusManager::GetSelectionLocation(nsIDocument* aDocument,
         bool isFormControl =
           startContent->IsNodeOfType(nsINode::eHTML_FORM_CONTROL);
 
-        if (nodeValue.Length() == (uint32_t)startOffset && !isFormControl &&
+        if (nodeValue.Length() == startOffset && !isFormControl &&
             startContent != aDocument->GetRootElement()) {
           // Yes, indeed we were at the end of the last node
           nsCOMPtr<nsIFrameEnumerator> frameTraversal;

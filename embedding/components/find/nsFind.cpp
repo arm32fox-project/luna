@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -609,7 +608,7 @@ nsFind::NextNode(nsIDOMRange* aSearchRange,
     // beginning/end of the search range.
     nsCOMPtr<nsIDOMNode> startNode;
     nsCOMPtr<nsIDOMNode> endNode;
-    int32_t startOffset, endOffset;
+    uint32_t startOffset, endOffset;
     if (aContinueOk) {
 #ifdef DEBUG_FIND
       printf("Match in progress: continuing past endpoint\n");
@@ -645,7 +644,8 @@ nsFind::NextNode(nsIDOMRange* aSearchRange,
       }
     }
 
-    rv = InitIterator(startNode, startOffset, endNode, endOffset);
+    rv = InitIterator(startNode, static_cast<int32_t>(startOffset),
+                      endNode, static_cast<int32_t>(endOffset));
     NS_ENSURE_SUCCESS(rv, rv);
     if (!aStartPoint) {
       aStartPoint = aSearchRange;
@@ -665,14 +665,18 @@ nsFind::NextNode(nsIDOMRange* aSearchRange,
       if (mFindBackward) {
         aStartPoint->GetEndContainer(getter_AddRefs(node));
         if (mIterNode.get() == node.get()) {
-          aStartPoint->GetEndOffset(&mIterOffset);
+          uint32_t endOffset;
+          aStartPoint->GetEndOffset(&endOffset);
+          mIterOffset = static_cast<int32_t>(endOffset);
         } else {
           mIterOffset = -1; // sign to start from end
         }
       } else {
         aStartPoint->GetStartContainer(getter_AddRefs(node));
         if (mIterNode.get() == node.get()) {
-          aStartPoint->GetStartOffset(&mIterOffset);
+          uint32_t startOffset;
+          aStartPoint->GetStartOffset(&startOffset);
+          mIterOffset = static_cast<int32_t>(startOffset);
         } else {
           mIterOffset = 0;
         }
@@ -997,7 +1001,7 @@ nsFind::Find(const nsAString& aPatText, nsIDOMRange* aSearchRange,
 
   // Get the end point, so we know when to end searches:
   nsCOMPtr<nsIDOMNode> endNode;
-  int32_t endOffset;
+  uint32_t endOffset;
   aEndPoint->GetEndContainer(getter_AddRefs(endNode));
   aEndPoint->GetEndOffset(&endOffset);
 
@@ -1132,8 +1136,8 @@ nsFind::Find(const nsAString& aPatText, nsIDOMRange* aSearchRange,
     // Have we gone past the endpoint yet? If we have, and we're not in the
     // middle of a match, return.
     if (mIterNode == endNode &&
-        ((mFindBackward && findex < endOffset) ||
-         (!mFindBackward && findex > endOffset))) {
+        ((mFindBackward && findex < static_cast<int32_t>(endOffset)) ||
+         (!mFindBackward && findex > static_cast<int32_t>(endOffset)))) {
       ResetAll();
       return NS_OK;
     }

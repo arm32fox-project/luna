@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -356,24 +355,16 @@ EffectCompositor::GetElementToRestyle(dom::Element* aElement,
     return aElement;
   }
 
-  nsIFrame* primaryFrame = aElement->GetPrimaryFrame();
-  if (!primaryFrame) {
-    return nullptr;
-  }
-  nsIFrame* pseudoFrame;
   if (aPseudoType == CSSPseudoElementType::before) {
-    pseudoFrame = nsLayoutUtils::GetBeforeFrame(primaryFrame);
-  } else if (aPseudoType == CSSPseudoElementType::after) {
-    pseudoFrame = nsLayoutUtils::GetAfterFrame(primaryFrame);
-  } else {
-    NS_NOTREACHED("Should not try to get the element to restyle for a pseudo "
-                  "other that :before or :after");
-    return nullptr;
+    return nsLayoutUtils::GetBeforePseudo(aElement);
   }
-  if (!pseudoFrame) {
-    return nullptr;
+  if (aPseudoType == CSSPseudoElementType::after) {
+    return nsLayoutUtils::GetAfterPseudo(aElement);
   }
-  return pseudoFrame->GetContent()->AsElement();
+
+  NS_NOTREACHED("Should not try to get the element to restyle for a pseudo "
+                "other that :before or :after");
+  return nullptr;
 }
 
 bool

@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -122,11 +121,6 @@ nsLayoutStylesheetCache::UASheet()
 StyleSheet*
 nsLayoutStylesheetCache::HTMLSheet()
 {
-  if (!mHTMLSheet) {
-    LoadSheetURL("resource://gre-resources/html.css",
-                 &mHTMLSheet, eAgentSheetFeatures, eCrash);
-  }
-
   return mHTMLSheet;
 }
 
@@ -322,6 +316,8 @@ nsLayoutStylesheetCache::nsLayoutStylesheetCache(StyleBackendType aType)
   // per-profile, since they're profile-invariant.
   LoadSheetURL("resource://gre-resources/counterstyles.css",
                &mCounterStylesSheet, eAgentSheetFeatures, eCrash);
+  LoadSheetURL("resource://gre-resources/html.css",
+               &mHTMLSheet, eAgentSheetFeatures, eCrash);
   LoadSheetURL("chrome://global/content/minimal-xul.css",
                &mMinimalXULSheet, eAgentSheetFeatures, eCrash);
   LoadSheetURL("resource://gre-resources/quirk.css",
@@ -382,8 +378,6 @@ nsLayoutStylesheetCache::For(StyleBackendType aType)
     //                               "layout.css.example-pref.enabled");
     Preferences::RegisterCallback(&DependentPrefChanged,
                                   "layout.css.grid.enabled");
-    Preferences::RegisterCallback(&DependentPrefChanged,
-                                  "dom.details_element.enabled");
   }
 
   return cache;
@@ -555,7 +549,6 @@ nsLayoutStylesheetCache::DependentPrefChanged(const char* aPref, void* aData)
                   gStyleCache_Servo ? &gStyleCache_Servo->sheet_ : nullptr);
 
   INVALIDATE(mUASheet);  // for layout.css.grid.enabled
-  INVALIDATE(mHTMLSheet); // for dom.details_element.enabled
 
 #undef INVALIDATE
 }

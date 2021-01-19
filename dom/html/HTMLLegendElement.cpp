@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -68,21 +67,6 @@ HTMLLegendElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
     retval |= NS_STYLE_HINT_REFLOW;
   }
   return retval;
-}
-
-nsresult
-HTMLLegendElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
-                           nsIAtom* aPrefix, const nsAString& aValue,
-                           bool aNotify)
-{
-  return nsGenericHTMLElement::SetAttr(aNameSpaceID, aAttribute,
-                                       aPrefix, aValue, aNotify);
-}
-nsresult
-HTMLLegendElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
-                             bool aNotify)
-{
-  return nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aAttribute, aNotify);
 }
 
 nsresult

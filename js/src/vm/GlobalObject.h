@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -110,6 +109,7 @@ class GlobalObject : public NativeObject
         COLLATOR_PROTO,
         NUMBER_FORMAT_PROTO,
         DATE_TIME_FORMAT_PROTO,
+        PLURAL_RULES_PROTO,
         MODULE_PROTO,
         IMPORT_ENTRY_PROTO,
         EXPORT_ENTRY_PROTO,
@@ -506,6 +506,11 @@ class GlobalObject : public NativeObject
     static JSObject*
     getOrCreateDateTimeFormatPrototype(JSContext* cx, Handle<GlobalObject*> global) {
         return getOrCreateObject(cx, global, DATE_TIME_FORMAT_PROTO, initIntlObject);
+    }
+
+    static JSObject*
+    getOrCreatePluralRulesPrototype(JSContext* cx, Handle<GlobalObject*> global) {
+        return getOrCreateObject(cx, global, PLURAL_RULES_PROTO, initIntlObject);
     }
 
     static bool ensureModulePrototypesCreated(JSContext *cx, Handle<GlobalObject*> global);

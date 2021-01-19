@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -25,7 +24,7 @@
 #include "xpcpublic.h"
 #include "nsContentUtils.h"
 #include "nsGlobalWindow.h"
-
+#include "mozilla/CycleCollectedJSContext.h"
 #include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/Date.h"
 #include "mozilla/dom/Element.h"
@@ -160,7 +159,8 @@ nsJSUtils::EvaluateString(JSContext* aCx,
              aEvaluationGlobal);
   MOZ_ASSERT_IF(aOffThreadToken, aCompileOptions.noScriptRval);
   MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(nsContentUtils::IsInMicroTask());
+  MOZ_ASSERT(CycleCollectedJSContext::Get() &&
+             CycleCollectedJSContext::Get()->MicroTaskLevel());
 
   // Unfortunately, the JS engine actually compiles scripts with a return value
   // in a different, less efficient way.  Furthermore, it can't JIT them in many
@@ -294,7 +294,8 @@ nsJSUtils::CompileModule(JSContext* aCx,
              aEvaluationGlobal);
   MOZ_ASSERT(JS::CurrentGlobalOrNull(aCx) == aEvaluationGlobal);
   MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(nsContentUtils::IsInMicroTask());
+  MOZ_ASSERT(CycleCollectedJSContext::Get() &&
+             CycleCollectedJSContext::Get()->MicroTaskLevel());
 
   NS_ENSURE_TRUE(xpc::Scriptability::Get(aEvaluationGlobal).Allowed(), NS_OK);
 
@@ -334,7 +335,8 @@ nsJSUtils::ModuleEvaluate(JSContext* aCx, JS::Handle<JSObject*> aModule)
 
   MOZ_ASSERT(aCx == nsContentUtils::GetCurrentJSContext());
   MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(nsContentUtils::IsInMicroTask());
+  MOZ_ASSERT(CycleCollectedJSContext::Get() &&
+             CycleCollectedJSContext::Get()->MicroTaskLevel());
 
   NS_ENSURE_TRUE(xpc::Scriptability::Get(aModule).Allowed(), NS_OK);
 

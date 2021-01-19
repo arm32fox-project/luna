@@ -1,5 +1,4 @@
 # -*- Mode: python; indent-tabs-mode: nil; tab-width: 40 -*-
-# vim: set filetype=python:
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -64,6 +63,11 @@ def GeckoBinary(linkage='dependent', msvcrt='dynamic', mozglue=None):
                     LDFLAGS += ['-rdynamic']
                 if CONFIG['MOZ_MEMORY']:
                     USE_LIBS += ['memory']
+                    if CONFIG['OS_ARCH'] == 'FreeBSD':
+                        # Make sure this function is linked in, so that it is
+                        # executed at executable load (it has the 'constructor'
+                        # flag).
+                        LDFLAGS += ['-u', 'jemalloc_FreeBSD_init']
         elif mozglue == 'library':
             LIBRARY_DEFINES['MOZ_HAS_MOZGLUE'] = True
             if not CONFIG['MOZ_GLUE_IN_PROGRAM']:

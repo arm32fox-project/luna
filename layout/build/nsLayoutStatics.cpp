@@ -315,10 +315,7 @@ nsLayoutStatics::Initialize()
   // creating the hidden DOM window to support some current stylo hacks. We
   // should move initialization back here once those go away.
 
-#ifndef MOZ_WIDGET_ANDROID
-  // On Android, we instantiate it when constructing AndroidBridge.
   MediaPrefs::GetSingleton();
-#endif
 
   return NS_OK;
 }
@@ -422,8 +419,6 @@ nsLayoutStatics::Shutdown()
   ContentParent::ShutDown();
 
   DisplayItemClip::Shutdown();
-
-  CustomElementRegistry::XPCOMShutdown();
 
   CacheObserver::Shutdown();
 

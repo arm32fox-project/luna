@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -74,6 +73,10 @@ public:
                                   bool aNotify, nsIContent* aNextSibling);
 
   virtual nsIDOMNode* AsDOMNode() override { return this; }
+
+  // Need to have a copy here because including nsDocument.h in this file will
+  // fail to build on Windows.
+  static bool IsWebComponentsEnabled(JSContext* aCx, JSObject* aObject);
 
 #ifdef DEBUG
   virtual void List(FILE* out, int32_t aIndent) const override;

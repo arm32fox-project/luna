@@ -15,14 +15,12 @@
 using namespace mozilla;
 
 // static array of unicode tag names
-#define HTML_TAG(_tag, _classname) (u"" #_tag),
-#define HTML_HTMLELEMENT_TAG(_tag) (u"" #_tag),
+#define HTML_TAG(_tag, _classname, _interfacename) (u"" #_tag),
 #define HTML_OTHER(_tag)
 const char16_t* const nsHTMLTags::sTagUnicodeTable[] = {
 #include "nsHTMLTagList.h"
 };
 #undef HTML_TAG
-#undef HTML_HTMLELEMENT_TAG
 #undef HTML_OTHER
 
 // static array of tag atoms
@@ -62,23 +60,19 @@ HTMLTagsHashCodeAtom(const void *key)
 void
 nsHTMLTags::RegisterAtoms(void)
 {
-#define HTML_TAG(_tag, _classname) NS_STATIC_ATOM_BUFFER(Atombuffer_##_tag, #_tag)
-#define HTML_HTMLELEMENT_TAG(_tag) NS_STATIC_ATOM_BUFFER(Atombuffer_##_tag, #_tag)
+#define HTML_TAG(_tag, _classname, _interfacename) NS_STATIC_ATOM_BUFFER(Atombuffer_##_tag, #_tag)
 #define HTML_OTHER(_tag)
 #include "nsHTMLTagList.h"
 #undef HTML_TAG
-#undef HTML_HTMLELEMENT_TAG
 #undef HTML_OTHER
 
 // static array of tag StaticAtom structs
-#define HTML_TAG(_tag, _classname) NS_STATIC_ATOM(Atombuffer_##_tag, &nsHTMLTags::sTagAtomTable[eHTMLTag_##_tag - 1]),
-#define HTML_HTMLELEMENT_TAG(_tag) NS_STATIC_ATOM(Atombuffer_##_tag, &nsHTMLTags::sTagAtomTable[eHTMLTag_##_tag - 1]),
+#define HTML_TAG(_tag, _classname, _interfacename) NS_STATIC_ATOM(Atombuffer_##_tag, &nsHTMLTags::sTagAtomTable[eHTMLTag_##_tag - 1]),
 #define HTML_OTHER(_tag)
   static const nsStaticAtom sTagAtoms_info[] = {
 #include "nsHTMLTagList.h"
   };
 #undef HTML_TAG
-#undef HTML_HTMLELEMENT_TAG
 #undef HTML_OTHER
 
   // Fill in our static atom pointers
@@ -167,7 +161,7 @@ nsHTMLTags::ReleaseTable(void)
 
 // static
 nsHTMLTag
-nsHTMLTags::LookupTag(const nsAString& aTagName)
+nsHTMLTags::StringTagToId(const nsAString& aTagName)
 {
   uint32_t length = aTagName.Length();
 
@@ -201,7 +195,7 @@ nsHTMLTags::LookupTag(const nsAString& aTagName)
 
   buf[i] = 0;
 
-  return CaseSensitiveLookupTag(buf);
+  return CaseSensitiveStringTagToId(buf);
 }
 
 #ifdef DEBUG
@@ -216,33 +210,33 @@ nsHTMLTags::TestTagTable()
      // Make sure we can find everything we are supposed to
      for (int i = 0; i < NS_HTML_TAG_MAX; ++i) {
        tag = sTagUnicodeTable[i];
-       id = LookupTag(nsDependentString(tag));
+       id = StringTagToId(nsDependentString(tag));
        NS_ASSERTION(id != eHTMLTag_userdefined, "can't find tag id");
        const char16_t* check = GetStringValue(id);
        NS_ASSERTION(0 == nsCRT::strcmp(check, tag), "can't map id back to tag");
 
        nsAutoString uname(tag);
        ToUpperCase(uname);
-       NS_ASSERTION(id == LookupTag(uname), "wrong id");
+       NS_ASSERTION(id == StringTagToId(uname), "wrong id");
 
-       NS_ASSERTION(id == CaseSensitiveLookupTag(tag), "wrong id");
+       NS_ASSERTION(id == CaseSensitiveStringTagToId(tag), "wrong id");
 
        atom = NS_Atomize(tag);
-       NS_ASSERTION(id == CaseSensitiveLookupTag(atom), "wrong id");
+       NS_ASSERTION(id == CaseSensitiveAtomTagToId(atom), "wrong id");
        NS_ASSERTION(atom == GetAtom(id), "can't map id back to atom");
      }
 
      // Make sure we don't find things that aren't there
-     id = LookupTag(NS_LITERAL_STRING("@"));
+     id = StringTagToId(NS_LITERAL_STRING("@"));
      NS_ASSERTION(id == eHTMLTag_userdefined, "found @");
-     id = LookupTag(NS_LITERAL_STRING("zzzzz"));
+     id = StringTagToId(NS_LITERAL_STRING("zzzzz"));
      NS_ASSERTION(id == eHTMLTag_userdefined, "found zzzzz");
 
      atom = NS_Atomize("@");
-     id = CaseSensitiveLookupTag(atom);
+     id = CaseSensitiveAtomTagToId(atom);
      NS_ASSERTION(id == eHTMLTag_userdefined, "found @");
      atom = NS_Atomize("zzzzz");
-     id = CaseSensitiveLookupTag(atom);
+     id = CaseSensitiveAtomTagToId(atom);
      NS_ASSERTION(id == eHTMLTag_userdefined, "found zzzzz");
 
      tag = GetStringValue((nsHTMLTag) 0);

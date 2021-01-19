@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -523,4 +522,10 @@ nsDOMAttributeMap::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
 nsDOMAttributeMap::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto)
 {
   return NamedNodeMapBinding::Wrap(aCx, this, aGivenProto);
+}
+
+DocGroup*
+nsDOMAttributeMap::GetDocGroup() const
+{
+  return mContent ? mContent->OwnerDoc()->GetDocGroup() : nullptr;
 }

@@ -1,4 +1,3 @@
-# vim: set ts=8 sts=4 et sw=4 tw=99:
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -80,6 +79,7 @@ included_inclnames_to_ignore = set([
     'prtypes.h',                # NSPR
     'selfhosted.out.h',         # generated in $OBJDIR
     'shellmoduleloader.out.h',  # generated in $OBJDIR
+    'unicode/plurrule.h',       # ICU
     'unicode/timezone.h',       # ICU
     'unicode/ucal.h',           # ICU
     'unicode/uclean.h',         # ICU
@@ -87,9 +87,11 @@ included_inclnames_to_ignore = set([
     'unicode/udat.h',           # ICU
     'unicode/udatpg.h',         # ICU
     'unicode/uenum.h',          # ICU
+    'unicode/uniset.h',         # ICU
     'unicode/unorm.h',          # ICU
     'unicode/unum.h',           # ICU
     'unicode/unumsys.h',        # ICU
+    'unicode/upluralrules.h',   # ICU
     'unicode/ustring.h',        # ICU
     'unicode/utypes.h',         # ICU
     'vtune/VTuneWrapper.h'      # VTune

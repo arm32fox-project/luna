@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -33,6 +32,7 @@ struct Class;
 } // namespace js
 
 namespace mozilla {
+class AutoSlowOperation;
 
 class JSGCThingParticipant: public nsCycleCollectionParticipant
 {
@@ -132,6 +132,17 @@ struct CycleCollectorResults
   uint32_t mFreedGCed;
   uint32_t mFreedJSZones;
   uint32_t mNumSlices;
+};
+
+class MicroTaskRunnable
+{
+public:
+  MicroTaskRunnable() {}
+  NS_INLINE_DECL_REFCOUNTING(MicroTaskRunnable)
+  virtual void Run(AutoSlowOperation& aAso) = 0;
+  virtual bool Suppressed() { return false; }
+protected:
+  virtual ~MicroTaskRunnable() {}
 };
 
 class CycleCollectedJSContext
@@ -402,6 +413,39 @@ public:
   // Queue an async microtask to the current main or worker thread.
   virtual void DispatchToMicroTask(already_AddRefed<nsIRunnable> aRunnable);
 
+  // Call EnterMicroTask when you're entering JS execution.
+  // Usually the best way to do this is to use nsAutoMicroTask.
+  void EnterMicroTask()
+  {
+    ++mMicroTaskLevel;
+  }
+
+  void LeaveMicroTask()
+  {
+    if (--mMicroTaskLevel == 0) {
+      PerformMicroTaskCheckPoint();
+    }
+  }
+
+  bool IsInMicroTask()
+  {
+    return mMicroTaskLevel != 0;
+  }
+
+  uint32_t MicroTaskLevel()
+  {
+    return mMicroTaskLevel;
+  }
+
+  void SetMicroTaskLevel(uint32_t aLevel)
+  {
+    mMicroTaskLevel = aLevel;
+  }
+
+  void PerformMicroTaskCheckPoint();
+
+  void DispatchMicroTaskRunnable(already_AddRefed<MicroTaskRunnable> aRunnable);
+
   // Storage for watching rejected promises waiting for some client to
   // consume their rejection.
 
@@ -452,6 +496,11 @@ private:
 
   bool mDisableMicroTaskCheckpoint;
 
+  uint32_t mMicroTaskLevel;
+  std::queue<RefPtr<MicroTaskRunnable>> mPendingMicroTaskRunnables;
+
+  uint32_t mMicroTaskRecursionDepth;
+
   OOMState mOutOfMemoryState;
   OOMState mLargeAllocationFailureState;
 
@@ -468,6 +517,25 @@ private:
     void invoke(JS::HandleObject scope, Closure& closure) override;
   };
   EnvironmentPreparer mEnvironmentPreparer;
+};
+
+class MOZ_STACK_CLASS nsAutoMicroTask
+{
+public:
+  nsAutoMicroTask()
+  {
+    CycleCollectedJSContext* ccjs = CycleCollectedJSContext::Get();
+    if (ccjs) {
+      ccjs->EnterMicroTask();
+    }
+  }
+  ~nsAutoMicroTask()
+  {
+    CycleCollectedJSContext* ccjs = CycleCollectedJSContext::Get();
+    if (ccjs) {
+      ccjs->LeaveMicroTask();
+    }
+  }
 };
 
 void TraceScriptHolder(nsISupports* aHolder, JSTracer* aTracer);

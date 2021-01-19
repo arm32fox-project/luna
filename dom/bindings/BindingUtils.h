@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -42,6 +41,7 @@
 
 #include "nsWrapperCacheInlines.h"
 
+class nsGenericHTMLElement;
 class nsIJSID;
 
 namespace mozilla {
@@ -49,6 +49,7 @@ namespace mozilla {
 enum UseCounter : int16_t;
 
 namespace dom {
+class CustomElementReactionsStack;
 template<typename KeyType, typename ValueType> class Record;
 
 nsresult
@@ -3419,6 +3420,13 @@ bool GetSetlikeBackingObject(JSContext* aCx, JS::Handle<JSObject*> aObj,
 bool
 GetDesiredProto(JSContext* aCx, const JS::CallArgs& aCallArgs,
                 JS::MutableHandle<JSObject*> aDesiredProto);
+
+// This function is expected to be called from the constructor function for an
+// HTML element interface; the global/callargs need to be whatever was passed to
+// that constructor function.
+already_AddRefed<nsGenericHTMLElement>
+CreateHTMLElement(const GlobalObject& aGlobal, const JS::CallArgs& aCallArgs,
+                  JS::Handle<JSObject*> aGivenProto, ErrorResult& aRv);
 
 void
 SetDocumentAndPageUseCounter(JSContext* aCx, JSObject* aObject,

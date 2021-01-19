@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* vim: set ts=4 sw=4 et tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -66,7 +65,6 @@
 #include "nsContentUtils.h"
 #include "nsIParser.h"
 #include "nsCharsetSource.h"
-#include "nsIParserService.h"
 #include "mozilla/StyleSheetInlines.h"
 #include "mozilla/css/Loader.h"
 #include "nsIScriptError.h"
@@ -1579,24 +1577,13 @@ XULDocument::GetCommandDispatcher(nsIDOMXULCommandDispatcher** aTracker)
 }
 
 Element*
-XULDocument::GetElementById(const nsAString& aId)
+XULDocument::GetRefById(const nsAString& aID)
 {
-    if (!CheckGetElementByIdArg(aId))
-        return nullptr;
-
-    nsIdentifierMapEntry *entry = mIdentifierMap.GetEntry(aId);
-    if (entry) {
-        Element* element = entry->GetIdElement();
-        if (element)
-            return element;
-    }
-
-    nsRefMapEntry* refEntry = mRefMap.GetEntry(aId);
-    if (refEntry) {
-        NS_ASSERTION(refEntry->GetFirstElement(),
-                     "nsRefMapEntries should have nonempty content lists");
+    if (nsRefMapEntry* refEntry = mRefMap.GetEntry(aID)) {
+        MOZ_ASSERT(refEntry->GetFirstElement());
         return refEntry->GetFirstElement();
     }
+
     return nullptr;
 }
 

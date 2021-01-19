@@ -44,13 +44,14 @@
 #include "nsIUnicodeDecoder.h"
 #include "nsHtml5Macros.h"
 #include "nsIContentHandle.h"
+#include "nsHtml5Portability.h"
+#include "nsHtml5ContentCreatorFunction.h"
 
+#include "nsHtml5AttributeName.h"
+#include "nsHtml5ElementName.h"
 #include "nsHtml5Tokenizer.h"
 #include "nsHtml5TreeBuilder.h"
 #include "nsHtml5MetaScanner.h"
-#include "nsHtml5AttributeName.h"
-#include "nsHtml5ElementName.h"
-#include "nsHtml5HtmlAttributes.h"
 #include "nsHtml5UTF16Buffer.h"
 #include "nsHtml5StateSnapshot.h"
 #include "nsHtml5Portability.h"
@@ -60,42 +61,49 @@
 int32_t 
 nsHtml5StackNode::getGroup()
 {
-  return flags & NS_HTML5ELEMENT_NAME_GROUP_MASK;
+  return flags & nsHtml5ElementName::GROUP_MASK;
 }
 
 bool 
 nsHtml5StackNode::isScoping()
 {
-  return (flags & NS_HTML5ELEMENT_NAME_SCOPING);
+  return (flags & nsHtml5ElementName::SCOPING);
 }
 
 bool 
 nsHtml5StackNode::isSpecial()
 {
-  return (flags & NS_HTML5ELEMENT_NAME_SPECIAL);
+  return (flags & nsHtml5ElementName::SPECIAL);
 }
 
 bool 
 nsHtml5StackNode::isFosterParenting()
 {
-  return (flags & NS_HTML5ELEMENT_NAME_FOSTER_PARENTING);
+  return (flags & nsHtml5ElementName::FOSTER_PARENTING);
 }
 
 bool 
 nsHtml5StackNode::isHtmlIntegrationPoint()
 {
-  return (flags & NS_HTML5ELEMENT_NAME_HTML_INTEGRATION_POINT);
+  return (flags & nsHtml5ElementName::HTML_INTEGRATION_POINT);
+}
+
+mozilla::dom::HTMLContentCreatorFunction 
+nsHtml5StackNode::getHtmlCreator()
+{
+  return htmlCreator;
 }
 
 
-nsHtml5StackNode::nsHtml5StackNode(int32_t flags, int32_t ns, nsIAtom* name, nsIContentHandle* node, nsIAtom* popName, nsHtml5HtmlAttributes* attributes)
+nsHtml5StackNode::nsHtml5StackNode(int32_t flags, int32_t ns, nsIAtom* name, nsIContentHandle* node, nsIAtom* popName, nsHtml5HtmlAttributes* attributes, mozilla::dom::HTMLContentCreatorFunction htmlCreator)
   : flags(flags),
     name(name),
     popName(popName),
     ns(ns),
     node(node),
     attributes(attributes),
-    refcount(1)
+    refcount(1),
+    htmlCreator(htmlCreator)
 {
   MOZ_COUNT_CTOR(nsHtml5StackNode);
 }
@@ -103,40 +111,43 @@ nsHtml5StackNode::nsHtml5StackNode(int32_t flags, int32_t ns, nsIAtom* name, nsI
 
 nsHtml5StackNode::nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContentHandle* node)
   : flags(elementName->getFlags()),
-    name(elementName->name),
-    popName(elementName->name),
+    name(elementName->getName()),
+    popName(elementName->getName()),
     ns(kNameSpaceID_XHTML),
     node(node),
     attributes(nullptr),
-    refcount(1)
+    refcount(1),
+    htmlCreator(nullptr)
 {
   MOZ_COUNT_CTOR(nsHtml5StackNode);
-  MOZ_ASSERT(!elementName->isCustom(), "Don't use this constructor for custom elements.");
+  MOZ_ASSERT(elementName->isInterned(), "Don't use this constructor for custom elements.");
 }
 
 
 nsHtml5StackNode::nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContentHandle* node, nsHtml5HtmlAttributes* attributes)
   : flags(elementName->getFlags()),
-    name(elementName->name),
-    popName(elementName->name),
+    name(elementName->getName()),
+    popName(elementName->getName()),
     ns(kNameSpaceID_XHTML),
     node(node),
     attributes(attributes),
-    refcount(1)
+    refcount(1),
+    htmlCreator(elementName->getHtmlCreator())
 {
   MOZ_COUNT_CTOR(nsHtml5StackNode);
-  MOZ_ASSERT(!elementName->isCustom(), "Don't use this constructor for custom elements.");
+  MOZ_ASSERT(elementName->isInterned(), "Don't use this constructor for custom elements.");
 }
 
 
 nsHtml5StackNode::nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContentHandle* node, nsIAtom* popName)
   : flags(elementName->getFlags()),
-    name(elementName->name),
+    name(elementName->getName()),
     popName(popName),
     ns(kNameSpaceID_XHTML),
     node(node),
     attributes(nullptr),
-    refcount(1)
+    refcount(1),
+    htmlCreator(nullptr)
 {
   MOZ_COUNT_CTOR(nsHtml5StackNode);
 }
@@ -144,12 +155,13 @@ nsHtml5StackNode::nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContentHa
 
 nsHtml5StackNode::nsHtml5StackNode(nsHtml5ElementName* elementName, nsIAtom* popName, nsIContentHandle* node)
   : flags(prepareSvgFlags(elementName->getFlags())),
-    name(elementName->name),
+    name(elementName->getName()),
     popName(popName),
     ns(kNameSpaceID_SVG),
     node(node),
     attributes(nullptr),
-    refcount(1)
+    refcount(1),
+    htmlCreator(nullptr)
 {
   MOZ_COUNT_CTOR(nsHtml5StackNode);
 }
@@ -157,12 +169,13 @@ nsHtml5StackNode::nsHtml5StackNode(nsHtml5ElementName* elementName, nsIAtom* pop
 
 nsHtml5StackNode::nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContentHandle* node, nsIAtom* popName, bool markAsIntegrationPoint)
   : flags(prepareMathFlags(elementName->getFlags(), markAsIntegrationPoint)),
-    name(elementName->name),
+    name(elementName->getName()),
     popName(popName),
     ns(kNameSpaceID_MathML),
     node(node),
     attributes(nullptr),
-    refcount(1)
+    refcount(1),
+    htmlCreator(nullptr)
 {
   MOZ_COUNT_CTOR(nsHtml5StackNode);
 }
@@ -170,9 +183,9 @@ nsHtml5StackNode::nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContentHa
 int32_t 
 nsHtml5StackNode::prepareSvgFlags(int32_t flags)
 {
-  flags &= ~(NS_HTML5ELEMENT_NAME_FOSTER_PARENTING | NS_HTML5ELEMENT_NAME_SCOPING | NS_HTML5ELEMENT_NAME_SPECIAL | NS_HTML5ELEMENT_NAME_OPTIONAL_END_TAG);
-  if ((flags & NS_HTML5ELEMENT_NAME_SCOPING_AS_SVG)) {
-    flags |= (NS_HTML5ELEMENT_NAME_SCOPING | NS_HTML5ELEMENT_NAME_SPECIAL | NS_HTML5ELEMENT_NAME_HTML_INTEGRATION_POINT);
+  flags &= ~(nsHtml5ElementName::FOSTER_PARENTING | nsHtml5ElementName::SCOPING | nsHtml5ElementName::SPECIAL | nsHtml5ElementName::OPTIONAL_END_TAG);
+  if ((flags & nsHtml5ElementName::SCOPING_AS_SVG)) {
+    flags |= (nsHtml5ElementName::SCOPING | nsHtml5ElementName::SPECIAL | nsHtml5ElementName::HTML_INTEGRATION_POINT);
   }
   return flags;
 }
@@ -180,12 +193,12 @@ nsHtml5StackNode::prepareSvgFlags(int32_t flags)
 int32_t 
 nsHtml5StackNode::prepareMathFlags(int32_t flags, bool markAsIntegrationPoint)
 {
-  flags &= ~(NS_HTML5ELEMENT_NAME_FOSTER_PARENTING | NS_HTML5ELEMENT_NAME_SCOPING | NS_HTML5ELEMENT_NAME_SPECIAL | NS_HTML5ELEMENT_NAME_OPTIONAL_END_TAG);
-  if ((flags & NS_HTML5ELEMENT_NAME_SCOPING_AS_MATHML)) {
-    flags |= (NS_HTML5ELEMENT_NAME_SCOPING | NS_HTML5ELEMENT_NAME_SPECIAL);
+  flags &= ~(nsHtml5ElementName::FOSTER_PARENTING | nsHtml5ElementName::SCOPING | nsHtml5ElementName::SPECIAL | nsHtml5ElementName::OPTIONAL_END_TAG);
+  if ((flags & nsHtml5ElementName::SCOPING_AS_MATHML)) {
+    flags |= (nsHtml5ElementName::SCOPING | nsHtml5ElementName::SPECIAL);
   }
   if (markAsIntegrationPoint) {
-    flags |= NS_HTML5ELEMENT_NAME_HTML_INTEGRATION_POINT;
+    flags |= nsHtml5ElementName::HTML_INTEGRATION_POINT;
   }
   return flags;
 }

@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -248,10 +247,10 @@ NS_DEFINE_STATIC_IID_ACCESSOR(DOMEventTargetHelper,
 
 /* Use this macro to declare functions that forward the behavior of this
  * interface to another object.
- * This macro doesn't forward PreHandleEvent because sometimes subclasses
+ * This macro doesn't forward GetEventTargetParent because sometimes subclasses
  * want to override it.
  */
-#define NS_FORWARD_NSIDOMEVENTTARGET_NOPREHANDLEEVENT(_to) \
+#define NS_FORWARD_NSIDOMEVENTTARGET_NOGETEVENTTARGETPARENT(_to) \
   NS_IMETHOD AddEventListener(const nsAString & type, nsIDOMEventListener *listener, bool useCapture, bool wantsUntrusted, uint8_t _argc) { \
     return _to AddEventListener(type, listener, useCapture, wantsUntrusted, _argc); \
   } \

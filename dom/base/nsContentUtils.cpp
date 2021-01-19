@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -44,9 +43,8 @@
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/FileSystemSecurity.h"
 #include "mozilla/dom/HTMLMediaElement.h"
+#include "mozilla/dom/HTMLSlotElement.h"
 #include "mozilla/dom/HTMLTemplateElement.h"
-#include "mozilla/dom/HTMLContentElement.h"
-#include "mozilla/dom/HTMLShadowElement.h"
 #include "mozilla/dom/ipc/BlobChild.h"
 #include "mozilla/dom/ipc/BlobParent.h"
 #include "mozilla/dom/Promise.h"
@@ -102,7 +100,9 @@
 #include "nsHostObjectProtocolHandler.h"
 #include "nsHtml5Module.h"
 #include "nsHtml5StringParser.h"
+#include "nsHTMLTags.h"
 #include "nsIAddonPolicyService.h"
+#include "nsIAnonymousContentCreator.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "nsICategoryManager.h"
 #include "nsIChannelEventSink.h"
@@ -227,6 +227,7 @@ extern "C" int MOZ_XMLCheckQName(const char* ptr, const char* end,
                                  int ns_aware, const char** colon);
 
 class imgLoader;
+class nsIAtom;
 
 using namespace mozilla::dom;
 using namespace mozilla::ipc;
@@ -258,7 +259,6 @@ nsIWordBreaker *nsContentUtils::sWordBreaker;
 nsIBidiKeyboard *nsContentUtils::sBidiKeyboard = nullptr;
 uint32_t nsContentUtils::sScriptBlockerCount = 0;
 uint32_t nsContentUtils::sDOMNodeRemovedSuppressCount = 0;
-uint32_t nsContentUtils::sMicroTaskLevel = 0;
 AutoTArray<nsCOMPtr<nsIRunnable>, 8>* nsContentUtils::sBlockedScriptRunners = nullptr;
 uint32_t nsContentUtils::sRunnersCountAtFirstBlocker = 0;
 nsIInterfaceRequestor* nsContentUtils::sSameOriginChecker = nullptr;
@@ -284,6 +284,8 @@ bool nsContentUtils::sIsResourceTimingEnabled = false;
 bool nsContentUtils::sIsPerformanceNavigationTimingEnabled = false;
 bool nsContentUtils::sIsUserTimingLoggingEnabled = false;
 bool nsContentUtils::sIsExperimentalAutocompleteEnabled = false;
+bool nsContentUtils::sIsWebComponentsEnabled = false;
+bool nsContentUtils::sIsCustomElementsEnabled = false;
 bool nsContentUtils::sEncodeDecodeURLHash = false;
 bool nsContentUtils::sGettersDecodeURLHash = false;
 bool nsContentUtils::sPrivacyResistFingerprinting = false;
@@ -498,6 +500,8 @@ nsContentUtils::Init()
     return NS_OK;
   }
 
+  nsHTMLTags::AddRefTable();
+
   sNameSpaceManager = nsNameSpaceManager::GetInstance();
   NS_ENSURE_TRUE(sNameSpaceManager, NS_ERROR_OUT_OF_MEMORY);
 
@@ -583,6 +587,12 @@ nsContentUtils::Init()
 
   Preferences::AddBoolVarCache(&sIsExperimentalAutocompleteEnabled,
                                "dom.forms.autocomplete.experimental", false);
+
+  Preferences::AddBoolVarCache(&sIsWebComponentsEnabled,
+                               "dom.webcomponents.enabled", false);
+
+  Preferences::AddBoolVarCache(&sIsCustomElementsEnabled,
+                               "dom.webcomponents.enabled", false);
 
   Preferences::AddBoolVarCache(&sEncodeDecodeURLHash,
                                "dom.url.encode_decode_hash", false);
@@ -1918,6 +1928,8 @@ nsContentUtils::Shutdown()
 {
   sInitialized = false;
 
+  nsHTMLTags::ReleaseTable();
+
   NS_IF_RELEASE(sContentPolicyService);
   sTriedToGetContentPolicy = false;
   uint32_t i;
@@ -2382,6 +2394,9 @@ nsContentUtils::ComparePoints(nsINode* aParent1, int32_t aOffset1,
                               bool* aDisconnected)
 {
   if (aParent1 == aParent2) {
+    // XXX This is odd.  aOffset1 and/or aOffset2 may be -1, e.g., it's result
+    //     of nsINode::IndexOf(), but this compares such invalid offset with
+    //     valid offset.
     return aOffset1 < aOffset2 ? -1 :
            aOffset1 > aOffset2 ? 1 :
            0;
@@ -2432,10 +2447,14 @@ nsContentUtils::ComparePoints(nsINode* aParent1, int32_t aOffset1,
 
   if (!pos1) {
     nsINode* child2 = parents2.ElementAt(--pos2);
+    // XXX aOffset1 may be -1 as mentioned above.  So, why does this return
+    //     it's *before* of the valid DOM point?
     return aOffset1 <= parent->IndexOf(child2) ? -1 : 1;
   }
 
   nsINode* child1 = parents1.ElementAt(--pos1);
+  // XXX aOffset2 may be -1 as mentioned above.  So, why does this return it's
+  //     *after* of the valid DOM point?
   return parent->IndexOf(child1) < aOffset2 ? -1 : 1;
 }
 
@@ -3638,6 +3657,14 @@ nsContentUtils::ReportToConsole(uint32_t aErrorFlags,
                                      aLineNumber, aColumnNumber);
 }
 
+/* static */ void
+nsContentUtils::ReportEmptyGetElementByIdArg(const nsIDocument* aDoc)
+{
+  ReportToConsole(nsIScriptError::warningFlag,
+                  NS_LITERAL_CSTRING("DOM"), aDoc,
+                  nsContentUtils::eDOM_PROPERTIES,
+                  "EmptyGetElementByIdParam");
+}
 
 /* static */ nsresult
 nsContentUtils::ReportToConsoleNonLocalized(const nsAString& aErrorText,
@@ -4935,17 +4962,7 @@ nsContentUtils::IsInSameAnonymousTree(const nsINode* aNode,
     return aContent->GetBindingParent() == nullptr;
   }
 
-  const nsIContent* nodeAsContent = static_cast<const nsIContent*>(aNode);
-
-  // For nodes in a shadow tree, it is insufficient to simply compare
-  // the binding parent because a node may host multiple ShadowRoots,
-  // thus nodes in different shadow tree may have the same binding parent.
-  if (aNode->IsInShadowTree()) {
-    return nodeAsContent->GetContainingShadow() ==
-      aContent->GetContainingShadow();
-  }
-
-  return nodeAsContent->GetBindingParent() == aContent->GetBindingParent();
+  return aNode->AsContent()->GetBindingParent() == aContent->GetBindingParent();
 }
 
 class AnonymousContentDestroyer : public Runnable {
@@ -5300,51 +5317,6 @@ nsContentUtils::RunInMetastableState(already_AddRefed<nsIRunnable> aRunnable)
 {
   MOZ_ASSERT(CycleCollectedJSContext::Get(), "Must be on a script thread!");
   CycleCollectedJSContext::Get()->RunInMetastableState(Move(aRunnable));
-}
-
-void
-nsContentUtils::EnterMicroTask()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-  ++sMicroTaskLevel;
-}
-
-void
-nsContentUtils::LeaveMicroTask()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-  if (--sMicroTaskLevel == 0) {
-    PerformMainThreadMicroTaskCheckpoint();
-  }
-}
-
-bool
-nsContentUtils::IsInMicroTask()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-  return sMicroTaskLevel != 0;
-}
-
-uint32_t
-nsContentUtils::MicroTaskLevel()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-  return sMicroTaskLevel;
-}
-
-void
-nsContentUtils::SetMicroTaskLevel(uint32_t aLevel)
-{
-  MOZ_ASSERT(NS_IsMainThread());
-  sMicroTaskLevel = aLevel;
-}
-
-void
-nsContentUtils::PerformMainThreadMicroTaskCheckpoint()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  nsDOMMutationObserver::HandleMutations();
 }
 
 /*
@@ -7060,25 +7032,11 @@ nsContentUtils::GetHTMLEditor(nsPresContext* aPresContext)
   return editor;
 }
 
-bool
-nsContentUtils::IsContentInsertionPoint(nsIContent* aContent)
-{
-  // Check if the content is a XBL insertion point.
-  if (aContent->IsActiveChildrenElement()) {
-    return true;
-  }
-
-  // Check if the content is a web components content insertion point.
-  HTMLContentElement* contentElement =
-    HTMLContentElement::FromContent(aContent);
-  return contentElement && contentElement->IsInsertionPoint();
-}
-
 // static
 bool
 nsContentUtils::HasDistributedChildren(nsIContent* aContent)
 {
-  if (!aContent) {
+  if (!aContent || !nsDocument::IsWebComponentsEnabled(aContent)) {
     return false;
   }
 
@@ -7088,26 +7046,11 @@ nsContentUtils::HasDistributedChildren(nsIContent* aContent)
     return true;
   }
 
-  ShadowRoot* shadow = ShadowRoot::FromNode(aContent);
-  if (shadow) {
-    // Children of a shadow root are distributed to
-    // the shadow insertion point of the younger shadow root.
-    return shadow->GetYoungerShadowRoot();
-  }
-
-  HTMLShadowElement* shadowEl = HTMLShadowElement::FromContent(aContent);
-  if (shadowEl && shadowEl->IsInsertionPoint()) {
-    // Children of a shadow insertion points are distributed
-    // to the insertion points in the older shadow root.
-    return shadowEl->GetOlderShadowRoot();
-  }
-
-  HTMLContentElement* contentEl = HTMLContentElement::FromContent(aContent);
-  if (contentEl && contentEl->IsInsertionPoint()) {
-    // Children of a content insertion point are distributed to the
-    // content insertion point if the content insertion point does
-    // not match any nodes (fallback content).
-    return contentEl->MatchedNodes().IsEmpty();
+  HTMLSlotElement* slotEl = HTMLSlotElement::FromContent(aContent);
+  if (slotEl && slotEl->GetContainingShadow()) {
+    // Children of a slot are rendered if the slot does not have any assigned
+    // nodes (fallback content).
+    return slotEl->AssignedNodes().IsEmpty();
   }
 
   return false;
@@ -9576,11 +9519,34 @@ nsContentUtils::HttpsStateIsModern(nsIDocument* aDocument)
   return false;
 }
 
+/* static */ void
+nsContentUtils::TryToUpgradeElement(Element* aElement)
+{
+  NodeInfo* nodeInfo = aElement->NodeInfo();
+  RefPtr<nsIAtom> typeAtom =
+    aElement->GetCustomElementData()->GetCustomElementType();
+
+  MOZ_ASSERT(nodeInfo->NameAtom()->Equals(nodeInfo->LocalName()));
+  CustomElementDefinition* definition =
+    nsContentUtils::LookupCustomElementDefinition(nodeInfo->GetDocument(),
+                                                  nodeInfo->NameAtom(),
+                                                  nodeInfo->NamespaceID(),
+                                                  typeAtom);
+  if (definition) {
+    nsContentUtils::EnqueueUpgradeReaction(aElement, definition);
+  } else {
+    // Add an unresolved custom element that is a candidate for
+    // upgrade when a custom element is connected to the document.
+    // We will make sure it's shadow-including tree order in bug 1326028.
+    nsContentUtils::RegisterUnresolvedElement(aElement, typeAtom);
+  }
+}
+
 /* static */ CustomElementDefinition*
 nsContentUtils::LookupCustomElementDefinition(nsIDocument* aDoc,
-                                              const nsAString& aLocalName,
+                                              nsIAtom* aNameAtom,
                                               uint32_t aNameSpaceID,
-                                              const nsAString* aIs)
+                                              nsIAtom* aTypeAtom)
 {
   MOZ_ASSERT(aDoc);
 
@@ -9602,30 +9568,16 @@ nsContentUtils::LookupCustomElementDefinition(nsIDocument* aDoc,
     return nullptr;
   }
 
-  return registry->LookupCustomElementDefinition(aLocalName, aIs);
+  return registry->LookupCustomElementDefinition(aNameAtom, aTypeAtom);
 }
 
 /* static */ void
-nsContentUtils::SetupCustomElement(Element* aElement,
-                                   const nsAString* aTypeExtension)
+nsContentUtils::RegisterUnresolvedElement(Element* aElement, nsIAtom* aTypeName)
 {
   MOZ_ASSERT(aElement);
 
-  nsCOMPtr<nsIDocument> doc = aElement->OwnerDoc();
-
-  if (!doc) {
-    return;
-  }
-
-  // To support imported document.
-  doc = doc->MasterDocument();
-
-  if (aElement->GetNameSpaceID() != kNameSpaceID_XHTML ||
-      !doc->GetDocShell()) {
-    return;
-  }
-
-  nsCOMPtr<nsPIDOMWindowInner> window(doc->GetInnerWindow());
+  nsIDocument* doc = aElement->OwnerDoc();
+  nsPIDOMWindowInner* window(doc->GetInnerWindow());
   if (!window) {
     return;
   }
@@ -9635,65 +9587,80 @@ nsContentUtils::SetupCustomElement(Element* aElement,
     return;
   }
 
-  return registry->SetupCustomElement(aElement, aTypeExtension);
+  registry->RegisterUnresolvedElement(aElement, aTypeName);
 }
 
 /* static */ void
-nsContentUtils::EnqueueLifecycleCallback(nsIDocument* aDoc,
-                                         nsIDocument::ElementCallbackType aType,
+nsContentUtils::UnregisterUnresolvedElement(Element* aElement)
+{
+  MOZ_ASSERT(aElement);
+
+  RefPtr<nsIAtom> typeAtom =
+    aElement->GetCustomElementData()->GetCustomElementType();
+  nsIDocument* doc = aElement->OwnerDoc();
+  nsPIDOMWindowInner* window(doc->GetInnerWindow());
+  if (!window) {
+    return;
+  }
+
+  RefPtr<CustomElementRegistry> registry(window->CustomElements());
+  if (!registry) {
+    return;
+  }
+
+  registry->UnregisterUnresolvedElement(aElement, typeAtom);
+}
+
+/* static */ CustomElementDefinition*
+nsContentUtils::GetElementDefinitionIfObservingAttr(Element* aCustomElement,
+                                                    nsIAtom* aExtensionType,
+                                                    nsIAtom* aAttrName)
+{
+  CustomElementDefinition* definition =
+    aCustomElement->GetCustomElementDefinition();
+
+  // Custom element not defined yet or attribute is not in the observed
+  // attribute list.
+  if (!definition || !definition->IsInObservedAttributeList(aAttrName)) {
+    return nullptr;
+  }
+
+  return definition;
+}
+
+/* static */ void
+nsContentUtils::EnqueueUpgradeReaction(Element* aElement,
+                                       CustomElementDefinition* aDefinition)
+{
+  MOZ_ASSERT(aElement);
+
+  nsIDocument* doc = aElement->OwnerDoc();
+
+  // No DocGroup means no custom element reactions stack.
+  if (!doc->GetDocGroup()) {
+    return;
+  }
+
+  CustomElementReactionsStack* stack =
+    doc->GetDocGroup()->CustomElementReactionsStack();
+  stack->EnqueueUpgradeReaction(aElement, aDefinition);
+}
+
+/* static */ void
+nsContentUtils::EnqueueLifecycleCallback(nsIDocument::ElementCallbackType aType,
                                          Element* aCustomElement,
                                          LifecycleCallbackArgs* aArgs,
+                                         LifecycleAdoptedCallbackArgs* aAdoptedCallbackArgs,
                                          CustomElementDefinition* aDefinition)
 {
-  MOZ_ASSERT(aDoc);
-
-  // To support imported document.
-  nsCOMPtr<nsIDocument> doc = aDoc->MasterDocument();
-
-  if (!doc->GetDocShell()) {
+  // No DocGroup means no custom element reactions stack.
+  if (!aCustomElement->OwnerDoc()->GetDocGroup()) {
     return;
   }
 
-  nsCOMPtr<nsPIDOMWindowInner> window(doc->GetInnerWindow());
-  if (!window) {
-    return;
-  }
-
-  RefPtr<CustomElementRegistry> registry(window->CustomElements());
-  if (!registry) {
-    return;
-  }
-
-  registry->EnqueueLifecycleCallback(aType, aCustomElement, aArgs, aDefinition);
-}
-
-/* static */ void
-nsContentUtils::GetCustomPrototype(nsIDocument* aDoc,
-                                   int32_t aNamespaceID,
-                                   nsIAtom* aAtom,
-                                   JS::MutableHandle<JSObject*> aPrototype)
-{
-  MOZ_ASSERT(aDoc);
-
-  // To support imported document.
-  nsCOMPtr<nsIDocument> doc = aDoc->MasterDocument();
-
-  if (aNamespaceID != kNameSpaceID_XHTML ||
-      !doc->GetDocShell()) {
-    return;
-  }
-
-  nsCOMPtr<nsPIDOMWindowInner> window(doc->GetInnerWindow());
-  if (!window) {
-    return;
-  }
-
-  RefPtr<CustomElementRegistry> registry(window->CustomElements());
-  if (!registry) {
-    return;
-  }
-
-  return registry->GetCustomPrototype(aAtom, aPrototype);
+  CustomElementRegistry::EnqueueLifecycleCallback(aType, aCustomElement, aArgs,
+                                                  aAdoptedCallbackArgs,
+                                                  aDefinition);
 }
 
 /* static */ bool
@@ -9829,6 +9796,24 @@ nsContentUtils::AttemptLargeAllocationLoad(nsIHttpChannel* aChannel)
   return reloadSucceeded;
 }
 
+/* static */ void
+nsContentUtils::AppendDocumentLevelNativeAnonymousContentTo(
+    nsIDocument* aDocument,
+    nsTArray<nsIContent*>& aElements)
+{
+  MOZ_ASSERT(aDocument);
+
+  // XXXheycam This probably needs to find the nsCanvasFrame's NAC too.
+  if (nsIPresShell* presShell = aDocument->GetShell()) {
+    if (nsIFrame* scrollFrame = presShell->GetRootScrollFrame()) {
+      nsIAnonymousContentCreator* creator = do_QueryFrame(scrollFrame);
+      MOZ_ASSERT(creator,
+                 "scroll frame should always implement nsIAnonymousContentCreator");
+      creator->AppendAnonymousContentTo(aElements, 0);
+    }
+  }
+}
+
 /* static */ bool
 nsContentUtils::IsLocalRefURL(const nsString& aString)
 {
@@ -9843,6 +9828,19 @@ nsContentUtils::IsLocalRefURL(const nsString& aString)
   }
 
   return false;
+}
+
+/* static */ Element*
+nsContentUtils::GetClosestNonNativeAnonymousAncestor(Element* aElement)
+{
+  MOZ_ASSERT(aElement);
+  MOZ_ASSERT(aElement->IsNativeAnonymous());
+
+  Element* e = aElement;
+  while (e && e->IsNativeAnonymous()) {
+    e = e->GetParentElement();
+  }
+  return e;
 }
 
 /* static */ uint32_t

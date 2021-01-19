@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -43,6 +42,7 @@ public:
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(DocumentFragment, FragmentOrElement)
 
   // interface nsIDOMNode
   NS_FORWARD_NSIDOMNODE_TO_NSINODE
@@ -121,15 +121,9 @@ public:
     return nullptr;
   }
 
-  nsIContent* GetHost() const
-  {
-    return mHost;
-  }
+  Element* GetHost() const { return mHost; }
 
-  void SetHost(nsIContent* aHost)
-  {
-    mHost = aHost;
-  }
+  void SetHost(Element* aHost) { mHost = aHost; }
 
   static already_AddRefed<DocumentFragment>
   Constructor(const GlobalObject& aGlobal, ErrorResult& aRv);
@@ -145,7 +139,7 @@ protected:
   }
 
   nsresult Clone(mozilla::dom::NodeInfo *aNodeInfo, nsINode **aResult) const override;
-  nsIContent* mHost; // Weak
+  nsCOMPtr<Element> mHost;
 };
 
 } // namespace dom

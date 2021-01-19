@@ -494,23 +494,30 @@ SECU_ReadDERFromFile(SECItem *der, PRFileDesc *inFile, PRBool ascii,
     if (ascii) {
         /* First convert ascii to binary */
         SECItem filedata;
-        char *asc, *body;
 
         /* Read in ascii data */
         rv = SECU_FileToItem(&filedata, inFile);
         if (rv != SECSuccess)
             return rv;
-        asc = (char *)filedata.data;
-        if (!asc) {
+        if (!filedata.data) {
             fprintf(stderr, "unable to read data from input file\n");
             return SECFailure;
         }
+        /* need one additional byte for zero terminator */
+        rv = SECITEM_ReallocItemV2(NULL, &filedata, filedata.len + 1);
+        if (rv != SECSuccess) {
+            PORT_Free(filedata.data);
+            return rv;
+        }
+        char *asc = (char *)filedata.data;
+        asc[filedata.len - 1] = '\0';
 
         if (warnOnPrivateKeyInAsciiFile && strstr(asc, "PRIVATE KEY")) {
             fprintf(stderr, "Warning: ignoring private key. Consider to use "
                             "pk12util.\n");
         }
 
+        char *body;
         /* check for headers and trailers and remove them */
         if ((body = strstr(asc, "-----BEGIN")) != NULL) {
             char *trailer = NULL;
@@ -528,14 +535,7 @@ SECU_ReadDERFromFile(SECItem *der, PRFileDesc *inFile, PRBool ascii,
                 return SECFailure;
             }
         } else {
-            /* need one additional byte for zero terminator */
-            rv = SECITEM_ReallocItemV2(NULL, &filedata, filedata.len + 1);
-            if (rv != SECSuccess) {
-                PORT_Free(filedata.data);
-                return rv;
-            }
-            body = (char *)filedata.data;
-            body[filedata.len - 1] = '\0';
+            body = asc;
         }
 
         /* Convert to binary */
@@ -4158,4 +4158,58 @@ exportKeyingMaterials(PRFileDesc *fd,
     }
 
     return SECSuccess;
+}
+
+SECStatus
+readPSK(const char *arg, SECItem *psk, SECItem *label)
+{
+    SECStatus rv = SECFailure;
+    char *str = PORT_Strdup(arg);
+    if (!str) {
+        goto cleanup;
+    }
+
+    char *pskBytes = strtok(str, ":");
+    if (!pskBytes) {
+        goto cleanup;
+    }
+    if (PORT_Strncasecmp(pskBytes, "0x", 2) != 0) {
+        goto cleanup;
+    }
+
+    psk = SECU_HexString2SECItem(NULL, psk, &pskBytes[2]);
+    if (!psk || !psk->data || psk->len != strlen(&str[2]) / 2) {
+        goto cleanup;
+    }
+
+    SECItem labelItem = { siBuffer, NULL, 0 };
+    char *inLabel = strtok(NULL, ":");
+    if (inLabel) {
+        labelItem.data = (unsigned char *)PORT_Strdup(inLabel);
+        if (!labelItem.data) {
+            goto cleanup;
+        }
+        labelItem.len = strlen(inLabel);
+
+        if (PORT_Strncasecmp(inLabel, "0x", 2) == 0) {
+            rv = SECU_SECItemHexStringToBinary(&labelItem);
+            if (rv != SECSuccess) {
+                SECITEM_FreeItem(&labelItem, PR_FALSE);
+                goto cleanup;
+            }
+        }
+        rv = SECSuccess;
+    } else {
+        PRUint8 defaultLabel[] = { 'C', 'l', 'i', 'e', 'n', 't', '_',
+                                   'i', 'd', 'e', 'n', 't', 'i', 't', 'y' };
+        SECItem src = { siBuffer, defaultLabel, sizeof(defaultLabel) };
+        rv = SECITEM_CopyItem(NULL, &labelItem, &src);
+    }
+    if (rv == SECSuccess) {
+        *label = labelItem;
+    }
+
+cleanup:
+    PORT_Free(str);
+    return rv;
 }

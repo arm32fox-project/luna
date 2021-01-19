@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* vim: set ts=4 sw=4 et tw=78: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -46,6 +45,7 @@
 #include "nsIWritablePropertyBag2.h"
 #include "nsIContentSecurityPolicy.h"
 #include "nsSandboxFlags.h"
+#include "mozilla/CycleCollectedJSContext.h"
 #include "mozilla/dom/ScriptSettings.h"
 #include "nsILoadInfo.h"
 #include "nsContentSecurityManager.h"
@@ -241,7 +241,7 @@ nsresult nsJSThunk::EvaluateScript(nsIChannel *aChannel,
 
     // New script entry point required, due to the "Create a script" step of
     // http://www.whatwg.org/specs/web-apps/current-work/#javascript-protocol
-    nsAutoMicroTask mt;
+    mozilla::nsAutoMicroTask mt;
     AutoEntryScript aes(innerGlobal, "javascript: URI", true);
     JSContext* cx = aes.cx();
     JS::Rooted<JSObject*> globalJSObject(cx, innerGlobal->GetGlobalJSObject());

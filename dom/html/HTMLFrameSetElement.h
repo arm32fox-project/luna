@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -100,17 +99,6 @@ public:
 #undef WINDOW_EVENT_HELPER
 #undef EVENT
 
-  // These override the SetAttr methods in nsGenericHTMLElement (need
-  // both here to silence compiler warnings).
-  nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                   const nsAString& aValue, bool aNotify)
-  {
-    return SetAttr(aNameSpaceID, aName, nullptr, aValue, aNotify);
-  }
-  virtual nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                           nsIAtom* aPrefix, const nsAString& aValue,
-                           bool aNotify) override;
-
    /**
     * GetRowSpec is used to get the "rows" spec.
     * @param out int32_t aNumValues The number of row sizes specified.
@@ -142,6 +130,10 @@ protected:
   virtual ~HTMLFrameSetElement();
 
   virtual JSObject* WrapNode(JSContext *aCx, JS::Handle<JSObject*> aGivenProto) override;
+
+  virtual nsresult BeforeSetAttr(int32_t aNamespaceID, nsIAtom* aName,
+                                 const nsAttrValueOrString* aValue,
+                                 bool aNotify) override;
 
 private:
   nsresult ParseRowCol(const nsAString& aValue,

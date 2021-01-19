@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -49,20 +48,13 @@ public:
     , mCheapString(nullptr)
   { }
 
-  void TakeParsedValue(nsAttrValue& aValue)
+  void ResetToAttrValue(const nsAttrValue& aValue)
   {
-    mStoredAttrValue.SwapValueWith(aValue);
-    mAttrValue = &mStoredAttrValue;
+    mAttrValue = &aValue;
     mStringPtr = nullptr;
+    // No need to touch mCheapString here.  If we need to use it, we will reset
+    // it to the rigthe value anyway.
   }
-  /**
-   * If TakeParsedValue has been called, returns the value that it set.
-   */
-  nsAttrValue* GetStoredAttrValue()
-  {
-    return mAttrValue == &mStoredAttrValue ? &mStoredAttrValue : nullptr;
-  }
-  const nsAttrValue* GetAttrValue() { return mAttrValue; }
 
   /**
    * Returns a reference to the string value of the contents of this object.
@@ -85,11 +77,24 @@ public:
     return aOther.EqualsAsStrings(*mAttrValue);
   }
 
+  /*
+   * Returns true if the value stored is empty
+   */
+  bool IsEmpty() const
+  {
+    if (mStringPtr) {
+      return mStringPtr->IsEmpty();
+    }
+    if (mAttrValue) {
+      return mAttrValue->IsEmptyString();
+    }
+    return true;
+  }
+
 protected:
   const nsAttrValue*       mAttrValue;
   mutable const nsAString* mStringPtr;
   mutable nsCheapString    mCheapString;
-  nsAttrValue              mStoredAttrValue;
 };
 
 #endif // nsAttrValueOrString_h___

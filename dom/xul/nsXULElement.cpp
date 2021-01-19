@@ -126,6 +126,8 @@ uint32_t             nsXULPrototypeAttribute::gNumCacheSets;
 uint32_t             nsXULPrototypeAttribute::gNumCacheFills;
 #endif
 
+#define NS_DISPATCH_XUL_COMMAND     (1 << 0)
+
 class nsXULElementTearoff final : public nsIFrameLoaderOwner
 {
   ~nsXULElementTearoff() {}
@@ -174,33 +176,6 @@ nsXULElement::~nsXULElement()
 {
 }
 
-nsXULElement::nsXULSlots::nsXULSlots()
-    : nsXULElement::nsDOMSlots()
-{
-}
-
-nsXULElement::nsXULSlots::~nsXULSlots()
-{
-    NS_IF_RELEASE(mControllers); // Forces release
-    nsCOMPtr<nsIFrameLoader> frameLoader = do_QueryInterface(mFrameLoaderOrOpener);
-    if (frameLoader) {
-        static_cast<nsFrameLoader*>(frameLoader.get())->Destroy();
-    }
-}
-
-void
-nsXULElement::nsXULSlots::Traverse(nsCycleCollectionTraversalCallback &cb)
-{
-    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mSlots->mFrameLoaderOrOpener");
-    cb.NoteXPCOMChild(mFrameLoaderOrOpener);
-}
-
-nsINode::nsSlots*
-nsXULElement::CreateSlots()
-{
-    return new nsXULSlots();
-}
-
 void
 nsXULElement::MaybeUpdatePrivateLifetime()
 {
@@ -229,7 +204,7 @@ nsXULElement::Create(nsXULPrototypeElement* aPrototype, mozilla::dom::NodeInfo *
             element->SetHasID();
         }
         if (aPrototype->mHasClassAttribute) {
-            element->SetFlags(NODE_MAY_HAVE_CLASS);
+            element->SetMayHaveClass();
         }
         if (aPrototype->mHasStyleAttribute) {
             element->SetMayHaveStyle();
@@ -326,12 +301,7 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(nsXULElement)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXULElement,
                                                   nsStyledElement)
-    {
-        nsXULSlots* slots = static_cast<nsXULSlots*>(tmp->GetExistingSlots());
-        if (slots) {
-            slots->Traverse(cb);
-        }
-    }
+
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsXULElement,
@@ -390,12 +360,15 @@ nsXULElement::Clone(mozilla::dom::NodeInfo *aNodeInfo, nsINode **aResult) const
             attrValue.SetTo(*originalValue);
         }
 
+        bool oldValueSet;
         if (originalName->IsAtom()) {
            rv = element->mAttrsAndChildren.SetAndSwapAttr(originalName->Atom(),
-                                                          attrValue);
+                                                          attrValue,
+                                                          &oldValueSet);
         } else {
             rv = element->mAttrsAndChildren.SetAndSwapAttr(originalName->NodeInfo(),
-                                                           attrValue);
+                                                           attrValue,
+                                                           &oldValueSet);
         }
         NS_ENSURE_SUCCESS(rv, rv);
         element->AddListenerFor(*originalName, true);
@@ -404,7 +377,7 @@ nsXULElement::Clone(mozilla::dom::NodeInfo *aNodeInfo, nsINode **aResult) const
             element->SetHasID();
         }
         if (originalName->Equals(nsGkAtoms::_class)) {
-            element->SetFlags(NODE_MAY_HAVE_CLASS);
+            element->SetMayHaveClass();
         }
         if (originalName->Equals(nsGkAtoms::style)) {
             element->SetMayHaveStyle();
@@ -895,9 +868,9 @@ nsXULElement::UnbindFromTree(bool aDeep, bool aNullParent)
     // mDocument in nsGlobalWindow::SetDocShell, but I'm not
     // sure whether that would fix all possible cycles through
     // mControllers.)
-    nsXULSlots* slots = static_cast<nsXULSlots*>(GetExistingDOMSlots());
+    nsExtendedDOMSlots* slots = GetExistingExtendedDOMSlots();
     if (slots) {
-        NS_IF_RELEASE(slots->mControllers);
+        slots->mControllers = nullptr;
         RefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
         if (frameLoader) {
             frameLoader->Destroy();
@@ -1037,7 +1010,7 @@ nsXULElement::UnregisterAccessKey(const nsAString& aOldValue)
 
 nsresult
 nsXULElement::BeforeSetAttr(int32_t aNamespaceID, nsIAtom* aName,
-                            nsAttrValueOrString* aValue, bool aNotify)
+                            const nsAttrValueOrString* aValue, bool aNotify)
 {
     if (aNamespaceID == kNameSpaceID_None && aName == nsGkAtoms::accesskey &&
         IsInUncomposedDoc()) {
@@ -1083,7 +1056,8 @@ nsXULElement::BeforeSetAttr(int32_t aNamespaceID, nsIAtom* aName,
 
 nsresult
 nsXULElement::AfterSetAttr(int32_t aNamespaceID, nsIAtom* aName,
-                           const nsAttrValue* aValue, bool aNotify)
+                           const nsAttrValue* aValue,
+                           const nsAttrValue* aOldValue, bool aNotify)
 {
     if (aNamespaceID == kNameSpaceID_None) {
         if (aValue) {
@@ -1204,7 +1178,7 @@ nsXULElement::AfterSetAttr(int32_t aNamespaceID, nsIAtom* aName,
     }
 
     return nsStyledElement::AfterSetAttr(aNamespaceID, aName,
-                                         aValue, aNotify);
+                                         aValue, aOldValue, aNotify);
 }
 
 bool
@@ -1241,9 +1215,9 @@ nsXULElement::RemoveBroadcaster(const nsAString & broadcasterId)
 void
 nsXULElement::DestroyContent()
 {
-    nsXULSlots* slots = static_cast<nsXULSlots*>(GetExistingDOMSlots());
+    nsExtendedDOMSlots* slots = GetExistingExtendedDOMSlots();
     if (slots) {
-        NS_IF_RELEASE(slots->mControllers);
+        slots->mControllers = nullptr;
         RefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
         if (frameLoader) {
             frameLoader->Destroy();
@@ -1268,20 +1242,68 @@ nsXULElement::List(FILE* out, int32_t aIndent) const
 }
 #endif
 
+bool
+nsXULElement::IsEventStoppedFromAnonymousScrollbar(EventMessage aMessage)
+{
+    return (IsRootOfNativeAnonymousSubtree() &&
+            IsAnyOfXULElements(nsGkAtoms::scrollbar, nsGkAtoms::scrollcorner) &&
+            (aMessage == eMouseClick || aMessage == eMouseDoubleClick ||
+             aMessage == eXULCommand || aMessage == eContextMenu ||
+             aMessage == eDragStart));
+}
+
 nsresult
-nsXULElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
+nsXULElement::DispatchXULCommand(const EventChainVisitor& aVisitor,
+                                 nsAutoString& aCommand)
+{
+    // XXX sXBL/XBL2 issue! Owner or current document?
+    nsCOMPtr<nsIDOMDocument> domDoc(do_QueryInterface(GetUncomposedDoc()));
+    NS_ENSURE_STATE(domDoc);
+    nsCOMPtr<nsIDOMElement> commandElt;
+    domDoc->GetElementById(aCommand, getter_AddRefs(commandElt));
+    nsCOMPtr<nsIContent> commandContent(do_QueryInterface(commandElt));
+    if (commandContent) {
+        // Create a new command event to dispatch to the element
+        // pointed to by the command attribute. The new event's
+        // sourceEvent will be the original command event that we're
+        // handling.
+        nsCOMPtr<nsIDOMEvent> domEvent = aVisitor.mDOMEvent;
+        while (domEvent) {
+            Event* event = domEvent->InternalDOMEvent();
+            NS_ENSURE_STATE(!SameCOMIdentity(event->GetOriginalTarget(),
+                                            commandContent));
+            nsCOMPtr<nsIDOMXULCommandEvent> commandEvent =
+                do_QueryInterface(domEvent);
+            if (commandEvent) {
+                commandEvent->GetSourceEvent(getter_AddRefs(domEvent));
+            } else {
+                domEvent = nullptr;
+            }
+        }
+        WidgetInputEvent* orig = aVisitor.mEvent->AsInputEvent();
+        nsContentUtils::DispatchXULCommand(
+          commandContent,
+          orig->IsTrusted(),
+          aVisitor.mDOMEvent,
+          nullptr,
+          orig->IsControl(),
+          orig->IsAlt(),
+          orig->IsShift(),
+          orig->IsMeta());
+    } else {
+        NS_WARNING("A XUL element is attached to a command that doesn't exist!\n");
+    }
+    return NS_OK;
+}
+
+nsresult
+nsXULElement::GetEventTargetParent(EventChainPreVisitor& aVisitor)
 {
     aVisitor.mForceContentDispatch = true; //FIXME! Bug 329119
-    if (IsRootOfNativeAnonymousSubtree() &&
-        (IsAnyOfXULElements(nsGkAtoms::scrollbar, nsGkAtoms::scrollcorner)) &&
-        (aVisitor.mEvent->mMessage == eMouseClick ||
-         aVisitor.mEvent->mMessage == eMouseDoubleClick ||
-         aVisitor.mEvent->mMessage == eXULCommand ||
-         aVisitor.mEvent->mMessage == eContextMenu ||
-         aVisitor.mEvent->mMessage == eDragStart)) {
+    if (IsEventStoppedFromAnonymousScrollbar(aVisitor.mEvent->mMessage)) {
         // Don't propagate these events from native anonymous scrollbar.
         aVisitor.mCanHandle = true;
-        aVisitor.mParentTarget = nullptr;
+        aVisitor.SetParentTarget(nullptr, false);
         return NS_OK;
     }
     if (aVisitor.mEvent->mMessage == eXULCommand &&
@@ -1295,55 +1317,33 @@ nsXULElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
         // See if we have a command elt.  If so, we execute on the command
         // instead of on our content element.
         nsAutoString command;
-        if (xulEvent && GetAttr(kNameSpaceID_None, nsGkAtoms::command, command) &&
+        if (xulEvent &&
+            GetAttr(kNameSpaceID_None, nsGkAtoms::command, command) &&
             !command.IsEmpty()) {
             // Stop building the event target chain for the original event.
             // We don't want it to propagate to any DOM nodes.
             aVisitor.mCanHandle = false;
             aVisitor.mAutomaticChromeDispatch = false;
-
-            // XXX sXBL/XBL2 issue! Owner or current document?
-            nsCOMPtr<nsIDOMDocument> domDoc(do_QueryInterface(GetUncomposedDoc()));
-            NS_ENSURE_STATE(domDoc);
-            nsCOMPtr<nsIDOMElement> commandElt;
-            domDoc->GetElementById(command, getter_AddRefs(commandElt));
-            nsCOMPtr<nsIContent> commandContent(do_QueryInterface(commandElt));
-            if (commandContent) {
-                // Create a new command event to dispatch to the element
-                // pointed to by the command attribute.  The new event's
-                // sourceEvent will be the original command event that we're
-                // handling.
-                nsCOMPtr<nsIDOMEvent> domEvent = aVisitor.mDOMEvent;
-                while (domEvent) {
-                    Event* event = domEvent->InternalDOMEvent();
-                    NS_ENSURE_STATE(!SameCOMIdentity(event->GetOriginalTarget(),
-                                                     commandContent));
-                    nsCOMPtr<nsIDOMXULCommandEvent> commandEvent =
-                        do_QueryInterface(domEvent);
-                    if (commandEvent) {
-                        commandEvent->GetSourceEvent(getter_AddRefs(domEvent));
-                    } else {
-                        domEvent = nullptr;
-                    }
-                }
-
-                WidgetInputEvent* orig = aVisitor.mEvent->AsInputEvent();
-                nsContentUtils::DispatchXULCommand(
-                  commandContent,
-                  aVisitor.mEvent->IsTrusted(),
-                  aVisitor.mDOMEvent,
-                  nullptr,
-                  orig->IsControl(),
-                  orig->IsAlt(),
-                  orig->IsShift(),
-                  orig->IsMeta());
-            } else {
-                NS_WARNING("A XUL element is attached to a command that doesn't exist!\n");
-            }
+            // Dispatch XUL command in PreHandleEvent to prevent it breaks event
+            // target chain creation
+            aVisitor.mWantsPreHandleEvent = true;
+            aVisitor.mItemFlags |= NS_DISPATCH_XUL_COMMAND;
             return NS_OK;
         }
     }
 
+    return nsStyledElement::GetEventTargetParent(aVisitor);
+}
+
+nsresult
+nsXULElement::PreHandleEvent(EventChainVisitor& aVisitor)
+{
+    if (aVisitor.mItemFlags & NS_DISPATCH_XUL_COMMAND) {
+        nsAutoString command;
+        GetAttr(kNameSpaceID_None, nsGkAtoms::command, command);
+        MOZ_ASSERT(!command.IsEmpty());
+        return DispatchXULCommand(aVisitor, command);
+    }
     return nsStyledElement::PreHandleEvent(aVisitor);
 }
 
@@ -1473,7 +1473,7 @@ nsIControllers*
 nsXULElement::GetControllers(ErrorResult& rv)
 {
     if (! Controllers()) {
-        nsDOMSlots* slots = DOMSlots();
+        nsExtendedDOMSlots* slots = ExtendedDOMSlots();
 
         rv = NS_NewXULControllers(nullptr, NS_GET_IID(nsIControllers),
                                   reinterpret_cast<void**>(&slots->mControllers));
@@ -1578,7 +1578,7 @@ nsXULElement::LoadSrc()
     RefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
     if (!frameLoader) {
         // Check if we have an opener we need to be setting
-        nsXULSlots* slots = static_cast<nsXULSlots*>(Slots());
+        nsExtendedDOMSlots* slots = ExtendedDOMSlots();
         nsCOMPtr<nsPIDOMWindowOuter> opener = do_QueryInterface(slots->mFrameLoaderOrOpener);
         if (!opener) {
             // If we are a content-primary xul-browser, we want to take the opener property!
@@ -1624,7 +1624,7 @@ nsXULElement::GetFrameLoaderXPCOM(nsIFrameLoader **aFrameLoader)
 already_AddRefed<nsFrameLoader>
 nsXULElement::GetFrameLoader()
 {
-    nsXULSlots* slots = static_cast<nsXULSlots*>(GetExistingSlots());
+    nsExtendedDOMSlots* slots = GetExistingExtendedDOMSlots();
     if (!slots)
         return nullptr;
 
@@ -1646,7 +1646,7 @@ nsXULElement::GetParentApplication(mozIApplication** aApplication)
 void
 nsXULElement::PresetOpenerWindow(mozIDOMWindowProxy* aWindow, ErrorResult& aRv)
 {
-    nsXULSlots* slots = static_cast<nsXULSlots*>(Slots());
+    nsExtendedDOMSlots* slots = ExtendedDOMSlots();
     MOZ_ASSERT(!slots->mFrameLoaderOrOpener, "A frameLoader or opener is present when calling PresetOpenerWindow");
 
     slots->mFrameLoaderOrOpener = aWindow;
@@ -1662,7 +1662,7 @@ nsXULElement::SetIsPrerendered()
 void
 nsXULElement::InternalSetFrameLoader(nsIFrameLoader* aNewFrameLoader)
 {
-    nsXULSlots* slots = static_cast<nsXULSlots*>(GetExistingDOMSlots());
+    nsExtendedDOMSlots* slots = GetExistingExtendedDOMSlots();
     MOZ_ASSERT(slots);
 
     slots->mFrameLoaderOrOpener = aNewFrameLoader;
@@ -1912,12 +1912,14 @@ nsXULElement::MakeHeavyweight(nsXULPrototypeElement* aPrototype)
             attrValue.SetTo(protoattr->mValue);
         }
 
+        bool oldValueSet;
         // XXX we might wanna have a SetAndTakeAttr that takes an nsAttrName
         if (protoattr->mName.IsAtom()) {
-            rv = mAttrsAndChildren.SetAndSwapAttr(protoattr->mName.Atom(), attrValue);
+            rv = mAttrsAndChildren.SetAndSwapAttr(protoattr->mName.Atom(),
+                                                  attrValue, &oldValueSet);
         } else {
             rv = mAttrsAndChildren.SetAndSwapAttr(protoattr->mName.NodeInfo(),
-                                                  attrValue);
+                                                  attrValue, &oldValueSet);
         }
         NS_ENSURE_SUCCESS(rv, rv);
     }

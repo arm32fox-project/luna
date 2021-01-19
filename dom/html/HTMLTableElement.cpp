@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -322,7 +321,7 @@ TableRowsCollection::ParentDestroyed()
 
 HTMLTableElement::HTMLTableElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo),
-    mTableInheritedAttributes(TABLE_ATTRS_DIRTY)
+    mTableInheritedAttributes(nullptr)
 {
   SetHasWeirdParserInsertionMode();
 }
@@ -912,20 +911,15 @@ MapInheritedTableAttributesIntoRule(const nsMappedAttributes* aAttributes,
 nsMappedAttributes*
 HTMLTableElement::GetAttributesMappedForCell()
 {
-  if (mTableInheritedAttributes) {
-    if (mTableInheritedAttributes == TABLE_ATTRS_DIRTY)
-      BuildInheritedAttributes();
-    if (mTableInheritedAttributes != TABLE_ATTRS_DIRTY)
-      return mTableInheritedAttributes;
-  }
-  return nullptr;
+  return mTableInheritedAttributes;
 }
 
 void
 HTMLTableElement::BuildInheritedAttributes()
 {
-  NS_ASSERTION(mTableInheritedAttributes == TABLE_ATTRS_DIRTY,
+  NS_ASSERTION(!mTableInheritedAttributes,
                "potential leak, plus waste of work");
+  MOZ_ASSERT(NS_IsMainThread());
   nsIDocument *document = GetComposedDoc();
   nsHTMLStyleSheet* sheet = document ?
                               document->GetAttributeStyleSheet() : nullptr;
@@ -938,7 +932,9 @@ HTMLTableElement::BuildInheritedAttributes()
 
       if (modifiableMapped) {
         nsAttrValue val(*value);
-        modifiableMapped->SetAndTakeAttr(nsGkAtoms::cellpadding, val);
+        bool oldValueSet;
+        modifiableMapped->SetAndSwapAttr(nsGkAtoms::cellpadding, val,
+                                         &oldValueSet);
       }
       newAttrs = sheet->UniqueMappedAttributes(modifiableMapped);
       NS_ASSERTION(newAttrs, "out of memory, but handling gracefully");
@@ -960,10 +956,7 @@ HTMLTableElement::BuildInheritedAttributes()
 void
 HTMLTableElement::ReleaseInheritedAttributes()
 {
-  if (mTableInheritedAttributes &&
-      mTableInheritedAttributes != TABLE_ATTRS_DIRTY)
-    NS_RELEASE(mTableInheritedAttributes);
-  mTableInheritedAttributes = TABLE_ATTRS_DIRTY;
+  NS_IF_RELEASE(mTableInheritedAttributes);
 }
 
 nsresult
@@ -972,9 +965,12 @@ HTMLTableElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                              bool aCompileEventHandlers)
 {
   ReleaseInheritedAttributes();
-  return nsGenericHTMLElement::BindToTree(aDocument, aParent,
-                                          aBindingParent,
-                                          aCompileEventHandlers);
+  nsresult rv = nsGenericHTMLElement::BindToTree(aDocument, aParent,
+                                                aBindingParent,
+                                                aCompileEventHandlers);
+  NS_ENSURE_SUCCESS(rv, rv);
+  BuildInheritedAttributes();
+  return NS_OK;
 }
 
 void
@@ -986,7 +982,7 @@ HTMLTableElement::UnbindFromTree(bool aDeep, bool aNullParent)
 
 nsresult
 HTMLTableElement::BeforeSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                                nsAttrValueOrString* aValue,
+                                const nsAttrValueOrString* aValue,
                                 bool aNotify)
 {
   if (aName == nsGkAtoms::cellpadding && aNameSpaceID == kNameSpaceID_None) {
@@ -999,13 +995,13 @@ HTMLTableElement::BeforeSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
 nsresult
 HTMLTableElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
                                const nsAttrValue* aValue,
-                               bool aNotify)
+                               const nsAttrValue* aOldValue, bool aNotify)
 {
   if (aName == nsGkAtoms::cellpadding && aNameSpaceID == kNameSpaceID_None) {
     BuildInheritedAttributes();
   }
   return nsGenericHTMLElement::AfterSetAttr(aNameSpaceID, aName, aValue,
-                                            aNotify);
+                                            aOldValue, aNotify);
 }
 
 } // namespace dom

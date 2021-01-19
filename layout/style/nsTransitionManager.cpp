@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set shiftwidth=2 tabstop=8 autoindent cindent expandtab: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -44,7 +43,6 @@ using mozilla::dom::CSSTransition;
 using mozilla::dom::KeyframeEffectReadOnly;
 
 using namespace mozilla;
-using namespace mozilla::dom;
 using namespace mozilla::css;
 
 namespace {
@@ -379,7 +377,7 @@ CSSTransition::HasLowerCompositeOrderThan(const CSSTransition& aOther) const
 }
 
 /* static */ Nullable<TimeDuration>
-CSSTransition::GetCurrentTimeAt(const DocumentTimeline& aTimeline,
+CSSTransition::GetCurrentTimeAt(const dom::DocumentTimeline& aTimeline,
                                 const TimeStamp& aBaseTime,
                                 const TimeDuration& aStartTime,
                                 double aPlaybackRate)
@@ -396,7 +394,7 @@ CSSTransition::GetCurrentTimeAt(const DocumentTimeline& aTimeline,
 }
 
 void
-CSSTransition::SetEffectFromStyle(AnimationEffectReadOnly* aEffect)
+CSSTransition::SetEffectFromStyle(dom::AnimationEffectReadOnly* aEffect)
 {
   Animation::SetEffectNoUpdate(aEffect);
 

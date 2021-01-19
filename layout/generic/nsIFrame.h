@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 sw=2 et tw=78: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -83,6 +82,7 @@ class nsLineList_iterator;
 class nsAbsoluteContainingBlock;
 class nsIContent;
 class nsContainerFrame;
+class nsPlaceholderFrame;
 
 struct nsPeekOffsetStruct;
 struct nsPoint;
@@ -722,6 +722,23 @@ public:
    * Accessor functions for geometric parent.
    */
   nsContainerFrame* GetParent() const { return mParent; }
+
+  /**
+   * Gets the parent of a frame, using the parent of the placeholder for
+   * out-of-flow frames.
+   */
+  inline nsContainerFrame* GetInFlowParent();
+
+  /**
+   * Return the placeholder for this frame (which must be out-of-flow).
+   * @note this will only return non-null if |this| is the first-in-flow
+   * although we don't assert that here for legacy reasons.
+   */
+  inline nsPlaceholderFrame* GetPlaceholderFrame() const {
+    MOZ_ASSERT(HasAnyStateBits(NS_FRAME_OUT_OF_FLOW));
+    return GetProperty(PlaceholderFrameProperty());
+  }
+
   /**
    * Set this frame's parent to aParent.
    * If the frame may have moved into or out of a scrollframe's
@@ -1041,6 +1058,8 @@ public:
 
   NS_DECLARE_FRAME_PROPERTY_SMALL_VALUE(BidiDataProperty, mozilla::FrameBidiData)
 
+  NS_DECLARE_FRAME_PROPERTY_WITHOUT_DTOR(PlaceholderFrameProperty, nsPlaceholderFrame)
+
   mozilla::FrameBidiData GetBidiData()
   {
     return GetProperty(BidiDataProperty());
@@ -1054,10 +1073,6 @@ public:
   nsBidiLevel GetEmbeddingLevel()
   {
     return GetBidiData().embeddingLevel;
-  }
-
-  nsTArray<nsIContent*>* GetGenConPseudos() {
-    return GetProperty(GenConProperty());
   }
 
   /**

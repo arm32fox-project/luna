@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 sw=2 et tw=78: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -436,23 +435,22 @@ nsresult nsChromeRegistry::RefreshWindow(nsPIDOMWindowOuter* aWindow)
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  int32_t count = document->GetNumberOfStyleSheets();
+  size_t count = document->SheetCount();
 
   // Build an array of style sheets we need to reload.
   nsTArray<RefPtr<StyleSheet>> oldSheets(count);
   nsTArray<RefPtr<StyleSheet>> newSheets(count);
 
   // Iterate over the style sheets.
-  for (int32_t i = 0; i < count; i++) {
+  for (size_t i = 0; i < count; i++) {
     // Get the style sheet
-    StyleSheet* styleSheet = document->GetStyleSheetAt(i);
-    oldSheets.AppendElement(styleSheet);
+    oldSheets.AppendElement(document->SheetAt(i));
   }
 
   // Iterate over our old sheets and kick off a sync load of the new
   // sheet if and only if it's a non-inline sheet with a chrome URL.
   for (StyleSheet* sheet : oldSheets) {
-    MOZ_ASSERT(sheet, "GetStyleSheetAt shouldn't return nullptr for "
+    MOZ_ASSERT(sheet, "SheetAt shouldn't return nullptr for "
                       "in-range sheet indexes");
     nsIURI* uri = sheet->GetSheetURI();
 

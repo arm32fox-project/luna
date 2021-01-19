@@ -1,4 +1,3 @@
-/* vim: set shiftwidth=2 tabstop=8 autoindent cindent expandtab: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -11,7 +10,6 @@
 #include "mozilla/EffectSet.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/StyleAnimationValue.h"
-#include "mozilla/dom/AnimationEffectReadOnly.h"
 #include "mozilla/dom/DocumentTimeline.h"
 #include "mozilla/dom/KeyframeEffectReadOnly.h"
 
@@ -31,7 +29,6 @@ using namespace mozilla;
 using namespace mozilla::css;
 using mozilla::dom::Animation;
 using mozilla::dom::AnimationPlayState;
-using mozilla::dom::AnimationEffectReadOnly;
 using mozilla::dom::KeyframeEffectReadOnly;
 using mozilla::dom::CSSAnimation;
 
@@ -369,7 +366,7 @@ UpdateOldAnimationPropertiesWithNew(
   // Update the old from the new so we can keep the original object
   // identity (and any expando properties attached to it).
   if (aOld.GetEffect()) {
-    AnimationEffectReadOnly* oldEffect = aOld.GetEffect();
+    dom::AnimationEffectReadOnly* oldEffect = aOld.GetEffect();
     animationChanged = oldEffect->SpecifiedTiming() != aNewTiming;
     oldEffect->SetSpecifiedTiming(aNewTiming);
 

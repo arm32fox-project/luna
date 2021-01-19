@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -3473,7 +3472,7 @@ nsDOMWindowUtils::AddSheet(nsIDOMStyleSheet *aSheet, uint32_t aSheetType)
   nsIDocument::additionalSheetType type = convertSheetType(aSheetType);
   RefPtr<CSSStyleSheet> sheet = do_QueryObject(aSheet);
   NS_ENSURE_TRUE(sheet, NS_ERROR_FAILURE);
-  if (sheet->GetOwningDocument()) {
+  if (sheet->GetAssociatedDocument()) {
     return NS_ERROR_INVALID_ARG;
   }
   return doc->AddAdditionalStyleSheet(type, sheet);
@@ -3658,11 +3657,11 @@ nsDOMWindowUtils::GetOMTAStyle(nsIDOMElement* aElement,
 
   RefPtr<nsROCSSPrimitiveValue> cssValue = nullptr;
   nsIFrame* frame = element->GetPrimaryFrame();
-  if (frame && !aPseudoElement.IsEmpty()) {
+  if (!aPseudoElement.IsEmpty()) {
     if (aPseudoElement.EqualsLiteral("::before")) {
-      frame = nsLayoutUtils::GetBeforeFrame(frame);
+      frame = nsLayoutUtils::GetBeforeFrame(element);
     } else if (aPseudoElement.EqualsLiteral("::after")) {
-      frame = nsLayoutUtils::GetAfterFrame(frame);
+      frame = nsLayoutUtils::GetAfterFrame(element);
     } else {
       return NS_ERROR_INVALID_ARG;
     }

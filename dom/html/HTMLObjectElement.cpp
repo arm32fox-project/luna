@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -298,41 +297,45 @@ HTMLObjectElement::UnbindFromTree(bool aDeep,
 
 
 nsresult
-HTMLObjectElement::SetAttr(int32_t aNameSpaceID, nsIAtom *aName,
-                           nsIAtom *aPrefix, const nsAString &aValue,
-                           bool aNotify)
+HTMLObjectElement::AfterSetAttr(int32_t aNamespaceID, nsIAtom* aName,
+                                const nsAttrValue* aValue,
+                                const nsAttrValue* aOldValue, bool aNotify)
 {
-  nsresult rv = nsGenericHTMLFormElement::SetAttr(aNameSpaceID, aName, aPrefix,
-                                                  aValue, aNotify);
+  nsresult rv = AfterMaybeChangeAttr(aNamespaceID, aName, aNotify);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // if aNotify is false, we are coming from the parser or some such place;
-  // we'll get bound after all the attributes have been set, so we'll do the
-  // object load from BindToTree/DoneAddingChildren.
-  // Skip the LoadObject call in that case.
-  // We also don't want to start loading the object when we're not yet in
-  // a document, just in case that the caller wants to set additional
-  // attributes before inserting the node into the document.
-  if (aNotify && IsInComposedDoc() && mIsDoneAddingChildren &&
-      aNameSpaceID == kNameSpaceID_None && aName == nsGkAtoms::data) {
-    return LoadObject(aNotify, true);
-  }
-
-  return NS_OK;
+  return nsGenericHTMLFormElement::AfterSetAttr(aNamespaceID, aName, aValue,
+                                                aOldValue, aNotify);
 }
 
 nsresult
-HTMLObjectElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
-                             bool aNotify)
+HTMLObjectElement::OnAttrSetButNotChanged(int32_t aNamespaceID, nsIAtom* aName,
+                                          const nsAttrValueOrString& aValue,
+                                          bool aNotify)
 {
-  nsresult rv = nsGenericHTMLFormElement::UnsetAttr(aNameSpaceID,
-                                                    aAttribute, aNotify);
+  nsresult rv = AfterMaybeChangeAttr(aNamespaceID, aName, aNotify);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // See comment in SetAttr
-  if (aNotify && IsInComposedDoc() && mIsDoneAddingChildren &&
-      aNameSpaceID == kNameSpaceID_None && aAttribute == nsGkAtoms::data) {
-    return LoadObject(aNotify, true);
+  return nsGenericHTMLFormElement::OnAttrSetButNotChanged(aNamespaceID, aName,
+                                                          aValue, aNotify);
+}
+
+nsresult
+HTMLObjectElement::AfterMaybeChangeAttr(int32_t aNamespaceID, nsIAtom* aName,
+                                        bool aNotify)
+{
+  if (aNamespaceID == kNameSpaceID_None) {
+    // if aNotify is false, we are coming from the parser or some such place;
+    // we'll get bound after all the attributes have been set, so we'll do the
+    // object load from BindToTree/DoneAddingChildren.
+    // Skip the LoadObject call in that case.
+    // We also don't want to start loading the object when we're not yet in
+    // a document, just in case that the caller wants to set additional
+    // attributes before inserting the node into the document.
+    if (aNotify && IsInComposedDoc() && mIsDoneAddingChildren &&
+        aName == nsGkAtoms::data) {
+      return LoadObject(aNotify, true);
+    }
   }
 
   return NS_OK;

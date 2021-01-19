@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -11,6 +10,7 @@
 #include "mozilla/dom/AnimationEffectTiming.h"
 #include "mozilla/dom/KeyframeEffectBinding.h"
 #include "mozilla/KeyframeUtils.h"
+#include "mozilla/Preferences.h"
 #include "nsContentUtils.h"
 #include "nsDOMMutationObserver.h" // For nsAutoAnimationMutationBatch
 #include "nsIScriptError.h"
@@ -136,9 +136,9 @@ void
 KeyframeEffect::SetIterationComposite(
   const IterationCompositeOperation& aIterationComposite)
 {
-  // Ignore iterationComposite if the Web Animations API is not enabled,
+  // Ignore iterationComposite if the API is not enabled,
   // then the default value 'Replace' will be used.
-  if (!AnimationUtils::IsCoreAPIEnabledForCaller()) {
+  if (!Preferences::GetBool("dom.animations-api.compositing.enabled")) {
     return;
   }
 

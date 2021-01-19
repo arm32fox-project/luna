@@ -1,5 +1,4 @@
 # -*- Mode: python; indent-tabs-mode: nil; tab-width: 40 -*-
-# vim: set filetype=python:
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -80,16 +79,6 @@ if CONFIG['MOZ_APPLEMEDIA']:
   ]
 
 include('/ipc/chromium/chromium-config.mozbuild')
-
-if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'android':
-    EXPORTS += [
-        'android/AndroidDecoderModule.h',
-    ]
-    SOURCES += [
-        'android/AndroidDecoderModule.cpp',
-        'android/MediaCodecDataDecoder.cpp',
-        'android/RemoteDataDecoder.cpp',
-    ]
 
 FINAL_LIBRARY = 'xul'
 

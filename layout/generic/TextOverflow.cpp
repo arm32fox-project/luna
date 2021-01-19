@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set shiftwidth=2 tabstop=8 autoindent cindent expandtab: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -306,8 +305,8 @@ TextOverflow::TextOverflow(nsDisplayListBuilder* aBuilder,
   mCanHaveInlineAxisScrollbar = false;
   if (mScrollableFrame) {
     auto scrollbarStyle = mBlockWM.IsVertical() ?
-      mScrollableFrame->GetScrollbarStyles().mVertical :
-      mScrollableFrame->GetScrollbarStyles().mHorizontal;
+      mScrollableFrame->GetScrollStyles().mVertical :
+      mScrollableFrame->GetScrollStyles().mHorizontal;
     mCanHaveInlineAxisScrollbar = scrollbarStyle != NS_STYLE_OVERFLOW_HIDDEN;
     if (!mAdjustForPixelSnapping) {
       // Scrolling to the end position can leave some text still overflowing due

@@ -24,6 +24,7 @@
 #include "nsCharTraits.h"
 #include "nsComponentManagerUtils.h"
 #include "nsContentCID.h"
+#include "nsContentList.h"
 #include "nsCopySupport.h"
 #include "nsDebug.h"
 #include "nsDependentSubstring.h"
@@ -864,7 +865,7 @@ TextEditor::UpdateIMEComposition(WidgetCompositionEvent* aCompositionChangeEvent
   //       of NotifiyEditorObservers(eNotifyEditorObserversOfEnd) or
   //       NotifiyEditorObservers(eNotifyEditorObserversOfCancel) which notifies
   //       TextComposition of a selection change.
-  MOZ_ASSERT(!mPlaceHolderBatch,
+  MOZ_ASSERT(!mPlaceholderBatch,
     "UpdateIMEComposition() must be called without place holder batch");
   TextComposition::CompositionChangeEventHandlingMarker
     compositionChangeEventHandlingMarker(mComposition, aCompositionChangeEvent);
@@ -913,7 +914,8 @@ TextEditor::GetDocumentIsEmpty(bool* aDocumentIsEmpty)
   // Protect the edit rules object from dying
   nsCOMPtr<nsIEditRules> rules(mRules);
 
-  return rules->DocumentIsEmpty(aDocumentIsEmpty);
+  *aDocumentIsEmpty = rules->DocumentIsEmpty();
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -1237,7 +1239,7 @@ TextEditor::GetAndInitDocEncoder(const nsAString& aFormatType,
   nsCOMPtr<nsIDocumentEncoder> docEncoder (do_CreateInstance(formatType.get(), &rv));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIDOMDocument> domDoc = do_QueryReferent(mDocWeak);
+  nsCOMPtr<nsIDOMDocument> domDoc = GetDOMDocument();
   NS_ASSERTION(domDoc, "Need a document");
 
   rv = docEncoder->Init(domDoc, aFormatType, aFlags);
@@ -1580,8 +1582,7 @@ TextEditor::SelectEntireDocument(Selection* aSelection)
   nsCOMPtr<nsIEditRules> rules(mRules);
 
   // is doc empty?
-  bool bDocIsEmpty;
-  if (NS_SUCCEEDED(rules->DocumentIsEmpty(&bDocIsEmpty)) && bDocIsEmpty) {
+  if (rules->DocumentIsEmpty()) {
     // get root node
     nsCOMPtr<nsIDOMElement> rootElement = do_QueryInterface(GetRoot());
     NS_ENSURE_TRUE(rootElement, NS_ERROR_FAILURE);

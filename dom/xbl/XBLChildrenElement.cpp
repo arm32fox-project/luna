@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -7,6 +6,7 @@
 #include "mozilla/dom/XBLChildrenElement.h"
 #include "nsCharSeparatedTokenizer.h"
 #include "mozilla/dom/NodeListBinding.h"
+#include "nsAttrValueOrString.h"
 
 namespace mozilla {
 namespace dom {
@@ -27,34 +27,24 @@ NS_INTERFACE_MAP_END_INHERITING(Element)
 NS_IMPL_ELEMENT_CLONE(XBLChildrenElement)
 
 nsresult
-XBLChildrenElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
-                              bool aNotify)
+XBLChildrenElement::BeforeSetAttr(int32_t aNamespaceID, nsIAtom* aName,
+                                  const nsAttrValueOrString* aValue,
+                                  bool aNotify)
 {
-  if (aAttribute == nsGkAtoms::includes &&
-      aNameSpaceID == kNameSpaceID_None) {
-    mIncludes.Clear();
-  }
-
-  return Element::UnsetAttr(aNameSpaceID, aAttribute, aNotify);
-}
-
-bool
-XBLChildrenElement::ParseAttribute(int32_t aNamespaceID,
-                                   nsIAtom* aAttribute,
-                                   const nsAString& aValue,
-                                   nsAttrValue& aResult)
-{
-  if (aAttribute == nsGkAtoms::includes &&
-      aNamespaceID == kNameSpaceID_None) {
-    mIncludes.Clear();
-    nsCharSeparatedTokenizer tok(aValue, '|',
-                                 nsCharSeparatedTokenizer::SEPARATOR_OPTIONAL);
-    while (tok.hasMoreTokens()) {
-      mIncludes.AppendElement(NS_Atomize(tok.nextToken()));
+  if (aNamespaceID == kNameSpaceID_None) {
+    if (aName == nsGkAtoms::includes) {
+      mIncludes.Clear();
+      if (aValue) {
+        nsCharSeparatedTokenizer tok(aValue->String(), '|',
+                                     nsCharSeparatedTokenizer::SEPARATOR_OPTIONAL);
+        while (tok.hasMoreTokens()) {
+          mIncludes.AppendElement(NS_Atomize(tok.nextToken()));
+        }
+      }
     }
   }
 
-  return false;
+  return nsXMLElement::BeforeSetAttr(aNamespaceID, aName, aValue, aNotify);
 }
 
 } // namespace dom

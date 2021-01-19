@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -179,6 +178,7 @@
     macro(InitializeCollator, InitializeCollator, "InitializeCollator") \
     macro(InitializeDateTimeFormat, InitializeDateTimeFormat, "InitializeDateTimeFormat") \
     macro(InitializeNumberFormat, InitializeNumberFormat, "InitializeNumberFormat") \
+    macro(InitializePluralRules, InitializePluralRules, "InitializePluralRules") \
     macro(innermost, innermost, "innermost") \
     macro(inNursery, inNursery, "inNursery") \
     macro(input, input, "input") \
@@ -271,6 +271,8 @@
     macro(parseInt, parseInt, "parseInt") \
     macro(pattern, pattern, "pattern") \
     macro(pending, pending, "pending") \
+    macro(PluralRules, PluralRules, "PluralRules") \
+    macro(PluralRulesSelect, PluralRulesSelect, "Intl_PluralRules_Select") \
     macro(public, public_, "public") \
     macro(preventExtensions, preventExtensions, "preventExtensions") \
     macro(private, private_, "private") \

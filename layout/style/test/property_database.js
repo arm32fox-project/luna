@@ -1,5 +1,4 @@
 /* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
-/* vim: set ts=2 sw=2 sts=2 et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -7944,6 +7943,18 @@ for (var prop in gCSSProperties) {
     }
   }
 }
+
+if (IsCSSPropertyPrefEnabled("layout.css.scrollbar-width.enabled")) {
+  gCSSProperties["scrollbar-width"] = {
+    domProp: "scrollbarWidth",
+    inherited: false,
+    type: CSS_TYPE_LONGHAND,
+    initial_values: [ "auto" ],
+    other_values: [ "none", "thin" ],
+    invalid_values: [ "1px" ]
+  };
+}
+
 
 if (false) {
   // TODO These properties are chrome-only, and are not exposed via CSSOM.

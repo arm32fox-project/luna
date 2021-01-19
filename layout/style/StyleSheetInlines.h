@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -83,9 +82,17 @@ StyleSheet::HasRules() const
 }
 
 void
-StyleSheet::SetOwningDocument(nsIDocument* aDocument)
+StyleSheet::SetAssociatedDocument(nsIDocument* aDocument,
+                                  DocumentAssociationMode aAssociationMode)
 {
-  MOZ_STYLO_FORWARD(SetOwningDocument, (aDocument))
+  MOZ_ASSERT(aDocument);
+  MOZ_STYLO_FORWARD(SetAssociatedDocument, (aDocument, aAssociationMode))
+}
+
+void
+StyleSheet::ClearAssociatedDocument()
+{
+  MOZ_STYLO_FORWARD(SetAssociatedDocument, (nullptr, NotOwnedByDocument));
 }
 
 StyleSheet*

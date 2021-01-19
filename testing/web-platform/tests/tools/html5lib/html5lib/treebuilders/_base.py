@@ -5,7 +5,7 @@ from ..constants import scopingElements, tableInsertModeElements, namespaces
 
 # The scope markers are inserted when entering object elements,
 # table cells, and table captions, and are used to prevent formatting
-# from "leaking" into tables, and object elements.
+# from "leaking" into tables and object elements.
 Marker = None
 
 listElementsMap = {

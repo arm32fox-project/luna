@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -48,7 +47,7 @@ NS_IMPL_STRING_ATTR(HTMLOptGroupElement, Label, label)
 
 
 nsresult
-HTMLOptGroupElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
+HTMLOptGroupElement::GetEventTargetParent(EventChainPreVisitor& aVisitor)
 {
   aVisitor.mCanHandle = false;
   // Do not process any DOM events if the element is disabled
@@ -66,7 +65,7 @@ HTMLOptGroupElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
     }
   }
 
-  return nsGenericHTMLElement::PreHandleEvent(aVisitor);
+  return nsGenericHTMLElement::GetEventTargetParent(aVisitor);
 }
 
 Element*
@@ -102,7 +101,8 @@ HTMLOptGroupElement::RemoveChildAt(uint32_t aIndex, bool aNotify)
 
 nsresult
 HTMLOptGroupElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                                  const nsAttrValue* aValue, bool aNotify)
+                                  const nsAttrValue* aValue,
+                                  const nsAttrValue* aOldValue, bool aNotify)
 {
   if (aNameSpaceID == kNameSpaceID_None && aName == nsGkAtoms::disabled) {
     // All our children <option> have their :disabled state depending on our
@@ -117,7 +117,7 @@ HTMLOptGroupElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
   }
 
   return nsGenericHTMLElement::AfterSetAttr(aNameSpaceID, aName, aValue,
-                                            aNotify);
+                                            aOldValue, aNotify);
 }
 
 EventStates

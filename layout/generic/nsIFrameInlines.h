@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 sw=2 et tw=78: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -8,8 +7,10 @@
 #define nsIFrameInlines_h___
 
 #include "nsContainerFrame.h"
+#include "nsPlaceholderFrame.h"
 #include "nsStyleStructInlines.h"
 #include "nsCSSAnonBoxes.h"
+#include "nsFrameManager.h"
 
 bool
 nsIFrame::IsFlexItem() const
@@ -158,6 +159,17 @@ nsIFrame::BaselineBOffset(mozilla::WritingMode aWM,
   }
   // XXX AlignmentContext::eTable should use content box?
   return SynthesizeBaselineBOffsetFromBorderBox(aWM, aBaselineGroup);
+}
+
+nsContainerFrame*
+nsIFrame::GetInFlowParent()
+{
+  if (GetStateBits() & NS_FRAME_OUT_OF_FLOW) {
+    nsIFrame* ph = FirstContinuation()->GetProperty(nsIFrame::PlaceholderFrameProperty());
+    return ph->GetParent();
+  }
+
+  return GetParent();
 }
 
 #endif

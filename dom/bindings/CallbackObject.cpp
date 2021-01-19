@@ -1,10 +1,10 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/dom/CallbackObject.h"
+#include "mozilla/CycleCollectedJSContext.h"
 #include "mozilla/dom/BindingUtils.h"
 #include "jsfriendapi.h"
 #include "nsIScriptGlobalObject.h"
@@ -79,7 +79,10 @@ CallbackObject::CallSetup::CallSetup(CallbackObject* aCallback,
   , mIsMainThread(NS_IsMainThread())
 {
   if (mIsMainThread) {
-    nsContentUtils::EnterMicroTask();
+    CycleCollectedJSContext* ccjs = CycleCollectedJSContext::Get();
+    if (ccjs) {
+      ccjs->EnterMicroTask();
+    }
   }
 
   // Compute the caller's subject principal (if necessary) early, before we
@@ -288,7 +291,10 @@ CallbackObject::CallSetup::~CallSetup()
   // It is important that this is the last thing we do, after leaving the
   // compartment and undoing all our entry/incumbent script changes
   if (mIsMainThread) {
-    nsContentUtils::LeaveMicroTask();
+    CycleCollectedJSContext* ccjs = CycleCollectedJSContext::Get();
+    if (ccjs) {
+      ccjs->LeaveMicroTask();
+    }
   }
 }
 

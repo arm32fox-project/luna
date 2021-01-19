@@ -17,9 +17,12 @@ class nsIAtom;
 
    To change the list of tags, see nsHTMLTagList.h
 
+   These enum values are used as the index of array in various places.
+   If we change the structure of the enum by adding entries to it or removing
+   entries from it _directly_, not via nsHTMLTagList.h, don't forget to update
+   dom/bindings/BindingUtils.cpp and dom/html/nsHTMLContentSink.cpp as well.
  */
-#define HTML_TAG(_tag, _classname) eHTMLTag_##_tag,
-#define HTML_HTMLELEMENT_TAG(_tag) eHTMLTag_##_tag,
+#define HTML_TAG(_tag, _classname, _interfacename) eHTMLTag_##_tag,
 #define HTML_OTHER(_tag) eHTMLTag_##_tag,
 enum nsHTMLTag {
   /* this enum must be first and must be zero */
@@ -31,7 +34,6 @@ enum nsHTMLTag {
   eHTMLTag_userdefined
 };
 #undef HTML_TAG
-#undef HTML_HTMLELEMENT_TAG
 #undef HTML_OTHER
 
 // All tags before eHTMLTag_text are HTML tags
@@ -44,8 +46,13 @@ public:
   static void ReleaseTable(void);
 
   // Functions for converting string or atom to id
-  static nsHTMLTag LookupTag(const nsAString& aTagName);
-  static nsHTMLTag CaseSensitiveLookupTag(const char16_t* aTagName)
+  static nsHTMLTag StringTagToId(const nsAString& aTagName);
+  static nsHTMLTag AtomTagToId(nsIAtom* aTagName)
+  {
+    return StringTagToId(nsDependentAtomString(aTagName));
+  }
+
+  static nsHTMLTag CaseSensitiveStringTagToId(const char16_t* aTagName)
   {
     NS_ASSERTION(gTagTable, "no lookup table, needs addref");
     NS_ASSERTION(aTagName, "null tagname!");
@@ -54,7 +61,7 @@ public:
 
     return tag ? (nsHTMLTag)NS_PTR_TO_INT32(tag) : eHTMLTag_userdefined;
   }
-  static nsHTMLTag CaseSensitiveLookupTag(nsIAtom* aTagName)
+  static nsHTMLTag CaseSensitiveAtomTagToId(nsIAtom* aTagName)
   {
     NS_ASSERTION(gTagAtomTable, "no lookup table, needs addref");
     NS_ASSERTION(aTagName, "null tagname!");
@@ -88,7 +95,5 @@ private:
   static PLHashTable* gTagTable;
   static PLHashTable* gTagAtomTable;
 };
-
-#define eHTMLTags nsHTMLTag
 
 #endif /* nsHTMLTags_h___ */

@@ -1,5 +1,4 @@
 # -*- Mode: python; indent-tabs-mode: nil; tab-width: 40 -*-
-# vim: set filetype=python:
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -52,7 +51,6 @@ EXPORTS.mozilla.dom += [
     'HTMLBRElement.h',
     'HTMLButtonElement.h',
     'HTMLCanvasElement.h',
-    'HTMLContentElement.h',
     'HTMLDataElement.h',
     'HTMLDataListElement.h',
     'HTMLDetailsElement.h',
@@ -92,10 +90,10 @@ EXPORTS.mozilla.dom += [
     'HTMLProgressElement.h',
     'HTMLScriptElement.h',
     'HTMLSelectElement.h',
-    'HTMLShadowElement.h',
     'HTMLSharedElement.h',
     'HTMLSharedListElement.h',
     'HTMLSharedObjectElement.h',
+    'HTMLSlotElement.h',
     'HTMLSourceElement.h',
     'HTMLSpanElement.h',
     'HTMLStyleElement.h',
@@ -131,7 +129,6 @@ SOURCES += [
     'HTMLBRElement.cpp',
     'HTMLButtonElement.cpp',
     'HTMLCanvasElement.cpp',
-    'HTMLContentElement.cpp',
     'HTMLDataElement.cpp',
     'HTMLDataListElement.cpp',
     'HTMLDetailsElement.cpp',
@@ -172,10 +169,10 @@ SOURCES += [
     'HTMLProgressElement.cpp',
     'HTMLScriptElement.cpp',
     'HTMLSelectElement.cpp',
-    'HTMLShadowElement.cpp',
     'HTMLSharedElement.cpp',
     'HTMLSharedListElement.cpp',
     'HTMLSharedObjectElement.cpp',
+    'HTMLSlotElement.cpp',
     'HTMLSourceElement.cpp',
     'HTMLSpanElement.cpp',
     'HTMLStyleElement.cpp',

@@ -355,9 +355,10 @@ public:
     NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsXULElement, nsStyledElement)
 
     // nsINode
-    virtual nsresult PreHandleEvent(
+    virtual nsresult GetEventTargetParent(
                        mozilla::EventChainPreVisitor& aVisitor) override;
-
+    virtual nsresult PreHandleEvent(
+                       mozilla::EventChainVisitor& aVisitor) override;
     // nsIContent
     virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                 nsIContent* aBindingParent,
@@ -609,19 +610,6 @@ protected:
 
     nsresult AddPopupListener(nsIAtom* aName);
 
-    class nsXULSlots : public mozilla::dom::Element::nsDOMSlots
-    {
-    public:
-        nsXULSlots();
-        virtual ~nsXULSlots();
-
-        void Traverse(nsCycleCollectionTraversalCallback &cb);
-
-        nsCOMPtr<nsISupports> mFrameLoaderOrOpener;
-    };
-
-    virtual nsINode::nsSlots* CreateSlots() override;
-
     nsresult LoadSrc();
 
     /**
@@ -636,10 +624,12 @@ protected:
     nsresult MakeHeavyweight(nsXULPrototypeElement* aPrototype);
 
     virtual nsresult BeforeSetAttr(int32_t aNamespaceID, nsIAtom* aName,
-                                   nsAttrValueOrString* aValue,
+                                   const nsAttrValueOrString* aValue,
                                    bool aNotify) override;
     virtual nsresult AfterSetAttr(int32_t aNamespaceID, nsIAtom* aName,
-                                  const nsAttrValue* aValue, bool aNotify) override;
+                                  const nsAttrValue* aValue,
+                                  const nsAttrValue* aOldValue,
+                                  bool aNotify) override;
 
     virtual void UpdateEditableState(bool aNotify) override;
 
@@ -677,8 +667,8 @@ protected:
     // Internal accessor. This shadows the 'Slots', and returns
     // appropriate value.
     nsIControllers *Controllers() {
-      nsDOMSlots* slots = GetExistingDOMSlots();
-      return slots ? slots->mControllers : nullptr;
+      nsExtendedDOMSlots* slots = GetExistingExtendedDOMSlots();
+      return slots ? slots->mControllers.get() : nullptr;
     }
 
     void UnregisterAccessKey(const nsAString& aOldValue);
@@ -702,6 +692,11 @@ protected:
     virtual JSObject* WrapNode(JSContext *aCx, JS::Handle<JSObject*> aGivenProto) override;
 
     void MaybeUpdatePrivateLifetime();
+
+    bool IsEventStoppedFromAnonymousScrollbar(mozilla::EventMessage aMessage);
+
+    nsresult DispatchXULCommand(const mozilla::EventChainVisitor& aVisitor,
+                                nsAutoString& aCommand);
 };
 
 #endif // nsXULElement_h__

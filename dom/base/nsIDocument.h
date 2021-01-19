@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -34,6 +33,7 @@
 #include "prclist.h"
 #include "mozilla/UniquePtr.h"
 #include "mozilla/CORSMode.h"
+#include "mozilla/dom/DocumentOrShadowRoot.h"
 #include "mozilla/LinkedList.h"
 #include "mozilla/StyleBackendType.h"
 #include "mozilla/StyleSheet.h"
@@ -61,6 +61,7 @@ class nsFrameLoader;
 class nsHTMLCSSStyleSheet;
 class nsHTMLDocument;
 class nsHTMLStyleSheet;
+class nsGenericHTMLElement;
 class nsIAtom;
 class nsIBFCacheEntry;
 class nsIChannel;
@@ -131,7 +132,6 @@ class DOMIntersectionObserver;
 class DOMStringList;
 class Element;
 struct ElementCreationOptions;
-struct ElementRegistrationOptions;
 class Event;
 class EventTarget;
 class FontFaceSet;
@@ -197,7 +197,8 @@ class nsContentList;
 
 // Document interface.  This is implemented by all document objects in
 // Gecko.
-class nsIDocument : public nsINode
+class nsIDocument : public nsINode,
+                    public mozilla::dom::DocumentOrShadowRoot
 {
   typedef mozilla::dom::GlobalObject GlobalObject;
 
@@ -498,7 +499,7 @@ public:
    * to remove it.
    */
   typedef bool (* IDTargetObserver)(Element* aOldElement,
-                                      Element* aNewelement, void* aData);
+                                    Element* aNewelement, void* aData);
 
   /**
    * Add an IDTargetObserver for a specific ID. The IDTargetObserver
@@ -1037,6 +1038,11 @@ public:
   Element* GetHeadElement() {
     return GetHtmlChildElement(nsGkAtoms::head);
   }
+  // Get the "body" in the sense of document.body: The first <body> or
+  // <frameset> that's a child of a root <html>
+  nsGenericHTMLElement* GetBody();
+  // Set the "body" in the sense of document.body.
+  void SetBody(nsGenericHTMLElement* aBody, mozilla::ErrorResult& rv);
 
   /**
    * Accessors to the collection of stylesheets owned by this document.
@@ -1065,40 +1071,19 @@ public:
    */
   virtual void EnsureOnDemandBuiltInUASheet(mozilla::StyleSheet* aSheet) = 0;
 
-  /**
-   * Get the number of (document) stylesheets
-   *
-   * @return the number of stylesheets
-   * @throws no exceptions
-   */
-  virtual int32_t GetNumberOfStyleSheets() const = 0;
-
-  /**
-   * Get a particular stylesheet
-   * @param aIndex the index the stylesheet lives at.  This is zero-based
-   * @return the stylesheet at aIndex.  Null if aIndex is out of range.
-   * @throws no exceptions
-   */
-  virtual mozilla::StyleSheet* GetStyleSheetAt(int32_t aIndex) const = 0;
+  mozilla::dom::StyleSheetList* StyleSheets()
+  {
+    return &DocumentOrShadowRoot::EnsureDOMStyleSheets();
+  }
 
   /**
    * Insert a sheet at a particular spot in the stylesheet list (zero-based)
    * @param aSheet the sheet to insert
-   * @param aIndex the index to insert at.  This index will be
-   *   adjusted for the "special" sheets.
+   * @param aIndex the index to insert at.
    * @throws no exceptions
    */
   virtual void InsertStyleSheetAt(mozilla::StyleSheet* aSheet,
-                                  int32_t aIndex) = 0;
-
-  /**
-   * Get the index of a particular stylesheet.  This will _always_
-   * consider the "special" sheets as part of the sheet list.
-   * @param aSheet the sheet to get the index of
-   * @return aIndex the index of the sheet in the full list
-   */
-  virtual int32_t GetIndexOfStyleSheet(
-      const mozilla::StyleSheet* aSheet) const = 0;
+                                  size_t aIndex) = 0;
 
   /**
    * Replace the stylesheets in aOldSheets with the stylesheets in
@@ -1149,11 +1134,13 @@ public:
    * sheets for this document, returns the index that aSheet should
    * be inserted at to maintain document ordering.
    *
+   * Type T has to cast to StyleSheet*.
+   *
    * Defined in nsIDocumentInlines.h.
    */
   template<typename T>
-  size_t FindDocStyleSheetInsertionPoint(const nsTArray<RefPtr<T>>& aDocSheets,
-                                         T* aSheet);
+  size_t FindDocStyleSheetInsertionPoint(const nsTArray<T>& aDocSheets,
+                                         const mozilla::StyleSheet& aSheet);
 
   /**
    * Get this document's CSSLoader.  This is guaranteed to not return null.
@@ -2370,19 +2357,10 @@ public:
   virtual void ResetScrolledToRefAlready() = 0;
   virtual void SetChangeScrollPosWhenScrollingToRef(bool aValue) = 0;
 
-  /**
-   * This method is similar to GetElementById() from nsIDOMDocument but it
-   * returns a mozilla::dom::Element instead of a nsIDOMElement.
-   * It prevents converting nsIDOMElement to mozilla::dom::Element which is
-   * already converted from mozilla::dom::Element.
-   */
-  virtual Element* GetElementById(const nsAString& aElementId) = 0;
-
-  /**
-   * This method returns _all_ the elements in this document which
-   * have id aElementId, if there are any.  Otherwise it returns null.
-   */
-  virtual const nsTArray<Element*>* GetAllElementsForId(const nsAString& aElementId) const = 0;
+  using mozilla::dom::DocumentOrShadowRoot::GetElementById;
+  using mozilla::dom::DocumentOrShadowRoot::GetElementsByTagName;
+  using mozilla::dom::DocumentOrShadowRoot::GetElementsByTagNameNS;
+  using mozilla::dom::DocumentOrShadowRoot::GetElementsByClassName;
 
   /**
    * Lookup an image element using its associated ID, which is usually provided
@@ -2574,34 +2552,14 @@ public:
   }
 
   enum ElementCallbackType {
-    eCreated,
-    eAttached,
-    eDetached,
+    eConnected,
+    eDisconnected,
+    eAdopted,
     eAttributeChanged
   };
 
   nsIDocument* GetTopLevelContentDocument();
 
-  virtual void
-    RegisterElement(JSContext* aCx, const nsAString& aName,
-                    const mozilla::dom::ElementRegistrationOptions& aOptions,
-                    JS::MutableHandle<JSObject*> aRetval,
-                    mozilla::ErrorResult& rv) = 0;
-  virtual already_AddRefed<mozilla::dom::CustomElementRegistry>
-    GetCustomElementRegistry() = 0;
-
-  already_AddRefed<nsContentList>
-  GetElementsByTagName(const nsAString& aTagName)
-  {
-    return NS_GetContentList(this, kNameSpaceID_Unknown, aTagName);
-  }
-  already_AddRefed<nsContentList>
-    GetElementsByTagNameNS(const nsAString& aNamespaceURI,
-                           const nsAString& aLocalName,
-                           mozilla::ErrorResult& aResult);
-  already_AddRefed<nsContentList>
-    GetElementsByClassName(const nsAString& aClasses);
-  // GetElementById defined above
   virtual already_AddRefed<Element>
     CreateElement(const nsAString& aTagName,
                   const mozilla::dom::ElementCreationOptionsOrString& aOptions,
@@ -2701,7 +2659,6 @@ public:
     return mVisibilityState;
   }
 #endif
-  virtual mozilla::dom::StyleSheetList* StyleSheets() = 0;
   void GetSelectedStyleSheetSet(nsAString& aSheetSet);
   virtual void SetSelectedStyleSheetSet(const nsAString& aSheetSet) = 0;
   virtual void GetLastStyleSheetSet(nsString& aSheetSet) = 0;
@@ -2873,6 +2830,27 @@ public:
   virtual void ScheduleIntersectionObserverNotification() = 0;
   virtual void NotifyIntersectionObservers() = 0;
 
+  bool ShouldThrowOnDynamicMarkupInsertion()
+  {
+    return mThrowOnDynamicMarkupInsertionCounter;
+  }
+
+  void IncrementThrowOnDynamicMarkupInsertionCounter()
+  {
+    ++mThrowOnDynamicMarkupInsertionCounter;
+  }
+
+  void DecrementThrowOnDynamicMarkupInsertionCounter()
+  {
+    MOZ_ASSERT(mThrowOnDynamicMarkupInsertionCounter);
+    --mThrowOnDynamicMarkupInsertionCounter;
+  }
+
+  bool IsWebComponentsEnabled() const
+  {
+    return mIsWebComponentsEnabled;
+  }
+
   bool ModuleScriptsEnabled();
 
   virtual void AddResizeObserver(mozilla::dom::ResizeObserver* aResizeObserver) = 0;
@@ -3021,6 +2999,9 @@ protected:
 
   // container for per-context fonts (downloadable, SVG, etc.)
   RefPtr<mozilla::dom::FontFaceSet> mFontFaceSet;
+
+  // True if dom.webcomponents.enabled pref is set when document is created.
+  bool mIsWebComponentsEnabled : 1;
 
   // Compatibility mode
   nsCompatibility mCompatMode;
@@ -3326,6 +3307,11 @@ protected:
 
   uint32_t mBlockDOMContentLoaded;
 
+  // Used in conjunction with the create-an-element-for-the-token algorithm to
+  // prevent custom element constructors from being able to use document.open(),
+  // document.close(), and document.write() when they are invoked by the parser.
+  uint32_t mThrowOnDynamicMarkupInsertionCounter;
+
   // Our live MediaQueryLists
   PRCList mDOMMediaQueryLists;
 
@@ -3397,6 +3383,23 @@ public:
 private:
   nsCOMArray<nsIDocument> mDocuments;
   uint32_t                mMicroTaskLevel;
+};
+
+class MOZ_RAII AutoSetThrowOnDynamicMarkupInsertionCounter final {
+  public:
+    explicit AutoSetThrowOnDynamicMarkupInsertionCounter(
+      nsIDocument* aDocument)
+      : mDocument(aDocument)
+    {
+      mDocument->IncrementThrowOnDynamicMarkupInsertionCounter();
+    }
+
+    ~AutoSetThrowOnDynamicMarkupInsertionCounter() {
+      mDocument->DecrementThrowOnDynamicMarkupInsertionCounter();
+    }
+
+  private:
+    nsIDocument* mDocument;
 };
 
 // XXX These belong somewhere else

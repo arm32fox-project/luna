@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -171,7 +170,8 @@ HTMLStyleElement::UnbindFromTree(bool aDeep, bool aNullParent)
 
 nsresult
 HTMLStyleElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                               const nsAttrValue* aValue, bool aNotify)
+                               const nsAttrValue* aValue,
+                               const nsAttrValue* aOldValue, bool aNotify)
 {
   if (aNameSpaceID == kNameSpaceID_None) {
     if (aName == nsGkAtoms::title ||
@@ -185,7 +185,7 @@ HTMLStyleElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
   }
 
   return nsGenericHTMLElement::AfterSetAttr(aNameSpaceID, aName, aValue,
-                                            aNotify);
+                                            aOldValue, aNotify);
 }
 
 NS_IMETHODIMP

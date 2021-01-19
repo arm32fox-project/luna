@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -1090,7 +1089,7 @@ KeyframeEffectReadOnly::CanThrottleTransformChanges(nsIFrame& aFrame) const
     return true;
   }
 
-  ScrollbarStyles ss = scrollable->GetScrollbarStyles();
+  ScrollStyles ss = scrollable->GetScrollStyles();
   if (ss.mVertical == NS_STYLE_OVERFLOW_HIDDEN &&
       ss.mHorizontal == NS_STYLE_OVERFLOW_HIDDEN &&
       scrollable->GetLogicalScrollPosition() == nsPoint(0, 0)) {
@@ -1107,19 +1106,17 @@ KeyframeEffectReadOnly::GetAnimationFrame() const
     return nullptr;
   }
 
-  nsIFrame* frame = mTarget->mElement->GetPrimaryFrame();
-  if (!frame) {
-    return nullptr;
-  }
-
+  nsIFrame* frame;
   if (mTarget->mPseudoType == CSSPseudoElementType::before) {
-    frame = nsLayoutUtils::GetBeforeFrame(frame);
+    frame = nsLayoutUtils::GetBeforeFrame(mTarget->mElement);
   } else if (mTarget->mPseudoType == CSSPseudoElementType::after) {
-    frame = nsLayoutUtils::GetAfterFrame(frame);
+    frame = nsLayoutUtils::GetAfterFrame(mTarget->mElement);
   } else {
+    frame = mTarget->mElement->GetPrimaryFrame();
     MOZ_ASSERT(mTarget->mPseudoType == CSSPseudoElementType::NotPseudo,
                "unknown mTarget->mPseudoType");
   }
+
   if (!frame) {
     return nullptr;
   }

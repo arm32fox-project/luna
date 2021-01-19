@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -12,8 +11,8 @@
 #include "mozilla/ServoStyleSheet.h"
 #include "mozilla/StyleSheetInlines.h"
 #include "mozilla/CSSStyleSheet.h"
-#include "mozAutoDocUpdate.h"
 
+#include "mozAutoDocUpdate.h"
 #include "nsIMediaList.h"
 #include "nsNullPrincipal.h"
 
@@ -27,6 +26,7 @@ StyleSheet::StyleSheet(StyleBackendType aType, css::SheetParsingMode aParsingMod
   , mParsingMode(aParsingMode)
   , mType(aType)
   , mDisabled(false)
+  , mDocumentAssociationMode(NotOwnedByDocument)
 {
 }
 
@@ -39,6 +39,9 @@ StyleSheet::StyleSheet(const StyleSheet& aCopy,
   , mParsingMode(aCopy.mParsingMode)
   , mType(aCopy.mType)
   , mDisabled(aCopy.mDisabled)
+    // We only use this constructor during cloning.  It's the cloner's
+    // responsibility to notify us if we end up being owned by a document.
+  , mDocumentAssociationMode(NotOwnedByDocument)
 {
 }
 
@@ -354,7 +357,7 @@ StyleSheet::AreRulesAvailable(nsIPrincipal& aSubjectPrincipal,
 JSObject*
 StyleSheet::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto)
 {
-  return CSSStyleSheetBinding::Wrap(aCx, this, aGivenProto);
+  return dom::CSSStyleSheetBinding::Wrap(aCx, this, aGivenProto);
 }
 
 } // namespace mozilla

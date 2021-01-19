@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -919,12 +918,12 @@ nsMathMLElement::MapMathMLAttributesInto(const nsMappedAttributes* aAttributes,
 }
 
 nsresult
-nsMathMLElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
+nsMathMLElement::GetEventTargetParent(EventChainPreVisitor& aVisitor)
 {
-  nsresult rv = Element::PreHandleEvent(aVisitor);
+  nsresult rv = Element::GetEventTargetParent(aVisitor);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return PreHandleEventForLinks(aVisitor);
+  return GetEventTargetParentForLinks(aVisitor);
 }
 
 nsresult
@@ -1085,50 +1084,27 @@ nsMathMLElement::GetHrefURI() const
 }
 
 nsresult
-nsMathMLElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                         nsIAtom* aPrefix, const nsAString& aValue,
-                         bool aNotify)
+nsMathMLElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+                              const nsAttrValue* aValue,
+                              const nsAttrValue* aOldValue, bool aNotify)
 {
-  nsresult rv = nsMathMLElementBase::SetAttr(aNameSpaceID, aName, aPrefix,
-                                           aValue, aNotify);
-
-  // The ordering of the parent class's SetAttr call and Link::ResetLinkState
-  // is important here!  The attribute is not set until SetAttr returns, and
-  // we will need the updated attribute value because notifying the document
+  // It is important that this be done after the attribute is set/unset.
+  // We will need the updated attribute value because notifying the document
   // that content states have changed will call IntrinsicState, which will try
   // to get updated information about the visitedness from Link.
   if (aName == nsGkAtoms::href &&
       (aNameSpaceID == kNameSpaceID_None ||
        aNameSpaceID == kNameSpaceID_XLink)) {
-    if (aNameSpaceID == kNameSpaceID_XLink) {
+    if (aValue && aNameSpaceID == kNameSpaceID_XLink) {
       WarnDeprecated(u"xlink:href", u"href", OwnerDoc());
     }
-    Link::ResetLinkState(!!aNotify, true);
+    // Note: When unsetting href, there may still be another href since there
+    // are 2 possible namespaces.
+    Link::ResetLinkState(aNotify, aValue || Link::ElementHasHref());
   }
 
-  return rv;
-}
-
-nsresult
-nsMathMLElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttr,
-                           bool aNotify)
-{
-  nsresult rv = nsMathMLElementBase::UnsetAttr(aNameSpaceID, aAttr, aNotify);
-
-  // The ordering of the parent class's UnsetAttr call and Link::ResetLinkState
-  // is important here!  The attribute is not unset until UnsetAttr returns, and
-  // we will need the updated attribute value because notifying the document
-  // that content states have changed will call IntrinsicState, which will try
-  // to get updated information about the visitedness from Link.
-  if (aAttr == nsGkAtoms::href &&
-      (aNameSpaceID == kNameSpaceID_None ||
-       aNameSpaceID == kNameSpaceID_XLink)) {
-    // Note: just because we removed a single href attr doesn't mean there's no href,
-    // since there are 2 possible namespaces.
-    Link::ResetLinkState(!!aNotify, Link::ElementHasHref());
-  }
-
-  return rv;
+  return nsMathMLElementBase::AfterSetAttr(aNameSpaceID, aName, aValue,
+                                           aOldValue, aNotify);
 }
 
 JSObject*

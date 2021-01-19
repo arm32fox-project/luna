@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set sw=2 ts=2 et tw=80 : */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -370,16 +369,6 @@ CompositorVsyncScheduler::ScheduleComposition()
   if (mAsapScheduling) {
     // Used only for performance testing purposes
     PostCompositeTask(TimeStamp::Now());
-#ifdef MOZ_WIDGET_ANDROID
-  } else if (mNeedsComposite >= 2 && mIsObservingVsync) {
-    // uh-oh, we already requested a composite at least twice so far, and a
-    // composite hasn't happened yet. It is possible that the vsync observation
-    // is blocked on the main thread, so let's just composite ASAP and not
-    // wait for the vsync. Note that this should only ever happen on Fennec
-    // because there content runs in the same process as the compositor, and so
-    // content can actually block the main thread in this process.
-    PostCompositeTask(TimeStamp::Now());
-#endif
   } else {
     SetNeedsComposite();
   }
@@ -954,11 +943,6 @@ CompositorBridgeParent::ResumeComposition()
   MonitorAutoLock lock(mResumeCompositionMonitor);
 
   if (!mCompositor->Resume()) {
-#ifdef MOZ_WIDGET_ANDROID
-    // We can't get a surface. This could be because the activity changed between
-    // the time resume was scheduled and now.
-    __android_log_print(ANDROID_LOG_INFO, "CompositorBridgeParent", "Unable to renew compositor surface; remaining in paused state");
-#endif
     lock.NotifyAll();
     return;
   }

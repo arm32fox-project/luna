@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -22,7 +21,9 @@
 
 namespace mozilla {
 class ErrorResult;
-
+namespace dom {
+class DocGroup;
+} // namespace dom
 } // namespace mozilla
 
 class nsAttrValue;
@@ -35,6 +36,7 @@ class nsDOMTokenList : public nsISupports,
 {
 protected:
   typedef mozilla::dom::Element Element;
+  typedef mozilla::dom::DocGroup DocGroup;
   typedef nsWhitespaceTokenizerTemplate<nsContentUtils::IsHTMLWhitespace>
     WhitespaceTokenizer;
 
@@ -51,6 +53,8 @@ public:
   {
     return mElement;
   }
+
+  DocGroup* GetDocGroup() const;
 
   uint32_t Length();
   void Item(uint32_t aIndex, nsAString& aResult)

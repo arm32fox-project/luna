@@ -1004,7 +1004,7 @@ nsPrintEngine::GetCurrentPrintSettings(nsIPrintSettings * *aCurrentPrintSettings
 nsresult
 nsPrintEngine::CheckForPrinters(nsIPrintSettings* aPrintSettings)
 {
-#if defined(XP_MACOSX) || defined(ANDROID)
+#if defined(XP_MACOSX)
   // Mac doesn't support retrieving a printer list.
   return NS_OK;
 #else
@@ -2450,13 +2450,17 @@ CloneRangeToSelection(nsRange* aRange, nsIDocument* aDoc,
   NS_ENSURE_TRUE_VOID(newStart && newEnd);
 
   nsCOMPtr<nsINode> newStartNode = do_QueryInterface(newStart);
-  NS_ENSURE_TRUE_VOID(newStartNode);
+  nsCOMPtr<nsINode> newEndNode = do_QueryInterface(newEnd);
+  if (NS_WARN_IF(!newStartNode) || NS_WARN_IF(!newEndNode)) {
+    return;
+  }
 
   RefPtr<nsRange> range = new nsRange(newStartNode);
-  nsresult rv = range->SetStart(newStartNode, startOffset);
-  NS_ENSURE_SUCCESS_VOID(rv);
-  rv = range->SetEnd(newEnd, endOffset);
-  NS_ENSURE_SUCCESS_VOID(rv);
+  nsresult rv =
+    range->SetStartAndEnd(newStartNode, startOffset, newEndNode, endOffset);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return;
+  }
 
   aSelection->AddRange(range);
 }

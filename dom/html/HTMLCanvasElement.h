@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -295,24 +294,11 @@ public:
                                 nsAttrValue& aResult) override;
   nsChangeHint GetAttributeChangeHint(const nsIAtom* aAttribute, int32_t aModType) const override;
 
-  // SetAttr override.  C++ is stupid, so have to override both
-  // overloaded methods.
-  nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                   const nsAString& aValue, bool aNotify)
-  {
-    return SetAttr(aNameSpaceID, aName, nullptr, aValue, aNotify);
-  }
-  virtual nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                           nsIAtom* aPrefix, const nsAString& aValue,
-                           bool aNotify) override;
-
-  virtual nsresult UnsetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                             bool aNotify) override;
-
   virtual nsresult Clone(mozilla::dom::NodeInfo *aNodeInfo, nsINode **aResult) const override;
   nsresult CopyInnerTo(mozilla::dom::Element* aDest);
 
-  virtual nsresult PreHandleEvent(mozilla::EventChainPreVisitor& aVisitor) override;
+  virtual nsresult GetEventTargetParent(
+                     mozilla::EventChainPreVisitor& aVisitor) override;
 
   /*
    * Helpers called by various users of Canvas
@@ -372,6 +358,14 @@ protected:
                             nsISupports** aResult);
   void CallPrintCallback();
 
+  virtual nsresult AfterSetAttr(int32_t aNamespaceID, nsIAtom* aName,
+                                const nsAttrValue* aValue,
+                                const nsAttrValue* aOldValue,
+                                bool aNotify) override;
+  virtual nsresult OnAttrSetButNotChanged(int32_t aNamespaceID, nsIAtom* aName,
+                                          const nsAttrValueOrString& aValue,
+                                          bool aNotify) override;
+
   AsyncCanvasRenderer* GetAsyncCanvasRenderer();
 
   bool mResetLayer;
@@ -405,6 +399,18 @@ public:
   CanvasContextType GetCurrentContextType() {
     return mCurrentContextType;
   }
+
+private:
+  /**
+   * This function is called by AfterSetAttr and OnAttrSetButNotChanged.
+   * This function will be called by AfterSetAttr whether the attribute is being
+   * set or unset.
+   *
+   * @param aNamespaceID the namespace of the attr being set
+   * @param aName the localname of the attribute being set
+   * @param aNotify Whether we plan to notify document observers.
+   */
+  void AfterMaybeChangeAttr(int32_t aNamespaceID, nsIAtom* aName, bool aNotify);
 };
 
 class HTMLCanvasPrintState final : public nsWrapperCache

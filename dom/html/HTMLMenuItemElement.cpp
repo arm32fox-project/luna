@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -252,7 +251,7 @@ HTMLMenuItemElement::SetChecked(bool aChecked)
 }
 
 nsresult
-HTMLMenuItemElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
+HTMLMenuItemElement::GetEventTargetParent(EventChainPreVisitor& aVisitor)
 {
   if (aVisitor.mEvent->mMessage == eMouseClick) {
 
@@ -283,7 +282,7 @@ HTMLMenuItemElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
     aVisitor.mItemFlags |= mType;
   }
 
-  return nsGenericHTMLElement::PreHandleEvent(aVisitor);
+  return nsGenericHTMLElement::GetEventTargetParent(aVisitor);
 }
 
 nsresult
@@ -380,7 +379,8 @@ HTMLMenuItemElement::GetText(nsAString& aText)
 
 nsresult
 HTMLMenuItemElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                                  const nsAttrValue* aValue, bool aNotify)
+                                  const nsAttrValue* aValue,
+                                  const nsAttrValue* aOldValue, bool aNotify)
 {
   if (aNameSpaceID == kNameSpaceID_None) {
     if ((aName == nsGkAtoms::radiogroup || aName == nsGkAtoms::type) &&
@@ -404,7 +404,7 @@ HTMLMenuItemElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
   }
 
   return nsGenericHTMLElement::AfterSetAttr(aNameSpaceID, aName, aValue,
-                                            aNotify);
+                                            aOldValue, aNotify);
 }
 
 void

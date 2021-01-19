@@ -36,6 +36,10 @@
 #define CSS_PSEUDO_ELEMENT_SUPPORTS_USER_ACTION_STATE  (1<<3)
 // Is content prevented from parsing selectors containing this pseudo-element?
 #define CSS_PSEUDO_ELEMENT_UA_SHEET_ONLY               (1<<4)
+// Can we use the ChromeOnly document.createElement(..., { pseudo: "::foo" })
+// API for creating pseudo-implementing native anonymous content in JS with this
+// pseudo-element?
+#define CSS_PSEUDO_ELEMENT_IS_JS_CREATED_NAC           (1<<5)
 
 namespace mozilla {
 
@@ -98,6 +102,11 @@ public:
 
   static bool PseudoElementSupportsUserActionState(const Type aType);
 
+  static bool PseudoElementIsJSCreatedNAC(Type aType)
+  {
+    return PseudoElementHasFlags(aType, CSS_PSEUDO_ELEMENT_IS_JS_CREATED_NAC);
+  }
+
   static bool IsEnabled(Type aType, EnabledState aEnabledState)
   {
     return !PseudoElementHasFlags(aType, CSS_PSEUDO_ELEMENT_UA_SHEET_ONLY) ||
@@ -106,15 +115,6 @@ public:
 
 private:
   // Does the given pseudo-element have all of the flags given?
-
-  // Work around https://gcc.gnu.org/bugzilla/show_bug.cgi?id=64037 ,
-  // which is a general gcc bug that we seem to have hit only on Android/x86.
-#if defined(ANDROID) && defined(__i386__) && defined(__GNUC__) && \
-    !defined(__clang__)
-#if (MOZ_GCC_VERSION_AT_MOST(4,9,2))
-   __attribute__((noinline))
-#endif
-#endif
   static bool PseudoElementHasFlags(const Type aType, uint32_t aFlags)
   {
     MOZ_ASSERT(aType < Type::Count);

@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 sw=2 et tw=78: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -912,11 +911,6 @@ ApplyRectMultiplier(nsRect aRect, float aMultiplier)
 bool
 nsLayoutUtils::UsesAsyncScrolling(nsIFrame* aFrame)
 {
-#ifdef MOZ_WIDGET_ANDROID
-  // We always have async scrolling for android
-  return true;
-#endif
-
   return AsyncPanZoomEnabled(aFrame);
 }
 
@@ -1519,90 +1513,38 @@ nsLayoutUtils::GetChildListNameFor(nsIFrame* aChildFrame)
   return id;
 }
 
-/*static*/ nsIFrame*
-nsLayoutUtils::GetBeforeFrameForContent(nsIFrame* aFrame,
-                                        const nsIContent* aContent)
+static Element*
+GetPseudo(const nsIContent* aContent, nsIAtom* aPseudoProperty)
 {
-  // We need to call GetGenConPseudos() on the first continuation/ib-split.
-  // Find it, for symmetry with GetAfterFrameForContent.
-  nsContainerFrame* genConParentFrame =
-    FirstContinuationOrIBSplitSibling(aFrame)->GetContentInsertionFrame();
-  if (!genConParentFrame) {
-    return nullptr;
-  }
-  nsTArray<nsIContent*>* prop = genConParentFrame->GetGenConPseudos();
-  if (prop) {
-    const nsTArray<nsIContent*>& pseudos(*prop);
-    for (uint32_t i = 0; i < pseudos.Length(); ++i) {
-      if (pseudos[i]->GetParent() == aContent &&
-          pseudos[i]->NodeInfo()->NameAtom() == nsGkAtoms::mozgeneratedcontentbefore) {
-        return pseudos[i]->GetPrimaryFrame();
-      }
-    }
-  }
-  // If the first child frame is a pseudo-frame, then try that.
-  // Note that the frame we create for the generated content is also a
-  // pseudo-frame and so don't drill down in that case.
-  nsIFrame* childFrame = genConParentFrame->PrincipalChildList().FirstChild();
-  if (childFrame &&
-      childFrame->IsPseudoFrame(aContent) &&
-      !childFrame->IsGeneratedContentFrame()) {
-    return GetBeforeFrameForContent(childFrame, aContent);
-  }
-  return nullptr;
+  MOZ_ASSERT(aPseudoProperty == nsGkAtoms::beforePseudoProperty ||
+             aPseudoProperty == nsGkAtoms::afterPseudoProperty);
+  return static_cast<Element*>(aContent->GetProperty(aPseudoProperty));
+}
+
+/*static*/ Element*
+nsLayoutUtils::GetBeforePseudo(const nsIContent* aContent)
+{
+  return GetPseudo(aContent, nsGkAtoms::beforePseudoProperty);
 }
 
 /*static*/ nsIFrame*
-nsLayoutUtils::GetBeforeFrame(nsIFrame* aFrame)
+nsLayoutUtils::GetBeforeFrame(const nsIContent* aContent)
 {
-  return GetBeforeFrameForContent(aFrame, aFrame->GetContent());
+  Element* pseudo = GetBeforePseudo(aContent);
+  return pseudo ? pseudo->GetPrimaryFrame() : nullptr;
+}
+
+/*static*/ Element*
+nsLayoutUtils::GetAfterPseudo(const nsIContent* aContent)
+{
+  return GetPseudo(aContent, nsGkAtoms::afterPseudoProperty);
 }
 
 /*static*/ nsIFrame*
-nsLayoutUtils::GetAfterFrameForContent(nsIFrame* aFrame,
-                                       const nsIContent* aContent)
+nsLayoutUtils::GetAfterFrame(const nsIContent* aContent)
 {
-  // We need to call GetGenConPseudos() on the first continuation,
-  // but callers are likely to pass the last.
-  nsContainerFrame* genConParentFrame =
-    FirstContinuationOrIBSplitSibling(aFrame)->GetContentInsertionFrame();
-  if (!genConParentFrame) {
-    return nullptr;
-  }
-  nsTArray<nsIContent*>* prop = genConParentFrame->GetGenConPseudos();
-  if (prop) {
-    const nsTArray<nsIContent*>& pseudos(*prop);
-    for (uint32_t i = 0; i < pseudos.Length(); ++i) {
-      if (pseudos[i]->GetParent() == aContent &&
-          pseudos[i]->NodeInfo()->NameAtom() == nsGkAtoms::mozgeneratedcontentafter) {
-        return pseudos[i]->GetPrimaryFrame();
-      }
-    }
-  }
-  // If the last child frame is a pseudo-frame, then try that.
-  // Note that the frame we create for the generated content is also a
-  // pseudo-frame and so don't drill down in that case.
-  genConParentFrame = aFrame->GetContentInsertionFrame();
-  if (!genConParentFrame) {
-    return nullptr;
-  }
-  nsIFrame* lastParentContinuation =
-    LastContinuationWithChild(static_cast<nsContainerFrame*>(
-      LastContinuationOrIBSplitSibling(genConParentFrame)));
-  nsIFrame* childFrame =
-    lastParentContinuation->GetChildList(nsIFrame::kPrincipalList).LastChild();
-  if (childFrame &&
-      childFrame->IsPseudoFrame(aContent) &&
-      !childFrame->IsGeneratedContentFrame()) {
-    return GetAfterFrameForContent(childFrame->FirstContinuation(), aContent);
-  }
-  return nullptr;
-}
-
-/*static*/ nsIFrame*
-nsLayoutUtils::GetAfterFrame(nsIFrame* aFrame)
-{
-  return GetAfterFrameForContent(aFrame, aFrame->GetContent());
+  Element* pseudo = GetAfterPseudo(aContent);
+  return pseudo ? pseudo->GetPrimaryFrame() : nullptr;
 }
 
 // static
@@ -1670,33 +1612,6 @@ nsLayoutUtils::GetFloatFromPlaceholder(nsIFrame* aFrame) {
   }
 
   return nullptr;
-}
-
-// static
-bool
-nsLayoutUtils::IsGeneratedContentFor(nsIContent* aContent,
-                                     nsIFrame* aFrame,
-                                     nsIAtom* aPseudoElement)
-{
-  NS_PRECONDITION(aFrame, "Must have a frame");
-  NS_PRECONDITION(aPseudoElement, "Must have a pseudo name");
-
-  if (!aFrame->IsGeneratedContentFrame()) {
-    return false;
-  }
-  nsIFrame* parent = aFrame->GetParent();
-  NS_ASSERTION(parent, "Generated content can't be root frame");
-  if (parent->IsGeneratedContentFrame()) {
-    // Not the root of the generated content
-    return false;
-  }
-
-  if (aContent && parent->GetContent() != aContent) {
-    return false;
-  }
-
-  return (aFrame->GetContent()->NodeInfo()->NameAtom() == nsGkAtoms::mozgeneratedcontentbefore) ==
-    (aPseudoElement == nsCSSPseudoElements::before);
 }
 
 // static
@@ -2108,7 +2023,7 @@ nsLayoutUtils::GetNearestScrollableFrameForDirection(nsIFrame* aFrame,
   for (nsIFrame* f = aFrame; f; f = nsLayoutUtils::GetCrossDocParentFrame(f)) {
     nsIScrollableFrame* scrollableFrame = do_QueryFrame(f);
     if (scrollableFrame) {
-      ScrollbarStyles ss = scrollableFrame->GetScrollbarStyles();
+      ScrollStyles ss = scrollableFrame->GetScrollStyles();
       uint32_t directions = scrollableFrame->GetPerceivedScrollingDirections();
       if (aDirection == eVertical ?
           (ss.mVertical != NS_STYLE_OVERFLOW_HIDDEN &&
@@ -2135,7 +2050,7 @@ nsLayoutUtils::GetNearestScrollableFrame(nsIFrame* aFrame, uint32_t aFlags)
           return scrollableFrame;
         }
       } else {
-        ScrollbarStyles ss = scrollableFrame->GetScrollbarStyles();
+        ScrollStyles ss = scrollableFrame->GetScrollStyles();
         if ((aFlags & SCROLLABLE_INCLUDE_HIDDEN) ||
             ss.mVertical != NS_STYLE_OVERFLOW_HIDDEN ||
             ss.mHorizontal != NS_STYLE_OVERFLOW_HIDDEN) {
@@ -4427,8 +4342,7 @@ nsLayoutUtils::GetParentOrPlaceholderFor(nsIFrame* aFrame)
 {
   if ((aFrame->GetStateBits() & NS_FRAME_OUT_OF_FLOW)
       && !aFrame->GetPrevInFlow()) {
-    return aFrame->PresContext()->PresShell()->FrameManager()->
-      GetPlaceholderFrameFor(aFrame);
+    return aFrame->GetProperty(nsIFrame::PlaceholderFrameProperty());
   }
   return aFrame->GetParent();
 }
@@ -8185,7 +8099,7 @@ UpdateCompositionBoundsForRCDRSF(ParentLayerRect& aCompBounds,
     return false;
   }
 
-#if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_WIDGET_UIKIT)
+#if defined(MOZ_WIDGET_UIKIT)
   nsIWidget* widget = rootFrame->GetNearestWidget();
 #else
   nsView* view = rootFrame->GetView();
@@ -8341,11 +8255,11 @@ nsLayoutUtils::CalculateScrollableRectForFrame(nsIScrollableFrame* aScrollableFr
     contentBounds = aScrollableFrame->GetScrollRange();
 
     nsPoint scrollPosition = aScrollableFrame->GetScrollPosition();
-    if (aScrollableFrame->GetScrollbarStyles().mVertical == NS_STYLE_OVERFLOW_HIDDEN) {
+    if (aScrollableFrame->GetScrollStyles().mVertical == NS_STYLE_OVERFLOW_HIDDEN) {
       contentBounds.y = scrollPosition.y;
       contentBounds.height = 0;
     }
-    if (aScrollableFrame->GetScrollbarStyles().mHorizontal == NS_STYLE_OVERFLOW_HIDDEN) {
+    if (aScrollableFrame->GetScrollStyles().mHorizontal == NS_STYLE_OVERFLOW_HIDDEN) {
       contentBounds.x = scrollPosition.x;
       contentBounds.width = 0;
     }

@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -81,9 +80,9 @@ HTMLAreaElement::SetTarget(const nsAString& aValue)
 }
 
 nsresult
-HTMLAreaElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
+HTMLAreaElement::GetEventTargetParent(EventChainPreVisitor& aVisitor)
 {
-  return PreHandleEventForAnchors(aVisitor);
+  return GetEventTargetParentForAnchors(aVisitor);
 }
 
 nsresult
@@ -153,42 +152,22 @@ HTMLAreaElement::UnbindFromTree(bool aDeep, bool aNullParent)
 }
 
 nsresult
-HTMLAreaElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                         nsIAtom* aPrefix, const nsAString& aValue,
-                         bool aNotify)
+HTMLAreaElement::AfterSetAttr(int32_t aNamespaceID, nsIAtom* aName,
+                              const nsAttrValue* aValue,
+                              const nsAttrValue* aOldValue, bool aNotify)
 {
-  nsresult rv =
-    nsGenericHTMLElement::SetAttr(aNameSpaceID, aName, aPrefix, aValue, aNotify);
-
-  // The ordering of the parent class's SetAttr call and Link::ResetLinkState
-  // is important here!  The attribute is not set until SetAttr returns, and
-  // we will need the updated attribute value because notifying the document
-  // that content states have changed will call IntrinsicState, which will try
-  // to get updated information about the visitedness from Link.
-  if (aName == nsGkAtoms::href && aNameSpaceID == kNameSpaceID_None) {
-    Link::ResetLinkState(!!aNotify, true);
+  if (aNamespaceID == kNameSpaceID_None) {
+    // This must happen after the attribute is set. We will need the updated
+    // attribute value because notifying the document that content states have
+    // changed will call IntrinsicState, which will try to get updated
+    // information about the visitedness from Link.
+    if (aName == nsGkAtoms::href) {
+      Link::ResetLinkState(aNotify, !!aValue);
+    }
   }
 
-  return rv;
-}
-
-nsresult
-HTMLAreaElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
-                           bool aNotify)
-{
-  nsresult rv = nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aAttribute,
-                                                aNotify);
-
-  // The ordering of the parent class's UnsetAttr call and Link::ResetLinkState
-  // is important here!  The attribute is not unset until UnsetAttr returns, and
-  // we will need the updated attribute value because notifying the document
-  // that content states have changed will call IntrinsicState, which will try
-  // to get updated information about the visitedness from Link.
-  if (aAttribute == nsGkAtoms::href && kNameSpaceID_None == aNameSpaceID) {
-    Link::ResetLinkState(!!aNotify, false);
-  }
-
-  return rv;
+  return nsGenericHTMLElement::AfterSetAttr(aNamespaceID, aName, aValue,
+                                            aOldValue, aNotify);
 }
 
 #define IMPL_URI_PART(_part)                                 \

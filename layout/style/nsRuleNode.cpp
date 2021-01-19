@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 et sw=2 tw=78: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -425,7 +424,7 @@ static nsSize CalcViewportUnitsScale(nsPresContext* aPresContext)
   nsIScrollableFrame* scrollFrame =
     aPresContext->PresShell()->GetRootScrollFrameAsScrollable();
   if (scrollFrame) {
-    ScrollbarStyles styles(scrollFrame->GetScrollbarStyles());
+    ScrollStyles styles(scrollFrame->GetScrollStyles());
 
     if (styles.mHorizontal == NS_STYLE_OVERFLOW_SCROLL ||
         styles.mVertical == NS_STYLE_OVERFLOW_SCROLL) {
@@ -1395,6 +1394,7 @@ struct SetEnumValueHelper
   DEFINE_ENUM_CLASS_SETTER(StyleFillRule, Nonzero, Evenodd)
   DEFINE_ENUM_CLASS_SETTER(StyleFloat, None, InlineEnd)
   DEFINE_ENUM_CLASS_SETTER(StyleFloatEdge, ContentBox, MarginBox)
+  DEFINE_ENUM_CLASS_SETTER(StyleScrollbarWidth, Auto, None)
   DEFINE_ENUM_CLASS_SETTER(StyleTextJustify, None, InterCharacter)
   DEFINE_ENUM_CLASS_SETTER(StyleUserFocus, None, SelectMenu)
   DEFINE_ENUM_CLASS_SETTER(StyleUserSelect, None, MozText)
@@ -5236,6 +5236,14 @@ nsRuleNode::ComputeUserInterfaceData(void* aStartStruct,
   // caret-color: auto, color, inherit
   setComplexColor(aRuleData->ValueForCaretColor(),
                   &nsStyleUserInterface::mCaretColor);
+  
+  // scrollbar-width: auto, thin, none
+  SetValue(*aRuleData->ValueForScrollbarWidth(),
+           ui->mScrollbarWidth,
+           conditions,
+           SETVAL_ENUMERATED,
+           parentUI->mScrollbarWidth,
+           StyleScrollbarWidth::Auto);
 
   COMPUTE_END_INHERITED(UserInterface, ui)
 }

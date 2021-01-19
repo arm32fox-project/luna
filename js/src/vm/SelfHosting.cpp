@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -21,8 +20,8 @@
 #include "jsstr.h"
 #include "jsweakmap.h"
 #include "jswrapper.h"
-#include "selfhosted.out.h"
 
+#include "builtin/selfhosted.out.h"
 #include "builtin/Intl.h"
 #include "builtin/MapObject.h"
 #include "builtin/ModuleObject.h"
@@ -2606,6 +2605,9 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_FN("intl_NumberFormat_availableLocales", intl_NumberFormat_availableLocales, 0,0),
     JS_FN("intl_numberingSystem", intl_numberingSystem, 1,0),
     JS_FN("intl_patternForSkeleton", intl_patternForSkeleton, 2,0),
+    JS_FN("intl_PluralRules_availableLocales", intl_PluralRules_availableLocales, 0,0),
+    JS_FN("intl_GetPluralCategories", intl_GetPluralCategories, 2, 0),
+    JS_FN("intl_SelectPluralRule", intl_SelectPluralRule, 2,0),
 
     JS_INLINABLE_FN("IsRegExpObject",
                     intrinsic_IsInstanceOfBuiltin<RegExpObject>, 1,0,

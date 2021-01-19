@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -95,8 +94,22 @@ public:
   inline bool HasRules() const;
 
   // style sheet owner info
-  nsIDocument* GetOwningDocument() const { return mDocument; }
-  inline void SetOwningDocument(nsIDocument* aDocument);
+  enum DocumentAssociationMode {
+    // OwnedByDocument means mDocument owns us (possibly via a chain of other
+    // stylesheets).
+    OwnedByDocument,
+    // NotOwnedByDocument means we're owned by something that might have a
+    // different lifetime than mDocument.
+    NotOwnedByDocument
+  };
+  nsIDocument* GetAssociatedDocument() const { return mDocument; }
+  bool IsOwnedByDocument() const {
+    return mDocumentAssociationMode == OwnedByDocument;
+  }
+  // aDocument must not be null.
+  inline void SetAssociatedDocument(nsIDocument* aDocument,
+                                    DocumentAssociationMode aMode);
+  inline void ClearAssociatedDocument();
   nsINode* GetOwnerNode() const { return mOwningNode; }
   inline StyleSheet* GetParentSheet() const;
 
@@ -206,6 +219,11 @@ protected:
 
   const StyleBackendType mType;
   bool                  mDisabled;
+
+  // mDocumentAssociationMode determines whether mDocument directly owns us (in
+  // the sense that if it's known-live then we're known-live).  Always
+  // NotOwnedByDocument when mDocument is null.
+  DocumentAssociationMode mDocumentAssociationMode;
 };
 
 } // namespace mozilla

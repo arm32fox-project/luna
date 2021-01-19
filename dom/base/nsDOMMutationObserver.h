@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -552,11 +551,24 @@ public:
   }
 
   // static methods
-  static void HandleMutations()
+  static void QueueMutationObserverMicroTask();
+
+  static void HandleMutations(mozilla::AutoSlowOperation& aAso);
+
+  static bool AllScheduledMutationObserversAreSuppressed()
   {
     if (sScheduledMutationObservers) {
-      HandleMutationsInternal();
+      uint32_t len = sScheduledMutationObservers->Length();
+      if (len > 0) {
+        for (uint32_t i = 0; i < len; ++i) {
+          if (!(*sScheduledMutationObservers)[i]->Suppressed()) {
+            return false;
+          }
+        }
+        return true;
+      }
     }
+    return false;
   }
 
   static void EnterMutationHandling();
@@ -594,7 +606,7 @@ protected:
     return false;
   }
 
-  static void HandleMutationsInternal();
+  static void HandleMutationsInternal(mozilla::AutoSlowOperation& aAso);
 
   static void AddCurrentlyHandlingObserver(nsDOMMutationObserver* aObserver,
                                            uint32_t aMutationLevel);
@@ -622,7 +634,6 @@ protected:
 
   static uint64_t                                    sCount;
   static AutoTArray<RefPtr<nsDOMMutationObserver>, 4>* sScheduledMutationObservers;
-  static nsDOMMutationObserver*                      sCurrentObserver;
 
   static uint32_t                                    sMutationLevel;
   static AutoTArray<AutoTArray<RefPtr<nsDOMMutationObserver>, 4>, 4>*

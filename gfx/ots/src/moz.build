@@ -1,5 +1,4 @@
 # -*- Mode: python; indent-tabs-mode: nil; tab-width: 40 -*-
-# vim: set filetype=python:
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -57,6 +56,9 @@ SOURCES += [
     'vvar.cc',
 ]
 
+if CONFIG['GKMEDIAS_SHARED_LIBRARY']:
+    NO_VISIBILITY_FLAGS = True
+
 # We allow warnings for third-party code that can be updated from upstream.
 ALLOW_COMPILER_WARNINGS = True
 
@@ -66,6 +68,10 @@ DEFINES['PACKAGE_VERSION'] = '"moz"'
 DEFINES['PACKAGE_BUGREPORT'] = '"http://bugzilla.mozilla.org/"'
 DEFINES['OTS_GRAPHITE'] = 1
 DEFINES['OTS_VARIATIONS'] = 1
+
+if CONFIG['GKMEDIAS_SHARED_LIBRARY']:
+    DEFINES['OTS_DLL'] = True
+    DEFINES['OTS_DLL_EXPORTS'] = True
 
 USE_LIBS += [
     'brotli',

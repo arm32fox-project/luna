@@ -1,4 +1,3 @@
-/* vim: set ft=javascript ts=2 et sw=2 tw=80: */
 /* Any copyright is dedicated to the Public Domain.
  http://creativecommons.org/publicdomain/zero/1.0/ */
 
@@ -33,7 +32,7 @@ function* testTopLeft(inspector, view) {
   let afterElement = children.nodes[children.nodes.length - 1];
   yield selectNode(afterElement, inspector);
   top = getComputedViewPropertyValue(view, "top");
-  is(top, "50%", "The computed view shows the correct top");
+  is(top, "96px", "The computed view shows the correct top");
   left = getComputedViewPropertyValue(view, "left");
-  is(left, "50%", "The computed view shows the correct left");
+  is(left, "96px", "The computed view shows the correct left");
 }

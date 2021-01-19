@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -3265,7 +3264,7 @@ nsStyleDisplay::CalcDifference(const nsStyleDisplay& aNewData) const
 
   if (mOverflowX != aNewData.mOverflowX
       || mOverflowY != aNewData.mOverflowY) {
-    hint |= nsChangeHint_CSSOverflowChange;
+    hint |= nsChangeHint_ScrollbarChange;
   }
 
   /* Note: When mScrollBehavior, mScrollSnapTypeX, mScrollSnapTypeY,
@@ -4025,6 +4024,7 @@ nsStyleUserInterface::nsStyleUserInterface(StyleStructContext aContext)
   , mPointerEvents(NS_STYLE_POINTER_EVENTS_AUTO)
   , mCursor(NS_STYLE_CURSOR_AUTO)
   , mCaretColor(StyleComplexColor::Auto())
+  , mScrollbarWidth(StyleScrollbarWidth::Auto)
 {
   MOZ_COUNT_CTOR(nsStyleUserInterface);
 }
@@ -4037,6 +4037,7 @@ nsStyleUserInterface::nsStyleUserInterface(const nsStyleUserInterface& aSource)
   , mCursor(aSource.mCursor)
   , mCursorImages(aSource.mCursorImages)
   , mCaretColor(aSource.mCaretColor)
+  , mScrollbarWidth(aSource.mScrollbarWidth)
 {
   MOZ_COUNT_CTOR(nsStyleUserInterface);
 }
@@ -4087,6 +4088,13 @@ nsStyleUserInterface::CalcDifference(const nsStyleUserInterface& aNewData) const
 
   if (mCaretColor != aNewData.mCaretColor) {
     hint |= nsChangeHint_RepaintFrame;
+  }
+  
+  if (mScrollbarWidth != aNewData.mScrollbarWidth) {
+    // For scrollbar-width change, we need some special handling similar
+    // to overflow properties. Specifically, we may need to reconstruct
+    // the scrollbar or force reflow of the viewport scrollbar.
+    hint |= nsChangeHint_ScrollbarChange;
   }
 
   return hint;

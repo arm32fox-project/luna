@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -132,21 +131,6 @@ public:
                               nsIAtom* aAttribute,
                               const nsAString& aValue,
                               nsAttrValue& aResult) override;
-  // SetAttr override.  C++ is stupid, so have to override both
-  // overloaded methods.
-  nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                   const nsAString& aValue, bool aNotify)
-  {
-    return SetAttr(aNameSpaceID, aName, nullptr, aValue, aNotify);
-  }
-  virtual nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                           nsIAtom* aPrefix, const nsAString& aValue,
-                           bool aNotify) override;
-  virtual nsresult UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttr,
-                             bool aNotify) override;
-  virtual nsresult AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                                const nsAttrValue* aValue,
-                                bool aNotify) override;
 
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
@@ -1314,6 +1298,14 @@ protected:
 
   already_AddRefed<Promise> CreateDOMPromise(ErrorResult& aRv) const;
 
+  virtual nsresult AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+                                const nsAttrValue* aValue,
+                                const nsAttrValue* aOldValue,
+                                bool aNotify) override;
+  virtual nsresult OnAttrSetButNotChanged(int32_t aNamespaceID, nsIAtom* aName,
+                                          const nsAttrValueOrString& aValue,
+                                          bool aNotify) override;
+
   // The current decoder. Load() has been called on this decoder.
   // At most one of mDecoder and mSrcStream can be non-null.
   RefPtr<MediaDecoder> mDecoder;
@@ -1716,6 +1708,17 @@ private:
   // We keep track of these because the load algorithm resolves/rejects all
   // already-dispatched pending play promises.
   nsTArray<nsResolveOrRejectPendingPlayPromisesRunner*> mPendingPlayPromisesRunners;
+
+private:
+  /**
+   * This function is called by AfterSetAttr and OnAttrSetButNotChanged.
+   * It will not be called if the value is being unset.
+   *
+   * @param aNamespaceID the namespace of the attr being set
+   * @param aName the localname of the attribute being set
+   * @param aNotify Whether we plan to notify document observers.
+   */
+  void AfterMaybeChangeAttr(int32_t aNamespaceID, nsIAtom* aName, bool aNotify);
 };
 
 } // namespace dom

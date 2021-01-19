@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -25,6 +24,12 @@
 
 class nsIDocument;
 class nsIDOMText;
+
+namespace mozilla {
+namespace dom {
+class HTMLSlotElement;
+} // namespace dom
+} // namespace mozilla
 
 #define DATA_NODE_FLAG_BIT(n_) NODE_FLAG_BIT(NODE_TYPE_SPECIFIC_BITS_OFFSET + (n_))
 
@@ -154,16 +159,13 @@ public:
   virtual void SetXBLBinding(nsXBLBinding* aBinding,
                              nsBindingManager* aOldBindingManager = nullptr) override;
   virtual mozilla::dom::ShadowRoot *GetContainingShadow() const override;
-  virtual nsTArray<nsIContent*> &DestInsertionPoints() override;
-  virtual nsTArray<nsIContent*> *GetExistingDestInsertionPoints() const override;
   virtual void SetShadowRoot(mozilla::dom::ShadowRoot* aShadowRoot) override;
+  virtual mozilla::dom::HTMLSlotElement* GetAssignedSlot() const override;
+  virtual void SetAssignedSlot(mozilla::dom::HTMLSlotElement* aSlot) override;
   virtual nsIContent *GetXBLInsertionParent() const override;
   virtual void SetXBLInsertionParent(nsIContent* aContent) override;
   virtual bool IsNodeOfType(uint32_t aFlags) const override;
   virtual bool IsLink(nsIURI** aURI) const override;
-
-  virtual mozilla::dom::CustomElementData* GetCustomElementData() const override;
-  virtual void SetCustomElementData(mozilla::dom::CustomElementData* aData) override;
 
   NS_IMETHOD WalkContentStyleRules(nsRuleWalker* aRuleWalker) override;
   NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const;
@@ -264,9 +266,9 @@ protected:
     RefPtr<mozilla::dom::ShadowRoot> mContainingShadow;
 
     /**
-     * @see nsIContent::GetDestInsertionPoints
+     * @see nsIContent::GetAssignedSlot
      */
-    nsTArray<nsIContent*> mDestInsertionPoints;
+    RefPtr<mozilla::dom::HTMLSlotElement> mAssignedSlot;
   };
 
   // Override from nsINode

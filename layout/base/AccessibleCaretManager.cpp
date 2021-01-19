@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -23,9 +22,6 @@
 #include "nsFrameSelection.h"
 #include "nsGenericHTMLElement.h"
 #include "nsIHapticFeedback.h"
-#ifdef MOZ_WIDGET_ANDROID
-#include "nsWindow.h"
-#endif
 
 namespace mozilla {
 
@@ -897,15 +893,6 @@ AccessibleCaretManager::SetSelectionDragState(bool aState) const
   if (fs) {
     fs->SetDragState(aState);
   }
-
-  // Pin Fennecs DynamicToolbarAnimator in place before/after dragging,
-  // to avoid co-incident screen scrolling.
-  #ifdef MOZ_WIDGET_ANDROID
-    nsIDocument* doc = mPresShell->GetDocument();
-    MOZ_ASSERT(doc);
-    nsIWidget* widget = nsContentUtils::WidgetForDocument(doc);
-    static_cast<nsWindow*>(widget)->SetSelectionDragState(aState);
-  #endif
 }
 
 void

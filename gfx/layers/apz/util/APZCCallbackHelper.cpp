@@ -92,10 +92,10 @@ ScrollFrameTo(nsIScrollableFrame* aFrame, const FrameMetrics& aMetrics, bool& aS
   // (by design). Note also that when we run into this case, even if both axes
   // have overflow:hidden, we want to set aSuccessOut to true, so that the displayport
   // follows the async scroll position rather than the gecko scroll position.
-  if (aFrame->GetScrollbarStyles().mVertical == NS_STYLE_OVERFLOW_HIDDEN) {
+  if (aFrame->GetScrollStyles().mVertical == NS_STYLE_OVERFLOW_HIDDEN) {
     targetScrollPosition.y = geckoScrollPosition.y;
   }
-  if (aFrame->GetScrollbarStyles().mHorizontal == NS_STYLE_OVERFLOW_HIDDEN) {
+  if (aFrame->GetScrollStyles().mHorizontal == NS_STYLE_OVERFLOW_HIDDEN) {
     targetScrollPosition.x = geckoScrollPosition.x;
   }
 
@@ -580,18 +580,7 @@ GetRootDocumentElementFor(nsIWidget* aWidget)
 static nsIFrame*
 UpdateRootFrameForTouchTargetDocument(nsIFrame* aRootFrame)
 {
-#if defined(MOZ_WIDGET_ANDROID)
-  // Re-target so that the hit test is performed relative to the frame for the
-  // Root Content Document instead of the Root Document which are different in
-  // Android. See bug 1229752 comment 16 for an explanation of why this is necessary.
-  if (nsIDocument* doc = aRootFrame->PresContext()->PresShell()->GetTouchEventTargetDocument()) {
-    if (nsIPresShell* shell = doc->GetShell()) {
-      if (nsIFrame* frame = shell->GetRootFrame()) {
-        return frame;
-      }
-    }
-  }
-#endif
+  // No retargeting needed on desktop.
   return aRootFrame;
 }
 

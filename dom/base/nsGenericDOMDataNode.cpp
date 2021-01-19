@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -15,6 +14,7 @@
 #include "mozilla/AsyncEventDispatcher.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/Element.h"
+#include "mozilla/dom/HTMLSlotElement.h"
 #include "mozilla/dom/ShadowRoot.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
@@ -736,21 +736,18 @@ nsGenericDOMDataNode::SetShadowRoot(ShadowRoot* aShadowRoot)
 {
 }
 
-nsTArray<nsIContent*>&
-nsGenericDOMDataNode::DestInsertionPoints()
-{
-  nsDataSlots *slots = DataSlots();
-  return slots->mDestInsertionPoints;
-}
-
-nsTArray<nsIContent*>*
-nsGenericDOMDataNode::GetExistingDestInsertionPoints() const
+HTMLSlotElement*
+nsGenericDOMDataNode::GetAssignedSlot() const
 {
   nsDataSlots *slots = GetExistingDataSlots();
-  if (slots) {
-    return &slots->mDestInsertionPoints;
-  }
-  return nullptr;
+  return slots ? slots->mAssignedSlot.get() : nullptr;
+}
+
+void
+nsGenericDOMDataNode::SetAssignedSlot(HTMLSlotElement* aSlot)
+{
+  nsDataSlots *slots = DataSlots();
+  slots->mAssignedSlot = aSlot;
 }
 
 nsXBLBinding *
@@ -791,17 +788,6 @@ nsGenericDOMDataNode::SetXBLInsertionParent(nsIContent* aContent)
       slots->mXBLInsertionParent = nullptr;
     }
   }
-}
-
-CustomElementData *
-nsGenericDOMDataNode::GetCustomElementData() const
-{
-  return nullptr;
-}
-
-void
-nsGenericDOMDataNode::SetCustomElementData(CustomElementData* aData)
-{
 }
 
 bool
@@ -854,6 +840,9 @@ nsGenericDOMDataNode::nsDataSlots::Traverse(nsCycleCollectionTraversalCallback &
 
   NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mSlots->mContainingShadow");
   cb.NoteXPCOMChild(NS_ISUPPORTS_CAST(nsIContent*, mContainingShadow));
+
+  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mSlots->mAssignedSlot");
+  cb.NoteXPCOMChild(NS_ISUPPORTS_CAST(nsIContent*, mAssignedSlot.get()));
 }
 
 void
@@ -861,6 +850,7 @@ nsGenericDOMDataNode::nsDataSlots::Unlink()
 {
   mXBLInsertionParent = nullptr;
   mContainingShadow = nullptr;
+  mAssignedSlot = nullptr;
 }
 
 //----------------------------------------------------------------------

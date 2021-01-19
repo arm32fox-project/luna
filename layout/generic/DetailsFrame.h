@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -54,6 +53,12 @@ public:
 
   void AppendAnonymousContentTo(nsTArray<nsIContent*>& aElements,
                                 uint32_t aFilter) override;
+  // Returns true if |aSummaryFrame| is the main summary (i.e. the first child
+  // of this details frame).
+  // This function is used when the summary element is removed from the parent
+  // details element since at that moment the summary element has been already
+  // removed from the details element children.
+  bool HasMainSummaryFrame(nsIFrame* aSummaryFrame);
 
 private:
   nsCOMPtr<nsIContent> mDefaultSummary;

@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -185,7 +184,9 @@ public:
   NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const override;
   virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const override;
 
-  virtual nsresult PreHandleEvent(EventChainPreVisitor& aVisitor) override;
+  virtual nsresult GetEventTargetParent(
+                     EventChainPreVisitor& aVisitor) override;
+  virtual nsresult PreHandleEvent(EventChainVisitor& aVisitor) override;
   virtual nsresult PostHandleEvent(
                      EventChainPostVisitor& aVisitor) override;
   void PostHandleEventForRangeThumb(EventChainPostVisitor& aVisitor);
@@ -956,13 +957,15 @@ protected:
    * Called when an attribute is about to be changed
    */
   virtual nsresult BeforeSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                                 nsAttrValueOrString* aValue,
+                                 const nsAttrValueOrString* aValue,
                                  bool aNotify) override;
   /**
    * Called when an attribute has just been changed
    */
   virtual nsresult AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                                const nsAttrValue* aValue, bool aNotify) override;
+                                const nsAttrValue* aValue,
+                                const nsAttrValue* aOldValue,
+                                bool aNotify) override;
 
   /**
    * Dispatch a select event. Returns true if the event was not cancelled.
@@ -1098,7 +1101,7 @@ protected:
   /**
    * Manages the internal data storage across type changes.
    */
-  void HandleTypeChange(uint8_t aNewType);
+  void HandleTypeChange(uint8_t aNewType, bool aNotify);
 
   /**
    * Sanitize the value of the element depending of its current type.
@@ -1118,7 +1121,7 @@ protected:
    */
   nsresult SetDefaultValueAsValue();
 
-  virtual void SetDirectionIfAuto(bool aAuto, bool aNotify);
+  void SetDirectionFromValue(bool aNotify);
 
   /**
    * Return if an element should have a specific validity UI

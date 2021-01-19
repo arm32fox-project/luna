@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -172,7 +171,7 @@ RestyleManagerBase::ChangeHintToString(nsChangeHint aHint)
     "NeutralChange", "InvalidateRenderingObservers",
     "ReflowChangesSizeOrPosition", "UpdateComputedBSize",
     "UpdateUsesOpacity", "UpdateBackgroundPosition",
-    "AddOrRemoveTransform", "CSSOverflowChange",
+    "AddOrRemoveTransform", "ScrollbarChange",
   };
   static_assert(nsChangeHint_AllHints == (1 << ArrayLength(names)) - 1,
                 "Name list doesn't match change hints.");
@@ -1112,11 +1111,11 @@ if (!mDestroyedFrames) {
   nsPresContext* presContext = PresContext();
   nsCSSFrameConstructor* frameConstructor = presContext->FrameConstructor();
 
-  // Handle nsChangeHint_CSSOverflowChange, by either updating the
+  // Handle nsChangeHint_ScrollbarChange, by either updating the
   // scrollbars on the viewport, or upgrading the change hint to frame-reconstruct.
   for (nsStyleChangeData& data : aChangeList) {
-    if (data.mHint & nsChangeHint_CSSOverflowChange) {
-      data.mHint &= ~nsChangeHint_CSSOverflowChange;
+    if (data.mHint & nsChangeHint_ScrollbarChange) {
+      data.mHint &= ~nsChangeHint_ScrollbarChange;
       bool doReconstruct = true; // assume the worst
 
       // Only bother with this if we're html/body, since:
@@ -1138,9 +1137,9 @@ if (!mDestroyedFrames) {
         // to reconstruct - we can just reflow, because no scrollframe is being
         // added/removed.
         nsIContent* prevOverrideNode =
-          presContext->GetViewportScrollbarStylesOverrideNode();
+          presContext->GetViewportScrollStylesOverrideNode();
         nsIContent* newOverrideNode =
-          presContext->UpdateViewportScrollbarStylesOverride();
+          presContext->UpdateViewportScrollStylesOverride();
 
         if (data.mContent == prevOverrideNode ||
             data.mContent == newOverrideNode) {
@@ -1267,8 +1266,10 @@ if (!mDestroyedFrames) {
       // We could also have problems with triggering of CSS transitions
       // on elements whose frames are reconstructed, since we depend on
       // the reconstruction happening synchronously.
-      frameConstructor->RecreateFramesForContent(content, false,
-        nsCSSFrameConstructor::REMOVE_FOR_RECONSTRUCTION, nullptr);
+      frameConstructor->RecreateFramesForContent(
+        content,
+        nsCSSFrameConstructor::InsertionKind::Sync,
+        nsCSSFrameConstructor::REMOVE_FOR_RECONSTRUCTION);
     } else {
       NS_ASSERTION(frame, "This shouldn't happen");
 

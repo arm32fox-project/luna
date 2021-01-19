@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -19,6 +18,7 @@
 #include "nsWeakReference.h"
 #include "nsWeakPtr.h"
 #include "nsTArray.h"
+#include "nsIdentifierMapEntry.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMDocumentXBL.h"
 #include "nsStubDocumentObserver.h"
@@ -131,151 +131,6 @@ public:
 } // namespace dom
 } // namespace mozilla
 
-/**
- * Right now our identifier map entries contain information for 'name'
- * and 'id' mappings of a given string. This is so that
- * nsHTMLDocument::ResolveName only has to do one hash lookup instead
- * of two. It's not clear whether this still matters for performance.
- *
- * We also store the document.all result list here. This is mainly so that
- * when all elements with the given ID are removed and we remove
- * the ID's nsIdentifierMapEntry, the document.all result is released too.
- * Perhaps the document.all results should have their own hashtable
- * in nsHTMLDocument.
- */
-class nsIdentifierMapEntry : public nsStringHashKey
-{
-public:
-  typedef mozilla::dom::Element Element;
-  typedef mozilla::net::ReferrerPolicy ReferrerPolicy;
-
-  explicit nsIdentifierMapEntry(const nsAString& aKey) :
-    nsStringHashKey(&aKey), mNameContentList(nullptr)
-  {
-  }
-  explicit nsIdentifierMapEntry(const nsAString* aKey) :
-    nsStringHashKey(aKey), mNameContentList(nullptr)
-  {
-  }
-  nsIdentifierMapEntry(const nsIdentifierMapEntry& aOther) :
-    nsStringHashKey(&aOther.GetKey())
-  {
-    NS_ERROR("Should never be called");
-  }
-  ~nsIdentifierMapEntry();
-
-  void AddNameElement(nsINode* aDocument, Element* aElement);
-  void RemoveNameElement(Element* aElement);
-  bool IsEmpty();
-  nsBaseContentList* GetNameContentList() {
-    return mNameContentList;
-  }
-  bool HasNameElement() const {
-    return mNameContentList && mNameContentList->Length() != 0;
-  }
-
-  /**
-   * Returns the element if we know the element associated with this
-   * id. Otherwise returns null.
-   */
-  Element* GetIdElement();
-  /**
-   * Returns the list of all elements associated with this id.
-   */
-  const nsTArray<Element*>& GetIdElements() const {
-    return mIdContentList;
-  }
-  /**
-   * If this entry has a non-null image element set (using SetImageElement),
-   * the image element will be returned, otherwise the same as GetIdElement().
-   */
-  Element* GetImageIdElement();
-  /**
-   * Append all the elements with this id to aElements
-   */
-  void AppendAllIdContent(nsCOMArray<nsIContent>* aElements);
-  /**
-   * This can fire ID change callbacks.
-   * @return true if the content could be added, false if we failed due
-   * to OOM.
-   */
-  bool AddIdElement(Element* aElement);
-  /**
-   * This can fire ID change callbacks.
-   */
-  void RemoveIdElement(Element* aElement);
-  /**
-   * Set the image element override for this ID. This will be returned by
-   * GetIdElement(true) if non-null.
-   */
-  void SetImageElement(Element* aElement);
-  bool HasIdElementExposedAsHTMLDocumentProperty();
-
-  bool HasContentChangeCallback() { return mChangeCallbacks != nullptr; }
-  void AddContentChangeCallback(nsIDocument::IDTargetObserver aCallback,
-                                void* aData, bool aForImage);
-  void RemoveContentChangeCallback(nsIDocument::IDTargetObserver aCallback,
-                                void* aData, bool aForImage);
-
-  /**
-   * Remove all elements and notify change listeners.
-   */
-  void ClearAndNotify();
-
-  void Traverse(nsCycleCollectionTraversalCallback* aCallback);
-
-  struct ChangeCallback {
-    nsIDocument::IDTargetObserver mCallback;
-    void* mData;
-    bool mForImage;
-  };
-
-  struct ChangeCallbackEntry : public PLDHashEntryHdr {
-    typedef const ChangeCallback KeyType;
-    typedef const ChangeCallback* KeyTypePointer;
-
-    explicit ChangeCallbackEntry(const ChangeCallback* aKey) :
-      mKey(*aKey) { }
-    ChangeCallbackEntry(const ChangeCallbackEntry& toCopy) :
-      mKey(toCopy.mKey) { }
-
-    KeyType GetKey() const { return mKey; }
-    bool KeyEquals(KeyTypePointer aKey) const {
-      return aKey->mCallback == mKey.mCallback &&
-             aKey->mData == mKey.mData &&
-             aKey->mForImage == mKey.mForImage;
-    }
-
-    static KeyTypePointer KeyToPointer(KeyType& aKey) { return &aKey; }
-    static PLDHashNumber HashKey(KeyTypePointer aKey)
-    {
-      return mozilla::HashGeneric(aKey->mCallback, aKey->mData);
-    }
-    enum { ALLOW_MEMMOVE = true };
-
-    ChangeCallback mKey;
-  };
-
-  size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
-
-private:
-  void FireChangeCallbacks(Element* aOldElement, Element* aNewElement,
-                           bool aImageOnly = false);
-
-  // empty if there are no elements with this ID.
-  // The elements are stored as weak pointers.
-  nsTArray<Element*> mIdContentList;
-  RefPtr<nsBaseContentList> mNameContentList;
-  nsAutoPtr<nsTHashtable<ChangeCallbackEntry> > mChangeCallbacks;
-  RefPtr<Element> mImageElement;
-};
-
-namespace mozilla {
-namespace dom {
-
-} // namespace dom
-} // namespace mozilla
-
 class nsDocHeaderData
 {
 public:
@@ -292,36 +147,6 @@ public:
   nsCOMPtr<nsIAtom> mField;
   nsString          mData;
   nsDocHeaderData*  mNext;
-};
-
-class nsDOMStyleSheetList : public mozilla::dom::StyleSheetList,
-                            public nsStubDocumentObserver
-{
-public:
-  explicit nsDOMStyleSheetList(nsIDocument* aDocument);
-
-  NS_DECL_ISUPPORTS_INHERITED
-
-  // nsIDocumentObserver
-  NS_DECL_NSIDOCUMENTOBSERVER_STYLESHEETADDED
-  NS_DECL_NSIDOCUMENTOBSERVER_STYLESHEETREMOVED
-
-  // nsIMutationObserver
-  NS_DECL_NSIMUTATIONOBSERVER_NODEWILLBEDESTROYED
-
-  virtual nsINode* GetParentObject() const override
-  {
-    return mDocument;
-  }
-
-  uint32_t Length() override;
-  mozilla::StyleSheet* IndexedGetter(uint32_t aIndex, bool& aFound) override;
-
-protected:
-  virtual ~nsDOMStyleSheetList();
-
-  int32_t       mLength;
-  nsIDocument*  mDocument;
 };
 
 class nsOnloadBlocker final : public nsIRequest
@@ -508,7 +333,6 @@ class nsDocument : public nsIDocument,
 
 public:
   typedef mozilla::dom::Element Element;
-  using nsIDocument::GetElementsByTagName;
   typedef mozilla::net::ReferrerPolicy ReferrerPolicy;
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -609,6 +433,10 @@ public:
 
   static bool IsElementAnimateEnabled(JSContext* aCx, JSObject* aObject);
   static bool IsWebAnimationsEnabled(JSContext* aCx, JSObject* aObject);
+  static bool AreWebAnimationsImplicitKeyframesEnabled(JSContext* aCx, JSObject* aObject);
+  static bool AreWebAnimationsTimelinesEnabled(JSContext* aCx, JSObject* aObject);
+  static bool IsWebAnimationsGetAnimationsEnabled(JSContext* aCx, JSObject* aObject);
+
   virtual mozilla::dom::DocumentTimeline* Timeline() override;
   virtual void GetAnimations(
       nsTArray<RefPtr<mozilla::dom::Animation>>& aAnimations) override;
@@ -625,14 +453,6 @@ public:
 
   virtual void EnsureOnDemandBuiltInUASheet(mozilla::StyleSheet* aSheet) override;
 
-  /**
-   * Get the (document) style sheets owned by this document.
-   * These are ordered, highest priority last
-   */
-  virtual int32_t GetNumberOfStyleSheets() const override;
-  virtual mozilla::StyleSheet* GetStyleSheetAt(int32_t aIndex) const override;
-  virtual int32_t GetIndexOfStyleSheet(
-      const mozilla::StyleSheet* aSheet) const override;
   virtual void AddStyleSheet(mozilla::StyleSheet* aSheet) override;
   virtual void RemoveStyleSheet(mozilla::StyleSheet* aSheet) override;
 
@@ -643,7 +463,7 @@ public:
   virtual void RemoveStyleSheetFromStyleSets(mozilla::StyleSheet* aSheet);
 
   virtual void InsertStyleSheetAt(mozilla::StyleSheet* aSheet,
-                                  int32_t aIndex) override;
+                                  size_t aIndex) override;
   virtual void SetStyleSheetApplicableState(mozilla::StyleSheet* aSheet,
                                             bool aApplicable) override;
 
@@ -794,7 +614,11 @@ public:
 
   virtual void NotifyLayerManagerRecreated() override;
 
-
+  // Check whether web components are enabled for the global of aObject.
+  static bool IsWebComponentsEnabled(JSContext* aCx, JSObject* aObject);
+  // Check whether web components are enabled for the document this node belongs
+  // to.
+  static bool IsWebComponentsEnabled(const nsINode* aNode);
 private:
   void AddOnDemandBuiltInUASheet(mozilla::StyleSheet* aSheet);
   nsRadioGroupStruct* GetRadioGroupInternal(const nsAString& aName) const;
@@ -810,8 +634,13 @@ public:
   // nsIDOMDocumentXBL
   NS_DECL_NSIDOMDOCUMENTXBL
 
+  using mozilla::dom::DocumentOrShadowRoot::GetElementById;
+  using mozilla::dom::DocumentOrShadowRoot::GetElementsByTagName;
+  using mozilla::dom::DocumentOrShadowRoot::GetElementsByTagNameNS;
+  using mozilla::dom::DocumentOrShadowRoot::GetElementsByClassName;
+
   // nsIDOMEventTarget
-  virtual nsresult PreHandleEvent(
+  virtual nsresult GetEventTargetParent(
                      mozilla::EventChainPreVisitor& aVisitor) override;
   virtual mozilla::EventListenerManager*
     GetOrCreateListenerManager() override;
@@ -998,10 +827,7 @@ public:
   virtual void ResetScrolledToRefAlready() override;
   virtual void SetChangeScrollPosWhenScrollingToRef(bool aValue) override;
 
-  virtual Element *GetElementById(const nsAString& aElementId) override;
-  virtual const nsTArray<Element*>* GetAllElementsForId(const nsAString& aElementId) const override;
-
-  virtual Element *LookupImageElement(const nsAString& aElementId) override;
+  virtual Element* LookupImageElement(const nsAString& aElementId) override;
   virtual void MozSetImageElement(const nsAString& aImageElementId,
                                   Element* aElement) override;
 
@@ -1130,12 +956,7 @@ public:
   // WebIDL bits
   virtual mozilla::dom::DOMImplementation*
     GetImplementation(mozilla::ErrorResult& rv) override;
-  virtual void
-    RegisterElement(JSContext* aCx, const nsAString& aName,
-                    const mozilla::dom::ElementRegistrationOptions& aOptions,
-                    JS::MutableHandle<JSObject*> aRetval,
-                    mozilla::ErrorResult& rv) override;
-  virtual mozilla::dom::StyleSheetList* StyleSheets() override;
+
   virtual void SetSelectedStyleSheetSet(const nsAString& aSheetSet) override;
   virtual void GetLastStyleSheetSet(nsString& aSheetSet) override;
   virtual mozilla::dom::DOMStringList* StyleSheetSets() override;
@@ -1364,7 +1185,6 @@ protected:
   // EndLoad() has already happened.
   nsWeakPtr mWeakSink;
 
-  nsTArray<RefPtr<mozilla::StyleSheet>> mStyleSheets;
   nsTArray<RefPtr<mozilla::StyleSheet>> mOnDemandBuiltInUASheets;
   nsTArray<RefPtr<mozilla::StyleSheet>> mAdditionalSheets[AdditionalSheetTypeCount];
 
@@ -1393,48 +1213,11 @@ protected:
   // non-null when this document is in fullscreen mode.
   nsWeakPtr mFullscreenRoot;
 
-private:
-  static bool CustomElementConstructor(JSContext* aCx, unsigned aArgc, JS::Value* aVp);
-
-  /**
-   * Check if the passed custom element name, aOptions.mIs, is a registered
-   * custom element type or not, then return the custom element name for future
-   * usage.
-   *
-   * If there is no existing custom element definition for this name, throw a
-   * NotFoundError.
-   */
-  const nsString* CheckCustomElementName(
-    const mozilla::dom::ElementCreationOptions& aOptions,
-    const nsAString& aLocalName,
-    uint32_t aNamespaceID,
-    ErrorResult& rv);
-
 public:
-  virtual already_AddRefed<mozilla::dom::CustomElementRegistry>
-    GetCustomElementRegistry() override;
-
-  // Check whether web components are enabled for the global of aObject.
-  static bool IsWebComponentsEnabled(JSContext* aCx, JSObject* aObject);
-  // Check whether web components are enabled for the global of the document
-  // this nodeinfo comes from.
-  static bool IsWebComponentsEnabled(mozilla::dom::NodeInfo* aNodeInfo);
-  // Check whether web components are enabled for the given window.
-  static bool IsWebComponentsEnabled(nsPIDOMWindowInner* aWindow);
-
   RefPtr<mozilla::EventListenerManager> mListenerManager;
-  RefPtr<mozilla::dom::StyleSheetList> mDOMStyleSheets;
   RefPtr<nsDOMStyleSheetSetList> mStyleSheetSetList;
   RefPtr<mozilla::dom::ScriptLoader> mScriptLoader;
   nsDocHeaderData* mHeaderData;
-  /* mIdentifierMap works as follows for IDs:
-   * 1) Attribute changes affect the table immediately (removing and adding
-   *    entries as needed).
-   * 2) Removals from the DOM affect the table immediately
-   * 3) Additions to the DOM always update existing entries for names, and add
-   *    new ones for IDs.
-   */
-  nsTHashtable<nsIdentifierMapEntry> mIdentifierMap;
 
   nsClassHashtable<nsStringHashKey, nsRadioGroupStruct> mRadioGroups;
 

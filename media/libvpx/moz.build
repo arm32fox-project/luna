@@ -1,5 +1,4 @@
 # -*- Mode: python; indent-tabs-mode: nil; tab-width: 40 -*-
-# vim: set filetype=python:
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -62,6 +61,9 @@ if 'vp8/encoder/arm/armv5te/boolhuff_armv5te.asm' not in arm_asm_files:
     SOURCES += [
         'vp8/encoder/boolhuff.c',
     ]
+
+if CONFIG['GKMEDIAS_SHARED_LIBRARY']:
+    NO_VISIBILITY_FLAGS = True
 
 # We allow warnings for third-party code that can be updated from upstream.
 ALLOW_COMPILER_WARNINGS = True

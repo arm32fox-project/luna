@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -19,23 +18,22 @@ nsIDocument::GetBodyElement()
 template<typename T>
 size_t
 nsIDocument::FindDocStyleSheetInsertionPoint(
-    const nsTArray<RefPtr<T>>& aDocSheets,
-    T* aSheet)
+    const nsTArray<T>& aDocSheets,
+    const mozilla::StyleSheet& aSheet)
 {
   nsStyleSheetService* sheetService = nsStyleSheetService::GetInstance();
 
   // lowest index first
-  int32_t newDocIndex = GetIndexOfStyleSheet(aSheet);
+  int32_t newDocIndex = IndexOfSheet(aSheet);
 
-  int32_t count = aDocSheets.Length();
-  int32_t index;
-  for (index = 0; index < count; index++) {
-    T* sheet = aDocSheets[index];
-    int32_t sheetDocIndex = GetIndexOfStyleSheet(sheet);
+  size_t count = aDocSheets.Length();
+  size_t index = 0;
+  for (; index < count; index++) {
+    auto* sheet = static_cast<mozilla::StyleSheet*>(aDocSheets[index]);
+    MOZ_ASSERT(sheet);
+    int32_t sheetDocIndex = IndexOfSheet(*sheet);
     if (sheetDocIndex > newDocIndex)
       break;
-
-    mozilla::StyleSheet* sheetHandle = sheet;
 
     // If the sheet is not owned by the document it can be an author
     // sheet registered at nsStyleSheetService or an additional author
@@ -44,11 +42,11 @@ nsIDocument::FindDocStyleSheetInsertionPoint(
     if (sheetDocIndex < 0) {
       if (sheetService) {
         auto& authorSheets = *sheetService->AuthorStyleSheets();
-        if (authorSheets.IndexOf(sheetHandle) != authorSheets.NoIndex) {
+        if (authorSheets.IndexOf(sheet) != authorSheets.NoIndex) {
           break;
         }
       }
-      if (sheetHandle == GetFirstAdditionalAuthorSheet()) {
+      if (sheet == GetFirstAdditionalAuthorSheet()) {
         break;
       }
     }

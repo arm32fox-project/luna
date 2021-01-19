@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -1087,7 +1086,10 @@ EventListenerManager::HandleEventSubType(Listener* aListener,
 
   if (NS_SUCCEEDED(result)) {
     if (mIsMainThreadELM) {
-      nsContentUtils::EnterMicroTask();
+      CycleCollectedJSContext* ccjs = CycleCollectedJSContext::Get();
+      if (ccjs) {
+        ccjs->EnterMicroTask();
+      }
     }
     // nsIDOMEvent::currentTarget is set in EventDispatcher.
     if (listenerHolder.HasWebIDLCallback()) {
@@ -1099,7 +1101,10 @@ EventListenerManager::HandleEventSubType(Listener* aListener,
       result = listenerHolder.GetXPCOMCallback()->HandleEvent(aDOMEvent);
     }
     if (mIsMainThreadELM) {
-      nsContentUtils::LeaveMicroTask();
+      CycleCollectedJSContext* ccjs = CycleCollectedJSContext::Get();
+      if (ccjs) {
+        ccjs->LeaveMicroTask();
+      }
     }
   }
 

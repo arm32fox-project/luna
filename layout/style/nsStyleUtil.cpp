@@ -8,6 +8,7 @@
 
 #include "nsIContent.h"
 #include "nsCSSProps.h"
+#include "nsContentUtils.h"
 #include "nsRuleNode.h"
 #include "nsROCSSPrimitiveValue.h"
 #include "nsStyleStruct.h"
@@ -15,7 +16,6 @@
 #include "nsIContentSecurityPolicy.h"
 #include "nsIURI.h"
 #include "nsPrintfCString.h"
-#include "nsContentUtils.h"
 
 using namespace mozilla;
 

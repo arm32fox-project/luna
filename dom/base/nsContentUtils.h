@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -126,6 +125,7 @@ class EventTarget;
 class IPCDataTransfer;
 class IPCDataTransferItem;
 struct LifecycleCallbackArgs;
+struct LifecycleAdoptedCallbackArgs;
 class NodeInfo;
 class nsIContentChild;
 class nsIContentParent;
@@ -338,6 +338,13 @@ public:
    *  NOTE! If the two nodes aren't in the same connected subtree,
    *  the result is 1, and the optional aDisconnected parameter
    *  is set to true.
+   *
+   *  XXX aOffset1 and aOffset2 should be uint32_t since valid offset value is
+   *      between 0 - UINT32_MAX.  However, these methods work even with
+   *      negative offset values!  E.g., when aOffset1 is -1 and aOffset is 0,
+   *      these methods return -1.  Some root callers depend on this behavior.
+   *      On the other hand, nsINode can have ATTRCHILD_ARRAY_MAX_CHILD_COUN
+   *      (0x3FFFFF) at most.  Therefore, they can be int32_t for now.
    */
   static int32_t ComparePoints(nsINode* aParent1, int32_t aOffset1,
                                nsINode* aParent2, int32_t aOffset2,
@@ -581,7 +588,7 @@ public:
 
   /**
    * Returns true if |aName| is a valid name to be registered via
-   * document.registerElement.
+   * customElements.define.
    */
   static bool IsCustomElementName(nsIAtom* aName);
 
@@ -932,6 +939,8 @@ public:
                                     = EmptyString(),
                                   uint32_t aLineNumber = 0,
                                   uint32_t aColumnNumber = 0);
+
+  static void ReportEmptyGetElementByIdArg(const nsIDocument* aDoc);
 
   static void LogMessageToConsole(const char* aMsg);
 
@@ -1741,17 +1750,6 @@ public:
    */
   static void RunInMetastableState(already_AddRefed<nsIRunnable> aRunnable);
 
-  // Call EnterMicroTask when you're entering JS execution.
-  // Usually the best way to do this is to use nsAutoMicroTask.
-  static void EnterMicroTask();
-  static void LeaveMicroTask();
-
-  static bool IsInMicroTask();
-  static uint32_t MicroTaskLevel();
-  static void SetMicroTaskLevel(uint32_t aLevel);
-
-  static void PerformMainThreadMicroTaskCheckpoint();
-
   /* Process viewport META data. This gives us information for the scale
    * and zoom of a page on mobile devices. We stick the information in
    * the document header and use it later on after rendering.
@@ -2418,18 +2416,6 @@ public:
   static mozilla::LogModule* DOMDumpLog();
 
   /**
-   * Returns whether a content is an insertion point for XBL
-   * bindings or web components ShadowRoot. In web components,
-   * this corresponds to a <content> element that participates
-   * in node distribution. In XBL this corresponds to an
-   * <xbl:children> element in anonymous content.
-   *
-   * @param aContent The content to test for being an insertion point.
-   */
-  static bool IsContentInsertionPoint(nsIContent* aContent);
-
-
-  /**
    * Returns whether the children of the provided content are
    * nodes that are distributed to Shadow DOM insertion points.
    */
@@ -2713,30 +2699,49 @@ public:
   static bool HttpsStateIsModern(nsIDocument* aDocument);
 
   /**
+   * Try to upgrade an element.
+   * https://html.spec.whatwg.org/multipage/custom-elements.html#concept-try-upgrade
+   */
+  static void TryToUpgradeElement(Element* aElement);
+
+  /**
    * Looking up a custom element definition.
    * https://html.spec.whatwg.org/#look-up-a-custom-element-definition
    */
   static mozilla::dom::CustomElementDefinition*
     LookupCustomElementDefinition(nsIDocument* aDoc,
-                                  const nsAString& aLocalName,
+                                  nsIAtom* aNameAtom,
                                   uint32_t aNameSpaceID,
-                                  const nsAString* aIs = nullptr);
+                                  nsIAtom* aTypeAtom);
 
-  static void SetupCustomElement(Element* aElement,
-                                 const nsAString* aTypeExtension = nullptr);
+  static void RegisterUnresolvedElement(Element* aElement, nsIAtom* aTypeName);
+  static void UnregisterUnresolvedElement(Element* aElement);
 
-  static void EnqueueLifecycleCallback(nsIDocument* aDoc,
-                                       nsIDocument::ElementCallbackType aType,
+  static mozilla::dom::CustomElementDefinition*
+  GetElementDefinitionIfObservingAttr(Element* aCustomElement,
+                                      nsIAtom* aExtensionType,
+                                      nsIAtom* aAttrName);
+
+  static void EnqueueUpgradeReaction(Element* aElement,
+                                     mozilla::dom::CustomElementDefinition* aDefinition);
+
+  static void EnqueueLifecycleCallback(nsIDocument::ElementCallbackType aType,
                                        Element* aCustomElement,
                                        mozilla::dom::LifecycleCallbackArgs* aArgs = nullptr,
+                                       mozilla::dom::LifecycleAdoptedCallbackArgs* aAdoptedCallbackArgs = nullptr,
                                        mozilla::dom::CustomElementDefinition* aDefinition = nullptr);
 
-  static void GetCustomPrototype(nsIDocument* aDoc,
-                                 int32_t aNamespaceID,
-                                 nsIAtom* aAtom,
-                                 JS::MutableHandle<JSObject*> prototype);
-
   static bool AttemptLargeAllocationLoad(nsIHttpChannel* aChannel);
+
+  /**
+   * Appends all "document level" native anonymous content subtree roots for
+   * aDocument to aElements.  Document level NAC subtrees are those created
+   * by ancestor frames of the document element's primary frame, such as
+   * the scrollbar elements created by the root scroll frame.
+   */
+  static void AppendDocumentLevelNativeAnonymousContentTo(
+      nsIDocument* aDocument,
+      nsTArray<nsIContent*>& aElements);
 
   /**
    * Detect whether a string is a (CSS) local-url.
@@ -2744,6 +2749,18 @@ public:
    */
   static bool
   IsLocalRefURL(const nsString& aString);
+
+  static bool
+  IsWebComponentsEnabled() { return sIsWebComponentsEnabled; }
+
+  /**
+   * Walks up the tree from aElement until it finds an element that is
+   * not native anonymous content.  aElement must be NAC itself.
+   */
+  static Element* GetClosestNonNativeAnonymousAncestor(Element* aElement);
+
+  static bool
+  IsCustomElementsEnabled() { return sIsCustomElementsEnabled; }
 
   /**
    * Returns the length of the parent-traversal path (in terms of the number of
@@ -2839,7 +2856,6 @@ private:
   static bool sInitialized;
   static uint32_t sScriptBlockerCount;
   static uint32_t sDOMNodeRemovedSuppressCount;
-  static uint32_t sMicroTaskLevel;
   // Not an nsCOMArray because removing elements from those is slower
   static AutoTArray<nsCOMPtr<nsIRunnable>, 8>* sBlockedScriptRunners;
   static uint32_t sRunnersCountAtFirstBlocker;
@@ -2860,6 +2876,8 @@ private:
   static bool sIsUserTimingLoggingEnabled;
   static bool sIsFrameTimingPrefEnabled;
   static bool sIsExperimentalAutocompleteEnabled;
+  static bool sIsWebComponentsEnabled;
+  static bool sIsCustomElementsEnabled;
   static bool sEncodeDecodeURLHash;
   static bool sGettersDecodeURLHash;
   static bool sPrivacyResistFingerprinting;
@@ -2912,19 +2930,6 @@ public:
   }
   ~nsAutoScriptBlockerSuppressNodeRemoved() {
     --nsContentUtils::sDOMNodeRemovedSuppressCount;
-  }
-};
-
-class MOZ_STACK_CLASS nsAutoMicroTask
-{
-public:
-  nsAutoMicroTask()
-  {
-    nsContentUtils::EnterMicroTask();
-  }
-  ~nsAutoMicroTask()
-  {
-    nsContentUtils::LeaveMicroTask();
   }
 };
 

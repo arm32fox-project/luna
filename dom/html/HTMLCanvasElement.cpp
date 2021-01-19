@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -446,38 +445,37 @@ NS_IMPL_UINT_ATTR_DEFAULT_VALUE(HTMLCanvasElement, Height, height, DEFAULT_CANVA
 NS_IMPL_BOOL_ATTR(HTMLCanvasElement, MozOpaque, moz_opaque)
 
 nsresult
-HTMLCanvasElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                           nsIAtom* aPrefix, const nsAString& aValue,
-                           bool aNotify)
+HTMLCanvasElement::AfterSetAttr(int32_t aNamespaceID, nsIAtom* aName,
+                                const nsAttrValue* aValue,
+                                const nsAttrValue* aOldValue, bool aNotify)
 {
-  nsresult rv = nsGenericHTMLElement::SetAttr(aNameSpaceID, aName, aPrefix, aValue,
-                                              aNotify);
-  if (NS_SUCCEEDED(rv) && mCurrentContext &&
-      aNameSpaceID == kNameSpaceID_None &&
-      (aName == nsGkAtoms::width || aName == nsGkAtoms::height || aName == nsGkAtoms::moz_opaque))
-  {
-    ErrorResult dummy;
-    rv = UpdateContext(nullptr, JS::NullHandleValue, dummy);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
+  AfterMaybeChangeAttr(aNamespaceID, aName, aNotify);
 
-  return rv;
+  return nsGenericHTMLElement::AfterSetAttr(aNamespaceID, aName, aValue,
+                                            aOldValue, aNotify);
 }
 
 nsresult
-HTMLCanvasElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                             bool aNotify)
+HTMLCanvasElement::OnAttrSetButNotChanged(int32_t aNamespaceID, nsIAtom* aName,
+                                          const nsAttrValueOrString& aValue,
+                                          bool aNotify)
 {
-  nsresult rv = nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aName, aNotify);
-  if (NS_SUCCEEDED(rv) && mCurrentContext &&
-      aNameSpaceID == kNameSpaceID_None &&
-      (aName == nsGkAtoms::width || aName == nsGkAtoms::height || aName == nsGkAtoms::moz_opaque))
-  {
+  AfterMaybeChangeAttr(aNamespaceID, aName, aNotify);
+
+  return nsGenericHTMLElement::OnAttrSetButNotChanged(aNamespaceID, aName,
+                                                      aValue, aNotify);
+}
+
+void
+HTMLCanvasElement::AfterMaybeChangeAttr(int32_t aNamespaceID, nsIAtom* aName,
+                                        bool aNotify)
+{
+  if (mCurrentContext && aNamespaceID == kNameSpaceID_None &&
+      (aName == nsGkAtoms::width || aName == nsGkAtoms::height ||
+       aName == nsGkAtoms::moz_opaque)) {
     ErrorResult dummy;
-    rv = UpdateContext(nullptr, JS::NullHandleValue, dummy);
-    NS_ENSURE_SUCCESS(rv, rv);
+    UpdateContext(nullptr, JS::NullHandleValue, dummy);
   }
-  return rv;
 }
 
 void
@@ -574,7 +572,7 @@ HTMLCanvasElement::CopyInnerTo(Element* aDest)
   return rv;
 }
 
-nsresult HTMLCanvasElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
+nsresult HTMLCanvasElement::GetEventTargetParent(EventChainPreVisitor& aVisitor)
 {
   if (aVisitor.mEvent->mClass == eMouseEventClass) {
     WidgetMouseEventBase* evt = (WidgetMouseEventBase*)aVisitor.mEvent;
@@ -592,7 +590,7 @@ nsresult HTMLCanvasElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
       aVisitor.mCanHandle = true;
     }
   }
-  return nsGenericHTMLElement::PreHandleEvent(aVisitor);
+  return nsGenericHTMLElement::GetEventTargetParent(aVisitor);
 }
 
 nsChangeHint

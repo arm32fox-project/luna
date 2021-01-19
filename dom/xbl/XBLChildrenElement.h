@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -36,14 +35,6 @@ public:
   virtual nsresult Clone(mozilla::dom::NodeInfo* aNodeInfo, nsINode** aResult) const override;
 
   virtual nsIDOMNode* AsDOMNode() override { return this; }
-
-  // nsIContent interface methods
-  virtual nsresult UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
-                             bool aNotify) override;
-  virtual bool ParseAttribute(int32_t aNamespaceID,
-                              nsIAtom* aAttribute,
-                              const nsAString& aValue,
-                              nsAttrValue& aResult) override;
 
   void AppendInsertedChild(nsIContent* aChild)
   {
@@ -146,6 +137,10 @@ public:
 
 protected:
   ~XBLChildrenElement();
+
+  virtual nsresult BeforeSetAttr(int32_t aNamespaceID, nsIAtom* aName,
+                                 const nsAttrValueOrString* aValue,
+                                 bool aNotify) override;
 
 private:
   nsTArray<nsIContent*> mInsertedChildren; // WEAK

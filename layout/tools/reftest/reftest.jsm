@@ -1,5 +1,4 @@
 /* -*- indent-tabs-mode: nil; js-indent-level: 4 -*- /
-/* vim: set shiftwidth=4 tabstop=8 autoindent cindent expandtab: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -303,16 +302,7 @@ this.OnRefTestLoad = function OnRefTestLoad(win)
     // what size our window is
     gBrowser.setAttribute("style", "padding: 0px; margin: 0px; border:none; min-width: 800px; min-height: 1000px; max-width: 800px; max-height: 1000px");
 
-    if (Services.appinfo.OS == "Android") {
-      let doc;
-      doc = gContainingWindow.document.getElementById('main-window');
-      while (doc.hasChildNodes()) {
-        doc.removeChild(doc.firstChild);
-      }
-      doc.appendChild(gBrowser);
-    } else {
-      document.getElementById("reftest-window").appendChild(gBrowser);
-    }
+    document.getElementById("reftest-window").appendChild(gBrowser);
 
     // reftests should have the test plugins enabled, not click-to-play
     let plugin1 = getTestPlugin("Test Plug-in");
@@ -341,10 +331,6 @@ function InitAndStartRefTests()
     } catch(e) {
         logger.error("EXCEPTION: " + e);
     }
-
-    try {
-      prefs.setBoolPref("android.widget_paints_background", false);
-    } catch (e) {}
 
     /* set the gLoadTimeout */
     gLoadTimeout = prefs.getIntPref("reftest.timeout", 5 * 60 * 1000); //5 minutes as per bug 479518
@@ -621,7 +607,7 @@ function BuildConditionSandbox(aURL) {
 
     // Shortcuts for widget toolkits.
     sandbox.B2G = false;
-    sandbox.Android = xr.OS == "Android" && !sandbox.B2G;
+    sandbox.Android = false;
     sandbox.cocoaWidget = xr.widgetToolkit == "cocoa";
     sandbox.gtkWidget = xr.widgetToolkit == "gtk2"
                         || xr.widgetToolkit == "gtk3";
@@ -630,14 +616,6 @@ function BuildConditionSandbox(aURL) {
 
     // Scrollbars that are semi-transparent. See bug 1169666.
     sandbox.transparentScrollbars = xr.widgetToolkit == "gtk3";
-
-    if (sandbox.Android) {
-        var sysInfo = CC["@mozilla.org/system-info;1"].getService(CI.nsIPropertyBag2);
-
-        // This is currently used to distinguish Android 4.0.3 (SDK version 15)
-        // and later from Android 2.x
-        sandbox.AndroidVersion = sysInfo.getPropertyAsInt32("version");
-    }
 
 #if MOZ_ASAN
     sandbox.AddressSanitizer = true;

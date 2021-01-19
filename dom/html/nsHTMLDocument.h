@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -155,10 +154,7 @@ public:
 
   virtual void RemovedFromDocShell() override;
 
-  virtual mozilla::dom::Element *GetElementById(const nsAString& aElementId) override
-  {
-    return nsDocument::GetElementById(aElementId);
-  }
+  using mozilla::dom::DocumentOrShadowRoot::GetElementById;
 
   virtual void DocAddSizeOfExcludingThis(nsWindowSizes* aWindowSizes) const override;
   // DocAddSizeOfIncludingThis is inherited from nsIDocument.
@@ -175,8 +171,8 @@ public:
                    JS::MutableHandle<JSObject*> aRetval,
                    mozilla::ErrorResult& rv);
   void GetSupportedNames(nsTArray<nsString>& aNames);
-  nsGenericHTMLElement *GetBody();
-  void SetBody(nsGenericHTMLElement* aBody, mozilla::ErrorResult& rv);
+  using nsIDocument::GetBody;
+  using nsIDocument::SetBody;
   mozilla::dom::HTMLSharedElement *GetHead() {
     return static_cast<mozilla::dom::HTMLSharedElement*>(GetHeadElement());
   }

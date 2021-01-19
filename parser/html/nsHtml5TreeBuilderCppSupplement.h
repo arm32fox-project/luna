@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 sw=2 et tw=78: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -68,9 +67,11 @@ nsHtml5TreeBuilder::~nsHtml5TreeBuilder()
 }
 
 nsIContentHandle*
-nsHtml5TreeBuilder::createElement(int32_t aNamespace, nsIAtom* aName,
+nsHtml5TreeBuilder::createElement(int32_t aNamespace,
+                                  nsIAtom* aName,
                                   nsHtml5HtmlAttributes* aAttributes,
-                                  nsIContentHandle* aIntendedParent)
+                                  nsIContentHandle* aIntendedParent,
+                                  nsHtml5ContentCreatorFunction aCreator)
 {
   NS_PRECONDITION(aAttributes, "Got null attributes.");
   NS_PRECONDITION(aName, "Got null name.");
@@ -91,13 +92,28 @@ nsHtml5TreeBuilder::createElement(int32_t aNamespace, nsIAtom* aName,
        intendedParent->OwnerDoc()->NodeInfoManager() :
        mBuilder->GetNodeInfoManager();
 
-    nsIContent* elem =
-      nsHtml5TreeOperation::CreateElement(aNamespace,
-                                          name,
-                                          aAttributes,
-                                          mozilla::dom::FROM_PARSER_FRAGMENT,
-                                          nodeInfoManager,
-                                          mBuilder);
+    nsIContent* elem;
+    if (aNamespace == kNameSpaceID_XHTML) {
+      elem = nsHtml5TreeOperation::CreateHTMLElement(
+        name,
+        aAttributes,
+        mozilla::dom::FROM_PARSER_FRAGMENT,
+        nodeInfoManager,
+        mBuilder,
+        aCreator.html);
+    } else if (aNamespace == kNameSpaceID_SVG) {
+      elem = nsHtml5TreeOperation::CreateSVGElement(
+        name,
+        aAttributes,
+        mozilla::dom::FROM_PARSER_FRAGMENT,
+        nodeInfoManager,
+        mBuilder,
+        aCreator.svg);
+    } else {
+      MOZ_ASSERT(aNamespace == kNameSpaceID_MathML);
+      elem = nsHtml5TreeOperation::CreateMathMLElement(
+        name, aAttributes, nodeInfoManager, mBuilder);
+    }
     if (MOZ_UNLIKELY(aAttributes != tokenizer->GetAttributes() &&
                      aAttributes != nsHtml5HtmlAttributes::EMPTY_ATTRIBUTES)) {
       delete aAttributes;
@@ -113,7 +129,8 @@ nsHtml5TreeBuilder::createElement(int32_t aNamespace, nsIAtom* aName,
                aAttributes,
                content,
                aIntendedParent,
-               !!mSpeculativeLoadStage);
+               !!mSpeculativeLoadStage,
+               aCreator);
   // mSpeculativeLoadStage is non-null only in the off-the-main-thread
   // tree builder, which handles the network stream
 
@@ -179,7 +196,7 @@ nsHtml5TreeBuilder::createElement(int32_t aNamespace, nsIAtom* aName,
               type,
               crossOrigin,
               integrity,
-              mode == NS_HTML5TREE_BUILDER_IN_HEAD,
+              mode == nsHtml5TreeBuilder::IN_HEAD,
               async,
               defer,
               noModule);
@@ -286,7 +303,7 @@ nsHtml5TreeBuilder::createElement(int32_t aNamespace, nsIAtom* aName,
               type,
               crossOrigin,
               integrity,
-              mode == NS_HTML5TREE_BUILDER_IN_HEAD,
+              mode == nsHtml5TreeBuilder::IN_HEAD,
               false /* async */, 
               false /* defer */,
               false /* noModule */);
@@ -355,13 +372,15 @@ nsHtml5TreeBuilder::createElement(int32_t aNamespace, nsIAtom* aName,
 }
 
 nsIContentHandle*
-nsHtml5TreeBuilder::createElement(int32_t aNamespace, nsIAtom* aName,
+nsHtml5TreeBuilder::createElement(int32_t aNamespace,
+                                  nsIAtom* aName,
                                   nsHtml5HtmlAttributes* aAttributes,
                                   nsIContentHandle* aFormElement,
-                                  nsIContentHandle* aIntendedParent)
+                                  nsIContentHandle* aIntendedParent,
+                                  nsHtml5ContentCreatorFunction aCreator)
 {
-  nsIContentHandle* content = createElement(aNamespace, aName, aAttributes,
-                                            aIntendedParent);
+  nsIContentHandle* content =
+    createElement(aNamespace, aName, aAttributes, aIntendedParent, aCreator);
   if (aFormElement) {
     if (mBuilder) {
       nsHtml5TreeOperation::SetFormElement(static_cast<nsIContent*>(content),
@@ -378,10 +397,11 @@ nsHtml5TreeBuilder::createElement(int32_t aNamespace, nsIAtom* aName,
 nsIContentHandle*
 nsHtml5TreeBuilder::createHtmlElementSetAsRoot(nsHtml5HtmlAttributes* aAttributes)
 {
-  nsIContentHandle* content = createElement(kNameSpaceID_XHTML,
-                                            nsHtml5Atoms::html,
-                                            aAttributes,
-                                            nullptr);
+  nsHtml5ContentCreatorFunction creator;
+  // <html> uses NS_NewHTMLSharedElement creator
+  creator.html = NS_NewHTMLSharedElement;
+  nsIContentHandle* content = createElement(
+    kNameSpaceID_XHTML, nsHtml5Atoms::html, aAttributes, nullptr, creator);
   if (mBuilder) {
     nsresult rv = nsHtml5TreeOperation::AppendToDocument(static_cast<nsIContent*>(content),
                                                          mBuilder);
@@ -397,11 +417,13 @@ nsHtml5TreeBuilder::createHtmlElementSetAsRoot(nsHtml5HtmlAttributes* aAttribute
 }
 
 nsIContentHandle*
-nsHtml5TreeBuilder::createAndInsertFosterParentedElement(int32_t aNamespace, nsIAtom* aName,
+nsHtml5TreeBuilder::createAndInsertFosterParentedElement(int32_t aNamespace,
+                                                         nsIAtom* aName,
                                                          nsHtml5HtmlAttributes* aAttributes,
                                                          nsIContentHandle* aFormElement,
                                                          nsIContentHandle* aTable,
-                                                         nsIContentHandle* aStackParent)
+                                                         nsIContentHandle* aStackParent,
+                                                         nsHtml5ContentCreatorFunction aCreator)
 {
   NS_PRECONDITION(aTable, "Null table");
   NS_PRECONDITION(aStackParent, "Null stack parent");
@@ -413,8 +435,8 @@ nsHtml5TreeBuilder::createAndInsertFosterParentedElement(int32_t aNamespace, nsI
       static_cast<nsIContent*>(aTable),
       static_cast<nsIContent*>(aStackParent));
 
-    nsIContentHandle* child = createElement(aNamespace, aName, aAttributes,
-      aFormElement, fosterParent);
+    nsIContentHandle* child = createElement(
+      aNamespace, aName, aAttributes, aFormElement, fosterParent, aCreator);
 
     insertFosterParentedChild(child, aTable, aStackParent);
 
@@ -430,8 +452,8 @@ nsHtml5TreeBuilder::createAndInsertFosterParentedElement(int32_t aNamespace, nsI
                            aStackParent, fosterParentHandle);
 
   // Create the element with the correct intended parent.
-  nsIContentHandle* child = createElement(aNamespace, aName, aAttributes,
-    aFormElement, fosterParentHandle);
+  nsIContentHandle* child = createElement(
+    aNamespace, aName, aAttributes, aFormElement, fosterParentHandle, aCreator);
 
   // Insert the child into the foster parent.
   insertFosterParentedChild(child, aTable, aStackParent);

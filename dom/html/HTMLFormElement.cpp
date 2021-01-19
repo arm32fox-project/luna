@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -189,32 +188,37 @@ HTMLFormElement::GetElements(nsIDOMHTMLCollection** aElements)
 }
 
 nsresult
-HTMLFormElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                         nsIAtom* aPrefix, const nsAString& aValue,
-                         bool aNotify)
+HTMLFormElement::BeforeSetAttr(int32_t aNamespaceID, nsIAtom* aName,
+                               const nsAttrValueOrString* aValue, bool aNotify)
 {
-  if ((aName == nsGkAtoms::action || aName == nsGkAtoms::target) &&
-      aNameSpaceID == kNameSpaceID_None) {
-    if (mPendingSubmission) {
-      // aha, there is a pending submission that means we're in
-      // the script and we need to flush it. let's tell it
-      // that the event was ignored to force the flush.
-      // the second argument is not playing a role at all.
-      FlushPendingSubmission();
+  if (aNamespaceID == kNameSpaceID_None) {
+    if (aName == nsGkAtoms::action || aName == nsGkAtoms::target) {
+      // This check is mostly to preserve previous behavior.
+      if (aValue) {
+        if (mPendingSubmission) {
+          // aha, there is a pending submission that means we're in
+          // the script and we need to flush it. let's tell it
+          // that the event was ignored to force the flush.
+          // the second argument is not playing a role at all.
+          FlushPendingSubmission();
+        }
+        // Don't forget we've notified the password manager already if the
+        // page sets the action/target in the during submit. (bug 343182)
+        bool notifiedObservers = mNotifiedObservers;
+        ForgetCurrentSubmission();
+        mNotifiedObservers = notifiedObservers;
+      }
     }
-    // Don't forget we've notified the password manager already if the
-    // page sets the action/target in the during submit. (bug 343182)
-    bool notifiedObservers = mNotifiedObservers;
-    ForgetCurrentSubmission();
-    mNotifiedObservers = notifiedObservers;
   }
-  return nsGenericHTMLElement::SetAttr(aNameSpaceID, aName, aPrefix, aValue,
-                                       aNotify);
+
+  return nsGenericHTMLElement::BeforeSetAttr(aNamespaceID, aName, aValue,
+                                             aNotify);
 }
 
 nsresult
 HTMLFormElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                              const nsAttrValue* aValue, bool aNotify)
+                              const nsAttrValue* aValue,
+                              const nsAttrValue* aOldValue, bool aNotify)
 {
   if (aName == nsGkAtoms::novalidate && aNameSpaceID == kNameSpaceID_None) {
     // Update all form elements states because they might be [no longer]
@@ -230,7 +234,8 @@ HTMLFormElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
     }
   }
 
-  return nsGenericHTMLElement::AfterSetAttr(aNameSpaceID, aName, aValue, aNotify);
+  return nsGenericHTMLElement::AfterSetAttr(aNameSpaceID, aName, aValue,
+                                            aOldValue, aNotify);
 }
 
 NS_IMPL_STRING_ATTR(HTMLFormElement, AcceptCharset, acceptcharset)
@@ -489,7 +494,7 @@ HTMLFormElement::UnbindFromTree(bool aDeep, bool aNullParent)
 }
 
 nsresult
-HTMLFormElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
+HTMLFormElement::GetEventTargetParent(EventChainPreVisitor& aVisitor)
 {
   aVisitor.mWantsWillHandleEvent = true;
   if (aVisitor.mEvent->mOriginalTarget == static_cast<nsIContent*>(this)) {
@@ -513,7 +518,7 @@ HTMLFormElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
       mGeneratingReset = true;
     }
   }
-  return nsGenericHTMLElement::PreHandleEvent(aVisitor);
+  return nsGenericHTMLElement::GetEventTargetParent(aVisitor);
 }
 
 nsresult

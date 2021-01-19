@@ -1,5 +1,4 @@
 # -*- Mode: python; indent-tabs-mode: nil; tab-width: 40 -*-
-# vim: set filetype=python:
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -19,7 +18,10 @@ EXPORTS += [
     'nsHtml5AtomList.h',
     'nsHtml5Atoms.h',
     'nsHtml5AtomTable.h',
+    'nsHtml5AttributeEntry.h',
+    'nsHtml5AttributeName.h',
     'nsHtml5ByteReadable.h',
+    'nsHtml5ContentCreatorFunction.h',
     'nsHtml5DependentUTF16Buffer.h',
     'nsHtml5DocumentBuilder.h',
     'nsHtml5DocumentMode.h',
@@ -34,6 +36,7 @@ EXPORTS += [
     'nsHtml5OwningUTF16Buffer.h',
     'nsHtml5Parser.h',
     'nsHtml5PlainTextUtils.h',
+    'nsHtml5Portability.h',
     'nsHtml5RefPtr.h',
     'nsHtml5Speculation.h',
     'nsHtml5SpeculativeLoad.h',
@@ -71,8 +74,6 @@ UNIFIED_SOURCES += [
     'nsHtml5Parser.cpp',
     'nsHtml5PlainTextUtils.cpp',
     'nsHtml5Portability.cpp',
-    'nsHtml5ReleasableAttributeName.cpp',
-    'nsHtml5ReleasableElementName.cpp',
     'nsHtml5Speculation.cpp',
     'nsHtml5SpeculativeLoad.cpp',
     'nsHtml5StackNode.cpp',

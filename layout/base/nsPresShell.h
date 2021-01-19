@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * vim: set ts=2 sw=2 et tw=78:
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -130,7 +129,6 @@ public:
   virtual nsIPageSequenceFrame* GetPageSequenceFrame() const override;
   virtual nsCanvasFrame* GetCanvasFrame() const override;
 
-  virtual nsIFrame* GetPlaceholderFrameFor(nsIFrame* aFrame) const override;
   virtual void FrameNeedsReflow(nsIFrame *aFrame, IntrinsicDirty aIntrinsicDirty,
                                 nsFrameState aBitToAdd,
                                 ReflowRootHandling aRootHandling =
@@ -140,9 +138,7 @@ public:
   virtual bool IsSafeToFlush() const override;
   virtual void FlushPendingNotifications(mozFlushType aType) override;
   virtual void FlushPendingNotifications(mozilla::ChangesToFlush aType) override;
-  virtual void DestroyFramesFor(nsIContent*  aContent,
-                                nsIContent** aDestroyedFramesFor) override;
-  virtual void CreateFramesFor(nsIContent* aContent) override;
+  virtual void DestroyFramesForAndRestyle(mozilla::dom::Element* aElement) override;
 
   /**
    * Recreates the frames for a node
@@ -200,7 +196,7 @@ public:
 
   virtual void NotifyCounterStylesAreDirty() override;
 
-  virtual nsresult ReconstructFrames(void) override;
+  virtual void ReconstructFrames(void) override;
   virtual void Freeze() override;
   virtual void Thaw() override;
   virtual void FireOrClearDelayedEvents(bool aFireEvents) override;
@@ -759,9 +755,6 @@ protected:
   virtual void SysColorChanged() override { mPresContext->SysColorChanged(); }
   virtual void ThemeChanged() override { mPresContext->ThemeChanged(); }
   virtual void BackingScaleFactorChanged() override { mPresContext->UIResolutionChanged(); }
-#ifdef ANDROID
-  virtual nsIDocument* GetTouchEventTargetDocument() override;
-#endif
 
   virtual void PausePainting() override;
   virtual void ResumePainting() override;

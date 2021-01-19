@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -70,20 +69,10 @@ public:
   NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const override;
   virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const override;
 
-  virtual nsresult PreHandleEvent(EventChainPreVisitor& aVisitor) override;
+  virtual nsresult GetEventTargetParent(
+                     EventChainPreVisitor& aVisitor) override;
 
   bool IsHTMLFocusable(bool aWithMouse, bool *aIsFocusable, int32_t *aTabIndex) override;
-
-  // SetAttr override.  C++ is stupid, so have to override both
-  // overloaded methods.
-  nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                   const nsAString& aValue, bool aNotify)
-  {
-    return SetAttr(aNameSpaceID, aName, nullptr, aValue, aNotify);
-  }
-  virtual nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                           nsIAtom* aPrefix, const nsAString& aValue,
-                           bool aNotify) override;
 
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
@@ -348,11 +337,17 @@ protected:
   void UpdateFormOwner();
 
   virtual nsresult BeforeSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                                 nsAttrValueOrString* aValue,
+                                 const nsAttrValueOrString* aValue,
                                  bool aNotify) override;
 
   virtual nsresult AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                                const nsAttrValue* aValue, bool aNotify) override;
+                                const nsAttrValue* aValue,
+                                const nsAttrValue* aOldValue,
+                                bool aNotify) override;
+
+  virtual nsresult OnAttrSetButNotChanged(int32_t aNamespaceID, nsIAtom* aName,
+                                          const nsAttrValueOrString& aValue,
+                                          bool aNotify) override;
 
   // This is a weak reference that this element and the HTMLFormElement
   // cooperate in maintaining.
@@ -366,6 +361,36 @@ private:
 
   static void MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
                                     nsRuleData* aData);
+
+  /**
+   * This function is called by BeforeSetAttr and OnAttrSetButNotChanged.
+   * It will not be called if the value is being unset.
+   *
+   * @param aNamespaceID the namespace of the attr being set
+   * @param aName the localname of the attribute being set
+   * @param aValue the value it's being set to represented as either a string or
+   *        a parsed nsAttrValue.
+   * @param aNotify Whether we plan to notify document observers.
+   */
+  void BeforeMaybeChangeAttr(int32_t aNamespaceID, nsIAtom* aName,
+                             const nsAttrValueOrString& aValue,
+                             bool aNotify);
+  /**
+   * This function is called by AfterSetAttr and OnAttrSetButNotChanged.
+   * It will not be called if the value is being unset.
+   *
+   * @param aNamespaceID the namespace of the attr being set
+   * @param aName the localname of the attribute being set
+   * @param aNotify Whether we plan to notify document observers.
+   */
+  void AfterMaybeChangeAttr(int32_t aNamespaceID, nsIAtom* aName,
+                            bool aNotify);
+  /**
+   * Used by BeforeMaybeChangeAttr and AfterMaybeChangeAttr to keep track of
+   * whether a reload needs to be forced after an attribute change that is
+   * currently in progress.
+   */
+  bool mForceReload;
 
   bool mInDocResponsiveContent;
   RefPtr<ImageLoadTask> mPendingImageLoadTask;

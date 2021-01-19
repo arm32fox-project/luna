@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -465,17 +464,6 @@ public:
   virtual void UnbindFromTree(bool aDeep = true,
                               bool aNullParent = true) override;
 
-  MOZ_ALWAYS_INLINE // Avoid a crashy hook from Avast 10 Beta
-  nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                   const nsAString& aValue, bool aNotify)
-  {
-    return SetAttr(aNameSpaceID, aName, nullptr, aValue, aNotify);
-  }
-  virtual nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                           nsIAtom* aPrefix, const nsAString& aValue,
-                           bool aNotify) override;
-  virtual nsresult UnsetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                             bool aNotify) override;
   virtual bool IsFocusableInternal(int32_t *aTabIndex, bool aWithMouse) override
   {
     bool isFocusable = false;
@@ -498,7 +486,8 @@ public:
    */
   bool CheckHandleEventForAnchorsPreconditions(
          mozilla::EventChainVisitor& aVisitor);
-  nsresult PreHandleEventForAnchors(mozilla::EventChainPreVisitor& aVisitor);
+  nsresult GetEventTargetParentForAnchors(
+             mozilla::EventChainPreVisitor& aVisitor);
   nsresult PostHandleEventForAnchors(mozilla::EventChainPostVisitor& aVisitor);
   bool IsHTMLLink(nsIURI** aURI) const;
 
@@ -915,8 +904,13 @@ private:
   void RegUnRegAccessKey(bool aDoReg);
 
 protected:
+  virtual nsresult BeforeSetAttr(int32_t aNamespaceID, nsIAtom* aName,
+                                 const nsAttrValueOrString* aValue,
+                                 bool aNotify) override;
   virtual nsresult AfterSetAttr(int32_t aNamespaceID, nsIAtom* aName,
-                                const nsAttrValue* aValue, bool aNotify) override;
+                                const nsAttrValue* aValue,
+                                const nsAttrValue* aOldValue,
+                                bool aNotify) override;
 
   virtual mozilla::EventListenerManager*
     GetEventListenerManagerForAttr(nsIAtom* aAttrName,
@@ -1221,8 +1215,10 @@ public:
   virtual IMEState GetDesiredIMEState() override;
   virtual mozilla::EventStates IntrinsicState() const override;
 
-  virtual nsresult PreHandleEvent(
+  virtual nsresult GetEventTargetParent(
                      mozilla::EventChainPreVisitor& aVisitor) override;
+  virtual nsresult PreHandleEvent(
+                     mozilla::EventChainVisitor& aVisitor) override;
 
   virtual bool IsDisabled() const override;
 
@@ -1264,11 +1260,13 @@ protected:
   virtual ~nsGenericHTMLFormElement();
 
   virtual nsresult BeforeSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                                 nsAttrValueOrString* aValue,
+                                 const nsAttrValueOrString* aValue,
                                  bool aNotify) override;
 
   virtual nsresult AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                                const nsAttrValue* aValue, bool aNotify) override;
+                                const nsAttrValue* aValue,
+                                const nsAttrValue* aOldValue,
+                                bool aNotify) override;
 
   /**
    * This method will update the form owner, using @form or looking to a parent.
@@ -1309,7 +1307,7 @@ protected:
   static bool FormIdUpdated(Element* aOldElement, Element* aNewElement,
                               void* aData);
 
-  // Returns true if the event should not be handled from PreHandleEvent
+  // Returns true if the event should not be handled from GetEventTargetParent
   bool IsElementDisabledForEvents(mozilla::WidgetEvent* aEvent,
                                   nsIFrame* aFrame);
 
@@ -1592,6 +1590,15 @@ protected:
   NS_INTERFACE_MAP_ENTRY_CONDITIONAL(_interface,                              \
                                      mNodeInfo->Equals(nsGkAtoms::_tag))
 
+namespace mozilla {
+namespace dom {
+
+typedef nsGenericHTMLElement* (*HTMLContentCreatorFunction)(
+  already_AddRefed<mozilla::dom::NodeInfo>&&,
+  mozilla::dom::FromParser aFromParser);
+
+} // namespace dom
+} // namespace mozilla
 
 /**
  * A macro to declare the NS_NewHTMLXXXElement() functions.
@@ -1639,6 +1646,13 @@ NS_NewHTML##_elementName##Element(already_AddRefed<mozilla::dom::NodeInfo>&& aNo
 nsGenericHTMLElement*
 NS_NewHTMLElement(already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo,
                   mozilla::dom::FromParser aFromParser = mozilla::dom::NOT_FROM_PARSER);
+
+// Distinct from the above in order to have function pointer that compared unequal
+// to a function pointer to the above.
+nsGenericHTMLElement*
+NS_NewCustomElement(
+  already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo,
+  mozilla::dom::FromParser aFromParser = mozilla::dom::NOT_FROM_PARSER);
 
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Shared)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(SharedList)
@@ -1689,7 +1703,7 @@ NS_DECLARE_NS_NEW_HTML_ELEMENT(Pre)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Progress)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Script)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Select)
-NS_DECLARE_NS_NEW_HTML_ELEMENT(Shadow)
+NS_DECLARE_NS_NEW_HTML_ELEMENT(Slot)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Source)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Span)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Style)

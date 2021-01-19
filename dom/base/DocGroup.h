@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -7,7 +6,6 @@
 #ifndef DocGroup_h
 #define DocGroup_h
 
-#include "nsIDocument.h"
 #include "nsISupports.h"
 #include "nsISupportsImpl.h"
 #include "nsIPrincipal.h"
@@ -15,6 +13,8 @@
 #include "nsString.h"
 
 #include "mozilla/RefPtr.h"
+#include "mozilla/dom/CustomElementRegistry.h"
+#include "mozilla/dom/HTMLSlotElement.h"
 
 namespace mozilla {
 namespace dom {
@@ -53,6 +53,14 @@ public:
   {
     return mTabGroup;
   }
+  mozilla::dom::CustomElementReactionsStack* CustomElementReactionsStack()
+  {
+    if (!mReactionsStack) {
+      mReactionsStack = new mozilla::dom::CustomElementReactionsStack();
+    }
+
+    return mReactionsStack;
+  }
   void RemoveDocument(nsIDocument* aWindow);
 
   // Iterators for iterating over every document within the DocGroup
@@ -65,6 +73,23 @@ public:
     return mDocuments.end();
   }
 
+  // Append aSlot to the list of signal slot list, if it's not in it already
+  // list, and queue a mutation observer microtask.
+  void SignalSlotChange(const mozilla::dom::HTMLSlotElement* aSlot);
+
+  const nsTArray<RefPtr<HTMLSlotElement>>& SignalSlotList() const
+  {
+    return mSignalSlotList;
+  }
+
+  void ClearSignalSlotList()
+  {
+    mSignalSlotList.Clear();
+  }
+
+  // List of DocGroups that has non-empty signal slot list.
+  static AutoTArray<RefPtr<DocGroup>, 2>* sPendingDocGroups;
+
 private:
   DocGroup(TabGroup* aTabGroup, const nsACString& aKey);
   ~DocGroup();
@@ -72,6 +97,8 @@ private:
   nsCString mKey;
   RefPtr<TabGroup> mTabGroup;
   nsTArray<nsIDocument*> mDocuments;
+  RefPtr<mozilla::dom::CustomElementReactionsStack> mReactionsStack;
+  nsTArray<RefPtr<HTMLSlotElement>> mSignalSlotList;
 };
 
 } // namespace dom

@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -2619,6 +2618,10 @@ IonBuilder::inlineUnsafeSetReservedSlot(CallInfo& callInfo)
         return InliningStatus_NotInlined;
     uint32_t slot = uint32_t(arg->toConstant()->toInt32());
 
+    // Don't inline if it's not a fixed slot.
+    if (slot >= NativeObject::MAX_FIXED_SLOTS)
+        return InliningStatus_NotInlined;
+
     callInfo.setImplicitlyUsedUnchecked();
 
     MStoreFixedSlot* store =
@@ -2649,6 +2652,10 @@ IonBuilder::inlineUnsafeGetReservedSlot(CallInfo& callInfo, MIRType knownValueTy
     if (!arg->isConstant())
         return InliningStatus_NotInlined;
     uint32_t slot = uint32_t(arg->toConstant()->toInt32());
+
+    // Don't inline if it's not a fixed slot.
+    if (slot >= NativeObject::MAX_FIXED_SLOTS)
+        return InliningStatus_NotInlined;
 
     callInfo.setImplicitlyUsedUnchecked();
 

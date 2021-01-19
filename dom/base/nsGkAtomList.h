@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -1561,11 +1560,11 @@ GK_ATOM(saturate, "saturate")
 GK_ATOM(saturation, "saturation")
 GK_ATOM(set, "set")
 GK_ATOM(seed, "seed")
-GK_ATOM(shadow, "shadow")
 GK_ATOM(shape_rendering, "shape-rendering")
 GK_ATOM(skewX, "skewX")
 GK_ATOM(skewY, "skewY")
 GK_ATOM(slope, "slope")
+GK_ATOM(slot, "slot")
 GK_ATOM(softLight, "soft-light")
 GK_ATOM(spacing, "spacing")
 GK_ATOM(spacingAndGlyphs, "spacingAndGlyphs")
@@ -2145,12 +2144,14 @@ GK_ATOM(ongamepaddisconnected, "ongamepaddisconnected")
 #endif
 
 // Content property names
+GK_ATOM(afterPseudoProperty, "afterPseudoProperty")  // nsXMLElement*
 GK_ATOM(animationsProperty, "AnimationsProperty")        // FrameAnimations*
 GK_ATOM(animationsOfBeforeProperty, "AnimationsOfBeforeProperty") // FrameAnimations*
 GK_ATOM(animationsOfAfterProperty, "AnimationsOfAfterProperty") // FrameAnimations*
 GK_ATOM(animationEffectsProperty, "AnimationEffectsProperty") // EffectSet*
 GK_ATOM(animationEffectsForBeforeProperty, "AnimationsEffectsForBeforeProperty") // EffectSet*
 GK_ATOM(animationEffectsForAfterProperty, "AnimationsEffectsForAfterProperty") // EffectSet*
+GK_ATOM(beforePseudoProperty, "beforePseudoProperty")  // nsXMLElement*
 GK_ATOM(cssPseudoElementBeforeProperty, "CSSPseudoElementBeforeProperty") // CSSPseudoElement*
 GK_ATOM(cssPseudoElementAfterProperty, "CSSPseudoElementAfterProperty") // CSSPseudoElement*
 GK_ATOM(transitionsProperty, "TransitionsProperty")        // FrameTransitions*
@@ -2163,6 +2164,7 @@ GK_ATOM(lockedStyleStates, "lockedStyleStates")
 GK_ATOM(apzCallbackTransform, "apzCallbackTransform")
 GK_ATOM(restylableAnonymousNode, "restylableAnonymousNode")
 GK_ATOM(paintRequestTime, "PaintRequestTime")
+GK_ATOM(pseudoProperty, "PseudoProperty")  // CSSPseudoElementType
 
 // Languages for lang-specific transforms
 GK_ATOM(Japanese, "ja")

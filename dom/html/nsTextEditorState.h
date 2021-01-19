@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -157,6 +156,11 @@ public:
   };
   MOZ_MUST_USE bool SetValue(const nsAString& aValue, uint32_t aFlags);
   void GetValue(nsAString& aValue, bool aIgnoreWrap) const;
+  bool HasNonEmptyValue();
+  // The following methods are for textarea element to use whether default
+  // value or not.
+  // XXX We might have to add assertion when it is into editable,
+  // or reconsider fixing bug 597525 to remove these.
   void EmptyValue() { if (mValue) mValue->Truncate(); }
   bool IsEmpty() const { return mValue ? mValue->IsEmpty() : true; }
 

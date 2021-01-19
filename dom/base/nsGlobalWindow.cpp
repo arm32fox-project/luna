@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -3577,9 +3576,10 @@ nsGlobalWindow::WillHandleEvent(EventChainPostVisitor& aVisitor)
 }
 
 nsresult
-nsGlobalWindow::PreHandleEvent(EventChainPreVisitor& aVisitor)
+nsGlobalWindow::GetEventTargetParent(EventChainPreVisitor& aVisitor)
 {
-  NS_PRECONDITION(IsInnerWindow(), "PreHandleEvent is used on outer window!?");
+  NS_PRECONDITION(IsInnerWindow(),
+                  "GetEventTargetParent is used on outer window!?");
   EventMessage msg = aVisitor.mEvent->mMessage;
 
   aVisitor.mCanHandle = true;
@@ -3607,7 +3607,7 @@ nsGlobalWindow::PreHandleEvent(EventChainPreVisitor& aVisitor)
     }
   }
 
-  aVisitor.mParentTarget = GetParentTarget();
+  aVisitor.SetParentTarget(GetParentTarget(), true);
 
   // Handle 'active' event.
   if (!mIdleObservers.IsEmpty() &&
@@ -3812,7 +3812,7 @@ nsGlobalWindow::PostHandleEvent(EventChainPostVisitor& aVisitor)
   } else if (aVisitor.mEvent->mMessage == eLoad &&
              aVisitor.mEvent->IsTrusted()) {
     // This is page load event since load events don't propagate to |window|.
-    // @see nsDocument::PreHandleEvent.
+    // @see nsDocument::GetEventTargetParent.
     mIsDocumentLoaded = true;
 
     nsCOMPtr<Element> element = GetOuterWindow()->GetFrameElementInternal();
@@ -4241,8 +4241,9 @@ CustomElementRegistry*
 nsGlobalWindow::CustomElements()
 {
   MOZ_RELEASE_ASSERT(IsInnerWindow());
+
   if (!mCustomElements) {
-      mCustomElements = CustomElementRegistry::Create(AsInner());
+    mCustomElements = new CustomElementRegistry(AsInner());
   }
 
   return mCustomElements;
@@ -8263,7 +8264,7 @@ nsGlobalWindow::ScrollTo(const CSSIntPoint& aScroll,
       scroll.y = maxpx;
     }
 
-    bool smoothScroll = sf->GetScrollbarStyles().IsSmoothScroll(aOptions.mBehavior);
+    bool smoothScroll = sf->GetScrollStyles().IsSmoothScroll(aOptions.mBehavior);
 
     sf->ScrollToCSSPixels(scroll, smoothScroll
                             ? nsIScrollableFrame::SMOOTH_MSD
@@ -8319,7 +8320,7 @@ nsGlobalWindow::ScrollByLines(int32_t numLines,
     // It seems like it would make more sense for ScrollByLines to use
     // SMOOTH mode, but tests seem to depend on the synchronous behaviour.
     // Perhaps Web content does too.
-    bool smoothScroll = sf->GetScrollbarStyles().IsSmoothScroll(aOptions.mBehavior);
+    bool smoothScroll = sf->GetScrollStyles().IsSmoothScroll(aOptions.mBehavior);
 
     sf->ScrollBy(nsIntPoint(0, numLines), nsIScrollableFrame::LINES,
                  smoothScroll
@@ -8340,7 +8341,7 @@ nsGlobalWindow::ScrollByPages(int32_t numPages,
     // It seems like it would make more sense for ScrollByPages to use
     // SMOOTH mode, but tests seem to depend on the synchronous behaviour.
     // Perhaps Web content does too.
-    bool smoothScroll = sf->GetScrollbarStyles().IsSmoothScroll(aOptions.mBehavior);
+    bool smoothScroll = sf->GetScrollStyles().IsSmoothScroll(aOptions.mBehavior);
 
     sf->ScrollBy(nsIntPoint(0, numPages), nsIScrollableFrame::PAGES,
                  smoothScroll

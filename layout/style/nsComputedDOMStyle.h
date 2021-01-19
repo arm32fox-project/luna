@@ -27,6 +27,7 @@
 
 namespace mozilla {
 namespace dom {
+class DocGroup;
 class Element;
 } // namespace dom
 struct ComputedGridTrackInfo;
@@ -82,6 +83,11 @@ public:
   nsINode *GetParentObject() override
   {
     return mElement;
+  }
+
+  virtual mozilla::dom::DocGroup* GetDocGroup() const override
+  {
+    return mElement ? mElement->GetDocGroup() : nullptr;
   }
 
   static already_AddRefed<nsStyleContext>
@@ -486,6 +492,7 @@ private:
   already_AddRefed<CSSValue> DoGetCursor();
   already_AddRefed<CSSValue> DoGetForceBrokenImageIcon();
   already_AddRefed<CSSValue> DoGetIMEMode();
+  already_AddRefed<CSSValue> DoGetScrollbarWidth();
   already_AddRefed<CSSValue> DoGetUserFocus();
   already_AddRefed<CSSValue> DoGetUserInput();
   already_AddRefed<CSSValue> DoGetUserModify();

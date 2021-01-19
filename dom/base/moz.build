@@ -1,5 +1,4 @@
 # -*- Mode: python; indent-tabs-mode: nil; tab-width: 40 -*-
-# vim: set filetype=python:
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -85,6 +84,7 @@ EXPORTS += [
     'nsIContentInlines.h',
     'nsIContentIterator.h',
     'nsIContentSerializer.h',
+    'nsIdentifierMapEntry.h',
     'nsIDocument.h',
     'nsIDocumentInlines.h',
     'nsIDocumentObserver.h',
@@ -160,6 +160,7 @@ EXPORTS.mozilla.dom += [
     'DirectionalityUtils.h',
     'DocGroup.h',
     'DocumentFragment.h',
+    'DocumentOrShadowRoot.h',
     'DocumentType.h',
     'DOMCursor.h',
     'DOMError.h',
@@ -239,6 +240,7 @@ SOURCES += [
     'DirectionalityUtils.cpp',
     'DocGroup.cpp',
     'DocumentFragment.cpp',
+    'DocumentOrShadowRoot.cpp',
     'DocumentType.cpp',
     'DOMCursor.cpp',
     'DOMError.cpp',

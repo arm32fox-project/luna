@@ -1079,6 +1079,16 @@ public:
     return mRule ? mRule->GetDocument() : nullptr;
   }
 
+  virtual DocGroup* GetDocGroup() const override
+  {
+    if (!mRule) {
+      return nullptr;
+    }
+
+    nsIDocument* document = mRule->GetDocument();
+    return document ? document->GetDocGroup() : nullptr;
+  }
+
   friend class css::DOMCSSStyleRule;
 
 protected:
@@ -1210,13 +1220,13 @@ DOMCSSDeclarationImpl::SetCSSDeclaration(DeclarationBlock* aDecl)
   NS_PRECONDITION(mRule,
          "can only be called when |GetCSSDeclaration| returned a declaration");
 
-  nsCOMPtr<nsIDocument> owningDoc;
+  nsCOMPtr<nsIDocument> doc;
   RefPtr<CSSStyleSheet> sheet = mRule->GetStyleSheet();
   if (sheet) {
-    owningDoc = sheet->GetOwningDocument();
+    doc = sheet->GetAssociatedDocument();
   }
 
-  mozAutoDocUpdate updateBatch(owningDoc, UPDATE_STYLE, true);
+  mozAutoDocUpdate updateBatch(doc, UPDATE_STYLE, true);
 
   mRule->SetDeclaration(aDecl->AsGecko());
 
@@ -1224,8 +1234,8 @@ DOMCSSDeclarationImpl::SetCSSDeclaration(DeclarationBlock* aDecl)
     sheet->DidDirty();
   }
 
-  if (owningDoc) {
-    owningDoc->StyleRuleChanged(sheet, mRule);
+  if (doc) {
+    doc->StyleRuleChanged(sheet, mRule);
   }
   return NS_OK;
 }

@@ -1550,7 +1550,6 @@ def getPhases(debug):
                 self.tree.openElements.insert(
                     self.tree.openElements.index(furthestBlock) + 1, clone)
 
-
         def endTagBr(self, token):
             self.parser.parseError("unexpected-end-tag-treated-as",
                                    {"originalName": "br", "newName": "br element"})
