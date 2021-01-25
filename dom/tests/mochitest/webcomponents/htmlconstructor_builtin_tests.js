@@ -71,7 +71,6 @@
   ['map', 'Map'],
   ['mark', ''],
   ['menu', 'Menu'],
-  ['menuitem', 'MenuItem'],
   ['meta', 'Meta'],
   ['meter', 'Meter'],
   ['nav', ''],
