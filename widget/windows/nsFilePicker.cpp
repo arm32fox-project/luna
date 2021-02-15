@@ -360,7 +360,7 @@ nsFilePicker::ShowFolderPicker(const nsString& aInitialDir)
   dialog->Advise(this, &mFDECookie);
 
   // options
-  FILEOPENDIALOGOPTIONS fos = FOS_PICKFOLDERS;
+  FILEOPENDIALOGOPTIONS fos = FOS_PICKFOLDERS | FOS_OKBUTTONNEEDSINTERACTION;
   dialog->SetOptions(fos);
  
   // initial strings
@@ -459,7 +459,7 @@ nsFilePicker::ShowFilePicker(const nsString& aInitialDir)
 
   FILEOPENDIALOGOPTIONS fos = 0;
   fos |= FOS_SHAREAWARE | FOS_OVERWRITEPROMPT |
-         FOS_FORCEFILESYSTEM;
+         FOS_FORCEFILESYSTEM | FOS_OKBUTTONNEEDSINTERACTION;
 
   // Handle add to recent docs settings
   if (IsPrivacyModeEnabled() || !mAddToRecentDocs) {
