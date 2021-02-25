@@ -191,6 +191,28 @@ intrinsic_IsInstanceOfBuiltin(JSContext* cx, unsigned argc, Value* vp)
 
 template<typename T>
 static bool
+intrinsic_IsPossiblyWrappedBuiltin(JSContext* cx, unsigned argc, Value* vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    MOZ_ASSERT(args.length() == 1);
+
+    bool isTypeT = false;
+    if (args[0].isObject()) {
+        JSObject* obj = CheckedUnwrap(&args[0].toObject());
+        if (!obj) {
+            JS_ReportErrorASCII(cx, "Permission denied to access object");
+            return false;
+        }
+
+        isTypeT = obj->is<T>();
+    }
+
+    args.rval().setBoolean(isTypeT);
+    return true;
+}
+
+template<typename T>
+static bool
 intrinsic_GuardToBuiltin(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -1173,27 +1195,6 @@ intrinsic_IsFloat32TypedArray(JSContext* cx, unsigned argc, Value* vp)
 }
 
 static bool
-intrinsic_IsPossiblyWrappedTypedArray(JSContext* cx, unsigned argc, Value* vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    MOZ_ASSERT(args.length() == 1);
-
-    bool isTypedArray = false;
-    if (args[0].isObject()) {
-        JSObject* obj = CheckedUnwrap(&args[0].toObject());
-        if (!obj) {
-            JS_ReportErrorASCII(cx, "Permission denied to access object");
-            return false;
-        }
-
-        isTypedArray = obj->is<TypedArrayObject>();
-    }
-
-    args.rval().setBoolean(isTypedArray);
-    return true;
-}
-
-static bool
 intrinsic_TypedArrayBuffer(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -1756,6 +1757,24 @@ intrinsic_StringReplaceString(JSContext* cx, unsigned argc, Value* vp)
     return true;
 }
 
+static bool
+intrinsic_StringReplaceAllString(JSContext * cx, unsigned argc, Value* vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    MOZ_ASSERT(args.length() == 3);
+
+    RootedString string(cx, args[0].toString());
+    RootedString pattern(cx, args[1].toString());
+    RootedString replacement(cx, args[2].toString());
+    JSString* result = str_replaceAll_string_raw(cx, string, pattern, replacement);
+    if (!result) {
+        return false;
+    }
+
+    args.rval().setString(result);
+    return true;
+}
+
 bool
 js::intrinsic_StringSplitString(JSContext* cx, unsigned argc, Value* vp)
 {
@@ -2156,105 +2175,6 @@ intrinsic_PromiseResolve(JSContext* cx, unsigned argc, Value* vp)
     return true;
 }
 
-static bool
-intrinsic_CreatePendingPromise(JSContext* cx, unsigned argc, Value* vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    MOZ_ASSERT(args.length() == 0);
-    RootedObject promise(cx, PromiseObject::createSkippingExecutor(cx));
-    if (!promise)
-        return false;
-    args.rval().setObject(*promise);
-    return true;
-}
-
-static bool
-intrinsic_CreatePromiseResolvedWith(JSContext* cx, unsigned argc, Value* vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    MOZ_ASSERT(args.length() == 1);
-    RootedObject promise(cx, PromiseObject::unforgeableResolve(cx, args[0]));
-    if (!promise)
-        return false;
-    args.rval().setObject(*promise);
-    return true;
-}
-
-static bool
-intrinsic_CreatePromiseRejectedWith(JSContext* cx, unsigned argc, Value* vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    MOZ_ASSERT(args.length() == 1);
-    RootedObject promise(cx, PromiseObject::unforgeableReject(cx, args[0]));
-    if (!promise)
-        return false;
-    args.rval().setObject(*promise);
-    return true;
-}
-
-static bool
-intrinsic_ResolvePromise(JSContext* cx, unsigned argc, Value* vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    MOZ_ASSERT(args.length() == 2);
-    Rooted<PromiseObject*> promise(cx, &args[0].toObject().as<PromiseObject>());
-    if (!PromiseObject::resolve(cx, promise, args[1]))
-        return false;
-    args.rval().setUndefined();
-    return true;
-}
-
-static bool
-intrinsic_RejectPromise(JSContext* cx, unsigned argc, Value* vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    MOZ_ASSERT(args.length() == 2);
-    Rooted<PromiseObject*> promise(cx, &args[0].toObject().as<PromiseObject>());
-    if (!PromiseObject::reject(cx, promise, args[1]))
-        return false;
-    args.rval().setUndefined();
-    return true;
-}
-
-static bool
-intrinsic_CallOriginalPromiseThen(JSContext* cx, unsigned argc, Value* vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    MOZ_ASSERT(args.length() >= 2);
-
-    RootedObject promise(cx, &args[0].toObject());
-    Value val = args[1];
-    RootedObject onResolvedObj(cx, val.isUndefined() ? nullptr : val.toObjectOrNull());
-    val = args.get(2);
-    RootedObject onRejectedObj(cx, val.isUndefined() ? nullptr : val.toObjectOrNull());
-
-    RootedObject resultPromise(cx, JS::CallOriginalPromiseThen(cx, promise, onResolvedObj,
-                                                               onRejectedObj));
-    if (!resultPromise)
-        return false;
-    args.rval().setObject(*resultPromise);
-    return true;
-}
-
-static bool
-intrinsic_AddPromiseReactions(JSContext* cx, unsigned argc, Value* vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    MOZ_ASSERT(args.length() >= 2);
-
-    RootedObject promise(cx, &args[0].toObject());
-    Value val = args[1];
-    RootedObject onResolvedObj(cx, val.isUndefined() ? nullptr : val.toObjectOrNull());
-    val = args.get(2);
-    RootedObject onRejectedObj(cx, val.isUndefined() ? nullptr : val.toObjectOrNull());
-
-    bool result = JS::AddPromiseReactions(cx, promise, onResolvedObj, onRejectedObj);
-    if (!result)
-        return false;
-    args.rval().setUndefined();
-    return true;
-}
-
 // The self-hosting global isn't initialized with the normal set of builtins.
 // Instead, individual C++-implemented functions that're required by
 // self-hosted code are defined as global functions. Accessing these
@@ -2500,7 +2420,7 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_INLINABLE_FN("IsTypedArray",
                     intrinsic_IsInstanceOfBuiltin<TypedArrayObject>,    1,0,
                     IntrinsicIsTypedArray),
-    JS_INLINABLE_FN("IsPossiblyWrappedTypedArray",intrinsic_IsPossiblyWrappedTypedArray,1,0,
+    JS_INLINABLE_FN("IsPossiblyWrappedTypedArray",intrinsic_IsPossiblyWrappedBuiltin<TypedArrayObject>,1,0,
                     IntrinsicIsPossiblyWrappedTypedArray),
 
     JS_FN("TypedArrayBuffer",        intrinsic_TypedArrayBuffer,        1,0),
@@ -2612,6 +2532,8 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_INLINABLE_FN("IsRegExpObject",
                     intrinsic_IsInstanceOfBuiltin<RegExpObject>, 1,0,
                     IsRegExpObject),
+    JS_INLINABLE_FN("IsPossiblyWrappedRegExpObject", intrinsic_IsPossiblyWrappedBuiltin<RegExpObject>,1,0,
+                    IntrinsicIsPossiblyWrappedRegExpObject),
     JS_FN("CallRegExpMethodIfWrapped",
           CallNonGenericSelfhostedMethod<Is<RegExpObject>>, 2,0),
     JS_INLINABLE_FN("RegExpMatcher", RegExpMatcher, 4,0,
@@ -2635,6 +2557,7 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_FN("FlatStringSearch", FlatStringSearch, 2,0),
     JS_INLINABLE_FN("StringReplaceString", intrinsic_StringReplaceString, 3, 0,
                     IntrinsicStringReplaceString),
+    JS_FN("StringReplaceAllString", intrinsic_StringReplaceAllString, 3, 0),
     JS_INLINABLE_FN("StringSplitString", intrinsic_StringSplitString, 2, 0,
                     IntrinsicStringSplitString),
     JS_FN("StringSplitStringLimit", intrinsic_StringSplitStringLimit, 3, 0),
@@ -2658,14 +2581,6 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_FN("NewModuleNamespace", intrinsic_NewModuleNamespace, 2, 0),
     JS_FN("AddModuleNamespaceBinding", intrinsic_AddModuleNamespaceBinding, 4, 0),
     JS_FN("ModuleNamespaceExports", intrinsic_ModuleNamespaceExports, 1, 0),
-
-    JS_FN("CreatePendingPromise", intrinsic_CreatePendingPromise, 0, 0),
-    JS_FN("CreatePromiseResolvedWith", intrinsic_CreatePromiseResolvedWith, 1, 0),
-    JS_FN("CreatePromiseRejectedWith", intrinsic_CreatePromiseRejectedWith, 1, 0),
-    JS_FN("ResolvePromise", intrinsic_ResolvePromise, 2, 0),
-    JS_FN("RejectPromise", intrinsic_RejectPromise, 2, 0),
-    JS_FN("AddPromiseReactions", intrinsic_AddPromiseReactions, 3, 0),
-    JS_FN("CallOriginalPromiseThen", intrinsic_CallOriginalPromiseThen, 3, 0),
 
     JS_FN("IsPromiseObject", intrinsic_IsInstanceOfBuiltin<PromiseObject>, 1, 0),
     JS_FN("CallPromiseMethodIfWrapped", CallNonGenericSelfhostedMethod<Is<PromiseObject>>, 2, 0),

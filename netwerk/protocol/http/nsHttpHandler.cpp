@@ -279,7 +279,7 @@ nsHttpHandler::Init()
     nsCOMPtr<nsIPrefBranch> prefBranch = do_GetService(NS_PREFSERVICE_CONTRACTID);
     if (prefBranch) {
         prefBranch->AddObserver(HTTP_PREF_PREFIX, this, true);
-        prefBranch->AddObserver(UA_PREF_PREFIX, this, true);
+        prefBranch->AddObserver(GENERAL_UA_PREF_PREFIX, this, true);
         prefBranch->AddObserver(INTL_ACCEPT_LANGUAGES, this, true);
         prefBranch->AddObserver(BROWSER_PREF("disk_cache_ssl"), this, true);
         prefBranch->AddObserver(DONOTTRACK_HEADER_ENABLED, this, true);
