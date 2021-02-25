@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<blocklist lastupdate="1612384668000"
+<blocklist lastupdate="1612644720000"
 xmlns="http://www.mozilla.org/2006/addons-blocklist">
   <emItems>
     <emItem blockID="i545" id="superlrcs@svenyor.net">
@@ -2541,7 +2541,11 @@ xmlns="http://www.mozilla.org/2006/addons-blocklist">
     <emItem blockID="pm117" id="treestyletabforpm@oinkoink">
       <versionRange minVersion="0" maxVersion="0.0.5" severity="3">
       </versionRange>
-    <emItem>
+    </emItem>
+    <emItem blockID="pm118" id="hidecaptionplus-dp@dummy.addons.mozilla.org">
+      <versionRange minVersion="0" maxVersion="4.1.1" severity="1">
+      </versionRange>
+    </emItem>
   </emItems>
   <pluginItems>
     <pluginItem blockID="p26">
