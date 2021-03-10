@@ -845,19 +845,6 @@ case "$target" in
     MOZ_FIX_LINK_PATHS="-Wl,-executable_path,${DIST}/bin"
     ;;
 
-*-android*|*-linuxandroid*)
-    AC_DEFINE(NO_PW_GECOS)
-    if test "$COMPILE_ENVIRONMENT"; then
-        MOZ_LINKER=1
-    fi
-
-    MOZ_GFX_OPTIMIZE_MOBILE=1
-    MOZ_OPTIMIZE_FLAGS="-O2"
-    if test -z "$CLANG_CC"; then
-       MOZ_OPTIMIZE_FLAGS="-freorder-blocks -fno-reorder-functions $MOZ_OPTIMIZE_FLAGS"
-    fi
-    ;;
-
 *-*linux*)
     if test "$GNU_CC" -o "$GNU_CXX"; then
         MOZ_PGO_OPTIMIZE_FLAGS="-O3"
@@ -1828,9 +1815,6 @@ if test "$ac_cv_thread_keyword" = yes -a "$MOZ_LINKER" != 1; then
     mips*-*)
       :
       ;;
-    *-android*|*-linuxandroid*)
-      :
-      ;;
     *-openbsd*)
       :
       ;;
@@ -2142,14 +2126,6 @@ case "$target_os" in
         NS_ENABLE_TSF=1
         AC_DEFINE(NS_ENABLE_TSF)
         ;;
-esac
-
-case "${target}" in
-    *-android*|*-linuxandroid*)
-        MOZ_THEME_FASTSTRIPE=1
-        MOZ_RAW=1
-        ;;
-
 esac
 
 dnl ========================================================
@@ -2590,7 +2566,7 @@ dnl --enable-webrtc to override.  Can disable for everything in
 dnl the master list above.
 if test -n "$MOZ_WEBRTC"; then
     case "$target" in
-    *-linux*|*-mingw*|*-darwin*|*-android*|*-linuxandroid*|*-dragonfly*|*-freebsd*|*-netbsd*|*-openbsd*)
+    *-linux*|*-mingw*|*-darwin*|*-dragonfly*|*-freebsd*|*-netbsd*|*-openbsd*)
         dnl Leave enabled
         ;;
     *)
