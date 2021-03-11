@@ -71,9 +71,6 @@ const PROP_JSON_FIELDS = ["id", "syncGUID", "location", "version", "type",
                           "softDisabled", "foreignInstall", "hasBinaryComponents",
                           "strictCompatibility", "locales", "targetApplications",
                           "targetPlatforms", "multiprocessCompatible",
-#ifdef MOZ_PHOENIX_EXTENSIONS
-                          "native"
-#endif
                           ];
 
 // Time to wait before async save of XPI JSON database, in milliseconds
