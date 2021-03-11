@@ -19,9 +19,6 @@
 #ifdef MOZ_APPLEMEDIA
 #include "AppleDecoderModule.h"
 #endif
-#ifdef MOZ_WIDGET_ANDROID
-#include "AndroidDecoderModule.h"
-#endif
 #include "GMPDecoderModule.h"
 
 #include "mozilla/ClearOnShutdown.h"
@@ -355,13 +352,6 @@ PDMFactory::CreatePDMs()
     return;
   }
 
-#ifdef MOZ_WIDGET_ANDROID
-  if(MediaPrefs::PDMAndroidMediaCodecPreferred() &&
-     MediaPrefs::PDMAndroidMediaCodecEnabled()) {
-    m = new AndroidDecoderModule();
-    StartupPDM(m);
-  }
-#endif
 #ifdef XP_WIN
   if (MediaPrefs::PDMWMFEnabled()) {
     m = new WMFDecoderModule();
@@ -389,12 +379,6 @@ PDMFactory::CreatePDMs()
 #ifdef MOZ_APPLEMEDIA
   m = new AppleDecoderModule();
   StartupPDM(m);
-#endif
-#ifdef MOZ_WIDGET_ANDROID
-  if(MediaPrefs::PDMAndroidMediaCodecEnabled()){
-    m = new AndroidDecoderModule();
-    StartupPDM(m);
-  }
 #endif
 
   m = new AgnosticDecoderModule();
