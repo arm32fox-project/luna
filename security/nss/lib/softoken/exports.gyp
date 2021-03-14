@@ -19,6 +19,7 @@
         },
         {
           'files': [
+            'lgglue.h',
             'pkcs11ni.h',
             'sdb.h',
             'sftkdbt.h',
@@ -26,14 +27,7 @@
             'softoken.h',
             'softoknt.h'
           ],
-          'destination': '<(nss_private_dist_dir)/<(module)',
-          'conditions': [
-            [ 'disable_dbm==0', {
-              'files': [
-                'lgglue.h',
-              ]
-            }]
-          ]
+          'destination': '<(nss_private_dist_dir)/<(module)'
         }
       ]
     }

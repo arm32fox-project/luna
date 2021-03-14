@@ -28,6 +28,8 @@ CSRCS =	adler32.c 	\
 
 LIBRARY_NAME = zlib
 
+PROGRAMS = example minigzip
+
 # REQUIRES = nss
 
 # Define verbose as -1 to turn off all zlib trace messages in

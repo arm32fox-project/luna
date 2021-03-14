@@ -26,6 +26,10 @@
 #endif /* NSS_DISABLE_SSE2 */
 #endif
 
+typedef void AESBlockFunc(AESContext *cx,
+                          unsigned char *output,
+                          const unsigned char *input);
+
 /* RIJNDAEL_NUM_ROUNDS
  *
  * Number of rounds per execution
@@ -69,7 +73,6 @@ struct AESContextStr {
     unsigned int Nr;
     freeblCipherFunc worker;
     unsigned char iv[AES_BLOCK_SIZE];
-    freeblAeadFunc worker_aead;
     freeblDestroyFunc destroy;
     void *worker_cx;
     PRBool isBlock;

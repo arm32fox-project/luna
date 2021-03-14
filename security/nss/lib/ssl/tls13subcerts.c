@@ -7,7 +7,6 @@
 #include "nss.h"
 #include "pk11func.h"
 #include "secder.h"
-#include "sechash.h"
 #include "ssl.h"
 #include "sslproto.h"
 #include "sslimpl.h"
@@ -149,7 +148,9 @@ tls13_GetExpectedCertVerifyAlg(SECItem in, SSLSignatureScheme *certVerifyAlg)
 PRBool
 tls13_IsVerifyingWithDelegatedCredential(const sslSocket *ss)
 {
-    /* We currently do not support client-delegated credentials. */
+    /* As of draft-ietf-subcerts-03, only the server may authenticate itself
+     * with a DC.
+     */
     if (ss->sec.isServer ||
         !ss->opt.enableDelegatedCredentials ||
         !ss->xtnData.peerDelegCred) {
@@ -190,21 +191,20 @@ tls13_MaybeSetDelegatedCredential(sslSocket *ss)
     SECKEYPrivateKey *priv;
     SSLSignatureScheme scheme;
 
-    /* Assert that the host is the server (we do not currently support
-     * client-delegated credentials), the certificate has been
+    /* Assert that the host is the server (as of draft-ietf-subcerts-03, only
+     * the server may authenticate itself with a DC), the certificate has been
      * chosen, TLS 1.3 or higher has been negotiated, and that the set of
      * signature schemes supported by the client is known.
      */
     PORT_Assert(ss->sec.isServer);
     PORT_Assert(ss->sec.serverCert);
     PORT_Assert(ss->version >= SSL_LIBRARY_VERSION_TLS_1_3);
-    PORT_Assert(ss->xtnData.peerRequestedDelegCred == !!ss->xtnData.delegCredSigSchemes);
+    PORT_Assert(ss->xtnData.sigSchemes);
 
     /* Check that the peer has indicated support and that a DC has been
      * configured for the selected certificate.
      */
     if (!ss->xtnData.peerRequestedDelegCred ||
-        !ss->xtnData.delegCredSigSchemes ||
         !ss->sec.serverCert->delegCred.len ||
         !ss->sec.serverCert->delegCredKeyPair) {
         return SECSuccess;
@@ -227,8 +227,8 @@ tls13_MaybeSetDelegatedCredential(sslSocket *ss)
 
     if (!ssl_SignatureSchemeEnabled(ss, scheme) ||
         !ssl_CanUseSignatureScheme(scheme,
-                                   ss->xtnData.delegCredSigSchemes,
-                                   ss->xtnData.numDelegCredSigSchemes,
+                                   ss->xtnData.sigSchemes,
+                                   ss->xtnData.numSigSchemes,
                                    PR_FALSE /* requireSha1 */,
                                    doesRsaPss)) {
         return SECSuccess;
@@ -379,12 +379,6 @@ tls13_VerifyCredentialSignature(sslSocket *ss, sslDelegatedCredential *dc)
         goto loser;
     }
 
-    SECOidTag spkiAlg = SECOID_GetAlgorithmTag(&(dc->spki->algorithm));
-    if (spkiAlg == SEC_OID_PKCS1_RSA_ENCRYPTION) {
-        FATAL_ERROR(ss, SSL_ERROR_INCORRECT_SIGNATURE_ALGORITHM, illegal_parameter);
-        goto loser;
-    }
-
     SECKEY_DestroyPublicKey(pubKey);
     sslBuffer_Clear(&dcBuf);
     return SECSuccess;
@@ -440,10 +434,8 @@ static SECStatus
 tls13_CheckCredentialExpiration(sslSocket *ss, sslDelegatedCredential *dc)
 {
     SECStatus rv;
+    PRTime start, end /* microseconds */;
     CERTCertificate *cert = ss->sec.peerCert;
-    /* 7 days in microseconds */
-    static const PRTime kMaxDcValidity = ((PRTime)7 * 24 * 60 * 60 * PR_USEC_PER_SEC);
-    PRTime start, now, end; /* microseconds */
 
     rv = DER_DecodeTimeChoice(&start, &cert->validity.notBefore);
     if (rv != SECSuccess) {
@@ -452,15 +444,8 @@ tls13_CheckCredentialExpiration(sslSocket *ss, sslDelegatedCredential *dc)
     }
 
     end = start + ((PRTime)dc->validTime * PR_USEC_PER_SEC);
-    now = ssl_Time(ss);
-    if (now > end || end < 0) {
+    if (ssl_Time(ss) > end) {
         FATAL_ERROR(ss, SSL_ERROR_DC_EXPIRED, illegal_parameter);
-        return SECFailure;
-    }
-
-    /* Not more than 7 days remaining in the validity period. */
-    if (end - now > kMaxDcValidity) {
-        FATAL_ERROR(ss, SSL_ERROR_DC_INAPPROPRIATE_VALIDITY_PERIOD, illegal_parameter);
         return SECFailure;
     }
 
@@ -471,8 +456,7 @@ tls13_CheckCredentialExpiration(sslSocket *ss, sslDelegatedCredential *dc)
  * returns SECFailure. A valid DC meets three requirements: (1) the signature
  * was produced by the peer's end-entity certificate, (2) the end-entity
  * certificate must have the correct key usage, and (3) the DC must not be
- * expired and its remaining TTL must be <= the maximum validity period (fixed
- * as 7 days).
+ * expired.
  *
  * This function calls FATAL_ERROR() when an error occurs.
  */
@@ -554,15 +538,6 @@ tls13_MakePssSpki(const SECKEYPublicKey *pub, SECOidTag hashOid)
         goto loser; /* Code already set. */
     }
 
-    /* Always include saltLength: all hashes are larger than 20. */
-    unsigned int saltLength = HASH_ResultLenByOidTag(hashOid);
-    PORT_Assert(saltLength > 20);
-    if (!SEC_ASN1EncodeInteger(arena, &params.saltLength, saltLength)) {
-        PORT_SetError(SEC_ERROR_LIBRARY_FAILURE);
-        goto loser;
-    }
-    /* Omit the trailerField always. */
-
     SECItem *algorithmItem =
         SEC_ASN1EncodeItem(arena, NULL, &params,
                            SEC_ASN1_GET(SECKEY_RSAPSSParamsTemplate));
@@ -576,6 +551,8 @@ tls13_MakePssSpki(const SECKEYPublicKey *pub, SECOidTag hashOid)
         goto loser; /* Code already set. */
     }
 
+    PORT_Assert(pub->u.rsa.modulus.type == siUnsignedInteger);
+    PORT_Assert(pub->u.rsa.publicExponent.type == siUnsignedInteger);
     SECItem *pubItem = SEC_ASN1EncodeItem(arena, &spki->subjectPublicKey, pub,
                                           SEC_ASN1_GET(SECKEY_RSAPublicKeyTemplate));
     if (!pubItem) {
@@ -597,13 +574,15 @@ tls13_MakeDcSpki(const SECKEYPublicKey *dcPub, SSLSignatureScheme dcCertVerifyAl
         case rsaKey: {
             SECOidTag hashOid;
             switch (dcCertVerifyAlg) {
-                /* Note: RSAE schemes are NOT permitted within DC SPKIs. However,
-                 * support for their issuance remains so as to enable negative
-                 * testing of client behavior. */
+                /* Though we might prefer to use a pure PSS SPKI here, we can't
+                 * because we have to choose based on client preferences. And
+                 * not all clients advertise the pss_pss schemes.  So use the
+                 * default SPKI construction for an RSAE SPKI. */
                 case ssl_sig_rsa_pss_rsae_sha256:
                 case ssl_sig_rsa_pss_rsae_sha384:
                 case ssl_sig_rsa_pss_rsae_sha512:
                     return SECKEY_CreateSubjectPublicKeyInfo(dcPub);
+
                 case ssl_sig_rsa_pss_pss_sha256:
                     hashOid = SEC_OID_SHA256;
                     break;
@@ -728,10 +707,7 @@ SSLExp_DelegateCredential(const CERTCertificate *cert,
     if (dc->alg == ssl_sig_none) {
         SECOidTag spkiOid = SECOID_GetAlgorithmTag(&cert->subjectPublicKeyInfo.algorithm);
         /* If the Cert SPKI contained an AlgorithmIdentifier of "rsaEncryption", set a
-         * default rsa_pss_rsae_sha256 scheme. NOTE: RSAE SPKIs are not permitted within
-         * "real" Delegated Credentials. However, since this function is primarily used for
-         * testing, we retain this support in order to verify that these DCs are rejected
-         * by tls13_VerifyDelegatedCredential. */
+         * default rsa_pss_rsae_sha256 scheme. */
         if (spkiOid == SEC_OID_PKCS1_RSA_ENCRYPTION) {
             SSLSignatureScheme scheme = ssl_sig_rsa_pss_rsae_sha256;
             if (ssl_SignatureSchemeValid(scheme, spkiOid, PR_TRUE /* isTls13 */)) {
@@ -775,8 +751,6 @@ SSLExp_DelegateCredential(const CERTCertificate *cert,
     if (rv != SECSuccess) {
         goto loser;
     }
-
-    PRINT_BUF(20, (NULL, "delegated credential", dcBuf.buf, dcBuf.len));
 
     SECKEY_DestroySubjectPublicKeyInfo(spki);
     SECKEY_DestroyPrivateKey(tmpPriv);

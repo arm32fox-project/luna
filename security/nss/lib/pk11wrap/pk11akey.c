@@ -5,8 +5,6 @@
  * This file contains functions to manage asymetric keys, (public and
  * private keys).
  */
-#include <stddef.h>
-
 #include "seccomon.h"
 #include "secmod.h"
 #include "secmodi.h"
@@ -232,7 +230,7 @@ PK11_ImportPublicKey(PK11SlotInfo *slot, SECKEYPublicKey *pubKey,
                 pk11_SignedToUnsigned(attrs);
             }
         }
-        rv = PK11_CreateNewObject(slot, CK_INVALID_HANDLE, theTemplate,
+        rv = PK11_CreateNewObject(slot, CK_INVALID_SESSION, theTemplate,
                                   templateCount, isToken, &objectID);
         if (ckaId) {
             SECITEM_FreeItem(ckaId, PR_TRUE);
@@ -1087,7 +1085,7 @@ pk11_loadPrivKeyWithFlags(PK11SlotInfo *slot, SECKEYPrivateKey *privKey,
     }
 
     /* now Store the puppies */
-    rv = PK11_CreateNewObject(slot, CK_INVALID_HANDLE, privTemplate,
+    rv = PK11_CreateNewObject(slot, CK_INVALID_SESSION, privTemplate,
                               count, token, &objectID);
     PORT_FreeArena(arena, PR_TRUE);
     if (rv != SECSuccess) {
@@ -1522,13 +1520,13 @@ PK11_GenerateKeyPairWithOpFlags(PK11SlotInfo *slot, CK_MECHANISM_TYPE type,
         restore = PR_TRUE;
     } else {
         session_handle = slot->session;
-        if (session_handle != CK_INVALID_HANDLE)
+        if (session_handle != CK_INVALID_SESSION)
             PK11_EnterSlotMonitor(slot);
         restore = PR_FALSE;
         haslock = PR_TRUE;
     }
 
-    if (session_handle == CK_INVALID_HANDLE) {
+    if (session_handle == CK_INVALID_SESSION) {
         PORT_SetError(SEC_ERROR_BAD_DATA);
         return NULL;
     }
@@ -1903,12 +1901,12 @@ try_faulty_3des:
     }
 
     /* if we are unable to import the key and the pbeMechType is
-     * CKM_NSS_PBE_SHA1_TRIPLE_DES_CBC, then it is possible that
+     * CKM_NETSCAPE_PBE_SHA1_TRIPLE_DES_CBC, then it is possible that
      * the encrypted blob was created with a buggy key generation method
      * which is described in the PKCS 12 implementation notes.  So we
      * need to try importing via that method.
      */
-    if ((pbeMechType == CKM_NSS_PBE_SHA1_TRIPLE_DES_CBC) && (!faulty3DES)) {
+    if ((pbeMechType == CKM_NETSCAPE_PBE_SHA1_TRIPLE_DES_CBC) && (!faulty3DES)) {
         /* clean up after ourselves before redoing the key generation. */
 
         PK11_FreeSymKey(key);
@@ -2273,7 +2271,7 @@ PK11_ConvertSessionPrivKeyToTokenPrivKey(SECKEYPrivateKey *privk, void *wincx)
 
     PK11_Authenticate(slot, PR_TRUE, wincx);
     rwsession = PK11_GetRWSession(slot);
-    if (rwsession == CK_INVALID_HANDLE) {
+    if (rwsession == CK_INVALID_SESSION) {
         PORT_SetError(SEC_ERROR_BAD_DATA);
         return NULL;
     }
@@ -2550,7 +2548,7 @@ PK11_ListPublicKeysInSlot(PK11SlotInfo *slot, char *nickname)
     CK_ATTRIBUTE *attrs;
     CK_BBOOL ckTrue = CK_TRUE;
     CK_OBJECT_CLASS keyclass = CKO_PUBLIC_KEY;
-    size_t tsize = 0;
+    unsigned int tsize = 0;
     int objCount = 0;
     CK_OBJECT_HANDLE *key_ids;
     SECKEYPublicKeyList *keys;
@@ -2598,7 +2596,7 @@ PK11_ListPrivKeysInSlot(PK11SlotInfo *slot, char *nickname, void *wincx)
     CK_ATTRIBUTE *attrs;
     CK_BBOOL ckTrue = CK_TRUE;
     CK_OBJECT_CLASS keyclass = CKO_PRIVATE_KEY;
-    size_t tsize = 0;
+    unsigned int tsize = 0;
     int objCount = 0;
     CK_OBJECT_HANDLE *key_ids;
     SECKEYPrivateKeyList *keys;

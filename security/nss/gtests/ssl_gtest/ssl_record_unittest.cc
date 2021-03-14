@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -185,41 +184,11 @@ TEST_F(TlsConnectStreamTls13, TooLargeRecord) {
 class ShortHeaderChecker : public PacketFilter {
  public:
   PacketFilter::Action Filter(const DataBuffer& input, DataBuffer* output) {
-    // The first octet should be 0b001000xx.
-    EXPECT_EQ(kCtDtlsCiphertext, (input.data()[0] & ~0x3));
+    // The first octet should be 0b001xxxxx.
+    EXPECT_EQ(1, input.data()[0] >> 5);
     return KEEP;
   }
 };
-
-TEST_F(TlsConnectDatagram13, AeadLimit) {
-  Connect();
-  EXPECT_EQ(SECSuccess, SSLInt_AdvanceDtls13DecryptFailures(server_->ssl_fd(),
-                                                            (1ULL << 36) - 2));
-  SendReceive(50);
-
-  // Expect this to increment the counter. We should still be able to talk.
-  client_->SetFilter(std::make_shared<TlsRecordLastByteDamager>(client_));
-  client_->SendData(10);
-  server_->ReadBytes(10);
-  client_->ClearFilter();
-  client_->ResetSentBytes(50);
-  SendReceive(60);
-
-  // Expect alert when the limit is hit.
-  client_->SetFilter(std::make_shared<TlsRecordLastByteDamager>(client_));
-  client_->SendData(10);
-  ExpectAlert(server_, kTlsAlertBadRecordMac);
-
-  // Check the error on both endpoints.
-  uint8_t buf[10];
-  PRInt32 rv = PR_Read(server_->ssl_fd(), buf, sizeof(buf));
-  EXPECT_EQ(-1, rv);
-  EXPECT_EQ(SSL_ERROR_BAD_MAC_READ, PORT_GetError());
-
-  rv = PR_Read(client_->ssl_fd(), buf, sizeof(buf));
-  EXPECT_EQ(-1, rv);
-  EXPECT_EQ(SSL_ERROR_BAD_MAC_ALERT, PORT_GetError());
-}
 
 TEST_F(TlsConnectDatagram13, ShortHeadersClient) {
   Connect();
@@ -233,35 +202,6 @@ TEST_F(TlsConnectDatagram13, ShortHeadersServer) {
   server_->SetOption(SSL_ENABLE_DTLS_SHORT_HEADER, PR_TRUE);
   server_->SetFilter(std::make_shared<ShortHeaderChecker>());
   SendReceive();
-}
-
-// Send a DTLSCiphertext header with a 2B sequence number, and no length.
-TEST_F(TlsConnectDatagram13, DtlsAlternateShortHeader) {
-  StartConnect();
-  TlsSendCipherSpecCapturer capturer(client_);
-  Connect();
-  SendReceive(50);
-
-  uint8_t buf[] = {0x32, 0x33, 0x34};
-  auto spec = capturer.spec(1);
-  ASSERT_NE(nullptr, spec.get());
-  ASSERT_EQ(3, spec->epoch());
-
-  uint8_t dtls13_ct = kCtDtlsCiphertext | kCtDtlsCiphertext16bSeqno;
-  TlsRecordHeader header(variant_, SSL_LIBRARY_VERSION_TLS_1_3, dtls13_ct,
-                         0x0003000000000001);
-  TlsRecordHeader out_header(header);
-  DataBuffer msg(buf, sizeof(buf));
-  msg.Write(msg.len(), ssl_ct_application_data, 1);
-  DataBuffer ciphertext;
-  EXPECT_TRUE(spec->Protect(header, msg, &ciphertext, &out_header));
-
-  DataBuffer record;
-  auto rv = out_header.Write(&record, 0, ciphertext);
-  EXPECT_EQ(out_header.header_length() + ciphertext.len(), rv);
-  client_->SendDirect(record);
-
-  server_->ReadBytes(3);
 }
 
 TEST_F(TlsConnectStreamTls13, UnencryptedFinishedMessage) {

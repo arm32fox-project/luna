@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -348,85 +347,6 @@ TEST_F(TlsConnectStreamTls13, ChangeCipherSpecBeforeClientHelloTwice) {
   client_->CheckErrorCode(SSL_ERROR_HANDSHAKE_UNEXPECTED_ALERT);
 }
 
-// The server accepts a ChangeCipherSpec even if the client advertises
-// an empty session ID.
-TEST_F(TlsConnectStreamTls13, ChangeCipherSpecAfterClientHelloEmptySid) {
-  EnsureTlsSetup();
-  ConfigureVersion(SSL_LIBRARY_VERSION_TLS_1_3);
-
-  StartConnect();
-  client_->Handshake();  // Send ClientHello
-  client_->SendDirect(DataBuffer(kCannedCcs, sizeof(kCannedCcs)));  // Send CCS
-
-  Handshake();
-  CheckConnected();
-}
-
-// The server rejects multiple ChangeCipherSpec even if the client
-// indicates compatibility mode with non-empty session ID.
-TEST_F(Tls13CompatTest, ChangeCipherSpecAfterClientHelloTwice) {
-  EnsureTlsSetup();
-  ConfigureVersion(SSL_LIBRARY_VERSION_TLS_1_3);
-  EnableCompatMode();
-
-  StartConnect();
-  client_->Handshake();  // Send ClientHello
-  // Send CCS twice in a row
-  client_->SendDirect(DataBuffer(kCannedCcs, sizeof(kCannedCcs)));
-  client_->SendDirect(DataBuffer(kCannedCcs, sizeof(kCannedCcs)));
-
-  server_->ExpectSendAlert(kTlsAlertUnexpectedMessage);
-  server_->Handshake();  // Consume ClientHello and CCS.
-  server_->CheckErrorCode(SSL_ERROR_RX_MALFORMED_CHANGE_CIPHER);
-}
-
-// The client accepts a ChangeCipherSpec even if it advertises an empty
-// session ID.
-TEST_F(TlsConnectStreamTls13, ChangeCipherSpecAfterServerHelloEmptySid) {
-  EnsureTlsSetup();
-  ConfigureVersion(SSL_LIBRARY_VERSION_TLS_1_3);
-
-  // To replace Finished with a CCS below
-  auto filter = MakeTlsFilter<TlsHandshakeDropper>(server_);
-  filter->SetHandshakeTypes({kTlsHandshakeFinished});
-  filter->EnableDecryption();
-
-  StartConnect();
-  client_->Handshake();  // Send ClientHello
-  server_->Handshake();  // Consume ClientHello, and
-                         // send ServerHello..CertificateVerify
-  // Send CCS
-  server_->SendDirect(DataBuffer(kCannedCcs, sizeof(kCannedCcs)));
-
-  // No alert is sent from the client. As Finished is dropped, we
-  // can't use Handshake() and CheckConnected().
-  client_->Handshake();
-}
-
-// The client rejects multiple ChangeCipherSpec in a row even if the
-// client indicates compatibility mode with non-empty session ID.
-TEST_F(Tls13CompatTest, ChangeCipherSpecAfterServerHelloTwice) {
-  EnsureTlsSetup();
-  ConfigureVersion(SSL_LIBRARY_VERSION_TLS_1_3);
-  EnableCompatMode();
-
-  // To replace Finished with a CCS below
-  auto filter = MakeTlsFilter<TlsHandshakeDropper>(server_);
-  filter->SetHandshakeTypes({kTlsHandshakeFinished});
-  filter->EnableDecryption();
-
-  StartConnect();
-  client_->Handshake();  // Send ClientHello
-  server_->Handshake();  // Consume ClientHello, and
-                         // send ServerHello..CertificateVerify
-                         // the ServerHello is followed by CCS
-  // Send another CCS
-  server_->SendDirect(DataBuffer(kCannedCcs, sizeof(kCannedCcs)));
-  client_->ExpectSendAlert(kTlsAlertUnexpectedMessage);
-  client_->Handshake();  // Consume ClientHello and CCS
-  client_->CheckErrorCode(SSL_ERROR_RX_MALFORMED_CHANGE_CIPHER);
-}
-
 // If we negotiate 1.2, we abort.
 TEST_F(TlsConnectStreamTls13, ChangeCipherSpecBeforeClientHello12) {
   EnsureTlsSetup();
@@ -463,16 +383,14 @@ TEST_F(TlsConnectDatagram13, CompatModeDtlsClient) {
 
   ASSERT_EQ(2U, client_records->count());  // CH, Fin
   EXPECT_EQ(ssl_ct_handshake, client_records->record(0).header.content_type());
-  EXPECT_EQ(kCtDtlsCiphertext,
-            (client_records->record(1).header.content_type() &
-             kCtDtlsCiphertextMask));
+  EXPECT_EQ(ssl_ct_application_data,
+            client_records->record(1).header.content_type());
 
   ASSERT_EQ(6U, server_records->count());  // SH, EE, CT, CV, Fin, Ack
   EXPECT_EQ(ssl_ct_handshake, server_records->record(0).header.content_type());
   for (size_t i = 1; i < server_records->count(); ++i) {
-    EXPECT_EQ(kCtDtlsCiphertext,
-              (server_records->record(i).header.content_type() &
-               kCtDtlsCiphertextMask));
+    EXPECT_EQ(ssl_ct_application_data,
+              server_records->record(i).header.content_type());
   }
 }
 
@@ -521,9 +439,8 @@ TEST_F(TlsConnectDatagram13, CompatModeDtlsServer) {
   ASSERT_EQ(5U, server_records->count());  // SH, EE, CT, CV, Fin
   EXPECT_EQ(ssl_ct_handshake, server_records->record(0).header.content_type());
   for (size_t i = 1; i < server_records->count(); ++i) {
-    EXPECT_EQ(kCtDtlsCiphertext,
-              (server_records->record(i).header.content_type() &
-               kCtDtlsCiphertextMask));
+    EXPECT_EQ(ssl_ct_application_data,
+              server_records->record(i).header.content_type());
   }
 
   uint32_t session_id_len = 0;

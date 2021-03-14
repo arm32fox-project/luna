@@ -72,12 +72,10 @@ class EncryptDeriveTest
         return CKM_CAMELLIA_ECB_ENCRYPT_DATA;
       case CKM_CAMELLIA_CBC:
         return CKM_CAMELLIA_CBC_ENCRYPT_DATA;
-#ifndef NSS_DISABLE_DEPRECATED_SEED
       case CKM_SEED_ECB:
         return CKM_SEED_ECB_ENCRYPT_DATA;
       case CKM_SEED_CBC:
         return CKM_SEED_CBC_ENCRYPT_DATA;
-#endif
       default:
         ADD_FAILURE() << "Unknown mechanism";
         break;
@@ -95,9 +93,7 @@ class EncryptDeriveTest
       case CKM_DES3_ECB:
       case CKM_AES_ECB:
       case CKM_CAMELLIA_ECB:
-#ifndef NSS_DISABLE_DEPRECATED_SEED
       case CKM_SEED_ECB:
-#endif
         string_data.pData = toUcharPtr(kInput);
         string_data.ulLen = keysize();
         param.data = reinterpret_cast<uint8_t*>(&string_data);
@@ -114,9 +110,7 @@ class EncryptDeriveTest
 
       case CKM_AES_CBC:
       case CKM_CAMELLIA_CBC:
-#ifndef NSS_DISABLE_DEPRECATED_SEED
       case CKM_SEED_CBC:
-#endif
         aes_data.pData = toUcharPtr(kInput);
         aes_data.length = keysize();
         PORT_Memcpy(aes_data.iv, kIv, keysize());
@@ -138,18 +132,14 @@ class EncryptDeriveTest
       case CKM_DES3_ECB:
       case CKM_AES_ECB:
       case CKM_CAMELLIA_ECB:
-#ifndef NSS_DISABLE_DEPRECATED_SEED
       case CKM_SEED_ECB:
-#endif
         // No parameter needed here.
         break;
 
       case CKM_DES3_CBC:
       case CKM_AES_CBC:
       case CKM_CAMELLIA_CBC:
-#ifndef NSS_DISABLE_DEPRECATED_SEED
       case CKM_SEED_CBC:
-#endif
         param.data = toUcharPtr(kIv);
         param.len = keysize();
         break;
@@ -196,13 +186,8 @@ class EncryptDeriveTest
 TEST_P(EncryptDeriveTest, Test) { TestEncryptDerive(); }
 
 static const CK_MECHANISM_TYPE kEncryptDeriveMechanisms[] = {
-    CKM_DES3_ECB, CKM_DES3_CBC, CKM_AES_ECB, CKM_AES_ECB, CKM_AES_CBC,
-    CKM_CAMELLIA_ECB, CKM_CAMELLIA_CBC
-#ifndef NSS_DISABLE_DEPRECATED_SEED
-    ,
-    CKM_SEED_ECB, CKM_SEED_CBC
-#endif
-};
+    CKM_DES3_ECB,     CKM_DES3_CBC,     CKM_AES_ECB,  CKM_AES_ECB, CKM_AES_CBC,
+    CKM_CAMELLIA_ECB, CKM_CAMELLIA_CBC, CKM_SEED_ECB, CKM_SEED_CBC};
 
 INSTANTIATE_TEST_CASE_P(EncryptDeriveTests, EncryptDeriveTest,
                         ::testing::ValuesIn(kEncryptDeriveMechanisms));

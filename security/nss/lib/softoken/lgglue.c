@@ -205,8 +205,7 @@ sftkdb_encrypt_stub(PLArenaPool *arena, SDB *sdb, SECItem *plainText,
         iterationCount = 1;
     }
 
-    rv = sftkdb_EncryptAttribute(arena, handle, sdb, key, iterationCount,
-                                 CK_INVALID_HANDLE, CKT_INVALID_TYPE,
+    rv = sftkdb_EncryptAttribute(arena, key, iterationCount,
                                  plainText, cipherText);
     PZ_Unlock(handle->passwordLock);
 
@@ -228,7 +227,7 @@ sftkdb_decrypt_stub(SDB *sdb, SECItem *cipherText, SECItem **plainText)
         return SECFailure;
     }
 
-    /* if we aren't the key handle, try the other handle */
+    /* if we aren't th handle, try the other handle */
     oldKey = handle->oldKey;
     if (handle->type != SFTK_KEYDB_TYPE) {
         handle = handle->peerDB;
@@ -245,9 +244,7 @@ sftkdb_decrypt_stub(SDB *sdb, SECItem *cipherText, SECItem **plainText)
         /* PORT_SetError */
         return SECFailure;
     }
-    rv = sftkdb_DecryptAttribute(NULL, oldKey ? oldKey : &handle->passwordKey,
-                                 CK_INVALID_HANDLE,
-                                 CKT_INVALID_TYPE,
+    rv = sftkdb_DecryptAttribute(oldKey ? oldKey : &handle->passwordKey,
                                  cipherText, plainText);
     PZ_Unlock(handle->passwordLock);
 

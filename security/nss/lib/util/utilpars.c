@@ -178,7 +178,7 @@ char *
 NSSUTIL_ArgGetParamValue(const char *paramName, const char *parameters)
 {
     char searchValue[256];
-    size_t paramLen = strlen(paramName);
+    int paramLen = strlen(paramName);
     char *returnValue = NULL;
     int next;
 

@@ -13,9 +13,7 @@
 #include "secerr.h"
 
 #ifdef USE_HW_AES
-#ifdef NSS_X86_OR_X64
 #include "intel-aes.h"
-#endif
 #include "rijndael.h"
 #endif
 
@@ -209,7 +207,7 @@ CTR_Update(CTRContext *ctr, unsigned char *outbuf,
     return SECSuccess;
 }
 
-#if defined(USE_HW_AES) && defined(_MSC_VER) && defined(NSS_X86_OR_X64)
+#if defined(USE_HW_AES) && defined(_MSC_VER)
 SECStatus
 CTR_Update_HW_AES(CTRContext *ctr, unsigned char *outbuf,
                   unsigned int *outlen, unsigned int maxout,

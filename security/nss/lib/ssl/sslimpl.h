@@ -37,7 +37,6 @@
 typedef struct sslSocketStr sslSocket;
 typedef struct sslNamedGroupDefStr sslNamedGroupDef;
 typedef struct sslEsniKeysStr sslEsniKeys;
-typedef struct sslPskStr sslPsk;
 typedef struct sslDelegatedCredentialStr sslDelegatedCredential;
 typedef struct sslEphemeralKeyPairStr sslEphemeralKeyPair;
 typedef struct TLS13KeyShareEntryStr TLS13KeyShareEntry;
@@ -282,8 +281,6 @@ typedef struct sslOptionsStr {
     unsigned int enableV2CompatibleHello : 1;
     unsigned int enablePostHandshakeAuth : 1;
     unsigned int enableDelegatedCredentials : 1;
-    unsigned int enableDtls13VersionCompat : 1;
-    unsigned int suppressEndOfEarlyData : 1;
 } sslOptions;
 
 typedef enum { sslHandshakingUndetermined = 0,
@@ -656,6 +653,8 @@ typedef struct SSL3HandshakeStateStr {
      * One of NULL, ssl3_SendClientSecondRound, ssl3_FinishHandshake,
      * or ssl3_AlwaysFail */
     sslRestartTarget restartTarget;
+    /* Shared state between ssl3_HandleFinished and ssl3_FinishHandshake */
+    PRBool cacheSID;
 
     PRBool canFalseStart; /* Can/did we False Start */
     /* Which preliminaryinfo values have been set. */
@@ -690,8 +689,9 @@ typedef struct SSL3HandshakeStateStr {
     /* This group of values is used for TLS 1.3 and above */
     PK11SymKey *currentSecret;            /* The secret down the "left hand side"
                                            * of the TLS 1.3 key schedule. */
-    PK11SymKey *resumptionMasterSecret;   /* The resumption_master_secret. */
+    PK11SymKey *resumptionMasterSecret;   /* The resumption PSK. */
     PK11SymKey *dheSecret;                /* The (EC)DHE shared secret. */
+    PK11SymKey *pskBinderKey;             /* Used to compute the PSK binder. */
     PK11SymKey *clientEarlyTrafficSecret; /* The secret we use for 0-RTT. */
     PK11SymKey *clientHsTrafficSecret;    /* The source keys for handshake */
     PK11SymKey *serverHsTrafficSecret;    /* traffic keys. */
@@ -710,26 +710,18 @@ typedef struct SSL3HandshakeStateStr {
                                            * or received. */
     PRBool receivedCcs;                   /* A server received ChangeCipherSpec
                                            * before the handshake started. */
-    PRBool rejectCcs;                     /* Excessive ChangeCipherSpecs are rejected. */
     PRBool clientCertRequested;           /* True if CertificateRequest received. */
-    PRBool endOfFlight;                   /* Processed a full flight (DTLS 1.3). */
     ssl3KEADef kea_def_mutable;           /* Used to hold the writable kea_def
                                            * we use for TLS 1.3 */
+    PRTime serverHelloTime;               /* Time the ServerHello flight was sent. */
     PRUint16 ticketNonce;                 /* A counter we use for tickets. */
     SECItem fakeSid;                      /* ... (server) the SID the client used. */
-
-    /* rttEstimate is used to guess the round trip time between server and client.
-     * When the server sends ServerHello it sets this to the current time.
-     * Only after it receives a message from the client's second flight does it
-     * set the value to something resembling an RTT estimate. */
-    PRTime rttEstimate;
+    PRBool endOfFlight;                   /* Processed a full flight (DTLS 1.3). */
 
     /* The following lists contain DTLSHandshakeRecordEntry */
     PRCList dtlsSentHandshake; /* Used to map records to handshake fragments. */
     PRCList dtlsRcvdHandshake; /* Handshake records we have received
                                 * used to generate ACKs. */
-
-    PRCList psks; /* A list of PSKs, resumption and/or external. */
 } SSL3HandshakeState;
 
 #define SSL_ASSERT_HASHES_EMPTY(ss)                                  \
@@ -818,7 +810,7 @@ typedef struct {
     /* |seqNum| eventually contains the reconstructed sequence number. */
     sslSequenceNumber seqNum;
     /* The header of the cipherText. */
-    PRUint8 *hdr;
+    const PRUint8 *hdr;
     unsigned int hdrLen;
 
     /* |buf| is the payload of the ciphertext. */
@@ -1107,9 +1099,6 @@ struct sslSocketStr {
 
     /* Anti-replay for TLS 1.3 0-RTT. */
     SSLAntiReplayContext *antiReplay;
-
-    /* An out-of-band PSK. */
-    sslPsk *psk;
 };
 
 struct sslSelfEncryptKeysStr {
@@ -1693,14 +1682,8 @@ SECStatus ssl3_HandleServerSpki(sslSocket *ss);
 SECStatus ssl3_AuthCertificate(sslSocket *ss);
 SECStatus ssl_ReadCertificateStatus(sslSocket *ss, PRUint8 *b,
                                     PRUint32 length);
-SECStatus ssl3_EncodeSigAlgs(const sslSocket *ss, PRUint16 minVersion, PRBool forCert,
+SECStatus ssl3_EncodeSigAlgs(const sslSocket *ss, PRUint16 minVersion,
                              sslBuffer *buf);
-SECStatus ssl3_EncodeFilteredSigAlgs(const sslSocket *ss,
-                                     const SSLSignatureScheme *schemes,
-                                     PRUint32 numSchemes, sslBuffer *buf);
-SECStatus ssl3_FilterSigAlgs(const sslSocket *ss, PRUint16 minVersion, PRBool disableRsae, PRBool forCert,
-                             unsigned int maxSchemes, SSLSignatureScheme *filteredSchemes,
-                             unsigned int *numFilteredSchemes);
 SECStatus ssl_GetCertificateRequestCAs(const sslSocket *ss,
                                        unsigned int *calenp,
                                        const SECItem **namesp,
@@ -1841,10 +1824,6 @@ SECStatus SSLExp_GetCurrentEpoch(PRFileDesc *fd, PRUint16 *readEpoch,
 SECStatus SSLExp_MakeAead(PRUint16 version, PRUint16 cipherSuite, PK11SymKey *secret,
                           const char *labelPrefix, unsigned int labelPrefixLen,
                           SSLAeadContext **ctx);
-
-SECStatus SSLExp_MakeVariantAead(PRUint16 version, PRUint16 cipherSuite, SSLProtocolVariant variant,
-                                 PK11SymKey *secret, const char *labelPrefix,
-                                 unsigned int labelPrefixLen, SSLAeadContext **ctx);
 SECStatus SSLExp_DestroyAead(SSLAeadContext *ctx);
 SECStatus SSLExp_AeadEncrypt(const SSLAeadContext *ctx, PRUint64 counter,
                              const PRUint8 *aad, unsigned int aadLen,
@@ -1861,58 +1840,14 @@ SECStatus SSLExp_HkdfExpandLabel(PRUint16 version, PRUint16 cipherSuite, PK11Sym
                                  const PRUint8 *hsHash, unsigned int hsHashLen,
                                  const char *label, unsigned int labelLen,
                                  PK11SymKey **key);
-SECStatus SSLExp_HkdfVariantExpandLabel(PRUint16 version, PRUint16 cipherSuite, PK11SymKey *prk,
-                                        const PRUint8 *hsHash, unsigned int hsHashLen,
-                                        const char *label, unsigned int labelLen,
-                                        SSLProtocolVariant variant, PK11SymKey **key);
 SECStatus
 SSLExp_HkdfExpandLabelWithMech(PRUint16 version, PRUint16 cipherSuite, PK11SymKey *prk,
                                const PRUint8 *hsHash, unsigned int hsHashLen,
                                const char *label, unsigned int labelLen,
                                CK_MECHANISM_TYPE mech, unsigned int keySize,
                                PK11SymKey **keyp);
-SECStatus
-SSLExp_HkdfVariantExpandLabelWithMech(PRUint16 version, PRUint16 cipherSuite, PK11SymKey *prk,
-                                      const PRUint8 *hsHash, unsigned int hsHashLen,
-                                      const char *label, unsigned int labelLen,
-                                      CK_MECHANISM_TYPE mech, unsigned int keySize,
-                                      SSLProtocolVariant variant, PK11SymKey **keyp);
-
-SECStatus SSLExp_SetDtls13VersionWorkaround(PRFileDesc *fd, PRBool enabled);
 
 SECStatus SSLExp_SetTimeFunc(PRFileDesc *fd, SSLTimeFunc f, void *arg);
-
-extern SECStatus ssl_CreateMaskingContextInner(PRUint16 version, PRUint16 cipherSuite,
-                                               SSLProtocolVariant variant,
-                                               PK11SymKey *secret,
-                                               const char *label,
-                                               unsigned int labelLen,
-                                               SSLMaskingContext **ctx);
-
-extern SECStatus ssl_CreateMaskInner(SSLMaskingContext *ctx, const PRUint8 *sample,
-                                     unsigned int sampleLen, PRUint8 *outMask,
-                                     unsigned int maskLen);
-
-extern SECStatus ssl_DestroyMaskingContextInner(SSLMaskingContext *ctx);
-
-SECStatus SSLExp_CreateMaskingContext(PRUint16 version, PRUint16 cipherSuite,
-                                      PK11SymKey *secret,
-                                      const char *label,
-                                      unsigned int labelLen,
-                                      SSLMaskingContext **ctx);
-
-SECStatus SSLExp_CreateVariantMaskingContext(PRUint16 version, PRUint16 cipherSuite,
-                                             SSLProtocolVariant variant,
-                                             PK11SymKey *secret,
-                                             const char *label,
-                                             unsigned int labelLen,
-                                             SSLMaskingContext **ctx);
-
-SECStatus SSLExp_CreateMask(SSLMaskingContext *ctx, const PRUint8 *sample,
-                            unsigned int sampleLen, PRUint8 *mask,
-                            unsigned int len);
-
-SECStatus SSLExp_DestroyMaskingContext(SSLMaskingContext *ctx);
 
 SEC_END_PROTOS
 

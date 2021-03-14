@@ -75,10 +75,6 @@ struct SDBStr {
     CK_RV(*sdb_Close)
     (SDB *sdb);
     void (*sdb_SetForkState)(PRBool forked);
-    CK_RV(*sdb_GetNewObjectID)
-    (SDB *db, CK_OBJECT_HANDLE *object);
-    CK_RV(*sdb_DestroyMetaData)
-    (SDB *db, const char *id);
 };
 
 CK_RV s_open(const char *directory, const char *certPrefix,

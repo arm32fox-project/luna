@@ -95,31 +95,29 @@ SECMOD_Shutdown()
     return SECSuccess;
 }
 
-PRBool
-SECMOD_GetSystemFIPSEnabled(void)
+int
+secmod_GetSystemFIPSEnabled(void)
 {
 #ifdef LINUX
-#ifndef NSS_FIPS_DISABLED
     FILE *f;
     char d;
     size_t size;
 
     f = fopen("/proc/sys/crypto/fips_enabled", "r");
     if (!f) {
-        return PR_FALSE;
+        return 0;
     }
 
     size = fread(&d, 1, sizeof(d), f);
     fclose(f);
     if (size != sizeof(d)) {
-        return PR_FALSE;
+        return 0;
     }
     if (d == '1') {
-        return PR_TRUE;
+        return 1;
     }
 #endif
-#endif
-    return PR_FALSE;
+    return 0;
 }
 
 /*
@@ -455,7 +453,7 @@ SECMOD_DeleteInternalModule(const char *name)
     SECMODModuleList **mlpp;
     SECStatus rv = SECFailure;
 
-    if (SECMOD_GetSystemFIPSEnabled() || pendingModule) {
+    if (secmod_GetSystemFIPSEnabled() || pendingModule) {
         PORT_SetError(SEC_ERROR_MODULE_STUCK);
         return rv;
     }
@@ -990,7 +988,7 @@ SECMOD_CanDeleteInternalModule(void)
 #ifdef NSS_FIPS_DISABLED
     return PR_FALSE;
 #else
-    return (PRBool)((pendingModule == NULL) && !SECMOD_GetSystemFIPSEnabled());
+    return (PRBool)((pendingModule == NULL) && !secmod_GetSystemFIPSEnabled());
 #endif
 }
 
@@ -1375,7 +1373,7 @@ secmod_UserDBOp(PK11SlotInfo *slot, CK_OBJECT_CLASS objClass,
 
     PK11_SETATTRS(attrs, CKA_CLASS, &objClass, sizeof(objClass));
     attrs++;
-    PK11_SETATTRS(attrs, CKA_NSS_MODULE_SPEC, (unsigned char *)sendSpec,
+    PK11_SETATTRS(attrs, CKA_NETSCAPE_MODULE_SPEC, (unsigned char *)sendSpec,
                   strlen(sendSpec) + 1);
     attrs++;
 
@@ -1489,7 +1487,7 @@ SECMOD_OpenNewSlot(SECMODModule *mod, const char *moduleSpec)
         PORT_SetError(SEC_ERROR_NO_MEMORY);
         return NULL;
     }
-    rv = secmod_UserDBOp(slot, CKO_NSS_NEWSLOT, sendSpec);
+    rv = secmod_UserDBOp(slot, CKO_NETSCAPE_NEWSLOT, sendSpec);
     PR_smprintf_free(sendSpec);
     PK11_FreeSlot(slot);
     if (rv != SECSuccess) {
@@ -1627,7 +1625,7 @@ SECMOD_CloseUserDB(PK11SlotInfo *slot)
         PORT_SetError(SEC_ERROR_NO_MEMORY);
         return SECFailure;
     }
-    rv = secmod_UserDBOp(slot, CKO_NSS_DELSLOT, sendSpec);
+    rv = secmod_UserDBOp(slot, CKO_NETSCAPE_DELSLOT, sendSpec);
     PR_smprintf_free(sendSpec);
     /* if we are in the delay period for the "isPresent" call, reset
      * the delay since we know things have probably changed... */

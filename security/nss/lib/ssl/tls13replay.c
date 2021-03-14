@@ -16,7 +16,6 @@
 #include "sslbloom.h"
 #include "sslimpl.h"
 #include "tls13hkdf.h"
-#include "tls13psk.h"
 
 struct SSLAntiReplayContextStr {
     /* The number of outstanding references to this context. */
@@ -56,7 +55,8 @@ tls13_ReleaseAntiReplayContext(SSLAntiReplayContext *ctx)
     PORT_Free(ctx);
 }
 
-/* Clear the current state and free any resources we allocated. */
+/* Clear the current state and free any resources we allocated. The signature
+ * here is odd to allow this to be called during shutdown. */
 SECStatus
 SSLExp_ReleaseAntiReplayContext(SSLAntiReplayContext *ctx)
 {
@@ -75,17 +75,26 @@ tls13_RefAntiReplayContext(SSLAntiReplayContext *ctx)
 static SECStatus
 tls13_AntiReplayKeyGen(SSLAntiReplayContext *ctx)
 {
+    PRUint8 buf[32];
+    SECItem keyItem = { siBuffer, buf, sizeof(buf) };
     PK11SlotInfo *slot;
+    SECStatus rv;
 
     PORT_Assert(ctx);
 
-    slot = PK11_GetBestSlot(CKM_HKDF_DERIVE, NULL);
+    slot = PK11_GetInternalSlot();
     if (!slot) {
         PORT_SetError(SEC_ERROR_LIBRARY_FAILURE);
         return SECFailure;
     }
+    rv = PK11_GenerateRandomOnSlot(slot, buf, sizeof(buf));
+    if (rv != SECSuccess) {
+        goto loser;
+    }
 
-    ctx->key = PK11_KeyGen(slot, CKM_HKDF_KEY_GEN, NULL, 32, NULL);
+    ctx->key = PK11_ImportSymKey(slot, CKM_NSS_HKDF_SHA256,
+                                 PK11_OriginUnwrap, CKA_DERIVE,
+                                 &keyItem, NULL);
     if (!ctx->key) {
         goto loser;
     }
@@ -250,9 +259,7 @@ tls13_IsReplay(const sslSocket *ss, const sslSessionID *sid)
         return PR_TRUE;
     }
 
-    if (!sid) {
-        PORT_Assert(ss->xtnData.selectedPsk->type == ssl_psk_external);
-    } else if (!tls13_InWindow(ss, sid)) {
+    if (!tls13_InWindow(ss, sid)) {
         return PR_TRUE;
     }
 
@@ -262,7 +269,7 @@ tls13_IsReplay(const sslSocket *ss, const sslSessionID *sid)
                                   ss->xtnData.pskBinder.data,
                                   ss->xtnData.pskBinder.len,
                                   label, strlen(label),
-                                  ss->protocolVariant, buf, size);
+                                  buf, size);
     if (rv != SECSuccess) {
         return PR_TRUE;
     }

@@ -19,7 +19,7 @@ pushd gyp
 python -m virtualenv test-env
 test-env/Scripts/python setup.py install
 test-env/Scripts/python -m pip install --upgrade pip
-test-env/Scripts/pip install --upgrade 'setuptools<45.0.0'
+test-env/Scripts/pip install --upgrade setuptools
 # Fool GYP.
 touch "${VSPATH}/VC/vcvarsall.bat"
 export GYP_MSVS_OVERRIDE_PATH="${VSPATH}"
@@ -38,7 +38,7 @@ if [[ -f nss/nspr.patch && "$ALLOW_NSPR_PATCH" == "1" ]]; then
 fi
 
 # Build with gyp.
-./nss/build.sh -g -v --enable-libpkix -Denable_draft_hpke=1 "$@"
+./nss/build.sh -g -v --enable-libpkix "$@"
 
 # Package.
 7z a public/build/dist.7z dist

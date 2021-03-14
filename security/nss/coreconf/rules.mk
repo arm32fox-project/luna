@@ -810,7 +810,7 @@ ifneq ($(BUILD_OPT),)
 REGDATE = $(subst \ ,, $(shell $(PERL)  $(CORE_DEPTH)/$(MODULE)/scripts/now))
 endif
 
-tests:: $(REGRESSION_SPEC)
+tests:: $(REGRESSION_SPEC) 
 	cd $(PLATFORM); \
 	../$(SOURCE_MD_DIR)/bin/regress$(PROG_SUFFIX) specfile=../$(REGRESSION_SPEC) progress $(EXTRA_REGRESS_OPTIONS); \
 	if test ! -d $(TESTS_DIR); then \
@@ -824,7 +824,7 @@ ifneq ($(BUILD_OPT),)
 	echo "then run 'reporter specfile=$(RESULTS_DIR)/rptspec'"
 endif
 else
-tests::
+tests:: 
 	@echo Error: you didn't specify REGRESSION_SPEC in your manifest.mn file!;
 endif
 

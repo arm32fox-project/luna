@@ -2908,27 +2908,16 @@ CERT_LockCertTrust(const CERTCertificate *cert)
     PZ_Lock(certTrustLock);
 }
 
-static PZLock *certTempPermCertLock = NULL;
+static PZLock *certTempPermLock = NULL;
 
 /*
- * Acquire the cert temp/perm/nssCert lock
+ * Acquire the cert temp/perm lock
  */
 void
 CERT_LockCertTempPerm(const CERTCertificate *cert)
 {
-    PORT_Assert(certTempPermCertLock != NULL);
-    PZ_Lock(certTempPermCertLock);
-}
-
-/* Maybe[Lock, Unlock] variants are only to be used by
- * CERT_DestroyCertificate, since an application could
- * call this after NSS_Shutdown destroys cert locks. */
-void
-CERT_MaybeLockCertTempPerm(const CERTCertificate *cert)
-{
-    if (certTempPermCertLock) {
-        PZ_Lock(certTempPermCertLock);
-    }
+    PORT_Assert(certTempPermLock != NULL);
+    PZ_Lock(certTempPermLock);
 }
 
 SECStatus
@@ -2952,10 +2941,10 @@ cert_InitLocks(void)
         }
     }
 
-    if (certTempPermCertLock == NULL) {
-        certTempPermCertLock = PZ_NewLock(nssILockCertDB);
-        PORT_Assert(certTempPermCertLock != NULL);
-        if (!certTempPermCertLock) {
+    if (certTempPermLock == NULL) {
+        certTempPermLock = PZ_NewLock(nssILockCertDB);
+        PORT_Assert(certTempPermLock != NULL);
+        if (!certTempPermLock) {
             PZ_DestroyLock(certTrustLock);
             PZ_DestroyLock(certRefCountLock);
             certRefCountLock = NULL;
@@ -2988,10 +2977,10 @@ cert_DestroyLocks(void)
         rv = SECFailure;
     }
 
-    PORT_Assert(certTempPermCertLock != NULL);
-    if (certTempPermCertLock) {
-        PZ_DestroyLock(certTempPermCertLock);
-        certTempPermCertLock = NULL;
+    PORT_Assert(certTempPermLock != NULL);
+    if (certTempPermLock) {
+        PZ_DestroyLock(certTempPermLock);
+        certTempPermLock = NULL;
     } else {
         rv = SECFailure;
     }
@@ -3010,22 +2999,14 @@ CERT_UnlockCertTrust(const CERTCertificate *cert)
 }
 
 /*
- * Free the temp/perm/nssCert lock
+ * Free the temp/perm lock
  */
 void
 CERT_UnlockCertTempPerm(const CERTCertificate *cert)
 {
-    PORT_Assert(certTempPermCertLock != NULL);
-    PRStatus prstat = PZ_Unlock(certTempPermCertLock);
+    PORT_Assert(certTempPermLock != NULL);
+    PRStatus prstat = PZ_Unlock(certTempPermLock);
     PORT_AssertArg(prstat == PR_SUCCESS);
-}
-
-void
-CERT_MaybeUnlockCertTempPerm(const CERTCertificate *cert)
-{
-    if (certTempPermCertLock) {
-        PZ_Unlock(certTempPermCertLock);
-    }
 }
 
 /*

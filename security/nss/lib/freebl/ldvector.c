@@ -6,7 +6,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifdef FREEBL_NO_DEPEND
-#include "stubs.h"
 extern int FREEBL_InitStubs(void);
 #endif
 
@@ -15,15 +14,6 @@ extern int FREEBL_InitStubs(void);
 #include "alghmac.h"
 #include "hmacct.h"
 #include "blapii.h"
-#include "secerr.h"
-
-SECStatus
-FREEBL_Deprecated(void)
-{
-
-    PORT_SetError(SEC_ERROR_UNSUPPORTED_KEYALG);
-    return SECFailure;
-}
 
 static const struct FREEBLVectorStr vector =
     {
@@ -48,17 +38,10 @@ static const struct FREEBLVectorStr vector =
       RC4_DestroyContext,
       RC4_Encrypt,
       RC4_Decrypt,
-#ifndef NSS_DISABLE_DEPRECATED_RC2
       RC2_CreateContext,
       RC2_DestroyContext,
       RC2_Encrypt,
       RC2_Decrypt,
-#else
-      (F_RC2_CreateContext)FREEBL_Deprecated,
-      (F_RC2_DestroyContext)FREEBL_Deprecated,
-      (F_RC2_Encrypt)FREEBL_Deprecated,
-      (F_RC2_Decrypt)FREEBL_Deprecated,
-#endif
       RC5_CreateContext,
       RC5_DestroyContext,
       RC5_Encrypt,
@@ -182,21 +165,13 @@ static const struct FREEBLVectorStr vector =
       AES_InitContext,
       AESKeyWrap_InitContext,
       DES_InitContext,
-#ifndef NSS_DISABLE_DEPRECATED_RC2
       RC2_InitContext,
-#else
-      (F_RC2_InitContext)FREEBL_Deprecated,
-#endif
       RC4_InitContext,
 
       AES_AllocateContext,
       AESKeyWrap_AllocateContext,
       DES_AllocateContext,
-#ifndef NSS_DISABLE_DEPRECATED_RC2
       RC2_AllocateContext,
-#else
-      (F_RC2_AllocateContext)FREEBL_Deprecated,
-#endif
       RC4_AllocateContext,
 
       MD2_Clone,
@@ -235,23 +210,14 @@ static const struct FREEBLVectorStr vector =
       PQG_DestroyParams,
       PQG_DestroyVerify,
 
-/* End of Version 3.010. */
+      /* End of Version 3.010. */
 
-#ifndef NSS_DISABLE_DEPRECATED_SEED
       SEED_InitContext,
       SEED_AllocateContext,
       SEED_CreateContext,
       SEED_DestroyContext,
       SEED_Encrypt,
       SEED_Decrypt,
-#else
-      (F_SEED_InitContext)FREEBL_Deprecated,
-      (F_SEED_AllocateContext)FREEBL_Deprecated,
-      (F_SEED_CreateContext)FREEBL_Deprecated,
-      (F_SEED_DestroyContext)FREEBL_Deprecated,
-      (F_SEED_Encrypt)FREEBL_Deprecated,
-      (F_SEED_Decrypt)FREEBL_Deprecated,
-#endif /* NSS_DISABLE_DEPRECATED_SEED */
 
       BL_Init,
       BL_SetForkState,
@@ -361,19 +327,9 @@ static const struct FREEBLVectorStr vector =
       CMAC_Begin,
       CMAC_Update,
       CMAC_Finish,
-      CMAC_Destroy,
+      CMAC_Destroy
 
       /* End of version 3.022 */
-      ChaCha20Poly1305_Encrypt,
-      ChaCha20Poly1305_Decrypt,
-      AES_AEAD,
-      AESKeyWrap_EncryptKWP,
-      AESKeyWrap_DecryptKWP,
-
-      /* End of version 3.023 */
-      KEA_PrimeCheck
-
-      /* End of version 3.024 */
     };
 
 const FREEBLVector*
