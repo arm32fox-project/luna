@@ -16,22 +16,7 @@
 #include <errno.h>
 #include <string.h>
 
-#if defined(XP_UNIX)
-#include <unistd.h>
-#endif
-
-#ifdef DEBUG
-#define PORT_INC_DO +100
-#else
-#define PORT_INC_DO
-#endif
-#ifdef IS_64
-#define PORT_INC_3264 +200
-#else
-#define PORT_INC_3264
-#endif
-
-#define PORT_BASE 19000 PORT_INC_DO PORT_INC_3264
+#define PORT_BASE 19000
 
 typedef struct timer_slot_t {
     unsigned long d_connect;

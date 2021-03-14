@@ -32,20 +32,9 @@ typedef struct Shared
 
 typedef enum Verbosity {silent, quiet, chatty, noisy} Verbosity;
 
-#ifdef DEBUG
-#define PORT_INC_DO +100
-#else
-#define PORT_INC_DO
-#endif
-#ifdef IS_64
-#define PORT_INC_3264 +200
-#else
-#define PORT_INC_3264
-#endif
-
 static PRFileDesc *debug = NULL;
 static PRInt32 desc_allocated = 0;
-static PRUint16 default_port = 12273 PORT_INC_DO PORT_INC_3264;
+static PRUint16 default_port = 12273;
 static enum Verbosity verbosity = quiet;
 static PRInt32 ops_required = 1000, ops_done = 0;
 static PRThreadScope thread_scope = PR_LOCAL_THREAD;

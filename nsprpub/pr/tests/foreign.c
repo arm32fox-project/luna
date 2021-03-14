@@ -223,8 +223,7 @@ static void OneShot(void *arg)
                 break;
 
             case 6:
-#define TEMP_DIR "./tmp"
-                PR_MkDir(TEMP_DIR, 0700);
+#define TEMP_DIR "/tmp/"
                 dir = PR_OpenDir(TEMP_DIR);
                 DPRINTF((output,"Thread[0x%x] called PR_OpenDir\n",
                          PR_GetCurrentThread()));
