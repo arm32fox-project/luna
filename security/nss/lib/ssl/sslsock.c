@@ -20,7 +20,6 @@
 #include "pk11pqg.h"
 #include "pk11pub.h"
 #include "tls13esni.h"
-#include "tls13psk.h"
 #include "tls13subcerts.h"
 
 static const sslSocketOps ssl_default_ops = { /* No SSL. */
@@ -87,12 +86,10 @@ static sslOptions ssl_defaults = {
     .requireDHENamedGroups = PR_FALSE,
     .enable0RttData = PR_FALSE,
     .enableTls13CompatMode = PR_FALSE,
-    .enableDtls13VersionCompat = PR_FALSE,
     .enableDtlsShortHeader = PR_FALSE,
     .enableHelloDowngradeCheck = PR_FALSE,
     .enableV2CompatibleHello = PR_FALSE,
-    .enablePostHandshakeAuth = PR_FALSE,
-    .suppressEndOfEarlyData = PR_FALSE
+    .enablePostHandshakeAuth = PR_FALSE
 };
 
 /*
@@ -384,12 +381,6 @@ ssl_DupSocket(sslSocket *os)
                 goto loser;
             }
         }
-        if (os->psk) {
-            ss->psk = tls13_CopyPsk(os->psk);
-            if (!ss->psk) {
-                goto loser;
-            }
-        }
 
         /* Create security data */
         rv = ssl_CopySecurityInfo(ss, os);
@@ -476,15 +467,9 @@ ssl_DestroySocketContents(sslSocket *ss)
 
     ssl_ClearPRCList(&ss->ssl3.hs.dtlsSentHandshake, NULL);
     ssl_ClearPRCList(&ss->ssl3.hs.dtlsRcvdHandshake, NULL);
-    tls13_DestroyPskList(&ss->ssl3.hs.psks);
 
     tls13_DestroyESNIKeys(ss->esniKeys);
     tls13_ReleaseAntiReplayContext(ss->antiReplay);
-
-    if (ss->psk) {
-        tls13_DestroyPsk(ss->psk);
-        ss->psk = NULL;
-    }
 }
 
 /*
@@ -878,10 +863,6 @@ SSL_OptionSet(PRFileDesc *fd, PRInt32 which, PRIntn val)
             ss->opt.enablePostHandshakeAuth = val;
             break;
 
-        case SSL_SUPPRESS_END_OF_EARLY_DATA:
-            ss->opt.suppressEndOfEarlyData = val;
-            break;
-
         default:
             PORT_SetError(SEC_ERROR_INVALID_ARGS);
             rv = SECFailure;
@@ -1036,9 +1017,6 @@ SSL_OptionGet(PRFileDesc *fd, PRInt32 which, PRIntn *pVal)
         case SSL_ENABLE_POST_HANDSHAKE_AUTH:
             val = ss->opt.enablePostHandshakeAuth;
             break;
-        case SSL_SUPPRESS_END_OF_EARLY_DATA:
-            val = ss->opt.suppressEndOfEarlyData;
-            break;
         default:
             PORT_SetError(SEC_ERROR_INVALID_ARGS);
             rv = SECFailure;
@@ -1176,9 +1154,6 @@ SSL_OptionGetDefault(PRInt32 which, PRIntn *pVal)
             break;
         case SSL_ENABLE_POST_HANDSHAKE_AUTH:
             val = ssl_defaults.enablePostHandshakeAuth;
-            break;
-        case SSL_SUPPRESS_END_OF_EARLY_DATA:
-            val = ssl_defaults.suppressEndOfEarlyData;
             break;
         default:
             PORT_SetError(SEC_ERROR_INVALID_ARGS);
@@ -1391,10 +1366,6 @@ SSL_OptionSetDefault(PRInt32 which, PRIntn val)
             ssl_defaults.enablePostHandshakeAuth = val;
             break;
 
-        case SSL_SUPPRESS_END_OF_EARLY_DATA:
-            ssl_defaults.suppressEndOfEarlyData = val;
-            break;
-
         default:
             PORT_SetError(SEC_ERROR_INVALID_ARGS);
             return SECFailure;
@@ -1460,10 +1431,6 @@ SSL_CipherPolicySet(PRInt32 which, PRInt32 policy)
     if (rv != SECSuccess) {
         return rv;
     }
-    if (NSS_IsPolicyLocked()) {
-        PORT_SetError(SEC_ERROR_POLICY_LOCKED);
-        return SECFailure;
-    }
     return ssl_CipherPolicySet(which, policy);
 }
 
@@ -1510,14 +1477,9 @@ SECStatus
 SSL_CipherPrefSetDefault(PRInt32 which, PRBool enabled)
 {
     SECStatus rv = ssl_Init();
-    PRInt32 locks;
 
     if (rv != SECSuccess) {
         return rv;
-    }
-    rv = NSS_OptionGet(NSS_DEFAULT_LOCKS, &locks);
-    if ((rv == SECSuccess) && (locks & NSS_DEFAULT_SSL_LOCK)) {
-        return SECSuccess;
     }
     return ssl_CipherPrefSetDefault(which, enabled);
 }
@@ -1544,16 +1506,10 @@ SECStatus
 SSL_CipherPrefSet(PRFileDesc *fd, PRInt32 which, PRBool enabled)
 {
     sslSocket *ss = ssl_FindSocket(fd);
-    PRInt32 locks;
-    SECStatus rv;
 
     if (!ss) {
         SSL_DBG(("%d: SSL[%d]: bad socket in CipherPrefSet", SSL_GETPID(), fd));
         return SECFailure;
-    }
-    rv = NSS_OptionGet(NSS_DEFAULT_LOCKS, &locks);
-    if ((rv == SECSuccess) && (locks & NSS_DEFAULT_SSL_LOCK)) {
-        return SECSuccess;
     }
     if (ssl_IsRemovedCipherSuite(which))
         return SECSuccess;
@@ -2495,8 +2451,6 @@ SSL_ReconfigFD(PRFileDesc *model, PRFileDesc *fd)
             return NULL;
         }
     }
-
-    tls13_ResetHandshakePsks(sm, &ss->ssl3.hs.psks);
 
     if (sm->authCertificate)
         ss->authCertificate = sm->authCertificate;
@@ -4191,12 +4145,10 @@ ssl_NewSocket(PRBool makeLocks, SSLProtocolVariant protocolVariant)
     ssl3_InitExtensionData(&ss->xtnData, ss);
     PR_INIT_CLIST(&ss->ssl3.hs.dtlsSentHandshake);
     PR_INIT_CLIST(&ss->ssl3.hs.dtlsRcvdHandshake);
-    PR_INIT_CLIST(&ss->ssl3.hs.psks);
     dtls_InitTimers(ss);
 
     ss->esniKeys = NULL;
     ss->antiReplay = NULL;
-    ss->psk = NULL;
 
     if (makeLocks) {
         rv = ssl_MakeLocks(ss);
@@ -4263,19 +4215,13 @@ struct {
     void *function;
 } ssl_experimental_functions[] = {
 #ifndef SSL_DISABLE_EXPERIMENTAL_API
-    EXP(AddExternalPsk),
-    EXP(AddExternalPsk0Rtt),
     EXP(AeadDecrypt),
     EXP(AeadEncrypt),
     EXP(CipherSuiteOrderGet),
     EXP(CipherSuiteOrderSet),
     EXP(CreateAntiReplayContext),
-    EXP(CreateMask),
-    EXP(CreateMaskingContext),
-    EXP(CreateVariantMaskingContext),
     EXP(DelegateCredential),
     EXP(DestroyAead),
-    EXP(DestroyMaskingContext),
     EXP(DestroyResumptionTokenInfo),
     EXP(EnableESNI),
     EXP(EncodeESNIKeys),
@@ -4287,20 +4233,15 @@ struct {
     EXP(HkdfExtract),
     EXP(HkdfExpandLabel),
     EXP(HkdfExpandLabelWithMech),
-    EXP(HkdfVariantExpandLabel),
-    EXP(HkdfVariantExpandLabelWithMech),
     EXP(KeyUpdate),
     EXP(MakeAead),
-    EXP(MakeVariantAead),
     EXP(RecordLayerData),
     EXP(RecordLayerWriteCallback),
     EXP(ReleaseAntiReplayContext),
-    EXP(RemoveExternalPsk),
     EXP(SecretCallback),
     EXP(SendCertificateRequest),
     EXP(SendSessionTicket),
     EXP(SetAntiReplayContext),
-    EXP(SetDtls13VersionWorkaround),
     EXP(SetESNIKeyPair),
     EXP(SetMaxEarlyDataSize),
     EXP(SetResumptionTokenCallback),
@@ -4339,17 +4280,6 @@ ssl_ClearPRCList(PRCList *list, void (*f)(void *))
         }
         PORT_Free(cursor);
     }
-}
-
-SECStatus
-SSLExp_SetDtls13VersionWorkaround(PRFileDesc *fd, PRBool enabled)
-{
-    sslSocket *ss = ssl_FindSocket(fd);
-    if (!ss) {
-        return SECFailure;
-    }
-    ss->opt.enableDtls13VersionCompat = enabled;
-    return SECSuccess;
 }
 
 SECStatus
@@ -4507,11 +4437,8 @@ SSLExp_GetResumptionTokenInfo(const PRUint8 *tokenData, unsigned int tokenLen,
     if (!token.alpnSelection) {
         return SECFailure;
     }
-    if (token.alpnSelectionLen > 0) {
-        PORT_Assert(sid.u.ssl3.alpnSelection.data);
-        PORT_Memcpy(token.alpnSelection, sid.u.ssl3.alpnSelection.data,
-                    token.alpnSelectionLen);
-    }
+    PORT_Memcpy(token.alpnSelection, sid.u.ssl3.alpnSelection.data,
+                token.alpnSelectionLen);
 
     if (sid.u.ssl3.locked.sessionTicket.flags & ticket_allow_early_data) {
         token.maxEarlyDataSize =

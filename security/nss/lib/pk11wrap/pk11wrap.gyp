@@ -37,7 +37,6 @@
           'pk11cert.c',
           'pk11cxt.c',
           'pk11err.c',
-          'pk11hpke.c',
           'pk11kea.c',
           'pk11list.c',
           'pk11load.c',

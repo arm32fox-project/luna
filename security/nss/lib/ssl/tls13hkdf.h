@@ -23,14 +23,13 @@ SECStatus tls13_HkdfExpandLabelRaw(
     PK11SymKey *prk, SSLHashType baseHash,
     const PRUint8 *handshakeHash, unsigned int handshakeHashLen,
     const char *label, unsigned int labelLen,
-    SSLProtocolVariant variant, unsigned char *output,
-    unsigned int outputLen);
+    unsigned char *output, unsigned int outputLen);
 SECStatus tls13_HkdfExpandLabel(
     PK11SymKey *prk, SSLHashType baseHash,
     const PRUint8 *handshakeHash, unsigned int handshakeHashLen,
     const char *label, unsigned int labelLen,
     CK_MECHANISM_TYPE algorithm, unsigned int keySize,
-    SSLProtocolVariant variant, PK11SymKey **keyp);
+    PK11SymKey **keyp);
 
 #ifdef __cplusplus
 }

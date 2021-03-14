@@ -158,17 +158,16 @@ SECMOD_CreateModule(const char *library, const char *moduleName,
  * Disallow values are parsed first, then allow values, independent of the
  * order they appear.
  *
- * flags: turn on the following flags:
- *    policy-lock: turn off the ability for applications to change policy with
- *                 the call NSS_SetAlgorithmPolicy or the other system policy
- *                 calls (SSL_SetPolicy, etc.)
- *    ssl-lock:    turn off the ability to change the ssl defaults.
- *
- * The following only apply to ssl cipher suites (future smime)
- *
+ * Future key words (not yet implemented):
  * enable: turn on ciphersuites by default.
  * disable: turn off ciphersuites by default without disallowing them by policy.
- *
+ * flags: turn on the following flags:
+ *     ssl-lock: turn off the ability for applications to change policy with
+ *               the SSL_SetCipherPolicy (or SSL_SetPolicy).
+ *     policy-lock: turn off the ability for applications to change policy with
+ *               the call NSS_SetAlgorithmPolicy.
+ *     ssl-default-lock: turn off the ability for applications to change cipher
+ *               suite states with SSL_EnableCipher, SSL_DisableCipher.
  *
  */
 
@@ -324,21 +323,21 @@ static const oidValDef curveOptList[] = {
 static const oidValDef hashOptList[] = {
     /* Hashes */
     { CIPHER_NAME("MD2"), SEC_OID_MD2,
-      NSS_USE_ALG_IN_SSL_KX | NSS_USE_ALG_IN_SIGNATURE },
+      NSS_USE_ALG_IN_SSL_KX | NSS_USE_ALG_IN_CERT_SIGNATURE },
     { CIPHER_NAME("MD4"), SEC_OID_MD4,
-      NSS_USE_ALG_IN_SSL_KX | NSS_USE_ALG_IN_SIGNATURE },
+      NSS_USE_ALG_IN_SSL_KX | NSS_USE_ALG_IN_CERT_SIGNATURE },
     { CIPHER_NAME("MD5"), SEC_OID_MD5,
-      NSS_USE_ALG_IN_SSL_KX | NSS_USE_ALG_IN_SIGNATURE },
+      NSS_USE_ALG_IN_SSL_KX | NSS_USE_ALG_IN_CERT_SIGNATURE },
     { CIPHER_NAME("SHA1"), SEC_OID_SHA1,
-      NSS_USE_ALG_IN_SSL_KX | NSS_USE_ALG_IN_SIGNATURE },
+      NSS_USE_ALG_IN_SSL_KX | NSS_USE_ALG_IN_CERT_SIGNATURE },
     { CIPHER_NAME("SHA224"), SEC_OID_SHA224,
-      NSS_USE_ALG_IN_SSL_KX | NSS_USE_ALG_IN_SIGNATURE },
+      NSS_USE_ALG_IN_SSL_KX | NSS_USE_ALG_IN_CERT_SIGNATURE },
     { CIPHER_NAME("SHA256"), SEC_OID_SHA256,
-      NSS_USE_ALG_IN_SSL_KX | NSS_USE_ALG_IN_SIGNATURE },
+      NSS_USE_ALG_IN_SSL_KX | NSS_USE_ALG_IN_CERT_SIGNATURE },
     { CIPHER_NAME("SHA384"), SEC_OID_SHA384,
-      NSS_USE_ALG_IN_SSL_KX | NSS_USE_ALG_IN_SIGNATURE },
+      NSS_USE_ALG_IN_SSL_KX | NSS_USE_ALG_IN_CERT_SIGNATURE },
     { CIPHER_NAME("SHA512"), SEC_OID_SHA512,
-      NSS_USE_ALG_IN_SSL_KX | NSS_USE_ALG_IN_SIGNATURE }
+      NSS_USE_ALG_IN_SSL_KX | NSS_USE_ALG_IN_CERT_SIGNATURE },
 };
 
 static const oidValDef macOptList[] = {
@@ -390,13 +389,7 @@ static const oidValDef kxOptList[] = {
 static const oidValDef signOptList[] = {
     /* Signatures */
     { CIPHER_NAME("DSA"), SEC_OID_ANSIX9_DSA_SIGNATURE,
-      NSS_USE_ALG_IN_SSL_KX | NSS_USE_ALG_IN_SIGNATURE },
-    { CIPHER_NAME("RSA-PKCS"), SEC_OID_PKCS1_RSA_ENCRYPTION,
-      NSS_USE_ALG_IN_SSL_KX | NSS_USE_ALG_IN_SIGNATURE },
-    { CIPHER_NAME("RSA-PSS"), SEC_OID_PKCS1_RSA_PSS_SIGNATURE,
-      NSS_USE_ALG_IN_SSL_KX | NSS_USE_ALG_IN_SIGNATURE },
-    { CIPHER_NAME("ECDSA"), SEC_OID_ANSIX962_EC_PUBLIC_KEY,
-      NSS_USE_ALG_IN_SSL_KX | NSS_USE_ALG_IN_SIGNATURE },
+      NSS_USE_ALG_IN_SSL_KX | NSS_USE_ALG_IN_CERT_SIGNATURE },
 };
 
 typedef struct {
@@ -412,7 +405,7 @@ static const algListsDef algOptLists[] = {
     { macOptList, PR_ARRAY_SIZE(macOptList), "MAC", PR_FALSE },
     { cipherOptList, PR_ARRAY_SIZE(cipherOptList), "CIPHER", PR_FALSE },
     { kxOptList, PR_ARRAY_SIZE(kxOptList), "OTHER-KX", PR_FALSE },
-    { signOptList, PR_ARRAY_SIZE(signOptList), "OTHER-SIGN", PR_FALSE },
+    { signOptList, PR_ARRAY_SIZE(signOptList), "OTHER-SIGN", PR_TRUE },
 };
 
 static const optionFreeDef sslOptList[] = {
@@ -450,19 +443,10 @@ static const policyFlagDef policyFlagList[] = {
     /* add other key exhanges in the future */
     { CIPHER_NAME("KEY-EXCHANGE"), NSS_USE_ALG_IN_SSL_KX },
     { CIPHER_NAME("CERT-SIGNATURE"), NSS_USE_ALG_IN_CERT_SIGNATURE },
-    { CIPHER_NAME("CMS-SIGNATURE"), NSS_USE_ALG_IN_CMS_SIGNATURE },
-    { CIPHER_NAME("ALL-SIGNATURE"), NSS_USE_ALG_IN_SIGNATURE },
-    /* sign turns off all signatures, but doesn't change the
-     * allowance for specific sigantures... for example:
-     * disallow=sha256/all allow=sha256/signature doesn't allow
-     * cert-sigantures, where disallow=sha256/all allow=sha256/all-signature
-     * does.
-     * however, disallow=sha356/signature and disallow=sha256/all-siganture are
-     * equivalent in effect */
-    { CIPHER_NAME("SIGNATURE"), NSS_USE_ALG_IN_ANY_SIGNATURE },
-    /* enable/disable everything */
-    { CIPHER_NAME("ALL"), NSS_USE_ALG_IN_SSL | NSS_USE_ALG_IN_SSL_KX |
-                              NSS_USE_ALG_IN_SIGNATURE },
+    /* add other signatures in the future */
+    { CIPHER_NAME("SIGNATURE"), NSS_USE_ALG_IN_CERT_SIGNATURE },
+    /* enable everything */
+    { CIPHER_NAME("ALL"), NSS_USE_ALG_IN_SSL | NSS_USE_ALG_IN_SSL_KX | NSS_USE_ALG_IN_CERT_SIGNATURE },
     { CIPHER_NAME("NONE"), 0 }
 };
 
@@ -554,82 +538,8 @@ secmod_getPolicyOptValue(const char *policyValue, int policyValueLength,
     return SECFailure;
 }
 
-/* Policy operations:
- *     Disallow: operation is disallowed by policy. Implies disabled.
- *     Allow: operation is allowed by policy (but could be disabled).
- *     Disable: operation is turned off by default (but could be allowed).
- *     Enable: operation is enabled by default. Implies allowed.
- */
-typedef enum {
-    NSS_DISALLOW,
-    NSS_ALLOW,
-    NSS_DISABLE,
-    NSS_ENABLE
-} NSSPolicyOperation;
-
-/* apply the operator specific policy */
-SECStatus
-secmod_setPolicyOperation(SECOidTag oid, NSSPolicyOperation operation,
-                          PRUint32 value)
-{
-    SECStatus rv = SECSuccess;
-    switch (operation) {
-        case NSS_DISALLOW:
-            /* clear the requested policy bits */
-            rv = NSS_SetAlgorithmPolicy(oid, 0, value);
-            break;
-        case NSS_ALLOW:
-            /* set the requested policy bits */
-            rv = NSS_SetAlgorithmPolicy(oid, value, 0);
-            break;
-        /* enable/disable only apply to SSL cipher suites (future S/MIME).
-         * Enable/disable is implemented by clearing the DEFAULT_NOT_VALID
-         * flag, then setting the NSS_USE_DEFAULT_SSL_ENABLE flag to the
-         * correct value. The ssl policy code will then sort out what to
-         * set based on ciphers and cipher suite values.*/
-        case NSS_DISABLE:
-            if (value & (NSS_USE_ALG_IN_SSL | NSS_USE_ALG_IN_SSL_KX)) {
-                /* clear not valid and enable */
-                rv = NSS_SetAlgorithmPolicy(oid, 0,
-                                            NSS_USE_DEFAULT_NOT_VALID |
-                                                NSS_USE_DEFAULT_SSL_ENABLE);
-            }
-            break;
-        case NSS_ENABLE:
-            if (value & (NSS_USE_ALG_IN_SSL | NSS_USE_ALG_IN_SSL_KX)) {
-                /* set enable, clear not valid. NOTE: enable implies allow! */
-                rv = NSS_SetAlgorithmPolicy(oid, value | NSS_USE_DEFAULT_SSL_ENABLE,
-                                            NSS_USE_DEFAULT_NOT_VALID);
-            }
-            break;
-        default:
-            PORT_SetError(SEC_ERROR_LIBRARY_FAILURE);
-            rv = SECFailure;
-            break;
-    }
-    return rv;
-}
-
-const char *
-secmod_getOperationString(NSSPolicyOperation operation)
-{
-    switch (operation) {
-        case NSS_DISALLOW:
-            return "disallow";
-        case NSS_ALLOW:
-            return "allow";
-        case NSS_DISABLE:
-            return "disable";
-        case NSS_ENABLE:
-            return "enable";
-        default:
-            break;
-    }
-    return "invalid";
-}
-
 static SECStatus
-secmod_applyCryptoPolicy(const char *policyString, NSSPolicyOperation operation,
+secmod_applyCryptoPolicy(const char *policyString, PRBool allow,
                          PRBool printPolicyFeedback)
 {
     const char *cipher, *currentString;
@@ -663,10 +573,18 @@ secmod_applyCryptoPolicy(const char *policyString, NSSPolicyOperation operation,
             for (i = 0; i < PR_ARRAY_SIZE(algOptLists); i++) {
                 const algListsDef *algOptList = &algOptLists[i];
                 for (j = 0; j < algOptList->entries; j++) {
+                    PRUint32 enable, disable;
                     if (!newValue) {
                         value = algOptList->list[j].val;
                     }
-                    secmod_setPolicyOperation(algOptList->list[j].oid, operation, value);
+                    if (allow) {
+                        enable = value;
+                        disable = 0;
+                    } else {
+                        enable = 0;
+                        disable = value;
+                    }
+                    NSS_SetAlgorithmPolicy(algOptList->list[j].oid, enable, disable);
                 }
             }
             continue;
@@ -685,12 +603,20 @@ secmod_applyCryptoPolicy(const char *policyString, NSSPolicyOperation operation,
                 if ((newOption || algOpt->name_size == length) &&
                     PORT_Strncasecmp(algOpt->name, cipher, name_size) == 0) {
                     PRUint32 value = algOpt->val;
+                    PRUint32 enable, disable;
                     if (newOption) {
                         value = secmod_parsePolicyValue(&cipher[name_size] + 1,
                                                         length - name_size - 1,
                                                         printPolicyFeedback);
                     }
-                    rv = secmod_setPolicyOperation(algOptList->list[j].oid, operation, value);
+                    if (allow) {
+                        enable = value;
+                        disable = 0;
+                    } else {
+                        enable = 0;
+                        disable = value;
+                    }
+                    rv = NSS_SetAlgorithmPolicy(algOpt->oid, enable, disable);
                     if (rv != SECSuccess) {
                         /* could not enable option */
                         /* NSS_SetAlgorithPolicy should have set the error code */
@@ -740,7 +666,7 @@ secmod_applyCryptoPolicy(const char *policyString, NSSPolicyOperation operation,
         if (unknown && printPolicyFeedback) {
             PR_SetEnv("NSS_POLICY_FAIL=1");
             fprintf(stderr, "NSS-POLICY-FAIL %s: unknown identifier: %.*s\n",
-                    secmod_getOperationString(operation), length, cipher);
+                    allow ? "allow" : "disallow", length, cipher);
         }
     }
     return rv;
@@ -783,8 +709,7 @@ secmod_sanityCheckCryptoPolicy(void)
                 anyEnabled = PR_TRUE;
                 fprintf(stderr, "NSS-POLICY-INFO: %s is enabled for SSL\n", algOpt->name);
             }
-            if ((algOpt->val & NSS_USE_ALG_IN_CERT_SIGNATURE) &&
-                ((value & NSS_USE_CERT_SIGNATURE_OK) == NSS_USE_CERT_SIGNATURE_OK)) {
+            if ((algOpt->val & NSS_USE_ALG_IN_CERT_SIGNATURE) && (value & NSS_USE_ALG_IN_CERT_SIGNATURE)) {
                 ++num_sig_enabled;
                 anyEnabled = PR_TRUE;
                 fprintf(stderr, "NSS-POLICY-INFO: %s is enabled for CERT-SIGNATURE\n", algOpt->name);
@@ -815,7 +740,7 @@ secmod_sanityCheckCryptoPolicy(void)
 static SECStatus
 secmod_parseCryptoPolicy(const char *policyConfig, PRBool printPolicyFeedback)
 {
-    char *args;
+    char *disallow, *allow;
     SECStatus rv;
 
     if (policyConfig == NULL) {
@@ -827,48 +752,19 @@ secmod_parseCryptoPolicy(const char *policyConfig, PRBool printPolicyFeedback)
     if (rv != SECSuccess) {
         return rv;
     }
-    args = NSSUTIL_ArgGetParamValue("disallow", policyConfig);
-    rv = secmod_applyCryptoPolicy(args, NSS_DISALLOW, printPolicyFeedback);
-    if (args)
-        PORT_Free(args);
+    disallow = NSSUTIL_ArgGetParamValue("disallow", policyConfig);
+    rv = secmod_applyCryptoPolicy(disallow, PR_FALSE, printPolicyFeedback);
+    if (disallow)
+        PORT_Free(disallow);
     if (rv != SECSuccess) {
         return rv;
     }
-    args = NSSUTIL_ArgGetParamValue("allow", policyConfig);
-    rv = secmod_applyCryptoPolicy(args, NSS_ALLOW, printPolicyFeedback);
-    if (args)
-        PORT_Free(args);
+    allow = NSSUTIL_ArgGetParamValue("allow", policyConfig);
+    rv = secmod_applyCryptoPolicy(allow, PR_TRUE, printPolicyFeedback);
+    if (allow)
+        PORT_Free(allow);
     if (rv != SECSuccess) {
         return rv;
-    }
-    args = NSSUTIL_ArgGetParamValue("disable", policyConfig);
-    rv = secmod_applyCryptoPolicy(args, NSS_DISABLE, printPolicyFeedback);
-    if (args)
-        PORT_Free(args);
-    if (rv != SECSuccess) {
-        return rv;
-    }
-    args = NSSUTIL_ArgGetParamValue("enable", policyConfig);
-    rv = secmod_applyCryptoPolicy(args, NSS_ENABLE, printPolicyFeedback);
-    if (args)
-        PORT_Free(args);
-    if (rv != SECSuccess) {
-        return rv;
-    }
-    /* this has to be last. Everything after this will be a noop */
-    if (NSSUTIL_ArgHasFlag("flags", "ssl-lock", policyConfig)) {
-        PRInt32 locks;
-        /* don't overwrite other (future) lock flags */
-        rv = NSS_OptionGet(NSS_DEFAULT_LOCKS, &locks);
-        if (rv == SECSuccess) {
-            rv = NSS_OptionSet(NSS_DEFAULT_LOCKS, locks | NSS_DEFAULT_SSL_LOCK);
-        }
-        if (rv != SECSuccess) {
-            return rv;
-        }
-    }
-    if (NSSUTIL_ArgHasFlag("flags", "policy-lock", policyConfig)) {
-        NSS_LockPolicy();
     }
     if (printPolicyFeedback) {
         /* This helps to distinguish configurations that don't contain any
@@ -922,7 +818,7 @@ SECMOD_CreateModuleEx(const char *library, const char *moduleName,
     mod->internal = NSSUTIL_ArgHasFlag("flags", "internal", nssc);
     mod->isFIPS = NSSUTIL_ArgHasFlag("flags", "FIPS", nssc);
     /* if the system FIPS mode is enabled, force FIPS to be on */
-    if (SECMOD_GetSystemFIPSEnabled()) {
+    if (secmod_GetSystemFIPSEnabled()) {
         mod->isFIPS = PR_TRUE;
     }
     mod->isCritical = NSSUTIL_ArgHasFlag("flags", "critical", nssc);

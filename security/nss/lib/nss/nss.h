@@ -22,11 +22,11 @@
  * The format of the version string should be
  *     "<major version>.<minor version>[.<patch level>[.<build number>]][ <ECC>][ <Beta>]"
  */
-#define NSS_VERSION "3.59.1.1" _NSS_CUSTOMIZED
+#define NSS_VERSION "3.48.5" _NSS_CUSTOMIZED
 #define NSS_VMAJOR 3
-#define NSS_VMINOR 59
-#define NSS_VPATCH 1
-#define NSS_VBUILD 1
+#define NSS_VMINOR 48
+#define NSS_VPATCH 5
+#define NSS_VBUILD 0
 #define NSS_BETA PR_FALSE
 
 #ifndef RC_INVOKED
@@ -299,8 +299,6 @@ SECStatus NSS_UnregisterShutdown(NSS_ShutdownFunc sFunc, void *appData);
  * old NSS versions.  This option might be removed in the future NSS
  * releases; don't rely on it. */
 #define __NSS_PKCS12_DECODE_FORCE_UNICODE 0x00c
-#define NSS_DEFAULT_LOCKS 0x00d /* lock default values */
-#define NSS_DEFAULT_SSL_LOCK 1  /* lock the ssl default values */
 
 /*
  * Set and get global options for the NSS library.

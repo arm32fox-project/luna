@@ -48,7 +48,7 @@
           'fipstest.c',
           'fipstokn.c',
           'jpakesftk.c',
-          'kbkdf.c',
+          'lgglue.c',
           'lowkey.c',
           'lowpbe.c',
           'padbuf.c',
@@ -56,23 +56,14 @@
           'pkcs11c.c',
           'pkcs11u.c',
           'sdb.c',
-          'sftkdhverify.c',
           'sftkdb.c',
           'sftkhmac.c',
           'sftkike.c',
-          'sftkmessage.c',
           'sftkpars.c',
           'sftkpwd.c',
           'softkver.c',
           'tlsprf.c'
         ],
-        'conditions': [
-          [ 'disable_dbm==0', {
-            'sources': [
-              'lgglue.c',
-            ]
-          }]
-        ]
       },
     },
     {

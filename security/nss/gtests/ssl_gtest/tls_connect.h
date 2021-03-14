@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -80,8 +79,6 @@ class TlsConnectTestBase : public ::testing::Test {
   void ConnectExpectAlert(std::shared_ptr<TlsAgent>& sender, uint8_t alert);
   void ConnectExpectFailOneSide(TlsAgent::Role failingSide);
   void ConnectWithCipherSuite(uint16_t cipher_suite);
-  void CheckEarlyDataLimit(const std::shared_ptr<TlsAgent>& agent,
-                           size_t expected_size);
   // Check that the keys used in the handshake match expectations.
   void CheckKeys(SSLKEAType kea_type, SSLNamedGroup kea_group,
                  SSLAuthType auth_type, SSLSignatureScheme sig_scheme) const;
@@ -122,9 +119,6 @@ class TlsConnectTestBase : public ::testing::Test {
   void EnableSrtp();
   void CheckSrtp() const;
   void SendReceive(size_t total = 50);
-  void AddPsk(const ScopedPK11SymKey& psk, std::string label, SSLHashType hash,
-              uint16_t zeroRttSuite = TLS_NULL_WITH_NULL_NULL);
-  void RemovePsk(std::string label);
   void SetupForZeroRtt();
   void SetupForResume();
   void ZeroRttSendReceive(

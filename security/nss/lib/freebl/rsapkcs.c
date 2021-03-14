@@ -116,7 +116,7 @@ rsa_FormatOneBlock(unsigned modulusLen,
     unsigned char *block;
     unsigned char *bp;
     unsigned int padLen;
-    unsigned int i, j;
+    int i, j;
     SECStatus rv;
 
     block = (unsigned char *)PORT_Alloc(modulusLen);
@@ -1409,7 +1409,6 @@ RSA_CheckSignRecover(RSAPublicKey *key,
     unsigned int modulusLen = rsa_modulusLen(&key->modulus);
     unsigned int i;
     unsigned char *buffer = NULL;
-    unsigned int padLen;
 
     if (sigLen != modulusLen) {
         PORT_SetError(SEC_ERROR_BAD_SIGNATURE);
@@ -1446,11 +1445,6 @@ RSA_CheckSignRecover(RSAPublicKey *key,
             PORT_SetError(SEC_ERROR_BAD_SIGNATURE);
             goto done;
         }
-    }
-    padLen = i - 2;
-    if (padLen < RSA_BLOCK_MIN_PAD_LEN) {
-        PORT_SetError(SEC_ERROR_BAD_SIGNATURE);
-        goto done;
     }
     if (*outputLen == 0) {
         PORT_SetError(SEC_ERROR_BAD_SIGNATURE);

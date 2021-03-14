@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -51,7 +50,6 @@ class Pkcs11Pbkdf2Test : public ::testing::Test {
     const unsigned int kIterations = 10;
     std::string pass("passwordPASSWORDpassword");
     std::string salt("saltSALTsaltSALTsaltSALTsaltSALTsalt");
-    std::string salt_empty("");
 
     // Derivation must fail when using key sizes bigger than MAX_KEY_LEN.
     const int big_key_size = 768;
@@ -60,10 +58,6 @@ class Pkcs11Pbkdf2Test : public ::testing::Test {
     // Zero is acceptable as key size and will be managed internally.
     const int zero_key_size = 0;
     EXPECT_TRUE(KeySizeParam(pass, salt, zero_key_size, hash_alg, kIterations));
-
-    // Zero is acceptable as salt size and will be managed internally.
-    EXPECT_TRUE(
-        KeySizeParam(pass, salt_empty, zero_key_size, hash_alg, kIterations));
 
     // -1 will be set to 0 internally and this means that the key size will be
     // obtained from the template. If the template doesn't have this defined,
@@ -76,12 +70,6 @@ class Pkcs11Pbkdf2Test : public ::testing::Test {
     const int negative_key_size = -10;
     EXPECT_FALSE(
         KeySizeParam(pass, salt, negative_key_size, hash_alg, kIterations));
-
-    // Malformed inputs are handled without crashing
-    EXPECT_FALSE(
-        MalformedPass(pass, salt, big_key_size, hash_alg, kIterations));
-    EXPECT_FALSE(
-        MalformedSalt(pass, salt, big_key_size, hash_alg, kIterations));
   }
 
  private:
@@ -110,8 +98,13 @@ class Pkcs11Pbkdf2Test : public ::testing::Test {
     return !memcmp(&derived[0], key_data->data, key_data->len);
   }
 
-  bool GenerateKey(SECItem pass_item, SECItem salt_item, const int key_size,
-                   SECOidTag hash_alg, unsigned int kIterations) {
+  bool KeySizeParam(std::string& pass, std::string& salt, const int key_size,
+                    SECOidTag hash_alg, unsigned int kIterations) {
+    SECItem pass_item = {siBuffer, ToUcharPtr(pass),
+                         static_cast<unsigned int>(pass.length())};
+    SECItem salt_item = {siBuffer, ToUcharPtr(salt),
+                         static_cast<unsigned int>(salt.length())};
+
     // Set up PBKDF2 params.
     ScopedSECAlgorithmID alg_id(
         PK11_CreatePBEV2AlgorithmID(SEC_OID_PKCS5_PBKDF2, hash_alg, hash_alg,
@@ -124,34 +117,6 @@ class Pkcs11Pbkdf2Test : public ::testing::Test {
 
     // Should be nullptr if fail.
     return sym_key.get();
-  }
-
-  bool KeySizeParam(std::string& pass, std::string& salt, const int key_size,
-                    SECOidTag hash_alg, unsigned int kIterations) {
-    SECItem pass_item = {siBuffer, ToUcharPtr(pass),
-                         static_cast<unsigned int>(pass.length())};
-    SECItem salt_item = {siBuffer, ToUcharPtr(salt),
-                         static_cast<unsigned int>(salt.length())};
-
-    return GenerateKey(pass_item, salt_item, key_size, hash_alg, kIterations);
-  }
-
-  bool MalformedSalt(std::string& pass, std::string& salt, const int key_size,
-                     SECOidTag hash_alg, unsigned int kIterations) {
-    SECItem pass_item = {siBuffer, ToUcharPtr(pass),
-                         static_cast<unsigned int>(pass.length())};
-    SECItem salt_item = {siBuffer, nullptr, 0};
-
-    return GenerateKey(pass_item, salt_item, key_size, hash_alg, kIterations);
-  }
-
-  bool MalformedPass(std::string& pass, std::string& salt, const int key_size,
-                     SECOidTag hash_alg, unsigned int kIterations) {
-    SECItem pass_item = {siBuffer, nullptr, 0};
-    SECItem salt_item = {siBuffer, ToUcharPtr(salt),
-                         static_cast<unsigned int>(salt.length())};
-
-    return GenerateKey(pass_item, salt_item, key_size, hash_alg, kIterations);
   }
 };
 

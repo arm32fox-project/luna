@@ -13,7 +13,6 @@
         {
           'files': [
             'pk11func.h',
-            'pk11hpke.h',
             'pk11pqg.h',
             'pk11priv.h',
             'pk11pub.h',
@@ -27,8 +26,7 @@
         {
           'files': [
             'dev3hack.h',
-            'secmodi.h',
-            'secmodti.h'
+            'secmodi.h'
           ],
           'destination': '<(nss_private_dist_dir)/<(module)'
         }

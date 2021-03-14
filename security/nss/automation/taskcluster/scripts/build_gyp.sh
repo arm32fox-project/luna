@@ -12,7 +12,7 @@ if [[ -f nss/nspr.patch && "$ALLOW_NSPR_PATCH" == "1" ]]; then
 fi
 
 # Build.
-nss/build.sh -g -v --enable-libpkix -Denable_draft_hpke=1 "$@"
+nss/build.sh -g -v --enable-libpkix "$@"
 
 # Package.
 if [[ $(uname) = "Darwin" ]]; then

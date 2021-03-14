@@ -44,22 +44,20 @@ PRBool tls13_InHsState(sslSocket *ss, ...);
 
 PRBool tls13_IsPostHandshake(const sslSocket *ss);
 
-SSLHashType tls13_GetHash(const sslSocket *ss);
-SECStatus tls13_GetHashAndCipher(PRUint16 version, PRUint16 cipherSuite,
-                                 SSLHashType *hash, const ssl3BulkCipherDef **cipher);
 SSLHashType tls13_GetHashForCipherSuite(ssl3CipherSuite suite);
-unsigned int tls13_GetHashSize(const sslSocket *ss);
+SSLHashType tls13_GetHash(const sslSocket *ss);
 unsigned int tls13_GetHashSizeForHash(SSLHashType hash);
+unsigned int tls13_GetHashSize(const sslSocket *ss);
+CK_MECHANISM_TYPE tls13_GetHkdfMechanism(sslSocket *ss);
+CK_MECHANISM_TYPE tls13_GetHkdfMechanismForHash(SSLHashType hash);
 SECStatus tls13_ComputeHash(sslSocket *ss, SSL3Hashes *hashes,
-                            const PRUint8 *buf, unsigned int len,
-                            SSLHashType hash);
+                            const PRUint8 *buf, unsigned int len);
 SECStatus tls13_ComputeHandshakeHashes(sslSocket *ss,
                                        SSL3Hashes *hashes);
 SECStatus tls13_DeriveSecretNullHash(sslSocket *ss, PK11SymKey *key,
                                      const char *label,
                                      unsigned int labelLen,
-                                     PK11SymKey **dest,
-                                     SSLHashType hash);
+                                     PK11SymKey **dest);
 void tls13_FatalError(sslSocket *ss, PRErrorCode prError,
                       SSL3AlertDescription desc);
 SECStatus tls13_SetupClientHello(sslSocket *ss, sslClientHelloType chType);
@@ -109,8 +107,8 @@ SECStatus tls13_ProtectRecord(sslSocket *ss,
 PRInt32 tls13_Read0RttData(sslSocket *ss, PRUint8 *buf, PRInt32 len);
 SECStatus tls13_HandleEarlyApplicationData(sslSocket *ss, sslBuffer *origBuf);
 PRBool tls13_ClientAllow0Rtt(const sslSocket *ss, const sslSessionID *sid);
-PRUint16 tls13_EncodeVersion(SSL3ProtocolVersion version,
-                             SSLProtocolVariant variant);
+PRUint16 tls13_EncodeDraftVersion(SSL3ProtocolVersion version,
+                                  SSLProtocolVariant variant);
 SECStatus tls13_ClientReadSupportedVersion(sslSocket *ss);
 SECStatus tls13_NegotiateVersion(sslSocket *ss,
                                  const TLSExtension *supported_versions);
@@ -135,18 +133,12 @@ SECStatus tls13_SendKeyUpdate(sslSocket *ss, tls13KeyUpdateRequest request,
                               PRBool buffer);
 SECStatus SSLExp_KeyUpdate(PRFileDesc *fd, PRBool requestUpdate);
 PRBool tls13_MaybeTls13(sslSocket *ss);
-unsigned int tls13_SetupAeadIv(PRBool isDTLS, unsigned char *ivOut,
-                               unsigned char *ivIn, unsigned int offset,
-                               unsigned int ivLen, DTLSEpoch epoch);
-SECStatus tls13_AEAD(PK11Context *context, PRBool decrypt,
-                     CK_GENERATOR_FUNCTION ivGen, unsigned int fixedbits,
-                     const unsigned char *ivIn, unsigned char *ivOut,
-                     unsigned int ivLen,
-                     const unsigned char *nonceIn, unsigned int nonceLen,
-                     const unsigned char *aad, unsigned int aadLen,
-                     unsigned char *out, unsigned int *outLen,
-                     unsigned int maxout, unsigned int tagLen,
-                     const unsigned char *in, unsigned int inLen);
+SSLAEADCipher tls13_GetAead(const ssl3BulkCipherDef *cipherDef);
+SECStatus tls13_AEAD(const ssl3KeyMaterial *keys, PRBool doDecrypt,
+                     unsigned char *out, unsigned int *outlen, unsigned int maxout,
+                     const unsigned char *in, unsigned int inlen,
+                     CK_MECHANISM_TYPE mechanism,
+                     unsigned char *aeadParams, unsigned int aeadParamLength);
 void tls13_SetSpecRecordVersion(sslSocket *ss, ssl3CipherSpec *spec);
 SECStatus SSLExp_SendCertificateRequest(PRFileDesc *fd);
 

@@ -48,7 +48,6 @@
         'tls13exthandle.c',
         'tls13hashstate.c',
         'tls13hkdf.c',
-        'tls13psk.c',
         'tls13replay.c',
         'tls13subcerts.c',
       ],

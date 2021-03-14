@@ -9,10 +9,10 @@
 #include "softoken.h"
 #include "hmacct.h"
 
-/* sftk_HMACMechanismToHash converts a PKCS#11 MAC mechanism into a freebl hash
+/* HMACMechanismToHash converts a PKCS#11 MAC mechanism into a freebl hash
  * type. */
-HASH_HashType
-sftk_HMACMechanismToHash(CK_MECHANISM_TYPE mech)
+static HASH_HashType
+HMACMechanismToHash(CK_MECHANISM_TYPE mech)
 {
     switch (mech) {
         case CKM_MD2_HMAC:
@@ -50,7 +50,7 @@ SetupMAC(CK_MECHANISM_PTR mech, SFTKObject *key)
         return NULL;
     }
 
-    alg = sftk_HMACMechanismToHash(params->macAlg);
+    alg = HMACMechanismToHash(params->macAlg);
     if (alg == HASH_AlgNULL) {
         return NULL;
     }
@@ -261,7 +261,7 @@ sftk_MAC_InitRaw(sftk_MACCtx *ctx, CK_MECHANISM_TYPE mech, const unsigned char *
         case CKM_SHA256_HMAC:
         case CKM_SHA384_HMAC:
         case CKM_SHA512_HMAC:
-            hashObj = HASH_GetRawHashObject(sftk_HMACMechanismToHash(mech));
+            hashObj = HASH_GetRawHashObject(HMACMechanismToHash(mech));
 
             /* Because we condition above only on hashes we know to be valid,
              * hashObj should never be NULL. This assert is only useful when
@@ -355,7 +355,7 @@ sftk_MAC_Reset(sftk_MACCtx *ctx)
 }
 
 CK_RV
-sftk_MAC_Update(sftk_MACCtx *ctx, const CK_BYTE *data, unsigned int data_len)
+sftk_MAC_Update(sftk_MACCtx *ctx, CK_BYTE_PTR data, unsigned int data_len)
 {
     switch (ctx->mech) {
         case CKM_MD2_HMAC:

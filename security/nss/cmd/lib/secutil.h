@@ -424,8 +424,6 @@ SECStatus exportKeyingMaterials(PRFileDesc *fd,
                                 const secuExporter *exporters,
                                 unsigned int exporterCount);
 
-SECStatus readPSK(const char *arg, SECItem *psk, SECItem *label);
-
 /*
  *
  *  Error messaging

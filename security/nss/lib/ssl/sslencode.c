@@ -64,10 +64,7 @@ sslBuffer_Append(sslBuffer *b, const void *data, unsigned int len)
     if (rv != SECSuccess) {
         return SECFailure; /* Code already set. */
     }
-    if (len > 0) {
-        PORT_Assert(data);
-        PORT_Memcpy(SSL_BUFFER_NEXT(b), data, len);
-    }
+    PORT_Memcpy(SSL_BUFFER_NEXT(b), data, len);
     b->len += len;
     return SECSuccess;
 }
