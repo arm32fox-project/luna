@@ -7,9 +7,6 @@
  *
  */
 
-#if defined(_WIN64)
-#include <winsock2.h>
-#endif
 #include "primpl.h"
 
 #define READ_FD     1

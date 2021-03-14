@@ -8,19 +8,8 @@
 
 #include <stdio.h>
 
-#ifdef DEBUG
-#define SEM_D "D"
-#else
-#define SEM_D
-#endif
-#ifdef IS_64
-#define SEM_64 "64"
-#else
-#define SEM_64
-#endif
-
-#define NO_SUCH_SEM_NAME "/tmp/nosuchsem.sem" SEM_D SEM_64
-#define SEM_NAME1 "/tmp/foo.sem" SEM_D SEM_64
+#define NO_SUCH_SEM_NAME "/tmp/nosuchsem.sem"
+#define SEM_NAME1 "/tmp/foo.sem"
 #define EXE_NAME "semaerr1"
 #define SEM_MODE  0666
 

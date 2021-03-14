@@ -8,20 +8,9 @@
 
 #include <stdio.h>
 
-#ifdef DEBUG
-#define SEM_D "D"
-#else
-#define SEM_D
-#endif
-#ifdef IS_64
-#define SEM_64 "64"
-#else
-#define SEM_64
-#endif
-
-#define SHM_NAME "/tmp/counter" SEM_D SEM_64
-#define SEM_NAME1 "/tmp/foo.sem" SEM_D SEM_64
-#define SEM_NAME2 "/tmp/bar.sem" SEM_D SEM_64
+#define SHM_NAME "/tmp/counter"
+#define SEM_NAME1 "/tmp/foo.sem"
+#define SEM_NAME2 "/tmp/bar.sem"
 #define ITERATIONS 1000
 
 static PRBool debug_mode = PR_FALSE;
