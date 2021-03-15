@@ -54,33 +54,136 @@
       ],
     },
     {
-      # TODO: make this so that all hardware accelerated code is in here.
-      'target_name': 'hw-acc-crypto',
+      'target_name': 'hw-acc-crypto-avx',
       'type': 'static_library',
-      'sources': [
-        'verified/Hacl_Chacha20_Vec128.c',
-      ],
+      # 'sources': [
+      #   All AVX hardware accelerated crypto currently requires x64
+      # ],
       'dependencies': [
         '<(DEPTH)/exports.gyp:nss_exports'
       ],
       'conditions': [
-        [ 'target_arch=="ia32" or target_arch=="x64"', {
+        [ 'target_arch=="x64"', {
           'cflags': [
-            '-mssse3'
+            '-mssse3',
+            '-msse4.1',
+            '-msse4.2'
           ],
           'cflags_mozilla': [
-            '-mssse3'
+            '-mssse3',
+            '-msse4.1',
+            '-msse4.2',
+            '-mpclmul',
+            '-maes',
+            '-mavx',
           ],
           # GCC doesn't define this.
           'defines': [
             '__SSSE3__',
           ],
         }],
+        [ 'OS=="linux" or OS=="android" or OS=="dragonfly" or OS=="freebsd" or \
+           OS=="netbsd" or OS=="openbsd"', {
+          'cflags': [
+            '-mpclmul',
+            '-maes',
+            '-mavx',
+          ],
+        }],
+        # macOS build doesn't use cflags.
+        [ 'OS=="mac" or OS=="ios"', {
+          'xcode_settings': {
+            'OTHER_CFLAGS': [
+              '-mssse3',
+              '-msse4.1',
+              '-msse4.2',
+              '-mpclmul',
+              '-maes',
+              '-mavx',
+            ],
+          },
+        }],
         [ 'target_arch=="arm"', {
           # Gecko doesn't support non-NEON platform on Android, but tier-3
           # platform such as Linux/arm will need it
           'cflags_mozilla': [
             '-mfpu=neon'
+          ],
+        }],
+        [ 'target_arch=="x64"', {
+          'sources': [
+            'verified/Hacl_Poly1305_128.c',
+            'verified/Hacl_Chacha20_Vec128.c',
+            'verified/Hacl_Chacha20Poly1305_128.c',
+          ],
+        }],
+      ],
+    },
+    {
+      'target_name': 'hw-acc-crypto-avx2',
+      'type': 'static_library',
+      # 'sources': [
+      #   All AVX2 hardware accelerated crypto currently requires x64
+      # ],
+      'dependencies': [
+        '<(DEPTH)/exports.gyp:nss_exports'
+      ],
+      'conditions': [
+        [ 'target_arch=="x64"', {
+          'cflags': [
+            '-mssse3',
+            '-msse4.1',
+            '-msse4.2'
+          ],
+          'cflags_mozilla': [
+            '-mssse3',
+            '-msse4.1',
+            '-msse4.2',
+            '-mpclmul',
+            '-maes',
+            '-mavx',
+            '-mavx2',
+          ],
+          # GCC doesn't define this.
+          'defines': [
+            '__SSSE3__',
+          ],
+        }],
+        [ 'OS=="linux" or OS=="android" or OS=="dragonfly" or OS=="freebsd" or \
+           OS=="netbsd" or OS=="openbsd"', {
+          'cflags': [
+            '-mpclmul',
+            '-maes',
+            '-mavx',
+            '-mavx2',
+          ],
+        }],
+        # macOS build doesn't use cflags.
+        [ 'OS=="mac" or OS=="ios"', {
+          'xcode_settings': {
+            'OTHER_CFLAGS': [
+              '-mssse3',
+              '-msse4.1',
+              '-msse4.2',
+              '-mpclmul',
+              '-maes',
+              '-mavx',
+              '-mavx2',
+            ],
+          },
+        }],
+        [ 'target_arch=="arm"', {
+          # Gecko doesn't support non-NEON platform on Android, but tier-3
+          # platform such as Linux/arm will need it
+          'cflags_mozilla': [
+            '-mfpu=neon'
+          ],
+        }],
+        [ 'target_arch=="x64"', {
+          'sources': [
+            'verified/Hacl_Poly1305_256.c',
+            'verified/Hacl_Chacha20_Vec256.c',
+            'verified/Hacl_Chacha20Poly1305_256.c',
           ],
         }],
       ],
@@ -117,6 +220,25 @@
       ]
     },
     {
+      'target_name': 'gcm-aes-arm32-neon_c_lib',
+      'type': 'static_library',
+      'sources': [
+        'gcm-arm32-neon.c'
+      ],
+      'dependencies': [
+        '<(DEPTH)/exports.gyp:nss_exports'
+      ],
+      'cflags': [
+        '-march=armv7',
+        '-mfpu=neon',
+        '<@(softfp_cflags)',
+      ],
+      'cflags_mozilla': [
+        '-mfpu=neon',
+        '<@(softfp_cflags)',
+      ]
+    },
+    {
       'target_name': 'gcm-aes-aarch64_c_lib',
       'type': 'static_library',
       'sources': [
@@ -136,7 +258,8 @@
       'target_name': 'gcm-aes-ppc_c_lib',
       'type': 'static_library',
       'sources': [
-        'gcm-ppc.c'
+        'gcm-ppc.c',
+        'sha512-p8.s',
       ],
       'dependencies': [
         '<(DEPTH)/exports.gyp:nss_exports'
@@ -148,7 +271,58 @@
       'cflags_mozilla': [
         '-mcrypto',
         '-maltivec'
-      ]
+      ],
+    },
+    {
+      'target_name': 'gcm-sha512-nodepend-ppc_c_lib',
+      'type': 'static_library',
+      'sources': [
+        'sha512.c',
+      ],
+      'dependencies': [
+        '<(DEPTH)/exports.gyp:nss_exports'
+      ],
+      'cflags': [
+        '-mcrypto',
+        '-maltivec',
+        '-mvsx',
+        '-funroll-loops',
+        '-fpeel-loops',
+      ],
+      'cflags_mozilla': [
+        '-mcrypto',
+        '-maltivec',
+        '-mvsx',
+        '-funroll-loops',
+        '-fpeel-loops',
+      ],
+    },
+    {
+      'target_name': 'gcm-sha512-ppc_c_lib',
+      'type': 'static_library',
+      'sources': [
+        'sha512.c',
+      ],
+      'dependencies': [
+        '<(DEPTH)/exports.gyp:nss_exports'
+      ],
+      'cflags': [
+        '-mcrypto',
+        '-maltivec',
+        '-mvsx',
+        '-funroll-loops',
+        '-fpeel-loops',
+      ],
+      'cflags_mozilla': [
+        '-mcrypto',
+        '-maltivec',
+        '-mvsx',
+        '-funroll-loops',
+        '-fpeel-loops',
+      ],
+      'defines!': [
+        'FREEBL_NO_DEPEND',
+      ],
     },
     {
       'target_name': 'armv8_c_lib',
@@ -163,11 +337,13 @@
         [ 'target_arch=="arm"', {
           'cflags': [
             '-march=armv8-a',
-            '-mfpu=crypto-neon-fp-armv8'
+            '-mfpu=crypto-neon-fp-armv8',
+            '<@(softfp_cflags)',
           ],
           'cflags_mozilla': [
             '-march=armv8-a',
-            '-mfpu=crypto-neon-fp-armv8'
+            '-mfpu=crypto-neon-fp-armv8',
+            '<@(softfp_cflags)',
           ],
         }, 'target_arch=="arm64" or target_arch=="aarch64"', {
           'cflags': [
@@ -200,7 +376,8 @@
       ],
       'dependencies': [
         '<(DEPTH)/exports.gyp:nss_exports',
-        'hw-acc-crypto',
+        'hw-acc-crypto-avx',
+        'hw-acc-crypto-avx2',
       ],
       'conditions': [
         [ 'target_arch=="ia32" or target_arch=="x64"', {
@@ -212,14 +389,30 @@
             'armv8_c_lib'
           ],
         }],
+        [ 'disable_arm32_neon==0 and target_arch=="arm"', {
+          'dependencies': [
+            'gcm-aes-arm32-neon_c_lib',
+          ],
+        }],
+        [ 'disable_arm32_neon==1 and target_arch=="arm"', {
+          'defines!': [
+            'NSS_DISABLE_ARM32_NEON',
+          ],
+        }],
         [ 'target_arch=="arm64" or target_arch=="aarch64"', {
           'dependencies': [
             'gcm-aes-aarch64_c_lib',
           ],
         }],
-        [ 'target_arch=="ppc64le"', {
+        [ 'disable_altivec==0 and (target_arch=="ppc64" or target_arch=="ppc64le")', {
           'dependencies': [
             'gcm-aes-ppc_c_lib',
+            'gcm-sha512-ppc_c_lib',
+          ],
+        }],
+        [ 'disable_altivec==1 and (target_arch=="ppc64" or target_arch=="ppc64le")', {
+          'defines!': [
+            'NSS_DISABLE_ALTIVEC',
           ],
         }],
         [ 'OS=="linux"', {
@@ -251,7 +444,8 @@
       ],
       'dependencies': [
         '<(DEPTH)/exports.gyp:nss_exports',
-        'hw-acc-crypto',
+        'hw-acc-crypto-avx',
+        'hw-acc-crypto-avx2',
       ],
       'conditions': [
         [ 'target_arch=="ia32" or target_arch=="x64"', {
@@ -263,14 +457,30 @@
             'armv8_c_lib',
           ],
         }],
+        [ 'disable_arm32_neon==0 and target_arch=="arm"', {
+          'dependencies': [
+            'gcm-aes-arm32-neon_c_lib',
+          ],
+        }],
+        [ 'disable_arm32_neon==1 and target_arch=="arm"', {
+          'defines!': [
+            'NSS_DISABLE_ARM32_NEON',
+          ],
+        }],
         [ 'target_arch=="arm64" or target_arch=="aarch64"', {
           'dependencies': [
             'gcm-aes-aarch64_c_lib',
           ],
         }],
-        [ 'target_arch=="ppc64" or target_arch=="ppc64le"', {
+        [ 'disable_altivec==0 and (target_arch=="ppc64" or target_arch=="ppc64le")', {
           'dependencies': [
             'gcm-aes-ppc_c_lib',
+            'gcm-sha512-nodepend-ppc_c_lib',
+          ],
+        }],
+        [ 'disable_altivec==1 and (target_arch=="ppc64" or target_arch=="ppc64le")', {
+          'defines!': [
+            'NSS_DISABLE_ALTIVEC',
           ],
         }],
         [ 'OS!="linux"', {
@@ -291,7 +501,7 @@
             'intel-gcm-wrap_c_lib',
           ],
         }],
-        [ 'OS=="win" and cc_is_clang==1', {
+        [ 'OS=="win" and (target_arch=="ia32" or target_arch=="x64") and cc_is_clang==1', {
           'dependencies': [
             'intel-gcm-wrap_c_lib',
           ],
@@ -321,7 +531,8 @@
       'type': 'shared_library',
       'dependencies': [
         '<(DEPTH)/exports.gyp:nss_exports',
-        'hw-acc-crypto',
+        'hw-acc-crypto-avx',
+        'hw-acc-crypto-avx2',
       ],
     },
     {
@@ -337,7 +548,8 @@
       ],
       'dependencies': [
         '<(DEPTH)/exports.gyp:nss_exports',
-        'hw-acc-crypto',
+        'hw-acc-crypto-avx',
+        'hw-acc-crypto-avx2',
       ],
       'asflags_mozilla': [
         '-mcpu=v9', '-Wa,-xarch=v9a'
@@ -379,6 +591,8 @@
       'mpi',
       'ecl',
       'verified',
+      'verified/kremlin/include',
+      'verified/kremlin/kremlib/dist/minimal',
     ],
     'defines': [
       'SHLIB_SUFFIX=\"<(dll_suffix)\"',
@@ -422,6 +636,11 @@
           },
         },
       }],
+      [ 'OS=="win" and (target_arch=="arm64" or target_arch=="aarch64") and disable_arm_hw_aes==0', {
+        'defines': [
+          'USE_HW_AES',
+        ],
+      }],
       [ 'cc_use_gnu_ld==1 and OS=="win" and target_arch=="x64"', {
         # mingw x64
         'defines': [
@@ -435,7 +654,7 @@
         ],
       }, {
         'defines': [
-          'KRML_NOUINT128',
+          'KRML_VERIFIED_UINT128',
         ],
       }],
       [ 'OS=="linux"', {
@@ -501,6 +720,11 @@
         ],
       }, {
         'have_int128_support%': 0,
+      }],
+      [ 'target_arch=="arm"', {
+        # When the compiler uses the softfloat ABI, we want to use the compatible softfp ABI when enabling NEON for these objects.
+        # Confusingly, __SOFTFP__ is the name of the define for the softfloat ABI, not for the softfp ABI.
+        'softfp_cflags': '<!(${CC:-cc} -o - -E -dM - ${CFLAGS} < /dev/null | grep __SOFTFP__ > /dev/null && echo -mfloat-abi=softfp || true)',
       }],
     ],
   }

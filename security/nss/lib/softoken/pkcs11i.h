@@ -117,6 +117,9 @@ typedef void (*SFTKDestroy)(void *, PRBool);
 typedef void (*SFTKBegin)(void *);
 typedef SECStatus (*SFTKCipher)(void *, void *, unsigned int *, unsigned int,
                                 void *, unsigned int);
+typedef SECStatus (*SFTKAEADCipher)(void *, void *, unsigned int *,
+                                    unsigned int, void *, unsigned int,
+                                    void *, unsigned int, void *, unsigned int);
 typedef SECStatus (*SFTKVerify)(void *, void *, unsigned int, void *, unsigned int);
 typedef void (*SFTKHash)(void *, const void *, unsigned int);
 typedef void (*SFTKEnd)(void *, void *, unsigned int *, unsigned int);
@@ -235,7 +238,11 @@ typedef enum {
     SFTK_SIGN,
     SFTK_SIGN_RECOVER,
     SFTK_VERIFY,
-    SFTK_VERIFY_RECOVER
+    SFTK_VERIFY_RECOVER,
+    SFTK_MESSAGE_ENCRYPT,
+    SFTK_MESSAGE_DECRYPT,
+    SFTK_MESSAGE_SIGN,
+    SFTK_MESSAGE_VERIFY
 } SFTKContextType;
 
 /** max block size of supported block ciphers */
@@ -272,6 +279,7 @@ struct SFTKSessionContextStr {
     unsigned int cipherInfoLen;
     CK_MECHANISM_TYPE currentMech;
     SFTKCipher update;
+    SFTKAEADCipher aeadUpdate;
     SFTKHash hashUpdate;
     SFTKEnd end;
     SFTKDestroy destroy;
@@ -665,6 +673,8 @@ struct sftk_MACCtxStr {
 };
 typedef struct sftk_MACCtxStr sftk_MACCtx;
 
+extern CK_NSS_MODULE_FUNCTIONS sftk_module_funcList;
+
 SEC_BEGIN_PROTOS
 
 /* shared functions between pkcs11.c and fipstokn.c */
@@ -687,6 +697,8 @@ extern CK_RV sftk_CloseAllSessions(SFTKSlot *slot, PRBool logout);
 
 /* internal utility functions used by pkcs11.c */
 extern CK_RV sftk_MapCryptError(int error);
+extern CK_RV sftk_MapDecryptError(int error);
+extern CK_RV sftk_MapVerifyError(int error);
 extern SFTKAttribute *sftk_FindAttribute(SFTKObject *object,
                                          CK_ATTRIBUTE_TYPE type);
 extern void sftk_FreeAttribute(SFTKAttribute *attribute);
@@ -757,9 +769,27 @@ extern SFTKSession *sftk_NewSession(CK_SLOT_ID slotID, CK_NOTIFY notify,
                                     CK_VOID_PTR pApplication, CK_FLAGS flags);
 extern void sftk_update_state(SFTKSlot *slot, SFTKSession *session);
 extern void sftk_update_all_states(SFTKSlot *slot);
-extern void sftk_FreeContext(SFTKSessionContext *context);
 extern void sftk_InitFreeLists(void);
 extern void sftk_CleanupFreeLists(void);
+
+/*
+ * Helper functions to handle the session crypto contexts
+ */
+extern CK_RV sftk_InitGeneric(SFTKSession *session,
+                              SFTKSessionContext **contextPtr,
+                              SFTKContextType ctype, SFTKObject **keyPtr,
+                              CK_OBJECT_HANDLE hKey, CK_KEY_TYPE *keyTypePtr,
+                              CK_OBJECT_CLASS pubKeyType,
+                              CK_ATTRIBUTE_TYPE operation);
+void sftk_SetContextByType(SFTKSession *session, SFTKContextType type,
+                           SFTKSessionContext *context);
+extern CK_RV sftk_GetContext(CK_SESSION_HANDLE handle,
+                             SFTKSessionContext **contextPtr,
+                             SFTKContextType type, PRBool needMulti,
+                             SFTKSession **sessionPtr);
+extern void sftk_TerminateOp(SFTKSession *session, SFTKContextType ctype,
+                             SFTKSessionContext *context);
+extern void sftk_FreeContext(SFTKSessionContext *context);
 
 extern NSSLOWKEYPublicKey *sftk_GetPubKey(SFTKObject *object,
                                           CK_KEY_TYPE key_type, CK_RV *crvp);
@@ -770,6 +800,8 @@ extern CK_RV sftk_PutPubKey(SFTKObject *publicKey, SFTKObject *privKey, CK_KEY_T
 extern void sftk_FormatDESKey(unsigned char *key, int length);
 extern PRBool sftk_CheckDESKey(unsigned char *key);
 extern PRBool sftk_IsWeakKey(unsigned char *key, CK_KEY_TYPE key_type);
+extern void sftk_EncodeInteger(PRUint64 integer, CK_ULONG num_bits, CK_BBOOL littleEndian,
+                               CK_BYTE_PTR output, CK_ULONG_PTR output_len);
 
 /* ike and xcbc helpers */
 extern CK_RV sftk_ike_prf(CK_SESSION_HANDLE hSession,
@@ -781,7 +813,8 @@ extern CK_RV sftk_ike1_prf(CK_SESSION_HANDLE hSession,
                            unsigned int keySize);
 extern CK_RV sftk_ike1_appendix_b_prf(CK_SESSION_HANDLE hSession,
                                       const SFTKAttribute *inKey,
-                                      const CK_MECHANISM_TYPE *params, SFTKObject *outKey,
+                                      const CK_NSS_IKE1_APP_B_PRF_DERIVE_PARAMS *params,
+                                      SFTKObject *outKey,
                                       unsigned int keySize);
 extern CK_RV sftk_ike_prf_plus(CK_SESSION_HANDLE hSession,
                                const SFTKAttribute *inKey,
@@ -859,6 +892,7 @@ sftk_TLSPRFInit(SFTKSessionContext *context,
 
 /* PKCS#11 MAC implementation. See sftk_MACCtxStr declaration above for
  * calling semantics for these functions. */
+HASH_HashType sftk_HMACMechanismToHash(CK_MECHANISM_TYPE mech);
 CK_RV sftk_MAC_Create(CK_MECHANISM_TYPE mech, SFTKObject *key, sftk_MACCtx **ret_ctx);
 CK_RV sftk_MAC_Init(sftk_MACCtx *ctx, CK_MECHANISM_TYPE mech, SFTKObject *key);
 CK_RV sftk_MAC_InitRaw(sftk_MACCtx *ctx, CK_MECHANISM_TYPE mech, const unsigned char *key, unsigned int key_len, PRBool isFIPS);
@@ -866,6 +900,15 @@ CK_RV sftk_MAC_Update(sftk_MACCtx *ctx, CK_BYTE_PTR data, unsigned int data_len)
 CK_RV sftk_MAC_Finish(sftk_MACCtx *ctx, CK_BYTE_PTR result, unsigned int *result_len, unsigned int max_result_len);
 CK_RV sftk_MAC_Reset(sftk_MACCtx *ctx);
 void sftk_MAC_Destroy(sftk_MACCtx *ctx, PRBool free_it);
+
+/* constant time helpers */
+unsigned int sftk_CKRVToMask(CK_RV rv);
+CK_RV sftk_CheckCBCPadding(CK_BYTE_PTR pBuf, unsigned int bufLen,
+                           unsigned int blockSize, unsigned int *outPadSize);
+
+/* NIST 800-108 (kbkdf.c) implementations */
+extern CK_RV kbkdf_Dispatch(CK_MECHANISM_TYPE mech, CK_SESSION_HANDLE hSession, CK_MECHANISM_PTR pMechanism, SFTKObject *base_key, SFTKObject *ret_key, CK_ULONG keySize);
+char **NSC_ModuleDBFunc(unsigned long function, char *parameters, void *args);
 
 SEC_END_PROTOS
 

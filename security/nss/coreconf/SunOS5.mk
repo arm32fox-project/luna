@@ -35,6 +35,7 @@ DEFAULT_COMPILER = cc
 ifdef NS_USE_GCC
 	CC         = gcc
 	OS_CFLAGS += -Wall -Wno-format -Werror-implicit-function-declaration -Wno-switch
+	OS_CFLAGS += -D__EXTENSIONS__
 	CCC        = g++
 	CCC       += -Wall -Wno-format
 	ASFLAGS	  += -x assembler-with-cpp
@@ -65,7 +66,7 @@ endif
 
 RANLIB      = echo
 CPU_ARCH    = sparc
-OS_DEFINES += -DSVR4 -DSYSV -D__svr4 -D__svr4__ -DSOLARIS -D_REENTRANT -D__EXTENSIONS__
+OS_DEFINES += -DSVR4 -DSYSV -D__svr4 -D__svr4__ -DSOLARIS -D_REENTRANT
 
 ifeq ($(OS_TEST),i86pc)
 ifeq ($(USE_64),1)

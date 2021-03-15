@@ -56,7 +56,6 @@
     'rsa.c',
     'rsapkcs.c',
     'seed.c',
-    'sha512.c',
     'sha_fast.c',
     'shvfy.c',
     'sysrand.c',
@@ -73,7 +72,7 @@
             'mpi/mp_comba.c',
           ],
           'conditions': [
-            [ 'cc_is_clang==1 and fuzz!=1', {
+            [ 'cc_is_clang==1 and fuzz!=1 and coverage!=1', {
               'cflags': [
                 '-no-integrated-as',
               ],
@@ -133,16 +132,24 @@
         }],
       ],
     }],
-    ['target_arch=="ia32" or target_arch=="x64" or target_arch=="arm64" or target_arch=="aarch64"', {
+    ['have_int128_support==1 and \
+      (target_arch=="x64" or target_arch=="arm64" or target_arch=="aarch64")', {
       'sources': [
-        # All intel and 64-bit ARM architectures get the 64 bit version.
+        # All intel x64 and 64-bit ARM architectures get the 64 bit version.
         'ecl/curve25519_64.c',
-        'verified/Hacl_Curve25519.c',
+        'verified/Hacl_Curve25519_51.c',
       ],
     }, {
       'sources': [
-        # All other architectures get the generic 32 bit implementation (slow!)
+        # All other architectures get the generic 32 bit implementation.
         'ecl/curve25519_32.c',
+      ],
+    }],
+    ['(target_arch!="ppc64" and target_arch!="ppc64le") or disable_altivec==1', {
+      'sources': [
+        # Gyp does not support per-file cflags, so working around like this.
+        # ppc performance greatly benefits from specific flags.
+        'sha512.c',
       ],
     }],
     [ 'disable_chachapoly==0', {
@@ -151,36 +158,8 @@
       # choose the correct ChaCha implementation at runtime.
       'sources': [
         'verified/Hacl_Chacha20.c',
-      ],
-      'conditions': [
-        [ 'OS!="win"', {
-          'conditions': [
-            [ 'target_arch=="x64"', {
-              'sources': [
-                'verified/Hacl_Poly1305_64.c',
-              ],
-            }, {
-              # !Windows & !x64
-              'conditions': [
-                [ 'target_arch=="arm64" or target_arch=="aarch64"', {
-                  'sources': [
-                    'verified/Hacl_Poly1305_64.c',
-                  ],
-                }, {
-                  # !Windows & !x64 & !arm64 & !aarch64
-                  'sources': [
-                    'verified/Hacl_Poly1305_32.c',
-                  ],
-                }],
-              ],
-            }],
-          ],
-        }, {
-          # Windows
-          'sources': [
-            'verified/Hacl_Poly1305_32.c',
-          ],
-        }],
+        'verified/Hacl_Chacha20Poly1305_32.c',
+        'verified/Hacl_Poly1305_32.c',
       ],
     }],
     [ 'fuzz==1', {
@@ -216,9 +195,6 @@
           ],
         }],
       ],
-    }],
-    [ 'have_int128_support==0', {
-        'sources': [ 'verified/FStar.c' ],
     }],
   ],
  'ldflags': [
