@@ -1,4 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -43,5 +44,8 @@ SECStatus SSLInt_HasPendingHandshakeData(PRFileDesc *fd, PRBool *pending);
 SECStatus SSLInt_SetSocketMaxEarlyDataSize(PRFileDesc *fd, uint32_t size);
 SECStatus SSLInt_TweakChannelInfoForDC(PRFileDesc *fd, PRBool changeAuthKeyBits,
                                        PRBool changeScheme);
+SECStatus SSLInt_SetDCAdvertisedSigSchemes(PRFileDesc *fd,
+                                           const SSLSignatureScheme *schemes,
+                                           uint32_t num_sig_schemes);
 
 #endif  // ndef libssl_internals_h_

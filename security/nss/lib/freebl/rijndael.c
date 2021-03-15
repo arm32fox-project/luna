@@ -20,8 +20,7 @@
 #include "gcm.h"
 #include "mpi.h"
 
-#if (!defined(IS_LITTLE_ENDIAN) && !defined(NSS_X86_OR_X64)) || \
-    (defined(__arm__) && !defined(__ARM_NEON) && !defined(__ARM_NEON__))
+#if !defined(IS_LITTLE_ENDIAN) && !defined(NSS_X86_OR_X64)
 // not test yet on big endian platform of arm
 #undef USE_HW_AES
 #endif
@@ -43,6 +42,12 @@ void rijndael_native_key_expansion(AESContext *cx, const unsigned char *key,
 void rijndael_native_encryptBlock(AESContext *cx,
                                   unsigned char *output,
                                   const unsigned char *input);
+void rijndael_native_decryptBlock(AESContext *cx,
+                                  unsigned char *output,
+                                  const unsigned char *input);
+void native_xorBlock(unsigned char *out,
+                     const unsigned char *a,
+                     const unsigned char *b);
 
 /* Stub definitions for the above rijndael_native_* functions, which
  * shouldn't be used unless NSS_X86_OR_X64 is defined */
@@ -59,6 +64,23 @@ void
 rijndael_native_encryptBlock(AESContext *cx,
                              unsigned char *output,
                              const unsigned char *input)
+{
+    PORT_SetError(SEC_ERROR_LIBRARY_FAILURE);
+    PORT_Assert(0);
+}
+
+void
+rijndael_native_decryptBlock(AESContext *cx,
+                             unsigned char *output,
+                             const unsigned char *input)
+{
+    PORT_SetError(SEC_ERROR_LIBRARY_FAILURE);
+    PORT_Assert(0);
+}
+
+void
+native_xorBlock(unsigned char *out, const unsigned char *a,
+                const unsigned char *b)
 {
     PORT_SetError(SEC_ERROR_LIBRARY_FAILURE);
     PORT_Assert(0);
@@ -510,6 +532,15 @@ typedef union {
 
 #define STATE_BYTE(i) state.b[i]
 
+// out = a ^ b
+inline static void
+xorBlock(unsigned char *out, const unsigned char *a, const unsigned char *b)
+{
+    for (unsigned int j = 0; j < AES_BLOCK_SIZE; ++j) {
+        (out)[j] = (a)[j] ^ (b)[j];
+    }
+}
+
 static void NO_SANITIZE_ALIGNMENT
 rijndael_encryptBlock128(AESContext *cx,
                          unsigned char *output,
@@ -605,7 +636,7 @@ rijndael_encryptBlock128(AESContext *cx,
 #endif
 }
 
-static SECStatus NO_SANITIZE_ALIGNMENT
+static void NO_SANITIZE_ALIGNMENT
 rijndael_decryptBlock128(AESContext *cx,
                          unsigned char *output,
                          const unsigned char *input)
@@ -694,7 +725,6 @@ rijndael_decryptBlock128(AESContext *cx,
         memcpy(output, outBuf, sizeof outBuf);
     }
 #endif
-    return SECSuccess;
 }
 
 /**************************************************************************
@@ -708,16 +738,13 @@ rijndael_encryptECB(AESContext *cx, unsigned char *output,
                     unsigned int *outputLen, unsigned int maxOutputLen,
                     const unsigned char *input, unsigned int inputLen)
 {
-    AESBlockFunc *encryptor;
-
-    if (aesni_support()) {
-        /* Use hardware acceleration for normal AES parameters. */
-        encryptor = &rijndael_native_encryptBlock;
-    } else {
-        encryptor = &rijndael_encryptBlock128;
-    }
+    PRBool aesni = aesni_support();
     while (inputLen > 0) {
-        (*encryptor)(cx, output, input);
+        if (aesni) {
+            rijndael_native_encryptBlock(cx, output, input);
+        } else {
+            rijndael_encryptBlock128(cx, output, input);
+        }
         output += AES_BLOCK_SIZE;
         input += AES_BLOCK_SIZE;
         inputLen -= AES_BLOCK_SIZE;
@@ -730,20 +757,23 @@ rijndael_encryptCBC(AESContext *cx, unsigned char *output,
                     unsigned int *outputLen, unsigned int maxOutputLen,
                     const unsigned char *input, unsigned int inputLen)
 {
-    unsigned int j;
-    unsigned char *lastblock;
+    unsigned char *lastblock = cx->iv;
     unsigned char inblock[AES_BLOCK_SIZE * 8];
+    PRBool aesni = aesni_support();
 
     if (!inputLen)
         return SECSuccess;
-    lastblock = cx->iv;
     while (inputLen > 0) {
-        /* XOR with the last block (IV if first block) */
-        for (j = 0; j < AES_BLOCK_SIZE; ++j) {
-            inblock[j] = input[j] ^ lastblock[j];
+        if (aesni) {
+            /* XOR with the last block (IV if first block) */
+            native_xorBlock(inblock, input, lastblock);
+            /* encrypt */
+            rijndael_native_encryptBlock(cx, output, inblock);
+        } else {
+            xorBlock(inblock, input, lastblock);
+            rijndael_encryptBlock128(cx, output, inblock);
         }
-        /* encrypt */
-        rijndael_encryptBlock128(cx, output, inblock);
+
         /* move to the next block */
         lastblock = output;
         output += AES_BLOCK_SIZE;
@@ -759,9 +789,12 @@ rijndael_decryptECB(AESContext *cx, unsigned char *output,
                     unsigned int *outputLen, unsigned int maxOutputLen,
                     const unsigned char *input, unsigned int inputLen)
 {
+    PRBool aesni = aesni_support();
     while (inputLen > 0) {
-        if (rijndael_decryptBlock128(cx, output, input) != SECSuccess) {
-            return SECFailure;
+        if (aesni) {
+            rijndael_native_decryptBlock(cx, output, input);
+        } else {
+            rijndael_decryptBlock128(cx, output, input);
         }
         output += AES_BLOCK_SIZE;
         input += AES_BLOCK_SIZE;
@@ -777,8 +810,8 @@ rijndael_decryptCBC(AESContext *cx, unsigned char *output,
 {
     const unsigned char *in;
     unsigned char *out;
-    unsigned int j;
     unsigned char newIV[AES_BLOCK_SIZE];
+    PRBool aesni = aesni_support();
 
     if (!inputLen)
         return SECSuccess;
@@ -787,21 +820,26 @@ rijndael_decryptCBC(AESContext *cx, unsigned char *output,
     memcpy(newIV, in, AES_BLOCK_SIZE);
     out = output + (inputLen - AES_BLOCK_SIZE);
     while (inputLen > AES_BLOCK_SIZE) {
-        if (rijndael_decryptBlock128(cx, out, in) != SECSuccess) {
-            return SECFailure;
+        if (aesni) {
+            // Use hardware acceleration for normal AES parameters.
+            rijndael_native_decryptBlock(cx, out, in);
+            native_xorBlock(out, out, &in[-AES_BLOCK_SIZE]);
+        } else {
+            rijndael_decryptBlock128(cx, out, in);
+            xorBlock(out, out, &in[-AES_BLOCK_SIZE]);
         }
-        for (j = 0; j < AES_BLOCK_SIZE; ++j)
-            out[j] ^= in[(int)(j - AES_BLOCK_SIZE)];
         out -= AES_BLOCK_SIZE;
         in -= AES_BLOCK_SIZE;
         inputLen -= AES_BLOCK_SIZE;
     }
     if (in == input) {
-        if (rijndael_decryptBlock128(cx, out, in) != SECSuccess) {
-            return SECFailure;
+        if (aesni) {
+            rijndael_native_decryptBlock(cx, out, in);
+            native_xorBlock(out, out, cx->iv);
+        } else {
+            rijndael_decryptBlock128(cx, out, in);
+            xorBlock(out, out, cx->iv);
         }
-        for (j = 0; j < AES_BLOCK_SIZE; ++j)
-            out[j] ^= cx->iv[j];
     }
     memcpy(cx->iv, newIV, AES_BLOCK_SIZE);
     return SECSuccess;
@@ -961,6 +999,7 @@ AES_InitContext(AESContext *cx, const unsigned char *key, unsigned int keysize,
     }
 
     /* finally, set up any mode specific contexts */
+    cx->worker_aead = 0;
     switch (mode) {
         case NSS_AES_CTS:
             cx->worker_cx = CTS_CreateContext(cx, cx->worker, iv);
@@ -975,6 +1014,8 @@ AES_InitContext(AESContext *cx, const unsigned char *key, unsigned int keysize,
                 cx->worker_cx = intel_AES_GCM_CreateContext(cx, cx->worker, iv);
                 cx->worker = (freeblCipherFunc)(encrypt ? intel_AES_GCM_EncryptUpdate
                                                         : intel_AES_GCM_DecryptUpdate);
+                cx->worker_aead = (freeblAeadFunc)(encrypt ? intel_AES_GCM_EncryptAEAD
+                                                           : intel_AES_GCM_DecryptAEAD);
                 cx->destroy = (freeblDestroyFunc)intel_AES_GCM_DestroyContext;
                 cx->isBlock = PR_FALSE;
             } else
@@ -983,13 +1024,16 @@ AES_InitContext(AESContext *cx, const unsigned char *key, unsigned int keysize,
                 cx->worker_cx = GCM_CreateContext(cx, cx->worker, iv);
                 cx->worker = (freeblCipherFunc)(encrypt ? GCM_EncryptUpdate
                                                         : GCM_DecryptUpdate);
+                cx->worker_aead = (freeblAeadFunc)(encrypt ? GCM_EncryptAEAD
+                                                           : GCM_DecryptAEAD);
+
                 cx->destroy = (freeblDestroyFunc)GCM_DestroyContext;
                 cx->isBlock = PR_FALSE;
             }
             break;
         case NSS_AES_CTR:
             cx->worker_cx = CTR_CreateContext(cx, cx->worker, iv);
-#if defined(USE_HW_AES) && defined(_MSC_VER)
+#if defined(USE_HW_AES) && defined(_MSC_VER) && defined(NSS_X86_OR_X64)
             if (aesni_support() && (keysize % 8) == 0) {
                 cx->worker = (freeblCipherFunc)CTR_Update_HW_AES;
             } else
@@ -1132,11 +1176,63 @@ AES_Decrypt(AESContext *cx, unsigned char *output,
         PORT_SetError(SEC_ERROR_INPUT_LEN);
         return SECFailure;
     }
-    if (maxOutputLen < inputLen) {
+    if ((cx->mode != NSS_AES_GCM) && (maxOutputLen < inputLen)) {
         PORT_SetError(SEC_ERROR_OUTPUT_LEN);
         return SECFailure;
     }
     *outputLen = inputLen;
     return (*cx->worker)(cx->worker_cx, output, outputLen, maxOutputLen,
                          input, inputLen, AES_BLOCK_SIZE);
+}
+
+/*
+ * AES_Encrypt_AEAD
+ *
+ * Encrypt using GCM or CCM. include the nonce, extra data, and the tag
+ */
+SECStatus
+AES_AEAD(AESContext *cx, unsigned char *output,
+         unsigned int *outputLen, unsigned int maxOutputLen,
+         const unsigned char *input, unsigned int inputLen,
+         void *params, unsigned int paramsLen,
+         const unsigned char *aad, unsigned int aadLen)
+{
+    /* Check args */
+    if (cx == NULL || output == NULL || (input == NULL && inputLen != 0) || (aad == NULL && aadLen != 0) || params == NULL) {
+        PORT_SetError(SEC_ERROR_INVALID_ARGS);
+        return SECFailure;
+    }
+    if (cx->worker_aead == NULL) {
+        PORT_SetError(SEC_ERROR_NOT_INITIALIZED);
+        return SECFailure;
+    }
+    if (maxOutputLen < inputLen) {
+        PORT_SetError(SEC_ERROR_OUTPUT_LEN);
+        return SECFailure;
+    }
+    *outputLen = inputLen;
+#if UINT_MAX > MP_32BIT_MAX
+    /*
+     * we can guarentee that GSM won't overlfow if we limit the input to
+     * 2^36 bytes. For simplicity, we are limiting it to 2^32 for now.
+     *
+     * We do it here to cover both hardware and software GCM operations.
+     */
+    {
+        PR_STATIC_ASSERT(sizeof(unsigned int) > 4);
+    }
+    if (inputLen > MP_32BIT_MAX) {
+        PORT_SetError(SEC_ERROR_OUTPUT_LEN);
+        return SECFailure;
+    }
+#else
+    /* if we can't pass in a 32_bit number, then no such check needed */
+    {
+        PR_STATIC_ASSERT(sizeof(unsigned int) <= 4);
+    }
+#endif
+
+    return (*cx->worker_aead)(cx->worker_cx, output, outputLen, maxOutputLen,
+                              input, inputLen, params, paramsLen, aad, aadLen,
+                              AES_BLOCK_SIZE);
 }

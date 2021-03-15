@@ -29,24 +29,6 @@
 static SECStatus tls13_SetCipherSpec(sslSocket *ss, PRUint16 epoch,
                                      SSLSecretDirection install,
                                      PRBool deleteSecret);
-static SECStatus tls13_AESGCM(const ssl3KeyMaterial *keys,
-                              PRBool doDecrypt,
-                              unsigned char *out,
-                              unsigned int *outlen,
-                              unsigned int maxout,
-                              const unsigned char *in,
-                              unsigned int inlen,
-                              const unsigned char *additionalData,
-                              unsigned int additionalDataLen);
-static SECStatus tls13_ChaCha20Poly1305(const ssl3KeyMaterial *keys,
-                                        PRBool doDecrypt,
-                                        unsigned char *out,
-                                        unsigned int *outlen,
-                                        unsigned int maxout,
-                                        const unsigned char *in,
-                                        unsigned int inlen,
-                                        const unsigned char *additionalData,
-                                        unsigned int additionalDataLen);
 static SECStatus tls13_SendServerHelloSequence(sslSocket *ss);
 static SECStatus tls13_SendEncryptedExtensions(sslSocket *ss);
 static void tls13_SetKeyExchangeType(sslSocket *ss, const sslNamedGroupDef *group);
@@ -131,6 +113,7 @@ const char kHkdfLabelExporterMasterSecret[] = "exp master";
 const char kHkdfLabelResumption[] = "resumption";
 const char kHkdfLabelTrafficUpdate[] = "traffic upd";
 const char kHkdfPurposeKey[] = "key";
+const char kHkdfPurposeSn[] = "sn";
 const char kHkdfPurposeIv[] = "iv";
 
 const char keylogLabelClientEarlyTrafficSecret[] = "CLIENT_EARLY_TRAFFIC_SECRET";
@@ -286,6 +269,34 @@ tls13_GetHash(const sslSocket *ss)
     return ss->ssl3.hs.suite_def->prf_hash;
 }
 
+SECStatus
+tls13_GetHashAndCipher(PRUint16 version, PRUint16 cipherSuite,
+                       SSLHashType *hash, const ssl3BulkCipherDef **cipher)
+{
+    if (version < SSL_LIBRARY_VERSION_TLS_1_3) {
+        PORT_SetError(SEC_ERROR_INVALID_ARGS);
+        return SECFailure;
+    }
+
+    // Lookup and check the suite.
+    SSLVersionRange vrange = { version, version };
+    if (!ssl3_CipherSuiteAllowedForVersionRange(cipherSuite, &vrange)) {
+        PORT_SetError(SEC_ERROR_INVALID_ARGS);
+        return SECFailure;
+    }
+    const ssl3CipherSuiteDef *suiteDef = ssl_LookupCipherSuiteDef(cipherSuite);
+    const ssl3BulkCipherDef *cipherDef = ssl_GetBulkCipherDef(suiteDef);
+    if (cipherDef->type != type_aead) {
+        PORT_SetError(SEC_ERROR_INVALID_ARGS);
+        return SECFailure;
+    }
+    *hash = suiteDef->prf_hash;
+    if (cipher != NULL) {
+        *cipher = cipherDef;
+    }
+    return SECSuccess;
+}
+
 unsigned int
 tls13_GetHashSizeForHash(SSLHashType hash)
 {
@@ -304,26 +315,6 @@ unsigned int
 tls13_GetHashSize(const sslSocket *ss)
 {
     return tls13_GetHashSizeForHash(tls13_GetHash(ss));
-}
-
-CK_MECHANISM_TYPE
-tls13_GetHkdfMechanismForHash(SSLHashType hash)
-{
-    switch (hash) {
-        case ssl_hash_sha256:
-            return CKM_NSS_HKDF_SHA256;
-        case ssl_hash_sha384:
-            return CKM_NSS_HKDF_SHA384;
-        default:
-            PORT_Assert(0);
-    }
-    return CKM_NSS_HKDF_SHA256;
-}
-
-CK_MECHANISM_TYPE
-tls13_GetHkdfMechanism(sslSocket *ss)
-{
-    return tls13_GetHkdfMechanismForHash(tls13_GetHash(ss));
 }
 
 static CK_MECHANISM_TYPE
@@ -595,7 +586,7 @@ tls13_HandleKeyShare(sslSocket *ss,
 
     key = PK11_PubDeriveWithKDF(
         keyPair->privKey, peerKey, PR_FALSE, NULL, NULL, mechanism,
-        tls13_GetHkdfMechanismForHash(hash), CKA_DERIVE, keySize, CKD_NULL, NULL, NULL);
+        CKM_HKDF_DERIVE, CKA_DERIVE, keySize, CKD_NULL, NULL, NULL);
     if (!key) {
         ssl_MapLowLevelError(SSL_ERROR_KEY_EXCHANGE_FAILURE);
         goto loser;
@@ -641,6 +632,7 @@ tls13_UpdateTrafficKeys(sslSocket *ss, SSLSecretDirection direction)
                                strlen(kHkdfLabelTrafficUpdate),
                                tls13_GetHmacMechanism(ss),
                                tls13_GetHashSize(ss),
+                               ss->protocolVariant,
                                &updatedSecret);
     if (rv != SECSuccess) {
         return SECFailure;
@@ -3317,8 +3309,9 @@ tls13_DeriveSecret(sslSocket *ss, PK11SymKey *key,
     rv = tls13_HkdfExpandLabel(key, tls13_GetHash(ss),
                                hashes->u.raw, hashes->len,
                                label, labelLen,
-                               tls13_GetHkdfMechanism(ss),
-                               tls13_GetHashSize(ss), dest);
+                               CKM_HKDF_DERIVE,
+                               tls13_GetHashSize(ss),
+                               ss->protocolVariant, dest);
     if (rv != SECSuccess) {
         LOG_ERROR(ss, SEC_ERROR_LIBRARY_FAILURE);
         return SECFailure;
@@ -3467,6 +3460,7 @@ tls13_DeriveTrafficKeys(sslSocket *ss, ssl3CipherSpec *spec,
                                NULL, 0,
                                kHkdfPurposeKey, strlen(kHkdfPurposeKey),
                                bulkAlgorithm, keySize,
+                               ss->protocolVariant,
                                &spec->keyMaterial.key);
     if (rv != SECSuccess) {
         LOG_ERROR(ss, SEC_ERROR_LIBRARY_FAILURE);
@@ -3474,9 +3468,21 @@ tls13_DeriveTrafficKeys(sslSocket *ss, ssl3CipherSpec *spec,
         goto loser;
     }
 
+    if (IS_DTLS(ss) && spec->epoch > 0) {
+        rv = ssl_CreateMaskingContextInner(spec->version, ss->ssl3.hs.cipher_suite,
+                                           ss->protocolVariant, prk, kHkdfPurposeSn,
+                                           strlen(kHkdfPurposeSn), &spec->maskContext);
+        if (rv != SECSuccess) {
+            LOG_ERROR(ss, SEC_ERROR_LIBRARY_FAILURE);
+            PORT_Assert(0);
+            goto loser;
+        }
+    }
+
     rv = tls13_HkdfExpandLabelRaw(prk, tls13_GetHash(ss),
                                   NULL, 0,
                                   kHkdfPurposeIv, strlen(kHkdfPurposeIv),
+                                  ss->protocolVariant,
                                   spec->keyMaterial.iv, ivSize);
     if (rv != SECSuccess) {
         LOG_ERROR(ss, SEC_ERROR_LIBRARY_FAILURE);
@@ -3507,21 +3513,6 @@ tls13_SetSpecRecordVersion(sslSocket *ss, ssl3CipherSpec *spec)
                  SSL_GETPID(), ss->fd, spec, spec->recordVersion));
 }
 
-SSLAEADCipher
-tls13_GetAead(const ssl3BulkCipherDef *cipherDef)
-{
-    switch (cipherDef->calg) {
-        case ssl_calg_aes_gcm:
-            return tls13_AESGCM;
-        case ssl_calg_chacha20:
-            return tls13_ChaCha20Poly1305;
-        default:
-            PORT_Assert(PR_FALSE);
-            PORT_SetError(SEC_ERROR_LIBRARY_FAILURE);
-            return NULL;
-    }
-}
-
 static SECStatus
 tls13_SetupPendingCipherSpec(sslSocket *ss, ssl3CipherSpec *spec)
 {
@@ -3545,10 +3536,6 @@ tls13_SetupPendingCipherSpec(sslSocket *ss, ssl3CipherSpec *spec)
                 SSL_GETPID(), ss->fd, suite));
 
     spec->cipherDef = ssl_GetBulkCipherDef(ssl_LookupCipherSuiteDef(suite));
-    spec->aead = tls13_GetAead(spec->cipherDef);
-    if (!spec->aead) {
-        return SECFailure;
-    }
 
     if (spec->epoch == TrafficKeyEarlyApplicationData) {
         spec->earlyDataRemaining =
@@ -3566,6 +3553,38 @@ tls13_SetupPendingCipherSpec(sslSocket *ss, ssl3CipherSpec *spec)
                                 1;
     } else {
         spec->recordSizeLimit = MAX_FRAGMENT_LENGTH;
+    }
+    return SECSuccess;
+}
+
+/*
+ * Initialize the cipher context. All TLS 1.3 operations are AEAD,
+ * so they are all message contexts.
+ */
+static SECStatus
+tls13_InitPendingContext(sslSocket *ss, ssl3CipherSpec *spec)
+{
+    CK_MECHANISM_TYPE encMechanism;
+    CK_ATTRIBUTE_TYPE encMode;
+    SECItem iv;
+    SSLCipherAlgorithm calg;
+
+    calg = spec->cipherDef->calg;
+
+    encMechanism = ssl3_Alg2Mech(calg);
+    encMode = CKA_NSS_MESSAGE | ((spec->direction == ssl_secret_write) ? CKA_ENCRYPT : CKA_DECRYPT);
+    iv.data = NULL;
+    iv.len = 0;
+
+    /*
+     * build the context
+     */
+    spec->cipherContext = PK11_CreateContextBySymKey(encMechanism, encMode,
+                                                     spec->keyMaterial.key,
+                                                     &iv);
+    if (!spec->cipherContext) {
+        ssl_MapLowLevelError(SSL_ERROR_SYM_KEY_CONTEXT_FAILURE);
+        return SECFailure;
     }
     return SECSuccess;
 }
@@ -3645,6 +3664,11 @@ tls13_SetCipherSpec(sslSocket *ss, PRUint16 epoch,
 
     type = (TrafficKeyType)PR_MIN(TrafficKeyApplicationData, epoch);
     rv = tls13_DeriveTrafficKeys(ss, spec, type, deleteSecret);
+    if (rv != SECSuccess) {
+        goto loser;
+    }
+
+    rv = tls13_InitPendingContext(ss, spec);
     if (rv != SECSuccess) {
         goto loser;
     }
@@ -3811,100 +3835,113 @@ tls13_DestroyEarlyData(PRCList *list)
  * See RFC 5288 and https://tools.ietf.org/html/draft-ietf-tls-chacha20-poly1305-04#section-2
  */
 static void
-tls13_WriteNonce(const ssl3KeyMaterial *keys,
-                 const unsigned char *seqNumBuf, unsigned int seqNumLen,
-                 unsigned char *nonce, unsigned int nonceLen)
+tls13_WriteNonce(const unsigned char *ivIn, unsigned int ivInLen,
+                 const unsigned char *nonce, unsigned int nonceLen,
+                 unsigned char *ivOut, unsigned int ivOutLen)
 {
     size_t i;
+    unsigned int offset = ivOutLen - nonceLen;
 
-    PORT_Assert(nonceLen == 12);
-    memcpy(nonce, keys->iv, 12);
+    PORT_Assert(ivInLen <= ivOutLen);
+    PORT_Assert(nonceLen <= ivOutLen);
+    PORT_Memset(ivOut, 0, ivOutLen);
+    PORT_Memcpy(ivOut, ivIn, ivInLen);
 
-    /* XOR the last 8 bytes of the IV with the sequence number. */
-    PORT_Assert(seqNumLen == 8);
-    for (i = 0; i < 8; ++i) {
-        nonce[4 + i] ^= seqNumBuf[i];
+    /* XOR the last n bytes of the IV with the nonce (should be a counter). */
+    for (i = 0; i < nonceLen; ++i) {
+        ivOut[offset + i] ^= nonce[i];
     }
-    PRINT_BUF(50, (NULL, "Nonce", nonce, nonceLen));
+    PRINT_BUF(50, (NULL, "Nonce", ivOut, ivOutLen));
 }
 
-/* Implement the SSLAEADCipher interface defined in sslimpl.h.
- *
- * That interface takes the additional data (see below) and reinterprets that as
- * a sequence number. In TLS 1.3 there is no additional data so this value is
- * just the encoded sequence number.
+/* Setup the IV for AEAD encrypt. The PKCS #11 module will add the
+ * counter, but it doesn't know about the DTLS epic, so we add it here.
+ */
+unsigned int
+tls13_SetupAeadIv(PRBool isDTLS, unsigned char *ivOut, unsigned char *ivIn,
+                  unsigned int offset, unsigned int ivLen, DTLSEpoch epoch)
+{
+    PORT_Memcpy(ivOut, ivIn, ivLen);
+    if (isDTLS) {
+        /* handle the tls 1.2 counter mode case, the epoc is copied
+         * instead of xored. We accomplish this by clearing ivOut
+         * before running xor. */
+        if (offset >= ivLen) {
+            ivOut[offset] = ivOut[offset + 1] = 0;
+        }
+        ivOut[offset] ^= (unsigned char)(epoch >> BPB) & 0xff;
+        ivOut[offset + 1] ^= (unsigned char)(epoch)&0xff;
+        offset += 2;
+    }
+    return offset;
+}
+
+/*
+ * Do a single AEAD for TLS. This differs from PK11_AEADOp in the following
+ * ways.
+ *   1) If context is not supplied, it treats the operation as a single shot
+ *   and creates a context from symKey and mech.
+ *   2) It always assumes the tag will be at the end of the buffer
+ *   (in on decrypt, out on encrypt) just like the old single shot.
+ *   3) If we aren't generating an IV, it uses tls13_WriteNonce to create the
+ *   nonce.
+ * NOTE is context is supplied, symKey and mech are ignored
  */
 SECStatus
-tls13_AEAD(const ssl3KeyMaterial *keys, PRBool doDecrypt,
-           unsigned char *out, unsigned int *outlen, unsigned int maxout,
-           const unsigned char *in, unsigned int inlen,
-           CK_MECHANISM_TYPE mechanism,
-           unsigned char *aeadParams, unsigned int aeadParamLength)
+tls13_AEAD(PK11Context *context, PRBool decrypt,
+           CK_GENERATOR_FUNCTION ivGen, unsigned int fixedbits,
+           const unsigned char *ivIn, unsigned char *ivOut, unsigned int ivLen,
+           const unsigned char *nonceIn, unsigned int nonceLen,
+           const unsigned char *aad, unsigned int aadLen,
+           unsigned char *out, unsigned int *outLen, unsigned int maxout,
+           unsigned int tagLen, const unsigned char *in, unsigned int inLen)
 {
-    SECItem param = {
-        siBuffer, aeadParams, aeadParamLength
-    };
+    unsigned char *tag;
+    unsigned char iv[MAX_IV_LENGTH];
+    unsigned char tagbuf[HASH_LENGTH_MAX];
+    SECStatus rv;
 
-    if (doDecrypt) {
-        return PK11_Decrypt(keys->key, mechanism, &param,
-                            out, outlen, maxout, in, inlen);
+    /* must have either context or the symKey set */
+    if (!context) {
+        PORT_SetError(SEC_ERROR_INVALID_ARGS);
+        return SECFailure;
     }
-    return PK11_Encrypt(keys->key, mechanism, &param,
-                        out, outlen, maxout, in, inlen);
-}
 
-static SECStatus
-tls13_AESGCM(const ssl3KeyMaterial *keys,
-             PRBool doDecrypt,
-             unsigned char *out,
-             unsigned int *outlen,
-             unsigned int maxout,
-             const unsigned char *in,
-             unsigned int inlen,
-             const unsigned char *additionalData,
-             unsigned int additionalDataLen)
-{
-    CK_GCM_PARAMS gcmParams;
-    unsigned char nonce[12];
+    PORT_Assert(ivLen <= MAX_IV_LENGTH);
+    PORT_Assert(tagLen <= HASH_LENGTH_MAX);
+    if (!ivOut) {
+        ivOut = iv; /* caller doesn't need a returned, iv */
+    }
 
-    PORT_Assert(additionalDataLen >= 8);
-    memset(&gcmParams, 0, sizeof(gcmParams));
-    gcmParams.pIv = nonce;
-    gcmParams.ulIvLen = sizeof(nonce);
-    gcmParams.pAAD = (PRUint8 *)(additionalData + 8);
-    gcmParams.ulAADLen = additionalDataLen - 8;
-    gcmParams.ulTagBits = 128; /* GCM measures tag length in bits. */
-
-    tls13_WriteNonce(keys, additionalData, 8,
-                     nonce, sizeof(nonce));
-    return tls13_AEAD(keys, doDecrypt, out, outlen, maxout, in, inlen,
-                      CKM_AES_GCM,
-                      (unsigned char *)&gcmParams, sizeof(gcmParams));
-}
-
-static SECStatus
-tls13_ChaCha20Poly1305(const ssl3KeyMaterial *keys, PRBool doDecrypt,
-                       unsigned char *out, unsigned int *outlen, unsigned int maxout,
-                       const unsigned char *in, unsigned int inlen,
-                       const unsigned char *additionalData,
-                       unsigned int additionalDataLen)
-{
-    CK_NSS_AEAD_PARAMS aeadParams;
-    unsigned char nonce[12];
-
-    PORT_Assert(additionalDataLen > 8);
-    memset(&aeadParams, 0, sizeof(aeadParams));
-    aeadParams.pNonce = nonce;
-    aeadParams.ulNonceLen = sizeof(nonce);
-    aeadParams.pAAD = (PRUint8 *)(additionalData + 8);
-    aeadParams.ulAADLen = additionalDataLen - 8;
-    aeadParams.ulTagLen = 16; /* The Poly1305 tag is 16 octets. */
-
-    tls13_WriteNonce(keys, additionalData, 8,
-                     nonce, sizeof(nonce));
-    return tls13_AEAD(keys, doDecrypt, out, outlen, maxout, in, inlen,
-                      CKM_NSS_CHACHA20_POLY1305,
-                      (unsigned char *)&aeadParams, sizeof(aeadParams));
+    if (ivGen == CKG_NO_GENERATE) {
+        tls13_WriteNonce(ivIn, ivLen, nonceIn, nonceLen, ivOut, ivLen);
+    } else if (ivIn != ivOut) {
+        PORT_Memcpy(ivOut, ivIn, ivLen);
+    }
+    if (decrypt) {
+        inLen = inLen - tagLen;
+        tag = (unsigned char *)in + inLen;
+        /* tag is const on decrypt, but returned on encrypt */
+    } else {
+        /* tag is written to a separate buffer, then added to the end
+         * of the actual output buffer. This allows output buffer to be larger
+         * than the input buffer and everything still work */
+        tag = tagbuf;
+    }
+    rv = PK11_AEADOp(context, ivGen, fixedbits, ivOut, ivLen, aad, aadLen,
+                     out, (int *)outLen, maxout, tag, tagLen, in, inLen);
+    /* on encrypt SSL always puts the tag at the end of the buffer */
+    if ((rv == SECSuccess) && !(decrypt)) {
+        unsigned int len = *outLen;
+        /* make sure there is still space */
+        if (len + tagLen > maxout) {
+            PORT_SetError(SEC_ERROR_OUTPUT_LEN);
+            return SECFailure;
+        }
+        PORT_Memcpy(out + len, tag, tagLen);
+        *outLen += tagLen;
+    }
+    return rv;
 }
 
 static SECStatus
@@ -4392,7 +4429,8 @@ tls13_ComputeFinished(sslSocket *ss, PK11SymKey *baseKey,
                                NULL, 0,
                                label, strlen(label),
                                tls13_GetHmacMechanism(ss),
-                               tls13_GetHashSize(ss), &secret);
+                               tls13_GetHashSize(ss),
+                               ss->protocolVariant, &secret);
     if (rv != SECSuccess) {
         goto abort;
     }
@@ -4929,8 +4967,9 @@ tls13_SendNewSessionTicket(sslSocket *ss, const PRUint8 *appToken,
                                ticketNonce, sizeof(ticketNonce),
                                kHkdfLabelResumption,
                                strlen(kHkdfLabelResumption),
-                               tls13_GetHkdfMechanism(ss),
-                               tls13_GetHashSize(ss), &secret);
+                               CKM_HKDF_DERIVE,
+                               tls13_GetHashSize(ss),
+                               ss->protocolVariant, &secret);
     if (rv != SECSuccess) {
         goto loser;
     }
@@ -5163,8 +5202,9 @@ tls13_HandleNewSessionTicket(sslSocket *ss, PRUint8 *b, PRUint32 length)
                                    ticket_nonce.data, ticket_nonce.len,
                                    kHkdfLabelResumption,
                                    strlen(kHkdfLabelResumption),
-                                   tls13_GetHkdfMechanism(ss),
-                                   tls13_GetHashSize(ss), &secret);
+                                   CKM_HKDF_DERIVE,
+                                   tls13_GetHashSize(ss),
+                                   ss->protocolVariant, &secret);
         if (rv != SECSuccess) {
             return SECFailure;
         }
@@ -5348,10 +5388,19 @@ tls13_ProtectRecord(sslSocket *ss,
         sslBuffer buf = SSL_BUFFER_FIXED(hdr, sizeof(hdr));
         PRBool needsLength;
         PRUint8 aad[21];
+        const int ivLen = cipher_def->iv_size + cipher_def->explicit_nonce_size;
+        unsigned int ivOffset = ivLen - sizeof(sslSequenceNumber);
+        unsigned char ivOut[MAX_IV_LENGTH];
+
         unsigned int aadLen;
         unsigned int len;
 
         PORT_Assert(cipher_def->type == type_aead);
+
+        /* If the following condition holds, we can skip the padding logic for
+         * DTLS 1.3 (4.2.3). This will be the case until we support a cipher
+         * with tag length < 15B. */
+        PORT_Assert(tagLen + 1 /* cType */ >= 16);
 
         /* Add the content type at the end. */
         *(SSL_BUFFER_NEXT(wrBuf) + contentLen) = type;
@@ -5363,9 +5412,7 @@ tls13_ProtectRecord(sslSocket *ss,
             return SECFailure;
         }
         if (needsLength) {
-            rv = sslBuffer_AppendNumber(&buf, contentLen + 1 +
-                                                  cwSpec->cipherDef->tag_size,
-                                        2);
+            rv = sslBuffer_AppendNumber(&buf, contentLen + 1 + tagLen, 2);
             if (rv != SECSuccess) {
                 return SECFailure;
             }
@@ -5376,14 +5423,22 @@ tls13_ProtectRecord(sslSocket *ss,
         if (rv != SECSuccess) {
             return SECFailure;
         }
-        rv = cwSpec->aead(&cwSpec->keyMaterial,
-                          PR_FALSE,                /* do encrypt */
-                          SSL_BUFFER_NEXT(wrBuf),  /* output  */
-                          &len,                    /* out len */
-                          SSL_BUFFER_SPACE(wrBuf), /* max out */
-                          SSL_BUFFER_NEXT(wrBuf),  /* input */
-                          contentLen + 1,          /* input len */
-                          aad, aadLen);
+        /* set up initial IV value */
+        ivOffset = tls13_SetupAeadIv(IS_DTLS(ss), ivOut, cwSpec->keyMaterial.iv,
+                                     ivOffset, ivLen, cwSpec->epoch);
+
+        rv = tls13_AEAD(cwSpec->cipherContext, PR_FALSE,
+                        CKG_GENERATE_COUNTER_XOR, ivOffset * BPB,
+                        ivOut, ivOut, ivLen,             /* iv */
+                        NULL, 0,                         /* nonce */
+                        aad + sizeof(sslSequenceNumber), /* aad */
+                        aadLen - sizeof(sslSequenceNumber),
+                        SSL_BUFFER_NEXT(wrBuf),  /* output  */
+                        &len,                    /* out len */
+                        SSL_BUFFER_SPACE(wrBuf), /* max out */
+                        tagLen,
+                        SSL_BUFFER_NEXT(wrBuf), /* input */
+                        contentLen + 1);        /* input len */
         if (rv != SECSuccess) {
             PORT_SetError(SSL_ERROR_ENCRYPTION_FAILURE);
             return SECFailure;
@@ -5413,6 +5468,9 @@ tls13_UnprotectRecord(sslSocket *ss,
                       SSL3AlertDescription *alert)
 {
     const ssl3BulkCipherDef *cipher_def = spec->cipherDef;
+    const int ivLen = cipher_def->iv_size + cipher_def->explicit_nonce_size;
+    const int tagLen = cipher_def->tag_size;
+
     PRUint8 aad[21];
     unsigned int aadLen;
     SECStatus rv;
@@ -5440,7 +5498,7 @@ tls13_UnprotectRecord(sslSocket *ss,
 
     /* We can perform this test in variable time because the record's total
      * length and the ciphersuite are both public knowledge. */
-    if (cText->buf->len < cipher_def->tag_size) {
+    if (cText->buf->len < tagLen) {
         SSL_TRC(3,
                 ("%d: TLS13[%d]: record too short to contain valid AEAD data",
                  SSL_GETPID(), ss->fd));
@@ -5467,16 +5525,21 @@ tls13_UnprotectRecord(sslSocket *ss,
                                     spec->epoch, cText->seqNum,
                                     aad, &aadLen, sizeof(aad));
     if (rv != SECSuccess) {
+
         return SECFailure;
     }
-    rv = spec->aead(&spec->keyMaterial,
-                    PR_TRUE,          /* do decrypt */
-                    plaintext->buf,   /* out */
+    rv = tls13_AEAD(spec->cipherContext, PR_TRUE,
+                    CKG_NO_GENERATE, 0,                /* ignored for decrypt */
+                    spec->keyMaterial.iv, NULL, ivLen, /* iv */
+                    aad, sizeof(sslSequenceNumber),    /* nonce */
+                    aad + sizeof(sslSequenceNumber),   /* aad */
+                    aadLen - sizeof(sslSequenceNumber),
+                    plaintext->buf,   /* output  */
                     &plaintext->len,  /* outlen */
                     plaintext->space, /* maxout */
+                    tagLen,
                     cText->buf->buf,  /* in */
-                    cText->buf->len,  /* inlen */
-                    aad, aadLen);
+                    cText->buf->len); /* inlen */
     if (rv != SECSuccess) {
         SSL_TRC(3,
                 ("%d: TLS13[%d]: record has bogus MAC",
@@ -5763,14 +5826,26 @@ tls13_HandleEarlyApplicationData(sslSocket *ss, sslBuffer *origBuf)
 }
 
 PRUint16
-tls13_EncodeDraftVersion(SSL3ProtocolVersion version, SSLProtocolVariant variant)
+tls13_EncodeVersion(SSL3ProtocolVersion version, SSLProtocolVariant variant)
 {
+    if (variant == ssl_variant_datagram) {
+        /* TODO: When DTLS 1.3 is out of draft, replace this with
+         * dtls_TLSVersionToDTLSVersion(). */
+        switch (version) {
 #ifdef DTLS_1_3_DRAFT_VERSION
-    if (version == SSL_LIBRARY_VERSION_TLS_1_3 &&
-        variant == ssl_variant_datagram) {
-        return 0x7f00 | DTLS_1_3_DRAFT_VERSION;
-    }
+            case SSL_LIBRARY_VERSION_TLS_1_3:
+                return 0x7f00 | DTLS_1_3_DRAFT_VERSION;
 #endif
+            case SSL_LIBRARY_VERSION_TLS_1_2:
+                return SSL_LIBRARY_VERSION_DTLS_1_2_WIRE;
+            case SSL_LIBRARY_VERSION_TLS_1_1:
+                /* TLS_1_1 maps to DTLS_1_0, see sslproto.h. */
+                return SSL_LIBRARY_VERSION_DTLS_1_0_WIRE;
+            default:
+                PORT_Assert(0);
+        }
+    }
+    /* Stream-variant encodings do not change. */
     return (PRUint16)version;
 }
 
@@ -5800,8 +5875,8 @@ tls13_ClientReadSupportedVersion(sslSocket *ss)
         return SECFailure;
     }
 
-    if (temp != tls13_EncodeDraftVersion(SSL_LIBRARY_VERSION_TLS_1_3,
-                                         ss->protocolVariant)) {
+    if (temp != tls13_EncodeVersion(SSL_LIBRARY_VERSION_TLS_1_3,
+                                    ss->protocolVariant)) {
         /* You cannot negotiate < TLS 1.3 with supported_versions. */
         FATAL_ERROR(ss, SSL_ERROR_RX_MALFORMED_SERVER_HELLO, illegal_parameter);
         return SECFailure;
@@ -5840,7 +5915,7 @@ tls13_NegotiateVersion(sslSocket *ss, const TLSExtension *supportedVersions)
             return SECFailure;
         }
 
-        PRUint16 wire = tls13_EncodeDraftVersion(version, ss->protocolVariant);
+        PRUint16 wire = tls13_EncodeVersion(version, ss->protocolVariant);
         unsigned long offset;
 
         for (offset = 0; offset < versions.len; offset += 2) {
