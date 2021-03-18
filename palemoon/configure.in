@@ -14,20 +14,6 @@ AC_SUBST(MC_PALEMOON)
 dnl Optional parts of the build.
 
 dnl ========================================================
-dnl = Enable Phoenix Extension Support
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(phoenix-extensions,
-[  --enable-phoenix-extensions           Enable Phoenix Extension Support],
-    MOZ_PHOENIX_EXTENSIONS=1,
-    MOZ_PHOENIX_EXTENSIONS=)
-
-if test -n "$MOZ_PHOENIX_EXTENSIONS"; then
-    AC_DEFINE(MOZ_PHOENIX_EXTENSIONS)
-fi
-
-AC_SUBST(MOZ_PHOENIX_EXTENSIONS)
-
-dnl ========================================================
 dnl = Disable Sync
 dnl ========================================================
 MOZ_ARG_DISABLE_BOOL(sync,

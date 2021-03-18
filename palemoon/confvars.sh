@@ -66,11 +66,6 @@ ACCEPTED_MAR_CHANNEL_IDS=unofficial,unstable,beta,release
 # XXX: Devtools are disabled until they can be made to work with Pale Moon
 MOZ_DEVTOOLS=1
 
-# Platform Feature: "Phoenix" Extensions Support aka Dual-guid system.
-# Allows installation of Firefox GUID targeted extensions despite having
-# a different Application ID
-MOZ_PHOENIX_EXTENSIONS=
-
 # Platform Feature: Sync Service
 MOZ_SERVICES_COMMON=1
 MOZ_SERVICES_SYNC=1
