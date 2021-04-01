@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<blocklist lastupdate="1612644720000"
+<blocklist lastupdate="1617273166000"
 xmlns="http://www.mozilla.org/2006/addons-blocklist">
   <emItems>
     <emItem blockID="i545" id="superlrcs@svenyor.net">
@@ -2454,7 +2454,7 @@ xmlns="http://www.mozilla.org/2006/addons-blocklist">
       <versionRange minVersion="0" maxVersion="*" severity="3"/>
     </emItem>
     <emItem blockID="pm100" id="{d10d0bf8-f5b5-c8b4-a8b2-2b9879e08c5d}">
-      <versionRange minVersion="0" maxVersion="*" severity="1">
+      <versionRange minVersion="0" maxVersion="*" severity="3">
       </versionRange>
       <prefs></prefs>
     </emItem>
@@ -2505,7 +2505,7 @@ xmlns="http://www.mozilla.org/2006/addons-blocklist">
       <prefs></prefs>
     </emItem>   
     <emItem blockID="pm110" id="adnauseam@rednoise.org">
-      <versionRange minVersion="0" maxVersion="*" severity="2">
+      <versionRange minVersion="0" maxVersion="*" severity="3">
       </versionRange>
       <prefs></prefs>
     </emItem>   
@@ -2515,7 +2515,7 @@ xmlns="http://www.mozilla.org/2006/addons-blocklist">
       <prefs></prefs>
     </emItem>
     <emItem blockID="pm112" id="{73a6fe31-595d-460b-a920-fcc0f8843232}">
-      <versionRange minVersion="0" maxVersion="*" severity="1">
+      <versionRange minVersion="0" maxVersion="*" severity="3">
       </versionRange>
       <prefs></prefs>
     </emItem>
@@ -2535,7 +2535,7 @@ xmlns="http://www.mozilla.org/2006/addons-blocklist">
       <prefs></prefs>
     </emItem>
     <emItem blockID="pm116" id="moonttool@Off.JustOff">
-      <versionRange minVersion="2.1.0" maxVersion="*" severity="1">
+      <versionRange minVersion="2.1.0" maxVersion="*" severity="3">
       </versionRange>
     </emItem>
     <emItem blockID="pm117" id="treestyletabforpm@oinkoink">
@@ -2546,6 +2546,10 @@ xmlns="http://www.mozilla.org/2006/addons-blocklist">
       <versionRange minVersion="0" maxVersion="4.1.1" severity="1">
       </versionRange>
     </emItem>
+    <emItem blockID="pm119" id="ca-archive@Off.JustOff">
+      <versionRange minVersion="0" maxVersion="*" severity="3">
+      </versionRange>
+    </emItem>    
   </emItems>
   <pluginItems>
     <pluginItem blockID="p26">
