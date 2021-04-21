@@ -1,7 +1,7 @@
-# -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 var SidebarUtils = {
   handleTreeClick: function(aTree, aEvent, aGutterSelect) {
@@ -30,17 +30,13 @@ var SidebarUtils = {
         mouseInGutter = aEvent.clientX < rect.x;
     }
 
-#ifdef XP_MACOSX
-    var modifKey = aEvent.metaKey || aEvent.shiftKey;
-#else
     var modifKey = aEvent.ctrlKey || aEvent.shiftKey;
-#endif
 
     var isContainer = tbo.view.isContainer(cell.row);
     var openInTabs = isContainer &&
                      (aEvent.button == 1 ||
                       (aEvent.button == 0 && modifKey)) &&
-                     PlacesUtils.hasChildURIs(tbo.view.nodeForTreeIndex(cell.row), true);
+                     PlacesUtils.hasChildURIs(tbo.view.nodeForTreeIndex(cell.row));
 
     if (aEvent.button == 0 && isContainer && !openInTabs) {
       tbo.view.toggleOpenState(cell.row);

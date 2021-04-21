@@ -1,9 +1,6 @@
-/*
-# -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
- */
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 //****************************************************************************//
 // Constants & Enumeration Values
@@ -93,13 +90,6 @@ function getFileDisplayName(file) {
   if (file instanceof Ci.nsILocalFileWin) {
     try {
       return file.getVersionInfoField("FileDescription");
-    } catch (e) {}
-  }
-#endif
-#ifdef XP_MACOSX
-  if (file instanceof Ci.nsILocalFileMac) {
-    try {
-      return file.bundleDisplayName;
     } catch (e) {}
   }
 #endif
@@ -1332,11 +1322,7 @@ var gApplicationsPane = {
 #ifdef XP_WIN
 #expand    aExecutable.leafName != "__MOZ_APP_NAME__.exe";
 #else
-#ifdef XP_MACOSX
-#expand    aExecutable.leafName != "__MOZ_MACBUNDLE_NAME__";
-#else
 #expand    aExecutable.leafName != "__MOZ_APP_NAME__-bin";
-#endif
 #endif
   },
 

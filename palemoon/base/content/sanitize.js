@@ -1,7 +1,7 @@
-# -*- Mode: Java; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// -*- Mode: Java; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
@@ -476,11 +476,7 @@ Sanitizer.__defineGetter__("prefs", function() {
 Sanitizer.showUI = function(aParentWindow) {
   var ww = Components.classes["@mozilla.org/embedcomp/window-watcher;1"]
                      .getService(Components.interfaces.nsIWindowWatcher);
-#ifdef XP_MACOSX
-  ww.openWindow(null, // make this an app-modal window on Mac
-#else
   ww.openWindow(aParentWindow,
-#endif
                 "chrome://browser/content/sanitize.xul",
                 "Sanitize",
                 "chrome,titlebar,dialog,centerscreen,modal",

@@ -1,6 +1,6 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 // Services = object with smart getters for common XPCOM services
 Components.utils.import("resource://gre/modules/Services.jsm");
@@ -43,12 +43,6 @@ function init(aEvent)
     let buildDate = buildID.slice(0,4) + "-" + buildID.slice(4,6) + "-" + buildID.slice(6,8);
     document.getElementById("aboutVersion").textContent += " (" + buildDate + ")";
   }
-
-#ifdef XP_MACOSX
-  // it may not be sized at this point, and we need its width to calculate its position
-  window.sizeToContent();
-  window.moveTo((screen.availWidth / 2) - (window.outerWidth / 2), screen.availHeight / 5);
-#endif
 
 // get release notes URL from prefs
   var formatter = Components.classes["@mozilla.org/toolkit/URLFormatterService;1"]
