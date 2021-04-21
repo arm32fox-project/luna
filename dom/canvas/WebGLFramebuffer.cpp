@@ -621,9 +621,6 @@ WebGLFBAttachPoint::GetParameter(const char* funcName, WebGLContext* webgl, JSCo
 WebGLFramebuffer::WebGLFramebuffer(WebGLContext* webgl, GLuint fbo)
     : WebGLRefCountedObject(webgl)
     , mGLName(fbo)
-#ifdef ANDROID
-    , mIsFB(false)
-#endif
     , mDepthAttachment(this, LOCAL_GL_DEPTH_ATTACHMENT)
     , mStencilAttachment(this, LOCAL_GL_STENCIL_ATTACHMENT)
     , mDepthStencilAttachment(this, LOCAL_GL_DEPTH_STENCIL_ATTACHMENT)
@@ -657,10 +654,6 @@ WebGLFramebuffer::Delete()
     mContext->gl->fDeleteFramebuffers(1, &mGLName);
 
     LinkedListElement<WebGLFramebuffer>::removeFrom(mContext->mFramebuffers);
-
-#ifdef ANDROID
-    mIsFB = false;
-#endif
 }
 
 ////
@@ -1223,6 +1216,7 @@ WebGLFramebuffer::RefreshDrawBuffers() const
         }
     }
 
+    gl->fBindFramebuffer(LOCAL_GL_DRAW_FRAMEBUFFER, mGLName);
     gl->fDrawBuffers(driverBuffers.size(), driverBuffers.data());
 }
 
@@ -1242,6 +1236,7 @@ WebGLFramebuffer::RefreshReadBuffer() const
         driverBuffer = mColorReadBuffer->mAttachmentPoint;
     }
 
+    gl->fBindFramebuffer(LOCAL_GL_READ_FRAMEBUFFER, mGLName);
     gl->fReadBuffer(driverBuffer);
 }
 
