@@ -574,10 +574,6 @@ NS_InitXPCOM2(nsIServiceManager** aResult,
     setlocale(LC_ALL, "");
   }
 
-#if defined(XP_UNIX)
-  NS_StartupNativeCharsetUtils();
-#endif
-
   NS_StartupLocalFile();
 
   nsDirectoryService::RealInit();
@@ -1015,17 +1011,11 @@ ShutdownXPCOM(nsIServiceManager* aServMgr)
   PROFILER_MARKER("Shutdown xpcom");
   // If we are doing any shutdown checks, poison writes.
   if (gShutdownChecks != SCM_NOTHING) {
-#ifdef XP_MACOSX
-    mozilla::OnlyReportDirtyWrites();
-#endif /* XP_MACOSX */
     mozilla::BeginLateWriteChecks();
   }
 
   // Shutdown nsLocalFile string conversion
   NS_ShutdownLocalFile();
-#ifdef XP_UNIX
-  NS_ShutdownNativeCharsetUtils();
-#endif
 
   // Shutdown xpcom. This will release all loaders and cause others holding
   // a refcount to the component manager to release it.

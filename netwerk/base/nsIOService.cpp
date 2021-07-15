@@ -165,7 +165,7 @@ int16_t gBadPortList[] = {
   6667, // Standard IRC [Apple addition]
   6668, // Alternate IRC [Apple addition]
   6669, // Alternate IRC [Apple addition]
-  10080,// Amanda
+  // 10080,// (Amanda) too many collisions with other services, disabled for now.
   0,    // Sentinel value: This MUST be zero
 };
 
@@ -1210,7 +1210,7 @@ nsIOService::AllowPort(int32_t inPort, const char *scheme, bool *_retval)
     }
 
     // Ensure the port number is within a valid range
-    if (port <= 0 || port >= std::numeric_limits<uint16_t>::max()) {
+    if (port <= 0 || port > std::numeric_limits<uint16_t>::max()) {
         *_retval = false;
         return NS_OK;
     }

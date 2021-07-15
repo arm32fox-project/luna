@@ -6842,10 +6842,6 @@ nsContentUtils::HaveEqualPrincipals(nsIDocument* aDoc1, nsIDocument* aDoc2)
 bool
 nsContentUtils::HasPluginWithUncontrolledEventDispatch(nsIContent* aContent)
 {
-#ifdef XP_MACOSX
-  // We control dispatch to all mac plugins.
-  return false;
-#else
   if (!aContent || !aContent->IsInUncomposedDoc()) {
     return false;
   }
@@ -6868,7 +6864,6 @@ nsContentUtils::HasPluginWithUncontrolledEventDispatch(nsIContent* aContent)
   }
 
   return !isWindowless;
-#endif
 }
 
 /* static */
@@ -9785,18 +9780,4 @@ nsContentUtils::GetClosestNonNativeAnonymousAncestor(Element* aElement)
     e = e->GetParentElement();
   }
   return e;
-}
-
-/* static */ uint32_t
-nsContentUtils::GetNodeDepth(nsINode* aNode)
-{
-  uint32_t depth = 1;
-
-  MOZ_ASSERT(aNode, "Node shouldn't be null");
-
-  while ((aNode = aNode->GetParentNode())) {
-    ++depth;
-  }
-
-  return depth;
 }
