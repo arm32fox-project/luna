@@ -36,7 +36,7 @@ bool GetFirstStream();
 cubeb* GetCubebContext();
 cubeb* GetCubebContextUnlocked();
 uint32_t GetCubebPlaybackLatencyInMilliseconds();
-Maybe<uint32_t> GetCubebMSGLatencyInFrames();
+uint32_t GetCubebMSGLatencyInFrames(cubeb_stream_params * params);
 bool CubebLatencyPrefSet();
 void GetCurrentBackend(nsAString& aBackend);
 
