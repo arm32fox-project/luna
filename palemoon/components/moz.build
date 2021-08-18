@@ -9,6 +9,7 @@ DIRS += [
     'dirprovider',
     'downloads',
     'feeds',
+    'fuel',
     'newtab',
     'pageinfo',
     'places',
