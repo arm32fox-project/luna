@@ -27,6 +27,12 @@ if CONFIG['MOZ_PULSEAUDIO'] or CONFIG['MOZ_JACK']:
         'cubeb_resampler.cpp',
     ]
 
+if CONFIG['MOZ_PULSEAUDIO']:
+    SOURCES += [
+        'cubeb_pulse.c',
+    ]
+    DEFINES['USE_PULSE'] = True
+
 if CONFIG['MOZ_JACK']:
     SOURCES += [
         'cubeb_jack.cpp',

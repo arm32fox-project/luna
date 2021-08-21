@@ -20,6 +20,7 @@ cp $1/src/cubeb_log.h src
 cp $1/src/cubeb_mixer.cpp src
 cp $1/src/cubeb_mixer.h src
 cp $1/src/cubeb_opensl.c src
+cp $1/src/cubeb_pulse.c src
 cp $1/src/cubeb_android.h src
 cp $1/src/cubeb-jni.cpp src
 cp $1/src/cubeb-jni.h src
