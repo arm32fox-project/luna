@@ -9,11 +9,7 @@ Library('cubeb')
 
 SOURCES += [
     'cubeb.c',
-    'cubeb_log.cpp',
-    'cubeb_mixer.cpp',
-    'cubeb_panner.cpp',
-    'cubeb_strings.c',
-    'cubeb_utils.cpp'
+    'cubeb_panner.cpp'
 ]
 
 if CONFIG['MOZ_ALSA']:
@@ -27,6 +23,12 @@ if CONFIG['MOZ_PULSEAUDIO'] or CONFIG['MOZ_JACK']:
         'cubeb_resampler.cpp',
     ]
 
+if CONFIG['MOZ_PULSEAUDIO']:
+    SOURCES += [
+        'cubeb_pulse.c',
+    ]
+    DEFINES['USE_PULSE'] = True
+
 if CONFIG['MOZ_JACK']:
     SOURCES += [
         'cubeb_jack.cpp',
@@ -36,24 +38,44 @@ if CONFIG['MOZ_JACK']:
     ]
     DEFINES['USE_JACK'] = True
 
-if CONFIG['OS_ARCH'] in ('DragonFly', 'FreeBSD', 'SunOS'):
+if CONFIG['MOZ_SNDIO']:
     SOURCES += [
-        'cubeb_oss.c',
+        'cubeb_sndio.c',
     ]
-    DEFINES['USE_OSS'] = True
+    DEFINES['USE_SNDIO'] = True
+
+if CONFIG['OS_ARCH'] == 'SunOS':
+    SOURCES += [
+        'cubeb_sun.c',
+    ]
+    DEFINES['USE_SUN'] = True
+
+if CONFIG['OS_TARGET'] == 'Darwin':
+    SOURCES += [
+        'cubeb_audiounit.cpp',
+        'cubeb_resampler.cpp'
+    ]
+    DEFINES['USE_AUDIOUNIT'] = True
 
 if CONFIG['OS_TARGET'] == 'WINNT':
     SOURCES += [
         'cubeb_resampler.cpp',
         'cubeb_wasapi.cpp',
+        'cubeb_winmm.c',
     ]
-    DEFINES['UNICODE'] = True
+    DEFINES['USE_WINMM'] = True
     DEFINES['USE_WASAPI'] = True
-    OS_LIBS += [
-      "avrt",
-    ]
     if CONFIG['_MSC_VER']:
         CXXFLAGS += ['-wd4005'] # C4005: '_USE_MATH_DEFINES' : macro redefinition
+
+if CONFIG['OS_TARGET'] == 'Android':
+    SOURCES += ['cubeb_opensl.c']
+    SOURCES += ['cubeb_resampler.cpp']
+    DEFINES['USE_OPENSL'] = True
+    SOURCES += [
+        'cubeb_audiotrack.c',
+    ]
+    DEFINES['USE_AUDIOTRACK'] = True
 
 if CONFIG['GKMEDIAS_SHARED_LIBRARY']:
     NO_VISIBILITY_FLAGS = True
@@ -61,7 +83,6 @@ if CONFIG['GKMEDIAS_SHARED_LIBRARY']:
 FINAL_LIBRARY = 'gkmedias'
 
 CFLAGS += CONFIG['MOZ_ALSA_CFLAGS']
-CFLAGS += CONFIG['MOZ_JACK_CFLAGS']
 CFLAGS += CONFIG['MOZ_PULSEAUDIO_CFLAGS']
 
 # We allow warnings for third-party code that can be updated from upstream.
