@@ -36,17 +36,11 @@ if CONFIG['MOZ_JACK']:
     ]
     DEFINES['USE_JACK'] = True
 
-if CONFIG['OS_ARCH'] in ('DragonFly', 'FreeBSD'):
+if CONFIG['OS_ARCH'] in ('DragonFly', 'FreeBSD', 'SunOS'):
     SOURCES += [
         'cubeb_oss.c',
     ]
     DEFINES['USE_OSS'] = True
-
-if CONFIG['OS_ARCH'] == 'SunOS':
-    SOURCES += [
-        'cubeb_sun.c',
-    ]
-    DEFINES['USE_SUN'] = True
 
 if CONFIG['OS_TARGET'] == 'WINNT':
     SOURCES += [
