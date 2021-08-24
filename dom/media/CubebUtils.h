@@ -30,6 +30,11 @@ uint32_t MaxNumberOfChannels();
 // Get the sample rate the hardware/mixer runs at. Thread safe.
 uint32_t PreferredSampleRate();
 
+enum Side {
+  Input,
+  Output
+};
+
 void PrefChanged(const char* aPref, void* aClosure);
 double GetVolumeScale();
 bool GetFirstStream();
@@ -39,6 +44,8 @@ uint32_t GetCubebPlaybackLatencyInMilliseconds();
 uint32_t GetCubebMSGLatencyInFrames(cubeb_stream_params * params);
 bool CubebLatencyPrefSet();
 void GetCurrentBackend(nsAString& aBackend);
+void GetDeviceCollection(nsTArray<RefPtr<AudioDeviceInfo>>& aDeviceInfos,
+                         Side aSide);
 
 } // namespace CubebUtils
 } // namespace mozilla
