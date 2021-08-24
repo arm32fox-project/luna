@@ -2379,13 +2379,6 @@ nsDOMWindowUtils::GetCurrentMaxAudioChannels(uint32_t* aChannels)
 }
 
 NS_IMETHODIMP
-nsDOMWindowUtils::GetCurrentPreferredChannelLayout(nsAString& aLayout)
-{
-  CubebUtils::GetPreferredChannelLayout(aLayout);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsDOMWindowUtils::GetCurrentPreferredSampleRate(uint32_t* aRate)
 {
   *aRate = CubebUtils::PreferredSampleRate();

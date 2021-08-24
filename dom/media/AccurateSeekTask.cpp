@@ -182,7 +182,8 @@ AccurateSeekTask::DropAudioUpToSeekTarget(MediaData* aSample)
                                        frames,
                                        Move(audioData),
                                        channels,
-                                       audio->mRate));
+                                       audio->mRate,
+				       audio->mChannelMap));
   MOZ_ASSERT(!mSeekedAudioData, "Should be the 1st sample after seeking");
   mSeekedAudioData = data;
   mDoneAudioSeeking = true;

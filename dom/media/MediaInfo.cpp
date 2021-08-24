@@ -35,68 +35,234 @@ typedef AudioConfig::ChannelLayout ChannelLayout;
  3F4-LFE        L   R   C    LFE  Rls  Rrs  LS   RS
 */
 
+ChannelLayout ChannelLayout::LMONO{ AudioConfig::CHANNEL_FRONT_CENTER };
+ChannelLayout ChannelLayout::LMONO_LFE{ AudioConfig::CHANNEL_FRONT_CENTER, AudioConfig::CHANNEL_LFE };
+ChannelLayout ChannelLayout::LSTEREO{ AudioConfig::CHANNEL_FRONT_LEFT, AudioConfig::CHANNEL_FRONT_RIGHT };
+ChannelLayout ChannelLayout::LSTEREO_LFE{ AudioConfig::CHANNEL_FRONT_LEFT,
+                                          AudioConfig::CHANNEL_FRONT_RIGHT,
+                                          AudioConfig::CHANNEL_LFE };
+ChannelLayout ChannelLayout::L3F{ AudioConfig::CHANNEL_FRONT_LEFT,
+                                  AudioConfig::CHANNEL_FRONT_RIGHT,
+                                  AudioConfig::CHANNEL_FRONT_CENTER };
+ChannelLayout ChannelLayout::L3F_LFE{ AudioConfig::CHANNEL_FRONT_LEFT,
+                                      AudioConfig::CHANNEL_FRONT_RIGHT,
+                                      AudioConfig::CHANNEL_FRONT_CENTER,
+                                      AudioConfig::CHANNEL_LFE };
+ChannelLayout ChannelLayout::L2F1{ AudioConfig::CHANNEL_FRONT_LEFT,
+                                   AudioConfig::CHANNEL_FRONT_RIGHT,
+                                   AudioConfig::CHANNEL_BACK_CENTER };
+ChannelLayout ChannelLayout::L2F1_LFE{ AudioConfig::CHANNEL_FRONT_LEFT,
+                                       AudioConfig::CHANNEL_FRONT_RIGHT,
+                                       AudioConfig::CHANNEL_LFE,
+                                       AudioConfig::CHANNEL_BACK_CENTER };
+ChannelLayout ChannelLayout::L3F1{ AudioConfig::CHANNEL_FRONT_LEFT,
+                                   AudioConfig::CHANNEL_FRONT_RIGHT,
+                                   AudioConfig::CHANNEL_FRONT_CENTER,
+                                   AudioConfig::CHANNEL_BACK_CENTER };
+ChannelLayout ChannelLayout::LSURROUND = ChannelLayout::L3F1;
+ChannelLayout ChannelLayout::L3F1_LFE{ AudioConfig::CHANNEL_FRONT_LEFT,
+                                       AudioConfig::CHANNEL_FRONT_RIGHT,
+                                       AudioConfig::CHANNEL_FRONT_CENTER,
+                                       AudioConfig::CHANNEL_LFE,
+                                       AudioConfig::CHANNEL_BACK_CENTER };
+ChannelLayout ChannelLayout::L2F2{ AudioConfig::CHANNEL_FRONT_LEFT,
+                                   AudioConfig::CHANNEL_FRONT_RIGHT,
+                                   AudioConfig::CHANNEL_SIDE_LEFT,
+                                   AudioConfig::CHANNEL_SIDE_RIGHT };
+ChannelLayout ChannelLayout::L2F2_LFE{ AudioConfig::CHANNEL_FRONT_LEFT,
+                                       AudioConfig::CHANNEL_FRONT_RIGHT,
+                                       AudioConfig::CHANNEL_LFE,
+                                       AudioConfig::CHANNEL_SIDE_LEFT,
+                                       AudioConfig::CHANNEL_SIDE_RIGHT };
+ChannelLayout ChannelLayout::LQUAD{ AudioConfig::CHANNEL_FRONT_LEFT,
+                                    AudioConfig::CHANNEL_FRONT_RIGHT,
+                                    AudioConfig::CHANNEL_BACK_LEFT,
+                                    AudioConfig::CHANNEL_BACK_RIGHT };
+ChannelLayout ChannelLayout::LQUAD_LFE{ AudioConfig::CHANNEL_FRONT_LEFT,
+                                        AudioConfig::CHANNEL_FRONT_RIGHT,
+                                        AudioConfig::CHANNEL_LFE,
+                                        AudioConfig::CHANNEL_BACK_LEFT,
+                                        AudioConfig::CHANNEL_BACK_RIGHT };
+ChannelLayout ChannelLayout::L3F2{ AudioConfig::CHANNEL_FRONT_LEFT,
+                                   AudioConfig::CHANNEL_FRONT_RIGHT,
+                                   AudioConfig::CHANNEL_FRONT_CENTER,
+                                   AudioConfig::CHANNEL_SIDE_LEFT,
+                                   AudioConfig::CHANNEL_SIDE_RIGHT };
+ChannelLayout ChannelLayout::L3F2_LFE{ AudioConfig::CHANNEL_FRONT_LEFT,
+	                               AudioConfig::CHANNEL_FRONT_RIGHT, 
+				       AudioConfig::CHANNEL_FRONT_CENTER,
+				       AudioConfig::CHANNEL_LFE,        
+				       AudioConfig::CHANNEL_SIDE_LEFT,   
+				       AudioConfig::CHANNEL_SIDE_RIGHT };
+ChannelLayout ChannelLayout::L5POINT1_SURROUND = ChannelLayout::L3F2_LFE;
+
+ChannelLayout ChannelLayout::L3F3R_LFE{ AudioConfig::CHANNEL_FRONT_LEFT,  
+	                                AudioConfig::CHANNEL_FRONT_RIGHT, 
+					AudioConfig::CHANNEL_FRONT_CENTER, 
+					AudioConfig::CHANNEL_LFE,
+                                        AudioConfig::CHANNEL_BACK_CENTER,
+					AudioConfig::CHANNEL_SIDE_LEFT,   
+					AudioConfig::CHANNEL_SIDE_RIGHT };
+ChannelLayout ChannelLayout::L3F4_LFE{ AudioConfig::CHANNEL_FRONT_LEFT,
+	                               AudioConfig::CHANNEL_FRONT_RIGHT, 
+				       AudioConfig::CHANNEL_FRONT_CENTER,
+				       AudioConfig::CHANNEL_LFE,
+				       AudioConfig::CHANNEL_BACK_LEFT,
+				       AudioConfig::CHANNEL_BACK_RIGHT,
+                                       AudioConfig::CHANNEL_SIDE_LEFT,
+				       AudioConfig::CHANNEL_SIDE_RIGHT };
+ChannelLayout ChannelLayout::L7POINT1_SURROUND = ChannelLayout::L3F4_LFE;
+
 void
 AudioConfig::ChannelLayout::UpdateChannelMap()
 {
-  mChannelMap = 0;
   mValid = mChannels.Length() <= MAX_AUDIO_CHANNELS;
-  for (size_t i = 0; i < mChannels.Length() && i <= MAX_AUDIO_CHANNELS; i++) {
-    uint32_t mask = 1 << mChannels[i];
-    if (mChannels[i] == CHANNEL_INVALID || (mChannelMap & mask)) {
-      mValid = false;
-    }
-    mChannelMap |= mask;
+  mChannelMap = 0;
+  if (mValid) {
+    mChannelMap = Map();
+    mValid = mChannelMap > 0;
   }
 }
 
-/* static */ const AudioConfig::Channel*
-AudioConfig::ChannelLayout::SMPTEDefault(uint32_t aChannels) const
+uint32_t
+AudioConfig::ChannelLayout::Map() const
+{
+  if (mChannelMap) {
+    return mChannelMap;
+  }
+  uint32_t map = 0;
+  for (size_t i = 0; i < mChannels.Length() && i <= MAX_AUDIO_CHANNELS; i++) {
+    uint32_t mask = 1 << mChannels[i];
+    if (mChannels[i] == CHANNEL_INVALID || (mChannelMap & mask)) {
+      // Invalid configuration.
+      return 0;
+    }
+    map |= mask;
+  }
+  return map;
+}
+
+const AudioConfig::Channel*
+AudioConfig::ChannelLayout::DefaultLayoutForChannels(uint32_t aChannels) const
 {
   switch (aChannels) {
     case 1: // MONO
     {
-      static const Channel config[] = { CHANNEL_MONO };
+      static const Channel config[] = { CHANNEL_FRONT_CENTER };
       return config;
     }
     case 2: // STEREO
     {
-      static const Channel config[] = { CHANNEL_LEFT, CHANNEL_RIGHT };
+      static const Channel config[] = { CHANNEL_FRONT_LEFT, CHANNEL_FRONT_RIGHT };
       return config;
     }
     case 3: // 3F
     {
-      static const Channel config[] = { CHANNEL_LEFT, CHANNEL_RIGHT, CHANNEL_CENTER };
+      static const Channel config[] = { CHANNEL_FRONT_LEFT, CHANNEL_FRONT_RIGHT, CHANNEL_FRONT_CENTER };
       return config;
     }
-    case 4: // 2F2
+    case 4: // QUAD
     {
-      static const Channel config[] = { CHANNEL_LEFT, CHANNEL_RIGHT, CHANNEL_LS, CHANNEL_RS };
+      static const Channel config[] = { CHANNEL_FRONT_LEFT, CHANNEL_FRONT_RIGHT, CHANNEL_BACK_LEFT, CHANNEL_BACK_RIGHT };
       return config;
     }
     case 5: // 3F2
     {
-      static const Channel config[] = { CHANNEL_LEFT, CHANNEL_RIGHT, CHANNEL_CENTER, CHANNEL_LS, CHANNEL_RS };
+      static const Channel config[] = { CHANNEL_FRONT_LEFT, CHANNEL_FRONT_RIGHT, CHANNEL_FRONT_CENTER, CHANNEL_SIDE_LEFT, CHANNEL_SIDE_RIGHT };
       return config;
     }
     case 6: // 3F2-LFE
     {
-      static const Channel config[] = { CHANNEL_LEFT, CHANNEL_RIGHT, CHANNEL_CENTER, CHANNEL_LFE, CHANNEL_LS, CHANNEL_RS };
+      static const Channel config[] = { CHANNEL_FRONT_LEFT, CHANNEL_FRONT_RIGHT, CHANNEL_FRONT_CENTER, CHANNEL_LFE, CHANNEL_SIDE_LEFT, CHANNEL_SIDE_RIGHT };
       return config;
     }
     case 7: // 3F3R-LFE
     {
-      static const Channel config[] = { CHANNEL_LEFT, CHANNEL_RIGHT, CHANNEL_CENTER, CHANNEL_LFE, CHANNEL_RCENTER, CHANNEL_LS, CHANNEL_RS };
+      static const Channel config[] = { CHANNEL_FRONT_LEFT, CHANNEL_FRONT_RIGHT, CHANNEL_FRONT_CENTER, CHANNEL_LFE, CHANNEL_BACK_CENTER, CHANNEL_SIDE_LEFT, CHANNEL_SIDE_RIGHT };
       return config;
     }
     case 8: // 3F4-LFE
     {
-      static const Channel config[] = { CHANNEL_LEFT, CHANNEL_RIGHT, CHANNEL_CENTER, CHANNEL_LFE, CHANNEL_RLS, CHANNEL_RRS, CHANNEL_LS, CHANNEL_RS };
+      static const Channel config[] = { CHANNEL_FRONT_LEFT, CHANNEL_FRONT_RIGHT, CHANNEL_FRONT_CENTER, CHANNEL_LFE, CHANNEL_BACK_LEFT, CHANNEL_BACK_RIGHT, CHANNEL_SIDE_LEFT, CHANNEL_SIDE_RIGHT };
       return config;
     }
     default:
       return nullptr;
   }
+
 }
+
+/* static */ AudioConfig::ChannelLayout
+AudioConfig::ChannelLayout::SMPTEDefault(
+  const ChannelLayout& aChannelLayout)
+{
+  if (!aChannelLayout.IsValid()) {
+    return aChannelLayout;
+  }
+  return SMPTEDefault(aChannelLayout.Map());
+}
+
+/* static */ ChannelLayout
+AudioConfig::ChannelLayout::SMPTEDefault(uint32_t aMap)
+{
+  MOZ_ASSERT(LMONO_MAP == LMONO.Map());
+  MOZ_ASSERT(LMONO_LFE_MAP == LMONO_LFE.Map());
+  MOZ_ASSERT(LSTEREO_MAP == LSTEREO.Map());
+  MOZ_ASSERT(LSTEREO_LFE_MAP == LSTEREO_LFE.Map());
+  MOZ_ASSERT(L3F_MAP == L3F.Map());
+  MOZ_ASSERT(L3F_LFE_MAP == L3F_LFE.Map());
+  MOZ_ASSERT(L2F1_MAP == L2F1.Map());
+  MOZ_ASSERT(L2F1_LFE_MAP == L2F1_LFE.Map());
+  MOZ_ASSERT(L3F1_MAP == L3F1.Map());
+  MOZ_ASSERT(L3F1_LFE_MAP == L3F1_LFE.Map());
+  MOZ_ASSERT(L2F2_MAP == L2F2.Map());
+  MOZ_ASSERT(L2F2_LFE_MAP == L2F2_LFE.Map());
+  MOZ_ASSERT(LQUAD_MAP == LQUAD.Map());
+  MOZ_ASSERT(L3F2_MAP == L3F2.Map());
+  MOZ_ASSERT(L3F2_LFE_MAP == L3F2_LFE.Map());
+  MOZ_ASSERT(L3F3R_LFE_MAP == L3F3R_LFE.Map());
+  MOZ_ASSERT(L3F4_LFE_MAP == L3F4_LFE.Map());
+
+  // First handle the most common cases.
+  switch (aMap) {
+    case LMONO_MAP: return LMONO;
+    case LMONO_LFE_MAP: return LMONO_LFE;
+    case LSTEREO_MAP: return LSTEREO;
+    case LSTEREO_LFE_MAP : return LSTEREO_LFE;
+    case L3F_MAP: return L3F;
+    case L3F_LFE_MAP: return L3F_LFE;
+    case L2F1_MAP: return L2F1;
+    case L2F1_LFE_MAP: return L2F1_LFE;
+    case L3F1_MAP: return L3F1;
+    case L3F1_LFE_MAP: return L3F1_LFE;
+    case L2F2_MAP: return L2F2;
+    case L2F2_LFE_MAP: return L2F2_LFE;
+    case LQUAD_MAP: return LQUAD;
+    case L3F2_MAP: return L3F2;
+    case L3F2_LFE_MAP: return L3F2_LFE;
+    case L3F3R_LFE_MAP: return L3F3R_LFE;
+    case L3F4_LFE_MAP: return L3F4_LFE;
+    default:
+      break;
+  }
+  AutoTArray<Channel, MAX_AUDIO_CHANNELS> layout;
+  uint32_t channels = 0;
+
+  uint32_t i = 0;
+  while (aMap) {
+    if (aMap & 1) {
+      layout.AppendElement(static_cast<Channel>(i));
+      channels++;
+      if (channels > MAX_AUDIO_CHANNELS) {
+        return ChannelLayout();
+      }
+    }
+    aMap >>= 1;
+    i++;
+  }
+  return ChannelLayout(channels, layout.Elements());
+}
+
 
 bool
 AudioConfig::ChannelLayout::MappingTable(const ChannelLayout& aOther,

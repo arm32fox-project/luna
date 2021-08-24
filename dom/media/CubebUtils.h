@@ -8,6 +8,7 @@
 #define CubebUtils_h_
 
 #include "cubeb/cubeb.h"
+#include "mozilla/dom/AudioDeviceInfo.h"
 #include "mozilla/dom/AudioChannelBinding.h"
 #include "mozilla/Maybe.h"
 
@@ -45,7 +46,7 @@ uint32_t GetCubebMSGLatencyInFrames(cubeb_stream_params * params);
 bool CubebLatencyPrefSet();
 void GetCurrentBackend(nsAString& aBackend);
 void GetDeviceCollection(nsTArray<RefPtr<AudioDeviceInfo>>& aDeviceInfos,
-                         Side aSide);
+		          Side aSide);
 
 } // namespace CubebUtils
 } // namespace mozilla

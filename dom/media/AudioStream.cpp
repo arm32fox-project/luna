@@ -317,7 +317,7 @@ int AudioStream::InvokeCubeb(Function aFunction, Args&&... aArgs)
 }
 
 nsresult
-AudioStream::Init(uint32_t aNumChannels, uint32_t aRate,
+AudioStream::Init(uint32_t aNumChannels, uint32_t aChannelMap, uint32_t aRate,
                   const dom::AudioChannel aAudioChannel)
 {
   auto startTime = TimeStamp::Now();
@@ -331,6 +331,7 @@ AudioStream::Init(uint32_t aNumChannels, uint32_t aRate,
   cubeb_stream_params params;
   params.rate = aRate;
   params.channels = mOutChannels;
+  params.layout = CUBEB_LAYOUT_UNDEFINED;
 
   params.format = ToCubebFormat<AUDIO_OUTPUT_FORMAT>::value;
   mAudioClock.Init(aRate);

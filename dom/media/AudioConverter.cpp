@@ -143,7 +143,7 @@ AudioConverter::DownmixAudio(void* aOut, const void* aIn, size_t aFrames) const
                         mIn.Format() == AudioConfig::FORMAT_FLT);
   MOZ_DIAGNOSTIC_ASSERT(mIn.Channels() >= mOut.Channels());
   MOZ_DIAGNOSTIC_ASSERT(
-      mIn.Layout() == AudioConfig::ChannelLayout(mIn.Channels()),
+      mIn.Layout() == AudioConfig::ChannelLayout::SMPTEDefault(mIn.Layout()),
       "Can only downmix input data in SMPTE layout");
   MOZ_DIAGNOSTIC_ASSERT(mOut.Layout() == AudioConfig::ChannelLayout(2) ||
                         mOut.Layout() == AudioConfig::ChannelLayout(1),
