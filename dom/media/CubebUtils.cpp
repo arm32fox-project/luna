@@ -50,11 +50,11 @@ enum class CubebState {
   Shutdown
 } sCubebState = CubebState::Uninitialized;
 cubeb* sCubebContext;
-double sVolumeScale;
-uint32_t sCubebPlaybackLatencyInMilliseconds;
-uint32_t sCubebMSGLatencyInFrames;
-bool sCubebPlaybackLatencyPrefSet;
-bool sCubebMSGLatencyPrefSet;
+double sVolumeScale = 1.0;
+uint32_t sCubebPlaybackLatencyInMilliseconds = 100;
+uint32_t sCubebMSGLatencyInFrames = 512;
+bool sCubebPlaybackLatencyPrefSet = false;
+bool sCubebMSGLatencyPrefSet = false;
 bool sAudioStreamInitEverSucceeded = false;
 StaticAutoPtr<char> sBrandName;
 
@@ -227,7 +227,7 @@ cubeb* GetCubebContextUnlocked()
       sBrandName, "Did not initialize sbrandName, and not on the main thread?");
   }
 
-  int rv = cubeb_init(&sCubebContext, sBrandName);
+  int rv = cubeb_init(&sCubebContext, sBrandName, nullptr);
   NS_WARNING_ASSERTION(rv == CUBEB_OK, "Could not get a cubeb context.");
   sCubebState = (rv == CUBEB_OK) ? CubebState::Initialized : CubebState::Uninitialized;
 
@@ -258,14 +258,23 @@ bool CubebMSGLatencyPrefSet()
   return sCubebMSGLatencyPrefSet;
 }
 
-Maybe<uint32_t> GetCubebMSGLatencyInFrames()
+uint32_t GetCubebMSGLatencyInFrames(cubeb_stream_params * params)
 {
   StaticMutexAutoLock lock(sMutex);
-  if (!sCubebMSGLatencyPrefSet) {
-    return Maybe<uint32_t>();
+  if (sCubebMSGLatencyPrefSet) {
+    MOZ_ASSERT(sCubebMSGLatencyInFrames > 0);
+    return sCubebMSGLatencyInFrames;
   }
-  MOZ_ASSERT(sCubebMSGLatencyInFrames > 0);
-  return Some(sCubebMSGLatencyInFrames);
+  cubeb* context = GetCubebContextUnlocked();
+  if (!context) {
+    return sCubebMSGLatencyInFrames; // default 512
+  }
+  uint32_t latency_frames = 0;
+  if (cubeb_get_min_latency(context, params, &latency_frames) != CUBEB_OK) {
+    NS_WARNING("Could not get minimal latency from cubeb.");
+    return sCubebMSGLatencyInFrames; // default 512
+  }
+  return latency_frames;
 }
 
 void InitLibrary()
