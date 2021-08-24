@@ -25,8 +25,7 @@ public:
                            uint16_t aDefaultFormat,
                            uint32_t aMaxChannels,
                            uint32_t aDefaultRate,
-+
--                           uint32_t aMaxRate,
+                           uint32_t aMaxRate,
                            uint32_t aMinRate,
                            uint32_t aMaxLatency,
                            uint32_t aMinLatency);

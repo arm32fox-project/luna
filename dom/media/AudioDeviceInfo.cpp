@@ -159,8 +159,8 @@ AudioDeviceInfo::GetMaxLatency(uint32_t* aMaxLatency)
 
 /* readonly attribute unsigned long minLatency; */
 NS_IMETHODIMP
-+
--AudioDeviceInfo::GetMinLatency(uint32_t* aMinLatency)
+
+AudioDeviceInfo::GetMinLatency(uint32_t* aMinLatency)
 {
   *aMinLatency = mMinLatency;
   return NS_OK;
