@@ -51,8 +51,7 @@
           Special thanks to all our supporters and donors for making this browser possible!
         </description>
         <description class="text-credits">
-          If you wish to contribute, please consider helping out by providing support to other users on the <label class="text-link" href="https://forum.palemoon.org/">Pale Moon forum</label>
-          or getting involved in our development by tackling some of the issues found in our <label class="text-link" href="https://repo.palemoon.org/MoonchildProductions/Pale-Moon/issues">issue tracker</label>.
+          If you wish to contribute, please consider helping out by providing support to other users on the <label class="text-link" href="https://forum.palemoon.org/">Pale Moon forum</label>.
 #endif
 #else
           &brandFullName; is released by &vendorShortName;.
