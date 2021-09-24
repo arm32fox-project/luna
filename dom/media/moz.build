@@ -65,6 +65,7 @@ if CONFIG['MOZ_WEBRTC']:
     WEBRTC_SIGNALLING_TEST_MANIFESTS += ['tests/mochitest/steeplechase_long/steeplechase_long.ini']
 
 XPIDL_SOURCES += [
+    'nsIAudioDeviceInfo.idl',
     'nsIDOMNavigatorUserMedia.idl',
     'nsIMediaManager.idl',
 ]
@@ -163,6 +164,7 @@ IPDL_SOURCES += [
 ]
 
 EXPORTS.mozilla.dom += [
+    'AudioDeviceInfo.h',
     'AudioStreamTrack.h',
     'AudioTrack.h',
     'AudioTrackList.h',
@@ -191,6 +193,7 @@ SOURCES += [
     'AudioChannelFormat.cpp',
     'AudioCompactor.cpp',
     'AudioConverter.cpp',
+    'AudioDeviceInfo.cpp',
     'AudioSegment.cpp',
     'AudioStream.cpp',
     'AudioStreamTrack.cpp',

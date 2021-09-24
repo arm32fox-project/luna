@@ -332,9 +332,6 @@ var dataProviders = {
         data.numAcceleratedWindows++;
     }
 
-    let winUtils = Services.wm.getMostRecentWindow("").
-                   QueryInterface(Ci.nsIInterfaceRequestor).
-                   getInterface(Ci.nsIDOMWindowUtils)
     data.supportsHardwareH264 = "Unknown";
     try {
       // After restart - data may not be available
@@ -345,7 +342,6 @@ var dataProviders = {
       promises.push(promise);
     } catch (e) {}
 
-    data.currentAudioBackend = winUtils.currentAudioBackend;
 
     if (!data.numAcceleratedWindows && gfxInfo) {
 #ifdef XP_WIN
@@ -490,6 +486,48 @@ var dataProviders = {
     data.crashGuards = gfxInfo.getActiveCrashGuards();
 
     completed();
+  },
+
+  media: function media(done) {
+    function convertDevices(devices) {
+      if (!devices) {
+        return undefined;
+      }
+      let infos = [];
+      for (let i = 0; i < devices.length; ++i) {
+        let device = devices.queryElementAt(i, Ci.nsIAudioDeviceInfo);
+        infos.push({
+          name: device.name,
+          groupId: device.groupId,
+          vendor: device.vendor,
+          type: device.type,
+          state: device.state,
+          preferred: device.preferred,
+          supportedFormat: device.supportedFormat,
+          defaultFormat: device.defaultFormat,
+          maxChannels: device.maxChannels,
+          defaultRate: device.defaultRate,
+          maxRate: device.maxRate,
+          minRate: device.minRate,
+          maxLatency: device.maxLatency,
+          minLatency: device.minLatency
+        });
+      }
+      return infos;
+    }
+
+    let data = {};
+    let winUtils = Services.wm.getMostRecentWindow("").
+                   QueryInterface(Ci.nsIInterfaceRequestor).
+                   getInterface(Ci.nsIDOMWindowUtils);
+    data.currentAudioBackend = winUtils.currentAudioBackend;
+    data.currentMaxAudioChannels = winUtils.currentMaxAudioChannels;
+    data.currentPreferredSampleRate = winUtils.currentPreferredSampleRate;
+    data.audioOutputDevices = convertDevices(winUtils.audioDevices(Ci.nsIDOMWindowUtils.AUDIO_OUTPUT).
+                                             QueryInterface(Ci.nsIArray));
+    data.audioInputDevices = convertDevices(winUtils.audioDevices(Ci.nsIDOMWindowUtils.AUDIO_INPUT).
+                                            QueryInterface(Ci.nsIArray));
+    done(data);
   },
 
   javaScript: function javaScript(done) {

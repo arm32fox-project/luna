@@ -593,7 +593,6 @@ AudioCallbackDriver::Init()
 
   cubeb_stream_params output;
   cubeb_stream_params input;
-  uint32_t latency_frames;
 
   MOZ_ASSERT(!NS_IsMainThread(),
       "This is blocking and should never run on the main thread.");
@@ -609,14 +608,7 @@ AudioCallbackDriver::Init()
     output.format = CUBEB_SAMPLE_FLOAT32NE;
   }
 
-  Maybe<uint32_t> latencyPref = CubebUtils::GetCubebMSGLatencyInFrames();
-  if (latencyPref) {
-    latency_frames = latencyPref.value();
-  } else {
-    if (cubeb_get_min_latency(cubebContext, output, &latency_frames) != CUBEB_OK) {
-      NS_WARNING("Could not get minimal latency from cubeb.");
-    }
-  }
+  uint32_t latency_frames = CubebUtils::GetCubebMSGLatencyInFrames(&output);
 
   input = output;
   input.channels = mInputChannels; // change to support optional stereo capture

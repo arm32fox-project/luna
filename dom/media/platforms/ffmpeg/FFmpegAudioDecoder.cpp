@@ -117,6 +117,8 @@ CopyAndPackAudio(AVFrame* aFrame, uint32_t aNumChannels, uint32_t aNumAFrames)
   return audio;
 }
 
+typedef AudioConfig::ChannelLayout ChannelLayout;
+
 MediaResult
 FFmpegAudioDecoder<LIBAV_VER>::DoDecode(MediaRawData* aSample)
 {
@@ -188,7 +190,8 @@ FFmpegAudioDecoder<LIBAV_VER>::DoDecode(MediaRawData* aSample)
                                              mFrame->nb_samples,
                                              Move(audio),
                                              numChannels,
-                                             samplingRate);
+                                             samplingRate,
+					     mCodecContext->channel_layout);
       mCallback->Output(data);
       pts += duration;
       if (!pts.IsValid()) {
