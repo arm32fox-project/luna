@@ -115,33 +115,8 @@ BOOL AudioDeviceUtilityWindows::GetOSDisplayString(LPTSTR pszOS)
     {
         StringCchCopy(pszOS, STRING_MAX_SIZE, TEXT("Microsoft "));
 
-        // Test for the specific product
-        //
-        //  Operating system	    Version number
-        //  --------------------------------------
-        //  Windows 7	            6.1
-        //  Windows Server 2008 R2	6.1
-        //  Windows Server 2008	    6.0
-        //  Windows Vista	        6.0
-        //  - - - - - - - - - - - - - - - - - - -
-        //  Windows Server 2003 R2	5.2
-        //  Windows Server 2003	    5.2
-        //  Windows XP	            5.1
-        //  Windows 2000	        5.0
-        //
-        //  see http://msdn.microsoft.com/en-us/library/ms724832(VS.85).aspx for details
-        //
         if (osvi.dwMajorVersion == 6)
         {
-            if (osvi.dwMinorVersion == 0)
-            {
-                // Windows Vista or Server 2008
-                if (osvi.wProductType == VER_NT_WORKSTATION)
-                    StringCchCat(pszOS, STRING_MAX_SIZE, TEXT("Windows Vista "));
-                else
-                    StringCchCat(pszOS, STRING_MAX_SIZE, TEXT("Windows Server 2008 " ));
-            }
-
             if (osvi.dwMinorVersion == 1)
             {
                 // Windows 7 or Server 2008 R2
@@ -149,38 +124,6 @@ BOOL AudioDeviceUtilityWindows::GetOSDisplayString(LPTSTR pszOS)
                     StringCchCat(pszOS, STRING_MAX_SIZE, TEXT("Windows 7 "));
                 else
                     StringCchCat(pszOS, STRING_MAX_SIZE, TEXT("Windows Server 2008 R2 " ));
-            }
-        }
-
-        if (osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 2)
-        {
-            StringCchCat(pszOS, STRING_MAX_SIZE, TEXT("Windows Server 2003"));
-        }
-
-        if (osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 1)
-        {
-            StringCchCat(pszOS, STRING_MAX_SIZE, TEXT("Windows XP "));
-            if (osvi.wSuiteMask & VER_SUITE_PERSONAL)
-                StringCchCat(pszOS, STRING_MAX_SIZE, TEXT( "Home Edition" ));
-            else
-                StringCchCat(pszOS, STRING_MAX_SIZE, TEXT( "Professional" ));
-        }
-
-        if (osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 0)
-        {
-            StringCchCat(pszOS, STRING_MAX_SIZE, TEXT("Windows 2000 "));
-
-            if (osvi.wProductType == VER_NT_WORKSTATION )
-            {
-                StringCchCat(pszOS, STRING_MAX_SIZE, TEXT( "Professional" ));
-            }
-            else
-            {
-                if (osvi.wSuiteMask & VER_SUITE_DATACENTER)
-                    StringCchCat(pszOS, STRING_MAX_SIZE, TEXT( "Datacenter Server" ));
-                else if (osvi.wSuiteMask & VER_SUITE_ENTERPRISE)
-                    StringCchCat(pszOS, STRING_MAX_SIZE, TEXT( "Advanced Server" ));
-                else StringCchCat(pszOS, STRING_MAX_SIZE, TEXT( "Server" ));
             }
         }
 
@@ -207,16 +150,13 @@ BOOL AudioDeviceUtilityWindows::GetOSDisplayString(LPTSTR pszOS)
         else
             GetSystemInfo(&si);
 
-        // Add 64-bit or 32-bit for OS versions "later than" Vista
+        // Add 64-bit or 32-bit
         //
-        if (osvi.dwMajorVersion >= 6)
-        {
-            if ((si.wProcessorArchitecture == PROCESSOR_ARCHITECTURE_AMD64) ||
-                (si.wProcessorArchitecture == PROCESSOR_ARCHITECTURE_IA64))
-                StringCchCat(pszOS, STRING_MAX_SIZE, TEXT( ", 64-bit" ));
-            else if (si.wProcessorArchitecture == PROCESSOR_ARCHITECTURE_INTEL )
-                StringCchCat(pszOS, STRING_MAX_SIZE, TEXT(", 32-bit"));
-        }
+        if ((si.wProcessorArchitecture == PROCESSOR_ARCHITECTURE_AMD64) ||
+            (si.wProcessorArchitecture == PROCESSOR_ARCHITECTURE_IA64))
+            StringCchCat(pszOS, STRING_MAX_SIZE, TEXT( ", 64-bit" ));
+        else if (si.wProcessorArchitecture == PROCESSOR_ARCHITECTURE_INTEL )
+            StringCchCat(pszOS, STRING_MAX_SIZE, TEXT(", 32-bit"));
 
         return TRUE;
     }

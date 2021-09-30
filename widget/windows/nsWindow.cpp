@@ -903,8 +903,8 @@ nsWindow::Create(nsIWidget* aParent,
 
   SubclassWindow(TRUE);
 
-  // Starting with Windows XP, a process always runs within a terminal services
-  // session. In order to play nicely with RDP, fast user switching, and the
+  // A process always runs within a terminal services session.
+  // In order to play nicely with RDP, fast user switching, and the
   // lock screen, we should be handling WM_WTSSESSION_CHANGE. We must register
   // our HWND in order to receive this message.
   DebugOnly<BOOL> wtsRegistered = ::WTSRegisterSessionNotification(mWnd,

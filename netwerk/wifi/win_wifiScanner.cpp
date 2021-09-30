@@ -70,10 +70,6 @@ WinWifiScanner::WinWifiScanner()
 {
   // NOTE: We assume that, if we were unable to load the WLAN library when
   // we initially tried, we will not be able to load it in the future.
-  // Technically, on Windows XP SP2, a user could install the redistributable
-  // and make our assumption incorrect. We opt to avoid making a bunch of
-  // spurious LoadLibrary calls in the common case rather than load the
-  // WLAN API in the edge case.
   mWlanLibrary = WinWLANLibrary::Load();
   if (!mWlanLibrary) {
     NS_WARNING("Could not initialize Windows Wi-Fi scanner");

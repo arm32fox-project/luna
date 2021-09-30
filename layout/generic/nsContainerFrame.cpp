@@ -669,9 +669,9 @@ nsContainerFrame::SyncWindowProperties(nsPresContext*       aPresContext,
   Element* rootElement = aPresContext->Document()->GetRootElement();
   if (!rootElement || !rootElement->IsXULElement()) {
     // Scrollframes use native widgets which don't work well with
-    // translucent windows, at least in Windows XP. So if the document
-    // has a root scrollrame it's useless to try to make it transparent,
-    // we'll just get something broken.
+    // translucent windows.
+    // So if the document has a root scrollrame it's useless to try to
+    // make it transparent, we'll just get something broken.
     // nsCSSFrameConstructor::ConstructRootFrame constructs root
     // scrollframes whenever the root element is not a XUL element, so
     // we test for that here. We can't just call

@@ -47,7 +47,6 @@ typedef BOOL (WINAPI *LPFN_GLPI)(
     PDWORD);
 
 static void GetProcessorInformation(int* physical_cpus, int* cache_size) {
-  // GetLogicalProcessorInformation() is available on Windows XP SP3 and beyond.
   LPFN_GLPI glpi = reinterpret_cast<LPFN_GLPI>(GetProcAddress(
       GetModuleHandle(L"kernel32"),
       "GetLogicalProcessorInformation"));

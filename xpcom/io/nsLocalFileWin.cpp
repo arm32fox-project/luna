@@ -1630,8 +1630,7 @@ nsLocalFile::Normalize()
   //  "..."   remove from path (any number of dots > 2)
   //
   // The last form is something that Windows 95 and 98 supported and
-  // is a shortcut for changing up multiple directories. Windows XP
-  // and ilk ignore it in a path, as is done here.
+  // is a shortcut for changing up multiple directories. We ignore this form.
   int32_t len, begin, end = rootIdx;
   while (end < (int32_t)path.Length()) {
     // find the current segment (text between the backslashes) to

@@ -8,8 +8,7 @@
  *
  * gtkdrawing provides an API for rendering GTK widgets in the
  * current theme to a pixmap or window, without requiring an actual
- * widget instantiation, similar to the Macintosh Appearance Manager
- * or Windows XP's DrawThemeBackground() API.
+ * widget instantiation.
  */
 
 #ifndef _GTK_DRAWING_H_

@@ -9,7 +9,7 @@
 #include "xptiprivate.h"
 
 /*
- * This is for Windows XP 64-Bit Edition / Server 2003 for AMD64 or later.
+ * This is for Windows 64-Bit.
  */
 
 extern "C" nsresult

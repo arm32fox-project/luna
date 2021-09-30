@@ -263,7 +263,6 @@ GetProcessorInformation(int* physical_cpus, int* cache_size_L2, int* cache_size_
   *cache_size_L2 = 0; // This will be in kbytes
   *cache_size_L3 = 0; // This will be in kbytes
 
-  // GetLogicalProcessorInformation() is available on Windows XP SP3 and beyond.
   LPFN_GLPI glpi = reinterpret_cast<LPFN_GLPI>(GetProcAddress(
       GetModuleHandle(L"kernel32"),
       "GetLogicalProcessorInformation"));

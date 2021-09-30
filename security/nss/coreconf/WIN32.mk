@@ -4,8 +4,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 #
-# Configuration common to all versions of Windows NT
-# and Windows 95
+# Configuration common to all versions of Windows
 #
 
 DEFAULT_COMPILER = cl
@@ -208,9 +207,8 @@ endif
 ifeq (,$(filter-out x386 x86_64,$(CPU_ARCH)))
 ifdef USE_64
 	DEFINES += -D_AMD64_
-	# Use subsystem 5.02 to allow running on Windows XP.
 	ifeq ($(_MSC_VER_GE_11),1)
-		LDFLAGS += -SUBSYSTEM:CONSOLE,5.02
+		LDFLAGS += -SUBSYSTEM:CONSOLE,6.01
 	endif
 	CPU_ARCH = x86_64
 else
@@ -218,12 +216,11 @@ else
 	# VS2012 defaults to -arch:SSE2. Use -arch:IA32 to avoid requiring
 	# SSE2. Clang-cl gets confused by -arch:IA32, so don't add it.
 	# (See https://llvm.org/bugs/show_bug.cgi?id=24335)
-	# Use subsystem 5.01 to allow running on Windows XP.
 	ifeq ($(_MSC_VER_GE_11),1)
 		ifneq ($(CLANG_CL),1)
 			OS_CFLAGS += -arch:IA32
 		endif
-		LDFLAGS += -SUBSYSTEM:CONSOLE,5.01
+		LDFLAGS += -SUBSYSTEM:CONSOLE,6.01
 	endif
 	CPU_ARCH = x386
 endif

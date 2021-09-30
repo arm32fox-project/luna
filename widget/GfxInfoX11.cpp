@@ -321,7 +321,6 @@ GfxInfo::GetFeatureStatusImpl(int32_t aFeature,
       // this is necessary as they're still using the slightly outdated 190.42 driver.
       // this isn't a huge risk, as at least this is the exact setting in which we do continuous testing,
       // and this only affects GeForce 9400 cards on linux on this precise driver version, which is very few users.
-      // We do the same thing on Windows XP, see in widget/windows/GfxInfo.cpp
       if (mIsNVIDIA &&
           !strcmp(mRenderer.get(), "GeForce 9400/PCI/SSE2") &&
           !strcmp(mVersion.get(), "3.2.0 NVIDIA 190.42"))

@@ -588,20 +588,7 @@ callbackEspecial64(
  * This code rectifies that problem.
  */
 
-// New members were added to IMAGEHLP_MODULE64 (that show up in the
-// Platform SDK that ships with VC8, but not the Platform SDK that ships
-// with VC7.1, i.e., between DbgHelp 6.0 and 6.1), but we don't need to
-// use them, and it's useful to be able to function correctly with the
-// older library.  (Stock Windows XP SP2 seems to ship with dbghelp.dll
-// version 5.1.)  Since Platform SDK version need not correspond to
-// compiler version, and the version number in debughlp.h was NOT bumped
-// when these changes were made, ifdef based on a constant that was
-// added between these versions.
-#ifdef SSRVOPT_SETCONTEXT
 #define NS_IMAGEHLP_MODULE64_SIZE (((offsetof(IMAGEHLP_MODULE64, LoadedPdbName) + sizeof(DWORD64) - 1) / sizeof(DWORD64)) * sizeof(DWORD64))
-#else
-#define NS_IMAGEHLP_MODULE64_SIZE sizeof(IMAGEHLP_MODULE64)
-#endif
 
 BOOL SymGetModuleInfoEspecial64(HANDLE aProcess, DWORD64 aAddr,
                                 PIMAGEHLP_MODULE64 aModuleInfo,
