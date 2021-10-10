@@ -21,19 +21,15 @@ EXPORTS += [
     'nsPromptUtils.h',
 ]
 
-UNIFIED_SOURCES += [
+SOURCES += [
     'nsAutoWindowStateHelper.cpp',
+    'nsDialogParamBlock.cpp',
     'nsWindowWatcher.cpp',
 ]
 
 EXPORTS += [
     'nsWindowWatcher.h',
 ]
-
-if CONFIG['MOZ_XUL']:
-    UNIFIED_SOURCES += [
-        'nsDialogParamBlock.cpp',
-    ]
 
 FINAL_LIBRARY = 'xul'
 # For nsJSUtils

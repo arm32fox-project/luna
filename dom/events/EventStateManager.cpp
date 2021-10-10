@@ -80,9 +80,7 @@
 #include "nsIDragSession.h"
 #include "mozilla/dom/DataTransfer.h"
 #include "nsContentAreaDragDrop.h"
-#ifdef MOZ_XUL
 #include "nsTreeBodyFrame.h"
-#endif
 #include "nsIController.h"
 #include "nsICommandParams.h"
 #include "mozilla/Services.h"
@@ -2017,7 +2015,6 @@ EventStateManager::DoDefaultDragStart(nsPresContext* aPresContext,
     // tree to ensure that the drag feedback gets clipped to those
     // rows. For other content, region should be null.
     nsCOMPtr<nsIScriptableRegion> region;
-#ifdef MOZ_XUL
     if (dragTarget && !dragImage) {
       if (dragTarget->NodeInfo()->Equals(nsGkAtoms::treechildren,
                                          kNameSpaceID_XUL)) {
@@ -2028,7 +2025,6 @@ EventStateManager::DoDefaultDragStart(nsPresContext* aPresContext,
         }
       }
     }
-#endif
 
     dragService->InvokeDragSessionWithImage(dragTarget->AsDOMNode(), transArray,
                                             region, action,
@@ -2768,7 +2764,6 @@ EventStateManager::DecideGestureEvent(WidgetGestureNotifyEvent* aEvent,
       break;
     }
 
-#ifdef MOZ_XUL
     // Special check for trees
     nsTreeBodyFrame* treeFrame = do_QueryFrame(current);
     if (treeFrame) {
@@ -2780,7 +2775,6 @@ EventStateManager::DecideGestureEvent(WidgetGestureNotifyEvent* aEvent,
       }
       break;
     }
-#endif
 
     nsIScrollableFrame* scrollableFrame = do_QueryFrame(current);
     if (scrollableFrame) {

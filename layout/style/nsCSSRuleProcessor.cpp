@@ -853,9 +853,7 @@ struct RuleCascadeData {
       // case-sensitive match.
       mAttributeSelectors(&AtomSelector_CSOps, sizeof(AtomSelectorEntry)),
       mAnonBoxRules(&RuleHash_TagTable_Ops, sizeof(RuleHashTagTableEntry)),
-#ifdef MOZ_XUL
       mXULTreeRules(&RuleHash_TagTable_Ops, sizeof(RuleHashTagTableEntry)),
-#endif
       mKeyframesRuleTable(),
       mCounterStyleRuleTable(),
       mCacheKey(aMedium),
@@ -885,9 +883,7 @@ struct RuleCascadeData {
   nsTArray<nsCSSSelector*> mPossiblyNegatedIDSelectors;
   PLDHashTable             mAttributeSelectors;
   PLDHashTable             mAnonBoxRules;
-#ifdef MOZ_XUL
   PLDHashTable             mXULTreeRules;
-#endif
 
   nsTArray<nsFontFaceRuleContainer> mFontFaceRules;
   nsTArray<nsCSSKeyframesRule*> mKeyframesRules;
@@ -940,9 +936,7 @@ RuleCascadeData::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
 
   n += SizeOfSelectorsHashTable(mAttributeSelectors, aMallocSizeOf);
   n += SizeOfRuleHashTable(mAnonBoxRules, aMallocSizeOf);
-#ifdef MOZ_XUL
   n += SizeOfRuleHashTable(mXULTreeRules, aMallocSizeOf);
-#endif
 
   n += mFontFaceRules.ShallowSizeOfExcludingThis(aMallocSizeOf);
   n += mKeyframesRules.ShallowSizeOfExcludingThis(aMallocSizeOf);
@@ -2589,7 +2583,6 @@ nsCSSRuleProcessor::RulesMatching(AnonBoxRuleProcessorData* aData)
   }
 }
 
-#ifdef MOZ_XUL
 /* virtual */ void
 nsCSSRuleProcessor::RulesMatching(XULTreeRuleProcessorData* aData)
 {
@@ -2612,7 +2605,6 @@ nsCSSRuleProcessor::RulesMatching(XULTreeRuleProcessorData* aData)
     }
   }
 }
-#endif
 
 static inline nsRestyleHint RestyleHintForOp(char16_t oper)
 {
@@ -3362,7 +3354,6 @@ AddRule(RuleSelectorPair* aRuleInfo, RuleCascadeData* aCascade)
                          aRuleInfo->mSelector->mLowercaseTag,
                          RuleValue(*aRuleInfo, 0, aCascade->mQuirksMode));
   } else {
-#ifdef MOZ_XUL
     NS_ASSERTION(pseudoType == CSSPseudoElementType::XULTree,
                  "Unexpected pseudo type");
     // Index doesn't matter here, since we'll just be walking these
@@ -3370,9 +3361,6 @@ AddRule(RuleSelectorPair* aRuleInfo, RuleCascadeData* aCascade)
     AppendRuleToTagTable(&cascade->mXULTreeRules,
                          aRuleInfo->mSelector->mLowercaseTag,
                          RuleValue(*aRuleInfo, 0, aCascade->mQuirksMode));
-#else
-    NS_NOTREACHED("Unexpected pseudo type");
-#endif
   }
 
   for (nsCSSSelector* selector = aRuleInfo->mSelector;

@@ -13,9 +13,7 @@
 #include "nsNameSpaceManager.h"
 #include "nsIURI.h"
 #include "nsTextFragment.h"
-#ifdef MOZ_XUL
 #include "nsXULElement.h"
-#endif
 #include "nsXBLProtoImplProperty.h"
 #include "nsXBLProtoImplMethod.h"
 #include "nsXBLProtoImplField.h"
@@ -854,13 +852,10 @@ nsXBLContentSink::CreateElement(const char16_t** aAtts, uint32_t aAttsCount,
                                 nsIContent** aResult, bool* aAppendContent,
                                 FromParser aFromParser)
 {
-#ifdef MOZ_XUL
   if (!aNodeInfo->NamespaceEquals(kNameSpaceID_XUL)) {
-#endif
     return nsXMLContentSink::CreateElement(aAtts, aAttsCount, aNodeInfo,
                                            aLineNumber, aResult,
                                            aAppendContent, aFromParser);
-#ifdef MOZ_XUL
   }
 
   // Note that this needs to match the code in nsXBLPrototypeBinding::ReadContentNode.
@@ -876,7 +871,6 @@ nsXBLContentSink::CreateElement(const char16_t** aAtts, uint32_t aAttsCount,
   nsresult rv = nsXULElement::Create(prototype, mDocument, false, false, &result);
   *aResult = result;
   return rv;
-#endif
 }
 
 nsresult 
@@ -889,7 +883,6 @@ nsXBLContentSink::AddAttributes(const char16_t** aAtts,
   return nsXMLContentSink::AddAttributes(aAtts, aContent);
 }
 
-#ifdef MOZ_XUL
 nsresult
 nsXBLContentSink::AddAttributesToXULPrototype(const char16_t **aAtts, 
                                               uint32_t aAttsCount, 
@@ -933,4 +926,3 @@ nsXBLContentSink::AddAttributesToXULPrototype(const char16_t **aAtts,
 
   return NS_OK;
 }
-#endif

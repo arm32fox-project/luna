@@ -203,11 +203,9 @@ public:
   NS_IMETHOD_(InputContext) GetInputContext() override;
   NS_IMETHOD_(TextEventDispatcherListener*)
     GetNativeTextEventDispatcherListener() override;
-#ifdef MOZ_XUL
   virtual void            SetTransparencyMode(nsTransparencyMode aMode) override;
   virtual nsTransparencyMode GetTransparencyMode() override;
   virtual void            UpdateOpaqueRegion(const LayoutDeviceIntRegion& aOpaqueRegion) override;
-#endif // MOZ_XUL
   virtual nsIMEUpdatePreference GetIMEUpdatePreference() override;
   NS_IMETHOD              SetNonClientMargins(LayoutDeviceIntMargin& aMargins) override;
   void                    SetDrawsInTitlebar(bool aState) override;
@@ -466,13 +464,11 @@ protected:
   /**
    * Window transparency helpers
    */
-#ifdef MOZ_XUL
 private:
   void                    SetWindowTranslucencyInner(nsTransparencyMode aMode);
   nsTransparencyMode      GetWindowTranslucencyInner() const { return mTransparencyMode; }
   void                    UpdateGlass();
 protected:
-#endif // MOZ_XUL
 
   static bool             IsAsyncResponseEvent(UINT aMsg, LRESULT& aResult);
   void                    IPCWindowProcHandler(UINT& msg, WPARAM& wParam, LPARAM& lParam);
@@ -609,11 +605,9 @@ protected:
   ResizeState mResizeState;
 
   // Transparency
-#ifdef MOZ_XUL
   nsTransparencyMode    mTransparencyMode;
   nsIntRegion           mPossiblyTransparentRegion;
   MARGINS               mGlassMargins;
-#endif // MOZ_XUL
 
   // Win7 Gesture processing and management
   nsWinGesture          mGesture;

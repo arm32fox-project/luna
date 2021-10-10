@@ -102,9 +102,7 @@
 
 #include "nsPrincipal.h"
 
-#ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
-#endif
 
 #ifdef NS_PRINTING
 #include "mozilla/embedding/printingui/PrintingParent.h"
@@ -3156,14 +3154,12 @@ nsFrameLoader::AttributeChanged(nsIDocument* aDocument,
 
   bool is_primary = value.LowerCaseEqualsLiteral("content-primary");
 
-#ifdef MOZ_XUL
   // when a content panel is no longer primary, hide any open popups it may have
   if (!is_primary) {
     nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
     if (pm)
       pm->HidePopupsInDocShell(mDocShell);
   }
-#endif
 
   parentTreeOwner->ContentShellRemoved(mDocShell);
   if (value.LowerCaseEqualsLiteral("content") ||

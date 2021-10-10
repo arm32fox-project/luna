@@ -281,9 +281,7 @@ private:
     void RulesMatching(ElementRuleProcessorData* aData) override;
     void RulesMatching(PseudoElementRuleProcessorData* aData) override;
     void RulesMatching(AnonBoxRuleProcessorData* aData) override;
-#ifdef MOZ_XUL
     void RulesMatching(XULTreeRuleProcessorData* aData) override;
-#endif
     size_t SizeOfExcludingThis(MallocSizeOf aMallocSizeOf)
       const MOZ_MUST_OVERRIDE override;
     size_t SizeOfIncludingThis(MallocSizeOf aMallocSizeOf)

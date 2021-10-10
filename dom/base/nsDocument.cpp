@@ -6348,12 +6348,9 @@ nsDocument::GetTitle(nsString& aTitle)
 
   nsAutoString tmp;
 
-#ifdef MOZ_XUL
   if (rootElement->IsXULElement()) {
     rootElement->GetAttr(kNameSpaceID_None, nsGkAtoms::title, tmp);
-  } else
-#endif
-  {
+  } else {
     Element* title = GetTitleElement();
     if (!title) {
       return;
@@ -6373,12 +6370,10 @@ nsDocument::SetTitle(const nsAString& aTitle)
     return NS_OK;
   }
 
-#ifdef MOZ_XUL
   if (rootElement->IsXULElement()) {
     return rootElement->SetAttr(kNameSpaceID_None, nsGkAtoms::title,
                                 aTitle, true);
   }
-#endif
 
   // Batch updates so that mutation events don't change "the title
   // element" under us

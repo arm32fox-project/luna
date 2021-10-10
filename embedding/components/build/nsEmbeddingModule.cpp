@@ -35,7 +35,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsCommandParams)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsControllerCommandGroup)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsBaseCommandController)
 
-#ifdef MOZ_XUL
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDialogParamBlock)
 #ifdef NS_PRINTING
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsPrintingPromptService, Init)
@@ -44,13 +43,10 @@ NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsPrintingProxy,
                                          nsPrintingProxy::GetInstance)
 #endif
 #endif
-#endif
 
-#ifdef MOZ_XUL
 NS_DEFINE_NAMED_CID(NS_DIALOGPARAMBLOCK_CID);
 #ifdef NS_PRINTING
 NS_DEFINE_NAMED_CID(NS_PRINTINGPROMPTSERVICE_CID);
-#endif
 #endif
 NS_DEFINE_NAMED_CID(NS_WINDOWWATCHER_CID);
 NS_DEFINE_NAMED_CID(NS_FIND_CID);
@@ -64,7 +60,6 @@ NS_DEFINE_NAMED_CID(NS_CONTROLLER_COMMAND_GROUP_CID);
 NS_DEFINE_NAMED_CID(NS_BASECOMMANDCONTROLLER_CID);
 
 static const mozilla::Module::CIDEntry kEmbeddingCIDs[] = {
-#ifdef MOZ_XUL
     { &kNS_DIALOGPARAMBLOCK_CID, false, nullptr, nsDialogParamBlockConstructor },
 #ifdef NS_PRINTING
 
@@ -75,7 +70,6 @@ static const mozilla::Module::CIDEntry kEmbeddingCIDs[] = {
       mozilla::Module::CONTENT_PROCESS_ONLY },
 #else
     { &kNS_PRINTINGPROMPTSERVICE_CID, false, nullptr, nsPrintingPromptServiceConstructor },
-#endif
 #endif
 #endif
     { &kNS_WINDOWWATCHER_CID, false, nullptr, nsWindowWatcherConstructor },
@@ -92,11 +86,9 @@ static const mozilla::Module::CIDEntry kEmbeddingCIDs[] = {
 };
 
 static const mozilla::Module::ContractIDEntry kEmbeddingContracts[] = {
-#ifdef MOZ_XUL
     { NS_DIALOGPARAMBLOCK_CONTRACTID, &kNS_DIALOGPARAMBLOCK_CID },
 #ifdef NS_PRINTING
     { NS_PRINTINGPROMPTSERVICE_CONTRACTID, &kNS_PRINTINGPROMPTSERVICE_CID },
-#endif
 #endif
     { NS_WINDOWWATCHER_CONTRACTID, &kNS_WINDOWWATCHER_CID },
     { NS_FIND_CONTRACTID, &kNS_FIND_CID },

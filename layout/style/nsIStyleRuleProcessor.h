@@ -20,9 +20,7 @@ struct RuleProcessorData;
 struct ElementRuleProcessorData;
 struct PseudoElementRuleProcessorData;
 struct AnonBoxRuleProcessorData;
-#ifdef MOZ_XUL
 struct XULTreeRuleProcessorData;
-#endif
 struct StateRuleProcessorData;
 struct PseudoElementStateRuleProcessorData;
 struct AttributeRuleProcessorData;
@@ -70,13 +68,11 @@ public:
    */
   virtual void RulesMatching(AnonBoxRuleProcessorData* aData) = 0;
 
-#ifdef MOZ_XUL
   /**
    * Just like the previous |RulesMatching|, except for a given content
    * node <em>and tree pseudo</em>.
    */
   virtual void RulesMatching(XULTreeRuleProcessorData* aData) = 0;
-#endif
 
   /**
    * Return whether style can depend on a change of the given document state.

@@ -632,10 +632,8 @@ nsWindow::nsWindow()
   mCachedHitTestPoint.y = 0;
   mCachedHitTestTime    = TimeStamp::Now();
   mCachedHitTestResult  = 0;
-#ifdef MOZ_XUL
   mTransparencyMode     = eTransparencyOpaque;
   memset(&mGlassMargins, 0, sizeof mGlassMargins);
-#endif
   DWORD background      = ::GetSysColor(COLOR_BTNFACE);
   mBrush                = ::CreateSolidBrush(NSRGB_2_COLOREF(background));
   mSendingSetText       = false;
@@ -1609,14 +1607,12 @@ NS_IMETHODIMP nsWindow::Show(bool bState)
     }
   }
   
-#ifdef MOZ_XUL
   if (!wasVisible && bState) {
     Invalidate();
     if (syncInvalidate && !mInDtor && !mOnDestroyCalled) {
       ::UpdateWindow(mWnd);
     }
   }
-#endif
 
   return NS_OK;
 }
@@ -3008,7 +3004,6 @@ NS_IMETHODIMP nsWindow::SetCursor(imgIContainer* aCursor,
  *
  **************************************************************/
 
-#ifdef MOZ_XUL
 nsTransparencyMode nsWindow::GetTransparencyMode()
 {
   return GetTopLevelWindow(true)->GetWindowTranslucencyInner();
@@ -3117,7 +3112,6 @@ void nsWindow::UpdateGlass()
     DwmSetWindowAttribute(mWnd, DWMWA_NCRENDERING_POLICY, &policy, sizeof policy);
   }
 }
-#endif
 
 /**************************************************************
  *
@@ -7245,8 +7239,6 @@ nsWindow::GetAccessible()
  **************************************************************
  **************************************************************/
 
-#ifdef MOZ_XUL
-
 void nsWindow::SetWindowTranslucencyInner(nsTransparencyMode aMode)
 {
   if (aMode == mTransparencyMode)
@@ -7303,8 +7295,6 @@ void nsWindow::SetWindowTranslucencyInner(nsTransparencyMode aMode)
   }
   UpdateGlass();
 }
-
-#endif //MOZ_XUL
 
 /**************************************************************
  **************************************************************

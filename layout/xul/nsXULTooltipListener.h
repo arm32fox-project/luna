@@ -12,10 +12,8 @@
 #include "nsITimer.h"
 #include "nsCOMPtr.h"
 #include "nsString.h"
-#ifdef MOZ_XUL
 #include "nsITreeBoxObject.h"
 #include "nsITreeColumns.h"
-#endif
 #include "nsWeakPtr.h"
 #include "mozilla/Attributes.h"
 
@@ -50,10 +48,8 @@ protected:
 
   void KillTooltipTimer();
 
-#ifdef MOZ_XUL
   void CheckTreeBodyMove(nsIDOMMouseEvent* aMouseEvent);
   nsresult GetSourceTreeBoxObject(nsITreeBoxObject** aBoxObject);
-#endif
 
   nsresult ShowTooltip();
   void LaunchTooltip();
@@ -90,13 +86,11 @@ protected:
   // the next time the mouse enters the node (bug #395668).
   bool mTooltipShownOnce;
 
-#ifdef MOZ_XUL
-  // special members for handling trees
+  // Special members for handling XUL trees.
   bool mIsSourceTree;
   bool mNeedTitletip;
   int32_t mLastTreeRow;
   nsCOMPtr<nsITreeColumn> mLastTreeCol;
-#endif
 };
 
 #endif // nsXULTooltipListener

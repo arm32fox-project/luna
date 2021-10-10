@@ -1316,7 +1316,6 @@ KTableEntry nsCSSProps::kDisplayKTable[] = {
   // nsCSSFrameConstructor::ConstructXULFrame
   { eCSSKeyword__moz_box,            StyleDisplay::Box },
   { eCSSKeyword__moz_inline_box,     StyleDisplay::InlineBox },
-#ifdef MOZ_XUL
   { eCSSKeyword__moz_grid,           StyleDisplay::XulGrid },
   { eCSSKeyword__moz_inline_grid,    StyleDisplay::InlineXulGrid },
   { eCSSKeyword__moz_grid_group,     StyleDisplay::XulGridGroup },
@@ -1326,7 +1325,6 @@ KTableEntry nsCSSProps::kDisplayKTable[] = {
   { eCSSKeyword__moz_deck,           StyleDisplay::Deck },
   { eCSSKeyword__moz_popup,          StyleDisplay::Popup },
   { eCSSKeyword__moz_groupbox,       StyleDisplay::Groupbox },
-#endif
   { eCSSKeyword_flex,                StyleDisplay::Flex },
   { eCSSKeyword_inline_flex,         StyleDisplay::InlineFlex },
   { eCSSKeyword_ruby,                StyleDisplay::Ruby },

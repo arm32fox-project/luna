@@ -499,7 +499,6 @@ struct MOZ_STACK_CLASS AnonBoxRuleProcessorData : public RuleProcessorData {
   nsIAtom* mPseudoTag;
 };
 
-#ifdef MOZ_XUL
 struct MOZ_STACK_CLASS XULTreeRuleProcessorData :
                           public ElementDependentRuleProcessorData {
   XULTreeRuleProcessorData(nsPresContext* aPresContext,
@@ -522,7 +521,6 @@ struct MOZ_STACK_CLASS XULTreeRuleProcessorData :
   nsIAtom*                 mPseudoTag;
   nsICSSPseudoComparator*  mComparator;
 };
-#endif
 
 struct MOZ_STACK_CLASS StateRuleProcessorData :
                           public ElementDependentRuleProcessorData {

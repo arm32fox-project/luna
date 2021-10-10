@@ -10759,12 +10759,10 @@ void DR_State::InitFrameTypeTable()
   AddFrameTypeInfo(nsGkAtoms::textInputFrame,        "textCtl",   "textInput");
   AddFrameTypeInfo(nsGkAtoms::textFrame,             "text",      "text");
   AddFrameTypeInfo(nsGkAtoms::viewportFrame,         "VP",        "viewport");
-#ifdef MOZ_XUL
   AddFrameTypeInfo(nsGkAtoms::XULLabelFrame,         "XULLabel",  "XULLabel");
   AddFrameTypeInfo(nsGkAtoms::boxFrame,              "Box",       "Box");
   AddFrameTypeInfo(nsGkAtoms::sliderFrame,           "Slider",    "Slider");
   AddFrameTypeInfo(nsGkAtoms::popupSetFrame,         "PopupSet",  "PopupSet");
-#endif
   AddFrameTypeInfo(nullptr,                          "unknown",   "unknown");
 }
 
@@ -11382,10 +11380,8 @@ ReflowInput::DisplayInitFrameTypeExit(nsIFrame* aFrame,
       "grid", "inline-grid", "ruby", "ruby-base", "ruby-base-container",
       "ruby-text", "ruby-text-container", "contents", "-webkit-box",
       "-webkit-inline-box", "box", "inline-box",
-#ifdef MOZ_XUL
       "grid", "inline-grid", "grid-group", "grid-line", "stack",
       "inline-stack", "deck", "groupbox", "popup",
-#endif
     };
     const uint32_t display = static_cast<uint32_t>(disp->mDisplay);
     if (display >= ArrayLength(displayTypes))

@@ -46,9 +46,7 @@
 #include "mozilla/StyleSheet.h"
 #include "mozilla/StyleSheetInlines.h"
 
-#ifdef MOZ_XUL
 #include "nsXULElement.h"
-#endif
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -1234,7 +1232,6 @@ nsXBLPrototypeBinding::ReadContentNode(nsIObjectInputStream* aStream,
 
   // Create XUL prototype elements, or regular elements for other namespaces.
   // This needs to match the code in nsXBLContentSink::CreateElement.
-#ifdef MOZ_XUL
   if (namespaceID == kNameSpaceID_XUL) {
     nsIURI* documentURI = aDocument->GetDocumentURI();
 
@@ -1265,8 +1262,7 @@ nsXBLPrototypeBinding::ReadContentNode(nsIObjectInputStream* aStream,
       nsCOMPtr<nsIAtom> nameAtom = NS_Atomize(name);
       if (namespaceID == kNameSpaceID_None) {
         attrs[i].mName.SetTo(nameAtom);
-      }
-      else {
+      } else {
         nsCOMPtr<nsIAtom> prefixAtom;
         if (!prefix.IsEmpty())
           prefixAtom = NS_Atomize(prefix);
@@ -1286,9 +1282,7 @@ nsXBLPrototypeBinding::ReadContentNode(nsIObjectInputStream* aStream,
       nsXULElement::Create(prototype, aDocument, false, false, getter_AddRefs(result));
     NS_ENSURE_SUCCESS(rv, rv);
     content = result;
-  }
-  else {
-#endif
+  } else {
     nsCOMPtr<Element> element;
     NS_NewElement(getter_AddRefs(element), nodeInfo.forget(), NOT_FROM_PARSER);
     content = element;
@@ -1312,10 +1306,7 @@ nsXBLPrototypeBinding::ReadContentNode(nsIObjectInputStream* aStream,
       nsCOMPtr<nsIAtom> nameAtom = NS_Atomize(name);
       content->SetAttr(namespaceID, nameAtom, prefixAtom, val, false);
     }
-
-#ifdef MOZ_XUL
   }
-#endif
 
   // Now read the attribute forwarding entries (xbl:inherits)
 

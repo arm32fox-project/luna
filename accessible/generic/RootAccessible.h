@@ -70,14 +70,12 @@ protected:
    */
   void HandlePopupHidingEvent(nsINode* aNode);
 
-#ifdef MOZ_XUL
-    void HandleTreeRowCountChangedEvent(nsIDOMEvent* aEvent,
-                                        XULTreeAccessible* aAccessible);
-    void HandleTreeInvalidatedEvent(nsIDOMEvent* aEvent,
-                                    XULTreeAccessible* aAccessible);
+  void HandleTreeRowCountChangedEvent(nsIDOMEvent* aEvent,
+                                      XULTreeAccessible* aAccessible);
+  void HandleTreeInvalidatedEvent(nsIDOMEvent* aEvent,
+                                  XULTreeAccessible* aAccessible);
 
-    uint32_t GetChromeFlags();
-#endif
+  uint32_t GetChromeFlags();
 };
 
 inline RootAccessible*

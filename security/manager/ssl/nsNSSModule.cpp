@@ -39,9 +39,7 @@
 #include "nsTLSSocketProvider.h"
 #include "nsXULAppAPI.h"
 
-#ifdef MOZ_XUL
 #include "nsCertTree.h"
-#endif
 
 #define NS_IS_PROCESS_DEFAULT                                                 \
     (GeckoProcessType_Default == XRE_GetProcessType())
@@ -196,9 +194,7 @@ NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(nssEnsure, nsNSSCertificateDB)
 NS_NSS_GENERIC_FACTORY_CONSTRUCTOR_BYPROCESS(nssEnsureOnChromeOnly,
                                              nsNSSCertList,
                                              nsNSSCertListFakeTransport)
-#ifdef MOZ_XUL
 NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(nssEnsure, nsCertTree)
-#endif
 NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(nssEnsure, nsPkcs11)
 NS_NSS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nssEnsure, nsNTLMAuthModule, InitTest)
 NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(nssEnsureChromeOrContent, nsCryptoHash)
@@ -232,9 +228,7 @@ NS_DEFINE_NAMED_CID(NS_X509CERT_CID);
 NS_DEFINE_NAMED_CID(NS_X509CERTDB_CID);
 NS_DEFINE_NAMED_CID(NS_X509CERTLIST_CID);
 NS_DEFINE_NAMED_CID(NS_FORMPROCESSOR_CID);
-#ifdef MOZ_XUL
 NS_DEFINE_NAMED_CID(NS_CERTTREE_CID);
-#endif
 NS_DEFINE_NAMED_CID(NS_PKCS11_CID);
 NS_DEFINE_NAMED_CID(NS_CRYPTO_HASH_CID);
 NS_DEFINE_NAMED_CID(NS_CRYPTO_HMAC_CID);
@@ -267,9 +261,7 @@ static const mozilla::Module::CIDEntry kNSSCIDs[] = {
   { &kNS_X509CERTDB_CID, false, nullptr, nsNSSCertificateDBConstructor },
   { &kNS_X509CERTLIST_CID, false, nullptr, nsNSSCertListConstructor },
   { &kNS_FORMPROCESSOR_CID, false, nullptr, nsKeygenFormProcessor::Create },
-#ifdef MOZ_XUL
   { &kNS_CERTTREE_CID, false, nullptr, nsCertTreeConstructor },
-#endif
   { &kNS_PKCS11_CID, false, nullptr, nsPkcs11Constructor },
   { &kNS_CRYPTO_HASH_CID, false, nullptr, nsCryptoHashConstructor },
   { &kNS_CRYPTO_HMAC_CID, false, nullptr, nsCryptoHMACConstructor },
@@ -305,9 +297,7 @@ static const mozilla::Module::ContractIDEntry kNSSContracts[] = {
   { NS_X509CERTDB_CONTRACTID, &kNS_X509CERTDB_CID },
   { NS_X509CERTLIST_CONTRACTID, &kNS_X509CERTLIST_CID },
   { NS_FORMPROCESSOR_CONTRACTID, &kNS_FORMPROCESSOR_CID },
-#ifdef MOZ_XUL
   { NS_CERTTREE_CONTRACTID, &kNS_CERTTREE_CID },
-#endif
   { NS_PKCS11_CONTRACTID, &kNS_PKCS11_CID },
   { NS_CRYPTO_HASH_CONTRACTID, &kNS_CRYPTO_HASH_CID },
   { NS_CRYPTO_HMAC_CONTRACTID, &kNS_CRYPTO_HMAC_CID },

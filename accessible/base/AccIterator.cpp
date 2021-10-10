@@ -5,9 +5,7 @@
 #include "AccIterator.h"
 
 #include "AccGroupInfo.h"
-#ifdef MOZ_XUL
 #include "XULTreeAccessible.h"
-#endif
 
 #include "mozilla/dom/HTMLLabelElement.h"
 

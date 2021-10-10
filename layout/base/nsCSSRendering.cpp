@@ -879,13 +879,7 @@ nsCSSRendering::PaintOutline(nsPresContext* aPresContext,
     bgContext->GetVisitedDependentColor(eCSSProperty_background_color);
 
   nsRect innerRect;
-  if (
-#ifdef MOZ_XUL
-      aStyleContext->GetPseudoType() == CSSPseudoElementType::XULTree
-#else
-      false
-#endif
-     ) {
+  if (aStyleContext->GetPseudoType() == CSSPseudoElementType::XULTree) {
     innerRect = aBorderArea;
   } else {
     innerRect = GetOutlineInnerRect(aForFrame) + aBorderArea.TopLeft();

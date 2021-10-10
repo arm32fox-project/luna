@@ -20,9 +20,7 @@ public:
   static void AddRefAtoms();
 
   static bool IsAnonBox(nsIAtom *aAtom);
-#ifdef MOZ_XUL
   static bool IsTreePseudoElement(nsIAtom* aPseudo);
-#endif
   static bool IsNonElement(nsIAtom* aPseudo)
     { return aPseudo == mozText || aPseudo == mozOtherNonElement; }
 

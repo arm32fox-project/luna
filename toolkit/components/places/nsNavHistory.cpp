@@ -38,10 +38,8 @@
 #include "mozilla/Preferences.h"
 #include <algorithm>
 
-#ifdef MOZ_XUL
 #include "nsIAutoCompleteInput.h"
 #include "nsIAutoCompletePopup.h"
-#endif
 
 using namespace mozilla;
 using namespace mozilla::places;
@@ -126,9 +124,7 @@ using namespace mozilla::places;
 #define RECENT_EVENTS_INITIAL_CACHE_LENGTH 64
 
 // Observed topics.
-#ifdef MOZ_XUL
 #define TOPIC_AUTOCOMPLETE_FEEDBACK_INCOMING "autocomplete-will-enter-text"
-#endif
 #define TOPIC_IDLE_DAILY "idle-daily"
 #define TOPIC_PREF_CHANGED "nsPref:changed"
 #define TOPIC_PROFILE_TEARDOWN "profile-change-teardown"
@@ -319,9 +315,7 @@ nsNavHistory::Init()
   if (obsSvc) {
     (void)obsSvc->AddObserver(this, TOPIC_PLACES_CONNECTION_CLOSED, true);
     (void)obsSvc->AddObserver(this, TOPIC_IDLE_DAILY, true);
-#ifdef MOZ_XUL
     (void)obsSvc->AddObserver(this, TOPIC_AUTOCOMPLETE_FEEDBACK_INCOMING, true);
-#endif
   }
 
   // Don't add code that can fail here! Do it up above, before we add our
@@ -2997,17 +2991,12 @@ nsNavHistory::Observe(nsISupports *aSubject, const char *aTopic,
     // These notifications are used by tests to simulate a Places shutdown.
     // They should just be forwarded to the Database handle.
     mDB->Observe(aSubject, aTopic, aData);
-  }
-
-  else if (strcmp(aTopic, TOPIC_PLACES_CONNECTION_CLOSED) == 0) {
+  } else if (strcmp(aTopic, TOPIC_PLACES_CONNECTION_CLOSED) == 0) {
     // Don't even try to notify observers from this point on, the category
     // cache would init services that could try to use our APIs.
     mCanNotify = false;
     mObservers.Clear();
-  }
-
-#ifdef MOZ_XUL
-  else if (strcmp(aTopic, TOPIC_AUTOCOMPLETE_FEEDBACK_INCOMING) == 0) {
+  } else if (strcmp(aTopic, TOPIC_AUTOCOMPLETE_FEEDBACK_INCOMING) == 0) {
     nsCOMPtr<nsIAutoCompleteInput> input = do_QueryInterface(aSubject);
     if (!input)
       return NS_OK;
@@ -3045,14 +3034,9 @@ nsNavHistory::Observe(nsISupports *aSubject, const char *aTopic,
 
     rv = AutoCompleteFeedback(selectedIndex, controller);
     NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-#endif
-  else if (strcmp(aTopic, TOPIC_PREF_CHANGED) == 0) {
+  } else if (strcmp(aTopic, TOPIC_PREF_CHANGED) == 0) {
     LoadPrefs();
-  }
-
-  else if (strcmp(aTopic, TOPIC_IDLE_DAILY) == 0) {
+  } else if (strcmp(aTopic, TOPIC_IDLE_DAILY) == 0) {
     (void)DecayFrecency();
   }
 
@@ -4426,8 +4410,6 @@ nsNavHistory::FixInvalidFrecencies()
 }
 
 
-#ifdef MOZ_XUL
-
 nsresult
 nsNavHistory::AutoCompleteFeedback(int32_t aIndex,
                                    nsIAutoCompleteController *aController)
@@ -4464,9 +4446,6 @@ nsNavHistory::AutoCompleteFeedback(int32_t aIndex,
 
   return NS_OK;
 }
-
-#endif
-
 
 nsICollation *
 nsNavHistory::GetCollation()

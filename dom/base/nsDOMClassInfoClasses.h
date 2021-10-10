@@ -14,19 +14,12 @@ DOMCI_CLASS(CSSMediaRule)
 DOMCI_CLASS(CSSNameSpaceRule)
 
 // XUL classes
-#ifdef MOZ_XUL
 DOMCI_CLASS(XULCommandDispatcher)
-#endif
 DOMCI_CLASS(XULControllers)
-#ifdef MOZ_XUL
 DOMCI_CLASS(TreeSelection)
 DOMCI_CLASS(TreeContentView)
-#endif
-
-#ifdef MOZ_XUL
 DOMCI_CLASS(XULTemplateBuilder)
 DOMCI_CLASS(XULTreeBuilder)
-#endif
 
 DOMCI_CLASS(CSSMozDocumentRule)
 DOMCI_CLASS(CSSSupportsRule)

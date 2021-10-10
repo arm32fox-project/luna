@@ -92,14 +92,12 @@ SVGAttrAnimationRuleProcessor::RulesMatching(AnonBoxRuleProcessorData* aData)
   // see comment in RulesMatching(PseudoElementRuleProcessorData*).
 }
 
-#ifdef MOZ_XUL
 /* virtual */ void
 SVGAttrAnimationRuleProcessor::RulesMatching(XULTreeRuleProcessorData* aData)
 {
   // If SMIL Animation of SVG attributes can ever target XUL tree pseudos,
   // see comment in RulesMatching(PseudoElementRuleProcessorData*).
 }
-#endif
 
 /* virtual */ size_t
 SVGAttrAnimationRuleProcessor::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const

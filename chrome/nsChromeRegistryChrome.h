@@ -41,12 +41,10 @@ class nsChromeRegistryChrome : public nsChromeRegistry
   NS_IMETHOD Observe(nsISupports *aSubject, const char *aTopic,
                      const char16_t *someData) override;
 
-#ifdef MOZ_XUL
   NS_IMETHOD GetXULOverlays(nsIURI *aURI,
                             nsISimpleEnumerator **_retval) override;
   NS_IMETHOD GetStyleOverlays(nsIURI *aURI,
                               nsISimpleEnumerator **_retval) override;
-#endif
 
   // If aChild is non-null then it is a new child to notify. If aChild is
   // null, then we have installed new chrome and we are resetting all of our

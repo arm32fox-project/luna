@@ -57,10 +57,8 @@
 #include "mozilla/Unused.h"
 #include <algorithm>
 
-#ifdef MOZ_XUL
 #include "nsIDOMXULTextboxElement.h"
 #include "nsIDOMXULMenuListElement.h"
-#endif
 
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"
@@ -328,7 +326,6 @@ nsFocusManager::GetRedirectedFocus(nsIContent* aContent)
     }
   }
 
-#ifdef MOZ_XUL
   if (aContent->IsXULElement()) {
     nsCOMPtr<nsIDOMNode> inputField;
 
@@ -360,7 +357,6 @@ nsFocusManager::GetRedirectedFocus(nsIContent* aContent)
       return retval;
     }
   }
-#endif
 
   return nullptr;
 }
@@ -2713,7 +2709,6 @@ nsFocusManager::DetermineElementToMoveFocus(nsPIDOMWindowOuter* aWindow,
     }
   }
   else {
-#ifdef MOZ_XUL
     if (aType != MOVEFOCUS_CARET) {
       // if there is no focus, yet a panel is open, focus the first item in
       // the panel
@@ -2721,7 +2716,6 @@ nsFocusManager::DetermineElementToMoveFocus(nsPIDOMWindowOuter* aWindow,
       if (pm)
         popupFrame = pm->GetTopPopup(ePopupTypePanel);
     }
-#endif
     if (popupFrame) {
       // When there is a popup open, and no starting content, start the search
       // at the topmost popup.

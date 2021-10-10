@@ -5,13 +5,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * This Original Code has been modified by IBM Corporation.
- * Modifications made by IBM described herein are Copyright (c)
- * International Business Machines Corporation, 2000.  Modifications
- * to Mozilla code or documentation identified per MPL Section 3.3
- *
- * Date             Modified by     Description of modification
- * 04/20/2000       IBM Corp.      OS/2 VisualAge build.
  */
 
 /* loading of CSS style sheets using the network APIs */
@@ -58,9 +51,7 @@
 #include "mozilla/StyleSheetInlines.h"
 #include "mozilla/ConsoleReportCollector.h"
 
-#ifdef MOZ_XUL
 #include "nsXULPrototypeCache.h"
-#endif
 
 #include "nsIMediaList.h"
 #include "nsIDOMStyleSheet.h"
@@ -1104,7 +1095,6 @@ Loader::CreateSheet(nsIURI* aURI,
     RefPtr<StyleSheet> sheet;
 
     // First, the XUL cache
-#ifdef MOZ_XUL
     if (IsChromeURI(aURI)) {
       nsXULPrototypeCache* cache = nsXULPrototypeCache::GetInstance();
       if (cache) {
@@ -1114,7 +1104,6 @@ Loader::CreateSheet(nsIURI* aURI,
         }
       }
     }
-#endif
 
     bool fromCompleteSheets = false;
     if (!sheet) {
@@ -1945,7 +1934,6 @@ Loader::DoSheetComplete(SheetLoadData* aLoadData, nsresult aStatus,
         }
         data = data->mNext;
       }
-#ifdef MOZ_XUL
       if (IsChromeURI(aLoadData->mURI)) {
         nsXULPrototypeCache* cache = nsXULPrototypeCache::GetInstance();
         if (cache && cache->IsEnabled()) {
@@ -1956,9 +1944,7 @@ Loader::DoSheetComplete(SheetLoadData* aLoadData, nsresult aStatus,
             cache->PutStyleSheet(sheet);
           }
         }
-      }
-      else {
-#endif
+      } else {
         URIPrincipalReferrerPolicyAndCORSModeHashKey key(aLoadData->mURI,
                                            aLoadData->mLoaderPrincipal,
                                            aLoadData->mSheet->GetCORSMode(),
@@ -1966,9 +1952,7 @@ Loader::DoSheetComplete(SheetLoadData* aLoadData, nsresult aStatus,
         NS_ASSERTION(sheet->IsComplete(),
                      "Should only be caching complete sheets");
         mSheets->mCompleteSheets.Put(&key, sheet);
-#ifdef MOZ_XUL
       }
-#endif
     } else {
       NS_WARNING("stylo: Stylesheet caching not yet supported - see bug 1290218.");
     }

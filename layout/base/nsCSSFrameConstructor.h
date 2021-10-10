@@ -633,11 +633,9 @@ private:
   /* If FCDATA_MAY_NEED_SCROLLFRAME is set, the new frame should be wrapped in
      a scrollframe if its overflow type so requires. */
 #define FCDATA_MAY_NEED_SCROLLFRAME 0x80
-#ifdef MOZ_XUL
   /* If FCDATA_IS_POPUP is set, the new frame is a XUL popup frame.  These need
      some really weird special handling.  */
 #define FCDATA_IS_POPUP 0x100
-#endif /* MOZ_XUL */
   /* If FCDATA_SKIP_ABSPOS_PUSH is set, don't push this frame as an
      absolute containing block, no matter what its style says. */
 #define FCDATA_SKIP_ABSPOS_PUSH 0x200
@@ -1462,7 +1460,6 @@ private:
                                                      int32_t aNameSpaceID,
                                                      nsStyleContext* aStyleContext);
   // XUL data-finding helper functions and structures
-#ifdef MOZ_XUL
   static const FrameConstructionData*
     FindPopupGroupData(Element* aElement, nsStyleContext* aStyleContext);
   // sXULTextBoxData used for both labels and descriptions
@@ -1475,7 +1472,6 @@ private:
     FindXULListBoxBodyData(Element* aElement, nsStyleContext* aStyleContext);
   static const FrameConstructionData*
     FindXULListItemData(Element* aElement, nsStyleContext* aStyleContext);
-#endif /* MOZ_XUL */
 
   // Function to find FrameConstructionData for aContent using one of the XUL
   // display types.  Will return null if aDisplay doesn't have a XUL display

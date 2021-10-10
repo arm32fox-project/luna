@@ -42,11 +42,9 @@ bool nsCSSAnonBoxes::IsAnonBox(nsIAtom *aAtom)
                                    ArrayLength(CSSAnonBoxes_info));
 }
 
-#ifdef MOZ_XUL
 /* static */ bool
 nsCSSAnonBoxes::IsTreePseudoElement(nsIAtom* aPseudo)
 {
   return StringBeginsWith(nsDependentAtomString(aPseudo),
                           NS_LITERAL_STRING(":-moz-tree-"));
 }
-#endif

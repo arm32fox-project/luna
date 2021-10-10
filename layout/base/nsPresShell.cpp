@@ -149,7 +149,6 @@
 // For style data reconstruction
 #include "nsStyleChangeList.h"
 #include "nsCSSFrameConstructor.h"
-#ifdef MOZ_XUL
 #include "nsMenuFrame.h"
 #include "nsTreeBodyFrame.h"
 #include "nsIBoxObject.h"
@@ -159,9 +158,6 @@
 #include "nsIDOMXULMultSelectCntrlEl.h"
 #include "nsIDOMXULSelectCntrlItemEl.h"
 #include "nsIDOMXULMenuListElement.h"
-
-#endif
-
 #include "GeckoProfiler.h"
 #include "gfxPlatform.h"
 #include "Layers.h"
@@ -951,9 +947,7 @@ PresShell::Init(nsIDocument* aDocument,
       os->AddObserver(this, "agent-sheet-removed", false);
       os->AddObserver(this, "user-sheet-removed", false);
       os->AddObserver(this, "author-sheet-removed", false);
-#ifdef MOZ_XUL
       os->AddObserver(this, "chrome-flush-skin-caches", false);
-#endif
       os->AddObserver(this, "memory-pressure", false);
     }
   }
@@ -1165,9 +1159,7 @@ PresShell::Destroy()
       os->RemoveObserver(this, "agent-sheet-removed");
       os->RemoveObserver(this, "user-sheet-removed");
       os->RemoveObserver(this, "author-sheet-removed");
-#ifdef MOZ_XUL
       os->RemoveObserver(this, "chrome-flush-skin-caches");
-#endif
       os->RemoveObserver(this, "memory-pressure");
     }
   }
@@ -8336,7 +8328,6 @@ PresShell::HandleDOMEventWithTarget(nsIContent* aTargetContent,
 bool
 PresShell::AdjustContextMenuKeyEvent(WidgetMouseEvent* aEvent)
 {
-#ifdef MOZ_XUL
   // if a menu is open, open the context menu relative to the active item on the menu.
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
   if (pm) {
@@ -8359,7 +8350,6 @@ PresShell::AdjustContextMenuKeyEvent(WidgetMouseEvent* aEvent)
       return true;
     }
   }
-#endif
 
   // If we're here because of the key-equiv for showing context menus, we
   // have to twiddle with the NS event to make sure the context menu comes
@@ -8562,7 +8552,6 @@ PresShell::GetCurrentItemAndPositionForElement(nsIDOMElement *aCurrentEl,
   bool istree = false, checkLineHeight = true;
   nscoord extraTreeY = 0;
 
-#ifdef MOZ_XUL
   // Set the position to just underneath the current item for multi-select
   // lists or just underneath the selected item for single-select lists. If
   // the element is not a list, or there is no selection, leave the position
@@ -8635,7 +8624,6 @@ PresShell::GetCurrentItemAndPositionForElement(nsIDOMElement *aCurrentEl,
 
   if (item)
     focusedContent = do_QueryInterface(item);
-#endif
 
   nsIFrame *frame = focusedContent->GetPrimaryFrame();
   if (frame) {
@@ -9411,7 +9399,6 @@ PresShell::WindowSizeMoveDone()
   }
 }
 
-#ifdef MOZ_XUL
 /*
  * It's better to add stuff to the |DidSetStyleContext| method of the
  * relevant frames than adding it here.  These methods should (ideally,
@@ -9475,7 +9462,6 @@ WalkFramesThroughPlaceholders(nsPresContext *aPresContext, nsIFrame *aFrame,
     }
   }
 }
-#endif
 
 NS_IMETHODIMP
 PresShell::Observe(nsISupports* aSubject,
@@ -9487,7 +9473,6 @@ PresShell::Observe(nsISupports* aSubject,
     return NS_OK;
   }
 
-#ifdef MOZ_XUL
   if (!nsCRT::strcmp(aTopic, "chrome-flush-skin-caches")) {
     nsIFrame *rootFrame = mFrameConstructor->GetRootFrame();
     // Need to null-check because "chrome-flush-skin-caches" can happen
@@ -9527,7 +9512,6 @@ PresShell::Observe(nsISupports* aSubject,
     }
     return NS_OK;
   }
-#endif
 
   if (!nsCRT::strcmp(aTopic, "agent-sheet-added")) {
     if (mStyleSet) {

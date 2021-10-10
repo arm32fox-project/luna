@@ -886,13 +886,11 @@ EffectCompositor::AnimationStyleRuleProcessor::RulesMatching(
 {
 }
 
-#ifdef MOZ_XUL
 void
 EffectCompositor::AnimationStyleRuleProcessor::RulesMatching(
   XULTreeRuleProcessorData* aData)
 {
 }
-#endif
 
 size_t
 EffectCompositor::AnimationStyleRuleProcessor::SizeOfExcludingThis(

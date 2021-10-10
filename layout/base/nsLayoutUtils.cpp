@@ -118,11 +118,7 @@
 #include "RegionBuilder.h"
 #include "SVGSVGElement.h"
 #include "nsDocument.h"
-
-#ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
-#endif
-
 #include "GeckoProfiler.h"
 #include "nsAnimationManager.h"
 #include "nsTransitionManager.h"
@@ -1443,7 +1439,6 @@ nsLayoutUtils::GetChildListNameFor(nsIFrame* aChildFrame)
       } else {
         id = nsIFrame::kAbsoluteList;
       }
-#ifdef MOZ_XUL
     } else if (StyleDisplay::Popup == disp->mDisplay) {
       // Out-of-flows that are DISPLAY_POPUP must be kids of the root popup set
 #ifdef DEBUG
@@ -1453,7 +1448,6 @@ nsLayoutUtils::GetChildListNameFor(nsIFrame* aChildFrame)
 #endif // DEBUG
 
       id = nsIFrame::kPopupList;
-#endif // MOZ_XUL
     } else {
       NS_ASSERTION(aChildFrame->IsFloating(), "not a floated frame");
       id = nsIFrame::kFloatList;
@@ -2280,7 +2274,6 @@ nsIFrame*
 nsLayoutUtils::GetPopupFrameForEventCoordinates(nsPresContext* aPresContext,
                                                 const WidgetEvent* aEvent)
 {
-#ifdef MOZ_XUL
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
   if (!pm) {
     return nullptr;
@@ -2297,7 +2290,6 @@ nsLayoutUtils::GetPopupFrameForEventCoordinates(nsPresContext* aPresContext,
       return popup;
     }
   }
-#endif
   return nullptr;
 }
 

@@ -19,9 +19,7 @@
 #include "Relation.h"
 #include "Role.h"
 #include "States.h"
-#ifdef MOZ_XUL
 #include "XULTreeAccessible.h"
-#endif
 
 #include "mozilla/dom/Element.h"
 
@@ -43,10 +41,8 @@
 #include "nsFocusManager.h"
 #include "nsGlobalWindow.h"
 
-#ifdef MOZ_XUL
 #include "nsIXULDocument.h"
 #include "nsIXULWindow.h"
-#endif
 
 using namespace mozilla;
 using namespace mozilla::a11y;
@@ -102,7 +98,6 @@ RootAccessible::NativeRole()
 }
 
 // RootAccessible protected member
-#ifdef MOZ_XUL
 uint32_t
 RootAccessible::GetChromeFlags()
 {
@@ -122,7 +117,6 @@ RootAccessible::GetChromeFlags()
   xulWin->GetChromeFlags(&chromeFlags);
   return chromeFlags;
 }
-#endif
 
 uint64_t
 RootAccessible::NativeState()
@@ -131,7 +125,6 @@ RootAccessible::NativeState()
   if (state & states::DEFUNCT)
     return state;
 
-#ifdef MOZ_XUL
   uint32_t chromeFlags = GetChromeFlags();
   if (chromeFlags & nsIWebBrowserChrome::CHROME_WINDOW_RESIZE)
     state |= states::SIZEABLE;
@@ -142,7 +135,6 @@ RootAccessible::NativeState()
     state |= states::MOVEABLE;
   if (chromeFlags & nsIWebBrowserChrome::CHROME_MODAL)
     state |= states::MODAL;
-#endif
 
   nsFocusManager* fm = nsFocusManager::GetFocusManager();
   if (fm && fm->GetActiveWindow() == mDocumentNode->GetWindow())
@@ -292,7 +284,6 @@ RootAccessible::ProcessDOMEvent(nsIDOMEvent* aDOMEvent)
   if (!accessible)
     return;
 
-#ifdef MOZ_XUL
   XULTreeAccessible* treeAcc = accessible->AsXULTree();
   if (treeAcc) {
     if (eventType.EqualsLiteral("TreeRowCountChanged")) {
@@ -305,7 +296,6 @@ RootAccessible::ProcessDOMEvent(nsIDOMEvent* aDOMEvent)
       return;
     }
   }
-#endif
 
   if (eventType.EqualsLiteral("RadioStateChange")) {
     uint64_t state = accessible->State();
@@ -341,7 +331,6 @@ RootAccessible::ProcessDOMEvent(nsIDOMEvent* aDOMEvent)
   }
 
   Accessible* treeItemAcc = nullptr;
-#ifdef MOZ_XUL
   // If it's a tree element, need the currently selected item.
   if (treeAcc) {
     treeItemAcc = accessible->CurrentItem();
@@ -385,29 +374,22 @@ RootAccessible::ProcessDOMEvent(nsIDOMEvent* aDOMEvent)
       nsEventShell::FireEvent(selChangeEvent);
       return;
     }
-  }
-  else
-#endif
-  if (eventType.EqualsLiteral("AlertActive")) {
+  } else if (eventType.EqualsLiteral("AlertActive")) {
     nsEventShell::FireEvent(nsIAccessibleEvent::EVENT_ALERT, accessible);
-  }
-  else if (eventType.EqualsLiteral("popupshown")) {
+  } else if (eventType.EqualsLiteral("popupshown")) {
     HandlePopupShownEvent(accessible);
-  }
-  else if (eventType.EqualsLiteral("DOMMenuInactive")) {
+  } else if (eventType.EqualsLiteral("DOMMenuInactive")) {
     if (accessible->Role() == roles::MENUPOPUP) {
       nsEventShell::FireEvent(nsIAccessibleEvent::EVENT_MENUPOPUP_END,
                               accessible);
     }
-  }
-  else if (eventType.EqualsLiteral("DOMMenuItemActive")) {
+  } else if (eventType.EqualsLiteral("DOMMenuItemActive")) {
     FocusMgr()->ActiveItemChanged(accessible);
 #ifdef A11Y_LOG
     if (logging::IsEnabled(logging::eFocus))
       logging::ActiveItemChangeCausedBy("DOMMenuItemActive", accessible);
 #endif
-  }
-  else if (eventType.EqualsLiteral("DOMMenuItemInactive")) {
+  } else if (eventType.EqualsLiteral("DOMMenuItemInactive")) {
     // Process DOMMenuItemInactive event for autocomplete only because this is
     // unique widget that may acquire focus from autocomplete popup while popup
     // stays open and has no active item. In case of XUL tree autocomplete
@@ -421,8 +403,7 @@ RootAccessible::ProcessDOMEvent(nsIDOMEvent* aDOMEvent)
         logging::ActiveItemChangeCausedBy("DOMMenuItemInactive", accessible);
 #endif
     }
-  }
-  else if (eventType.EqualsLiteral("DOMMenuBarActive")) {  // Always from user input
+  } else if (eventType.EqualsLiteral("DOMMenuBarActive")) {  // Always from user input
     nsEventShell::FireEvent(nsIAccessibleEvent::EVENT_MENU_START,
                             accessible, eFromUserInput);
 
@@ -440,8 +421,7 @@ RootAccessible::ProcessDOMEvent(nsIDOMEvent* aDOMEvent)
         logging::ActiveItemChangeCausedBy("DOMMenuBarActive", accessible);
 #endif
     }
-  }
-  else if (eventType.EqualsLiteral("DOMMenuBarInactive")) {  // Always from user input
+  } else if (eventType.EqualsLiteral("DOMMenuBarInactive")) {  // Always from user input
     nsEventShell::FireEvent(nsIAccessibleEvent::EVENT_MENU_END,
                             accessible, eFromUserInput);
 
@@ -450,8 +430,7 @@ RootAccessible::ProcessDOMEvent(nsIDOMEvent* aDOMEvent)
     if (logging::IsEnabled(logging::eFocus))
       logging::ActiveItemChangeCausedBy("DOMMenuBarInactive", accessible);
 #endif
-  }
-  else if (accessible->NeedsDOMUIEvent() &&
+  } else if (accessible->NeedsDOMUIEvent() &&
            eventType.EqualsLiteral("ValueChange")) {
     uint32_t event = accessible->HasNumericValue()
       ? nsIAccessibleEvent::EVENT_VALUE_CHANGE
@@ -650,7 +629,6 @@ RootAccessible::HandlePopupHidingEvent(nsINode* aPopupNode)
   }
 }
 
-#ifdef MOZ_XUL
 void
 RootAccessible::HandleTreeRowCountChangedEvent(nsIDOMEvent* aEvent,
                                                XULTreeAccessible* aAccessible)
@@ -714,7 +692,6 @@ RootAccessible::HandleTreeInvalidatedEvent(nsIDOMEvent* aEvent,
 
   aAccessible->TreeViewInvalidated(startRow, endRow, startCol, endCol);
 }
-#endif
 
 ProxyAccessible*
 RootAccessible::GetPrimaryRemoteTopLevelContentDoc() const

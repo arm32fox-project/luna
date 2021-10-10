@@ -832,7 +832,6 @@ size_t nsCaret::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
 
 bool nsCaret::IsMenuPopupHidingCaret()
 {
-#ifdef MOZ_XUL
   // Check if there are open popups.
   nsXULPopupManager *popMgr = nsXULPopupManager::GetInstance();
   nsTArray<nsIFrame*> popups;
@@ -873,7 +872,6 @@ bool nsCaret::IsMenuPopupHidingCaret()
       return true;
     }
   }
-#endif
 
   // There are no open menu popups, no need to hide the caret.
   return false;

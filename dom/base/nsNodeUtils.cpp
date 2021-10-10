@@ -18,9 +18,7 @@
 #include "nsCOMArray.h"
 #include "nsPIDOMWindow.h"
 #include "nsDocument.h"
-#ifdef MOZ_XUL
 #include "nsXULElement.h"
-#endif
 #include "nsBindingManager.h"
 #include "nsGenericHTMLElement.h"
 #include "mozilla/AnimationTarget.h"
@@ -684,13 +682,11 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
   // Note: Make sure to do this witchery _after_ we've done any deep
   // cloning, so kids of the new node aren't confused about whether they're
   // in a document.
-#ifdef MOZ_XUL
   if (aClone && !aParent && aNode->IsXULElement()) {
     if (!aNode->OwnerDoc()->IsLoadedAsInteractiveData()) {
       clone->SetFlags(NODE_FORCE_XBL_BINDINGS);
     }
   }
-#endif
 
   clone.forget(aResult);
 

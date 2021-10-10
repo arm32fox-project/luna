@@ -33,14 +33,10 @@ SOURCES += [
     'RootAccessibleWrap.cpp',
     'ServiceProvider.cpp',
     'TextLeafAccessibleWrap.cpp',
+    'XULListboxAccessibleWrap.cpp',
+    'XULMenuAccessibleWrap.cpp',
+    'XULTreeGridAccessibleWrap.cpp',
 ]
-
-if CONFIG['MOZ_XUL']:
-    SOURCES += [
-        'XULListboxAccessibleWrap.cpp',
-        'XULMenuAccessibleWrap.cpp',
-        'XULTreeGridAccessibleWrap.cpp',
-    ]
 
 LOCAL_INCLUDES += [
     '/accessible/base',

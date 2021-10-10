@@ -18,9 +18,7 @@
 #include "nsIDocument.h"
 #include "nsContentUtils.h"
 #include "ChildIterator.h"
-#ifdef MOZ_XUL
 #include "nsIXULDocument.h"
-#endif
 #include "nsIXMLContentSink.h"
 #include "nsContentCID.h"
 #include "mozilla/dom/XMLDocument.h"
@@ -227,14 +225,12 @@ nsXBLBinding::InstallAnonymousContent(nsIContent* aAnonParent, nsIContent* aElem
 
     child->SetFlags(NODE_IS_ANONYMOUS_ROOT);
 
-#ifdef MOZ_XUL
     // To make XUL templates work (and other goodies that happen when
     // an element is added to a XUL document), we need to notify the
     // XUL document using its special API.
     nsCOMPtr<nsIXULDocument> xuldoc(do_QueryInterface(doc));
     if (xuldoc)
       xuldoc->AddSubtreeToDocument(child);
-#endif
   }
 }
 
@@ -245,19 +241,15 @@ nsXBLBinding::UninstallAnonymousContent(nsIDocument* aDocument,
   nsAutoScriptBlocker scriptBlocker;
   // Hold a strong ref while doing this, just in case.
   nsCOMPtr<nsIContent> anonParent = aAnonParent;
-#ifdef MOZ_XUL
   nsCOMPtr<nsIXULDocument> xuldoc =
     do_QueryInterface(aDocument);
-#endif
   for (nsIContent* child = aAnonParent->GetFirstChild();
        child;
        child = child->GetNextSibling()) {
     child->UnbindFromTree();
-#ifdef MOZ_XUL
     if (xuldoc) {
       xuldoc->RemoveSubtreeFromDocument(child);
     }
-#endif
   }
 }
 

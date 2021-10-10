@@ -14,6 +14,7 @@ XPIDL_SOURCES += [
     'nsICertBlocklist.idl',
     'nsICertificateDialogs.idl',
     'nsICertOverrideService.idl',
+    'nsICertTree.idl',
     'nsIClientAuthDialogs.idl',
     'nsIContentSignatureVerifier.idl',
     'nsIDataSignatureVerifier.idl',
@@ -43,11 +44,6 @@ XPIDL_SOURCES += [
     'nsIX509CertList.idl',
     'nsIX509CertValidity.idl',
 ]
-
-if CONFIG['MOZ_XUL']:
-    XPIDL_SOURCES += [
-        'nsICertTree.idl',
-    ]
 
 XPIDL_MODULE = 'pipnss'
 
@@ -151,10 +147,9 @@ if not CONFIG['MOZ_NO_SMART_CARDS']:
         'nsSmartCardMonitor.cpp',
     ]
 
-if CONFIG['MOZ_XUL']:
-    UNIFIED_SOURCES += [
-        'nsCertTree.cpp',
-    ]
+UNIFIED_SOURCES += [
+    'nsCertTree.cpp',
+]
 
 UNIFIED_SOURCES += [
     'md4.c',

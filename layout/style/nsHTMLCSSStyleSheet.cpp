@@ -119,12 +119,10 @@ nsHTMLCSSStyleSheet::RulesMatching(AnonBoxRuleProcessorData* aData)
 {
 }
 
-#ifdef MOZ_XUL
 /* virtual */ void
 nsHTMLCSSStyleSheet::RulesMatching(XULTreeRuleProcessorData* aData)
 {
 }
-#endif
 
 // Test if style is dependent on content state
 /* virtual */ nsRestyleHint

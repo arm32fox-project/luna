@@ -11,10 +11,6 @@
 #include "mozilla/Attributes.h"
 #include "nsBlockFrame.h"
 
-#ifndef MOZ_XUL
-#error "This file should not be included"
-#endif
-
 class nsXULLabelFrame : public nsBlockFrame
 {
 public:

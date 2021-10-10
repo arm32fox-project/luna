@@ -1402,11 +1402,7 @@ struct SetEnumValueHelper
   DEFINE_ENUM_CLASS_SETTER(StyleUserModify, ReadOnly, WriteOnly)
   DEFINE_ENUM_CLASS_SETTER(StyleWindowDragging, Default, NoDrag)
   DEFINE_ENUM_CLASS_SETTER(StyleOrient, Inline, Vertical)
-#ifdef MOZ_XUL
   DEFINE_ENUM_CLASS_SETTER(StyleDisplay, None, Popup)
-#else
-  DEFINE_ENUM_CLASS_SETTER(StyleDisplay, None, InlineBox)
-#endif
 
 #undef DEF_SET_ENUMERATED_VALUE
 };

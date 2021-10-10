@@ -240,7 +240,6 @@ class nsStyleSet final
   ResolveAnonymousBoxStyle(nsIAtom* aPseudoTag, nsStyleContext* aParentContext,
                            uint32_t aFlags = eNoFlags);
 
-#ifdef MOZ_XUL
   // Get a style context for a XUL tree pseudo.  aPseudoTag is the
   // pseudo-tag to use and must be non-null.  aParentContent must be
   // non-null.  aComparator must be non-null.
@@ -249,7 +248,6 @@ class nsStyleSet final
                             nsIAtom* aPseudoTag,
                             nsStyleContext* aParentContext,
                             nsICSSPseudoComparator* aComparator);
-#endif
 
   // Append all the currently-active font face rules to aArray.  Return
   // true for success and false for failure.

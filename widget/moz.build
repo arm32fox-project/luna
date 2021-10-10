@@ -164,7 +164,7 @@ if CONFIG['OS_ARCH'] == 'Linux':
         'LSBUtils.cpp'
     ]
 
-if CONFIG['MOZ_XUL'] and CONFIG['NS_PRINTING']:
+if CONFIG['NS_PRINTING']:
     EXPORTS += [
         'nsDeviceContextSpecProxy.h',
         'nsPrintOptionsImpl.h',

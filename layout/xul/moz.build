@@ -3,12 +3,6 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-with Files('**'):
-    BUG_COMPONENT = ('Core', 'XP Toolkit/Widgets: XUL')
-
-with Files('*Menu*'):
-    BUG_COMPONENT = ('Core', 'XP Toolkit/Widgets: Menus')
-
 if CONFIG['ENABLE_TESTS']:
     MOCHITEST_MANIFESTS += ['test/mochitest.ini']
     MOCHITEST_CHROME_MANIFESTS += ['test/chrome.ini']
@@ -45,54 +39,49 @@ EXPORTS.mozilla.dom += [
 
 SOURCES += [
     'BoxObject.cpp',
+    'ContainerBoxObject.cpp',
+    'ListBoxObject.cpp',
+    'MenuBoxObject.cpp',
     'nsBox.cpp',
     'nsBoxFrame.cpp',
     'nsBoxLayout.cpp',
     'nsBoxLayoutState.cpp',
     'nsButtonBoxFrame.cpp',
+    'nsDeckFrame.cpp',
+    'nsDocElementBoxFrame.cpp',
+    'nsGroupBoxFrame.cpp',
+    'nsImageBoxFrame.cpp',
+    'nsLeafBoxFrame.cpp',
+    'nsListBoxBodyFrame.cpp',
+    'nsListBoxLayout.cpp',
+    'nsListItemFrame.cpp',
+    'nsMenuBarFrame.cpp',
+    'nsMenuBarListener.cpp',
+    'nsMenuFrame.cpp',
+    'nsMenuPopupFrame.cpp',
+    'nsPopupSetFrame.cpp',
+    'nsProgressMeterFrame.cpp',
     'nsRepeatService.cpp',
+    'nsResizerFrame.cpp',
     'nsRootBoxFrame.cpp',
     'nsScrollbarButtonFrame.cpp',
     'nsScrollbarFrame.cpp',
     'nsScrollBoxFrame.cpp',
     'nsSliderFrame.cpp',
+    'nsSplitterFrame.cpp',
     'nsSprocketLayout.cpp',
     'nsStackFrame.cpp',
     'nsStackLayout.cpp',
+    'nsTextBoxFrame.cpp',
+    'nsTitleBarFrame.cpp',
+    'nsXULLabelFrame.cpp',
+    'nsXULPopupManager.cpp',
     'nsXULTooltipListener.cpp',
+    'PopupBoxObject.cpp',
+    'ScrollBoxObject.cpp',
 ]
 
-if CONFIG['MOZ_XUL']:
-    SOURCES += [
-        'ContainerBoxObject.cpp',
-        'ListBoxObject.cpp',
-        'MenuBoxObject.cpp',
-        'nsDeckFrame.cpp',
-        'nsDocElementBoxFrame.cpp',
-        'nsGroupBoxFrame.cpp',
-        'nsImageBoxFrame.cpp',
-        'nsLeafBoxFrame.cpp',
-        'nsListBoxBodyFrame.cpp',
-        'nsListBoxLayout.cpp',
-        'nsListItemFrame.cpp',
-        'nsMenuBarFrame.cpp',
-        'nsMenuBarListener.cpp',
-        'nsMenuFrame.cpp',
-        'nsMenuPopupFrame.cpp',
-        'nsPopupSetFrame.cpp',
-        'nsProgressMeterFrame.cpp',
-        'nsResizerFrame.cpp',
-        'nsSplitterFrame.cpp',
-        'nsTextBoxFrame.cpp',
-        'nsTitleBarFrame.cpp',
-        'nsXULLabelFrame.cpp',
-        'nsXULPopupManager.cpp',
-        'PopupBoxObject.cpp',
-        'ScrollBoxObject.cpp',
-    ]
-
-if CONFIG['MOZ_XUL']:
-    DIRS += ['tree', 'grid']
+DIRS += ['tree', 'grid']
 
 FINAL_LIBRARY = 'xul'
 LOCAL_INCLUDES += [

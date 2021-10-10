@@ -5430,14 +5430,12 @@ nsContentUtils::ProcessViewportInfo(nsIDocument *aDocument,
 void
 nsContentUtils::HidePopupsInDocument(nsIDocument* aDocument)
 {
-#ifdef MOZ_XUL
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
   if (pm && aDocument) {
     nsCOMPtr<nsIDocShellTreeItem> docShellToHide = aDocument->GetDocShell();
     if (docShellToHide)
       pm->HidePopupsInDocShell(docShellToHide);
   }
-#endif
 }
 
 /* static */

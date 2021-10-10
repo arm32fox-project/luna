@@ -45,9 +45,7 @@
 #include "nsIScriptError.h"
 #include "nsXBLSerialize.h"
 
-#ifdef MOZ_XUL
 #include "nsXULPrototypeCache.h"
-#endif
 #include "nsIDOMEventListener.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/EventListenerManager.h"
@@ -323,13 +321,11 @@ nsXBLStreamListener::HandleEvent(nsIDOMEvent* aEvent)
     }
 
     // If the doc is a chrome URI, then we put it into the XUL cache.
-#ifdef MOZ_XUL
     if (nsXBLService::IsChromeOrResourceURI(documentURI)) {
       nsXULPrototypeCache* cache = nsXULPrototypeCache::GetInstance();
       if (cache && cache->IsEnabled())
         cache->PutXBLDocumentInfo(info);
     }
-#endif
 
     bindingManager->PutXBLDocumentInfo(info);
 
@@ -870,7 +866,6 @@ nsXBLService::LoadBindingDocumentInfo(nsIContent* aBoundElement,
     }
   }
 
-#ifdef MOZ_XUL
   // The second line of defense is the global nsXULPrototypeCache,
   // if it's being used.
   nsXULPrototypeCache* cache = nsXULPrototypeCache::GetInstance();
@@ -893,7 +888,6 @@ nsXBLService::LoadBindingDocumentInfo(nsIContent* aBoundElement,
       }
     }
   }
-#endif
 
   if (!info) {
     // Finally, if all lines of defense fail, we go and fetch the binding
@@ -920,14 +914,12 @@ nsXBLService::LoadBindingDocumentInfo(nsIContent* aBoundElement,
       xblDocBindingManager->RemoveXBLDocumentInfo(info); // Break the self-imposed cycle.
 
       // If the doc is a chrome URI, then we put it into the XUL cache.
-#ifdef MOZ_XUL
       if (useStartupCache) {
         cache->PutXBLDocumentInfo(info);
 
         // now write the bindings into the startup cache
         info->WritePrototypeBindings();
       }
-#endif
     }
   }
 

@@ -311,7 +311,6 @@ RestyleManager::AttributeChanged(Element* aElement,
 
   bool reframe = (hint & nsChangeHint_ReconstructFrame) != 0;
 
-#ifdef MOZ_XUL
   // The following listbox widget trap prevents offscreen listbox widget
   // content from being removed and re-inserted (which is what would
   // happen otherwise).
@@ -337,8 +336,6 @@ RestyleManager::AttributeChanged(Element* aElement,
         rootBox->AddTooltipSupport(aElement);
     }
   }
-
-#endif // MOZ_XUL
 
   if (primaryFrame) {
     // See if we have appearance information for a theme.

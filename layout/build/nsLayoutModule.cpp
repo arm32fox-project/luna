@@ -136,15 +136,12 @@ class nsIDocumentLoaderFactory;
 
 #include "nsIBoxObject.h"
 
-#ifdef MOZ_XUL
 #include "inDOMView.h"
-#endif /* MOZ_XUL */
 
 #include "inDeepTreeWalker.h"
 #include "inCSSValueSearch.h"
 #include "inDOMUtils.h"
 
-#ifdef MOZ_XUL
 #include "nsIXULDocument.h"
 #include "nsIXULSortService.h"
 
@@ -153,7 +150,6 @@ NS_NewXULContentBuilder(nsISupports* aOuter, REFNSIID aIID, void** aResult);
 
 nsresult
 NS_NewXULTreeBuilder(nsISupports* aOuter, REFNSIID aIID, void** aResult);
-#endif
 
 static void Shutdown();
 
@@ -331,14 +327,12 @@ nsresult NS_NewLayoutDebugger(nsILayoutDebugger** aResult);
 
 nsresult NS_NewBoxObject(nsIBoxObject** aResult);
 
-#ifdef MOZ_XUL
 nsresult NS_NewListBoxObject(nsIBoxObject** aResult);
 nsresult NS_NewScrollBoxObject(nsIBoxObject** aResult);
 nsresult NS_NewMenuBoxObject(nsIBoxObject** aResult);
 nsresult NS_NewPopupBoxObject(nsIBoxObject** aResult);
 nsresult NS_NewContainerBoxObject(nsIBoxObject** aResult);
 nsresult NS_NewTreeBoxObject(nsIBoxObject** aResult);
-#endif
 
 nsresult NS_NewCanvasRenderingContextWebGL(nsIDOMWebGLRenderingContext** aResult);
 
@@ -401,18 +395,14 @@ MAKE_CTOR(CreateNewLayoutDebugger,        nsILayoutDebugger,           NS_NewLay
 MAKE_CTOR(CreateNewFrameTraversal,      nsIFrameTraversal,      NS_CreateFrameTraversal)
 MAKE_CTOR(CreateNewBoxObject,           nsIBoxObject,           NS_NewBoxObject)
 
-#ifdef MOZ_XUL
 MAKE_CTOR(CreateNewListBoxObject,       nsIBoxObject,           NS_NewListBoxObject)
 MAKE_CTOR(CreateNewMenuBoxObject,       nsIBoxObject,           NS_NewMenuBoxObject)
 MAKE_CTOR(CreateNewPopupBoxObject,      nsIBoxObject,           NS_NewPopupBoxObject)
 MAKE_CTOR(CreateNewScrollBoxObject,     nsIBoxObject,           NS_NewScrollBoxObject)
 MAKE_CTOR(CreateNewTreeBoxObject,       nsIBoxObject,           NS_NewTreeBoxObject)
 MAKE_CTOR(CreateNewContainerBoxObject,  nsIBoxObject,           NS_NewContainerBoxObject)
-#endif // MOZ_XUL
 
-#ifdef MOZ_XUL
 NS_GENERIC_FACTORY_CONSTRUCTOR(inDOMView)
-#endif
 NS_GENERIC_FACTORY_CONSTRUCTOR(inDeepTreeWalker)
 NS_GENERIC_FACTORY_CONSTRUCTOR(inCSSValueSearch)
 NS_GENERIC_FACTORY_CONSTRUCTOR(inDOMUtils)
@@ -433,13 +423,11 @@ MAKE_CTOR(CreateHTMLContentSerializer,    nsIContentSerializer,        NS_NewHTM
 MAKE_CTOR(CreateXHTMLContentSerializer,   nsIContentSerializer,        NS_NewXHTMLContentSerializer)
 MAKE_CTOR(CreatePlainTextSerializer,      nsIContentSerializer,        NS_NewPlainTextSerializer)
 MAKE_CTOR(CreateContentPolicy,            nsIContentPolicy,            NS_NewContentPolicy)
-#ifdef MOZ_XUL
 MAKE_CTOR(CreateXULSortService,           nsIXULSortService,           NS_NewXULSortService)
 // NS_NewXULContentBuilder
 // NS_NewXULTreeBuilder
 MAKE_CTOR(CreateXULDocument,              nsIXULDocument,              NS_NewXULDocument)
 // NS_NewXULControllers
-#endif
 MAKE_CTOR(CreateContentDLF,               nsIDocumentLoaderFactory,    NS_NewContentDocumentLoaderFactory)
 MAKE_CTOR(CreateEventListenerService,     nsIEventListenerService,     NS_NewEventListenerService)
 MAKE_CTOR(CreateGlobalMessageManager,     nsIMessageBroadcaster,       NS_NewGlobalMessageManager)
@@ -549,17 +537,13 @@ NS_DEFINE_NAMED_CID(NS_LAYOUT_DEBUGGER_CID);
 #endif
 NS_DEFINE_NAMED_CID(NS_FRAMETRAVERSAL_CID);
 NS_DEFINE_NAMED_CID(NS_BOXOBJECT_CID);
-#ifdef MOZ_XUL
 NS_DEFINE_NAMED_CID(NS_LISTBOXOBJECT_CID);
 NS_DEFINE_NAMED_CID(NS_MENUBOXOBJECT_CID);
 NS_DEFINE_NAMED_CID(NS_POPUPBOXOBJECT_CID);
 NS_DEFINE_NAMED_CID(NS_CONTAINERBOXOBJECT_CID);
 NS_DEFINE_NAMED_CID(NS_SCROLLBOXOBJECT_CID);
 NS_DEFINE_NAMED_CID(NS_TREEBOXOBJECT_CID);
-#endif // MOZ_XUL
-#ifdef MOZ_XUL
 NS_DEFINE_NAMED_CID(IN_DOMVIEW_CID);
-#endif
 NS_DEFINE_NAMED_CID(IN_DEEPTREEWALKER_CID);
 NS_DEFINE_NAMED_CID(IN_CSSVALUESEARCH_CID);
 NS_DEFINE_NAMED_CID(IN_DOMUTILS_CID);
@@ -585,12 +569,10 @@ NS_DEFINE_NAMED_CID(NS_CONTENTPOLICY_CID);
 NS_DEFINE_NAMED_CID(NS_DATADOCUMENTCONTENTPOLICY_CID);
 NS_DEFINE_NAMED_CID(NS_NODATAPROTOCOLCONTENTPOLICY_CID);
 NS_DEFINE_NAMED_CID(NS_XULCONTROLLERS_CID);
-#ifdef MOZ_XUL
 NS_DEFINE_NAMED_CID(NS_XULSORTSERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_XULTEMPLATEBUILDER_CID);
 NS_DEFINE_NAMED_CID(NS_XULTREEBUILDER_CID);
 NS_DEFINE_NAMED_CID(NS_XULDOCUMENT_CID);
-#endif
 NS_DEFINE_NAMED_CID(NS_CONTENT_DOCUMENT_LOADER_FACTORY_CID);
 NS_DEFINE_NAMED_CID(NS_JSPROTOCOLHANDLER_CID);
 NS_DEFINE_NAMED_CID(NS_JSURI_CID);
@@ -802,17 +784,13 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
 #endif
   { &kNS_FRAMETRAVERSAL_CID, false, nullptr, CreateNewFrameTraversal },
   { &kNS_BOXOBJECT_CID, false, nullptr, CreateNewBoxObject },
-#ifdef MOZ_XUL
   { &kNS_LISTBOXOBJECT_CID, false, nullptr, CreateNewListBoxObject },
   { &kNS_MENUBOXOBJECT_CID, false, nullptr, CreateNewMenuBoxObject },
   { &kNS_POPUPBOXOBJECT_CID, false, nullptr, CreateNewPopupBoxObject },
   { &kNS_CONTAINERBOXOBJECT_CID, false, nullptr, CreateNewContainerBoxObject },
   { &kNS_SCROLLBOXOBJECT_CID, false, nullptr, CreateNewScrollBoxObject },
   { &kNS_TREEBOXOBJECT_CID, false, nullptr, CreateNewTreeBoxObject },
-#endif // MOZ_XUL
-#ifdef MOZ_XUL
   { &kIN_DOMVIEW_CID, false, nullptr, inDOMViewConstructor },
-#endif
   { &kIN_DEEPTREEWALKER_CID, false, nullptr, inDeepTreeWalkerConstructor },
   { &kIN_CSSVALUESEARCH_CID, false, nullptr, inCSSValueSearchConstructor },
   { &kIN_DOMUTILS_CID, false, nullptr, inDOMUtilsConstructor },
@@ -838,12 +816,10 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
   { &kNS_DATADOCUMENTCONTENTPOLICY_CID, false, nullptr, nsDataDocumentContentPolicyConstructor },
   { &kNS_NODATAPROTOCOLCONTENTPOLICY_CID, false, nullptr, nsNoDataProtocolContentPolicyConstructor },
   { &kNS_XULCONTROLLERS_CID, false, nullptr, NS_NewXULControllers },
-#ifdef MOZ_XUL
   { &kNS_XULSORTSERVICE_CID, false, nullptr, CreateXULSortService },
   { &kNS_XULTEMPLATEBUILDER_CID, false, nullptr, NS_NewXULContentBuilder },
   { &kNS_XULTREEBUILDER_CID, false, nullptr, NS_NewXULTreeBuilder },
   { &kNS_XULDOCUMENT_CID, false, nullptr, CreateXULDocument },
-#endif
   { &kNS_CONTENT_DOCUMENT_LOADER_FACTORY_CID, false, nullptr, CreateContentDLF },
   { &kNS_JSPROTOCOLHANDLER_CID, false, nullptr, nsJSProtocolHandler::Create },
   { &kNS_JSURI_CID, false, nullptr, nsJSURIConstructor },
@@ -919,17 +895,13 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
 static const mozilla::Module::ContractIDEntry kLayoutContracts[] = {
   XPCONNECT_CONTRACTS
   { "@mozilla.org/layout/xul-boxobject;1", &kNS_BOXOBJECT_CID },
-#ifdef MOZ_XUL
   { "@mozilla.org/layout/xul-boxobject-listbox;1", &kNS_LISTBOXOBJECT_CID },
   { "@mozilla.org/layout/xul-boxobject-menu;1", &kNS_MENUBOXOBJECT_CID },
   { "@mozilla.org/layout/xul-boxobject-popup;1", &kNS_POPUPBOXOBJECT_CID },
   { "@mozilla.org/layout/xul-boxobject-container;1", &kNS_CONTAINERBOXOBJECT_CID },
   { "@mozilla.org/layout/xul-boxobject-scrollbox;1", &kNS_SCROLLBOXOBJECT_CID },
   { "@mozilla.org/layout/xul-boxobject-tree;1", &kNS_TREEBOXOBJECT_CID },
-#endif // MOZ_XUL
-#ifdef MOZ_XUL
   { "@mozilla.org/inspector/dom-view;1", &kIN_DOMVIEW_CID },
-#endif
   { "@mozilla.org/inspector/deep-tree-walker;1", &kIN_DEEPTREEWALKER_CID },
   { "@mozilla.org/inspector/search;1?type=cssvalue", &kIN_CSSVALUESEARCH_CID },
   { IN_DOMUTILS_CONTRACTID, &kIN_DOMUTILS_CID },
@@ -960,12 +932,10 @@ static const mozilla::Module::ContractIDEntry kLayoutContracts[] = {
   { NS_DATADOCUMENTCONTENTPOLICY_CONTRACTID, &kNS_DATADOCUMENTCONTENTPOLICY_CID },
   { NS_NODATAPROTOCOLCONTENTPOLICY_CONTRACTID, &kNS_NODATAPROTOCOLCONTENTPOLICY_CID },
   { "@mozilla.org/xul/xul-controllers;1", &kNS_XULCONTROLLERS_CID },
-#ifdef MOZ_XUL
   { "@mozilla.org/xul/xul-sort-service;1", &kNS_XULSORTSERVICE_CID },
   { "@mozilla.org/xul/xul-template-builder;1", &kNS_XULTEMPLATEBUILDER_CID },
   { "@mozilla.org/xul/xul-tree-builder;1", &kNS_XULTREEBUILDER_CID },
   { "@mozilla.org/xul/xul-document;1", &kNS_XULDOCUMENT_CID },
-#endif
   { CONTENT_DLF_CONTRACTID, &kNS_CONTENT_DOCUMENT_LOADER_FACTORY_CID },
   { NS_JSPROTOCOLHANDLER_CONTRACTID, &kNS_JSPROTOCOLHANDLER_CID },
   { NS_WINDOWCONTROLLER_CONTRACTID, &kNS_WINDOWCONTROLLER_CID },

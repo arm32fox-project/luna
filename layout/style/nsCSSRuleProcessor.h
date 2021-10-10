@@ -140,9 +140,7 @@ public:
 
   virtual void RulesMatching(AnonBoxRuleProcessorData* aData) override;
 
-#ifdef MOZ_XUL
   virtual void RulesMatching(XULTreeRuleProcessorData* aData) override;
-#endif
 
   virtual nsRestyleHint HasStateDependentStyle(StateRuleProcessorData* aData) override;
   virtual nsRestyleHint HasStateDependentStyle(PseudoElementStateRuleProcessorData* aData) override;

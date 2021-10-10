@@ -96,11 +96,9 @@ protected:
     nsresult AddAttributes(const char16_t** aAtts, 
                            nsIContent* aContent) override;
 
-#ifdef MOZ_XUL    
     nsresult AddAttributesToXULPrototype(const char16_t **aAtts, 
                                          uint32_t aAttsCount, 
                                          nsXULPrototypeElement* aElement);
-#endif
 
     // Our own helpers for constructing XBL prototype objects.
     nsresult ConstructBinding(uint32_t aLineNumber);

@@ -1,4 +1,9 @@
 // IWYU pragma: private, include "nsDisplayList.h"
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 DECLARE_DISPLAY_ITEM_TYPE(ALT_FEEDBACK)
 DECLARE_DISPLAY_ITEM_TYPE(BACKGROUND)
 DECLARE_DISPLAY_ITEM_TYPE(THEMED_BACKGROUND)
@@ -69,7 +74,6 @@ DECLARE_DISPLAY_ITEM_TYPE(ZOOM)
 DECLARE_DISPLAY_ITEM_TYPE(REFLOW_COUNT)
 #endif
 
-#ifdef MOZ_XUL
 DECLARE_DISPLAY_ITEM_TYPE(XUL_EVENT_REDIRECTOR)
 DECLARE_DISPLAY_ITEM_TYPE(XUL_GROUP_BACKGROUND)
 DECLARE_DISPLAY_ITEM_TYPE(XUL_IMAGE)
@@ -78,7 +82,6 @@ DECLARE_DISPLAY_ITEM_TYPE(XUL_TREE_BODY)
 DECLARE_DISPLAY_ITEM_TYPE(XUL_TREE_COL_SPLITTER_TARGET)
 #ifdef DEBUG_LAYOUT
 DECLARE_DISPLAY_ITEM_TYPE(XUL_DEBUG)
-#endif
 #endif
 
 DECLARE_DISPLAY_ITEM_TYPE(MATHML_BAR)

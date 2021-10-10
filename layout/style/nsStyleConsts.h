@@ -559,7 +559,6 @@ enum class StyleDisplay : uint8_t {
   WebkitInlineBox,
   Box,
   InlineBox,
-#ifdef MOZ_XUL
   XulGrid,
   InlineXulGrid,
   XulGridGroup,
@@ -569,7 +568,6 @@ enum class StyleDisplay : uint8_t {
   Deck,
   Groupbox,
   Popup,
-#endif
 };
 
 // See nsStyleDisplay

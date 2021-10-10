@@ -37,9 +37,7 @@ public:
   virtual void RulesMatching(ElementRuleProcessorData* aData) override;
   virtual void RulesMatching(PseudoElementRuleProcessorData* aData) override;
   virtual void RulesMatching(AnonBoxRuleProcessorData* aData) override;
-#ifdef MOZ_XUL
   virtual void RulesMatching(XULTreeRuleProcessorData* aData) override;
-#endif
   virtual nsRestyleHint HasStateDependentStyle(StateRuleProcessorData* aData) override;
   virtual nsRestyleHint HasStateDependentStyle(PseudoElementStateRuleProcessorData* aData) override;
   virtual bool HasDocumentStateDependentStyle(StateRuleProcessorData* aData) override;

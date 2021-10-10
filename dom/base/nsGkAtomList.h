@@ -2045,9 +2045,7 @@ GK_ATOM(tableRowFrame, "TableRowFrame")
 GK_ATOM(textInputFrame,"TextInputFrame")
 GK_ATOM(textFrame, "TextFrame")
 GK_ATOM(viewportFrame, "ViewportFrame")
-#ifdef MOZ_XUL
 GK_ATOM(XULLabelFrame, "XULLabelFrame")
-#endif
 GK_ATOM(svgAFrame, "SVGAFrame")
 GK_ATOM(svgClipPathFrame, "SVGClipPathFrame")
 GK_ATOM(svgDefsFrame, "SVGDefsFrame")
