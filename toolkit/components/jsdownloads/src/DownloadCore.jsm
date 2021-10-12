@@ -2168,7 +2168,6 @@ this.DownloadCopySaver.prototype = {
         // up the chain of objects for the download.
         yield deferSaveComplete.promise;
 
-        yield this._checkReputationAndMove(aSetPropertiesFn);
       } catch (ex) {
         // Ensure we always remove the placeholder for the final target file on
         // failure, independently of which code path failed.  In some cases, the
@@ -2189,56 +2188,6 @@ this.DownloadCopySaver.prototype = {
       }
     }.bind(this));
   },
-
-  /**
-   * Perform the reputation check and cleanup the downloaded data if required.
-   * If the download passes the reputation check and is using a part file we
-   * will move it to the target path since reputation checking is the final
-   * step in the saver.
-   *
-   * @param aSetPropertiesFn
-   *        Function provided to the "execute" method.
-   *
-   * @return {Promise}
-   * @resolves When the reputation check and cleanup is complete.
-   * @rejects DownloadError if the download should be blocked.
-   */
-  _checkReputationAndMove: Task.async(function* (aSetPropertiesFn) {
-    let download = this.download;
-    let targetPath = this.download.target.path;
-    let partFilePath = this.download.target.partFilePath;
-
-    let { shouldBlock, verdict } =
-        yield DownloadIntegration.shouldBlockForReputationCheck(download);
-    if (shouldBlock) {
-      let newProperties = { progress: 100, hasPartialData: false };
-
-      // We will remove the potentially dangerous file if instructed by
-      // DownloadIntegration. We will always remove the file when the
-      // download did not use a partial file path, meaning it
-      // currently has its final filename.
-      if (!DownloadIntegration.shouldKeepBlockedData() || !partFilePath) {
-        try {
-          yield OS.File.remove(partFilePath || targetPath);
-        } catch (ex) {
-          Cu.reportError(ex);
-        }
-      } else {
-        newProperties.hasBlockedData = true;
-      }
-
-      aSetPropertiesFn(newProperties);
-
-      throw new DownloadError({
-        becauseBlockedByReputationCheck: true,
-        reputationCheckVerdict: verdict,
-      });
-    }
-
-    if (partFilePath) {
-      yield OS.File.move(partFilePath, targetPath);
-    }
-  }),
 
   /**
    * Implements "DownloadSaver.cancel".
@@ -2566,9 +2515,6 @@ this.DownloadLegacySaver.prototype = {
             }
           }
         }
-
-        yield this._checkReputationAndMove(aSetPropertiesFn);
-
       } catch (ex) {
         // Ensure we always remove the final target file on failure,
         // independently of which code path failed.  In some cases, the
@@ -2599,11 +2545,6 @@ this.DownloadLegacySaver.prototype = {
         this.firstExecutionFinished = true;
       }
     }.bind(this));
-  },
-
-  _checkReputationAndMove: function () {
-    return DownloadCopySaver.prototype._checkReputationAndMove
-                                      .apply(this, arguments);
   },
 
   /**

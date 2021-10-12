@@ -1,5 +1,4 @@
 dnl -*- Mode: Autoconf; tab-width: 4; indent-tabs-mode: nil; -*-
-dnl vi: set tabstop=4 shiftwidth=4 expandtab syntax=m4:
 dnl This Source Code Form is subject to the terms of the Mozilla Public
 dnl License, v. 2.0. If a copy of the MPL was not distributed with this
 dnl file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -1971,12 +1970,10 @@ LIBJPEG_TURBO_ASFLAGS=
 MOZ_GAMEPAD=
 MOZ_PREF_EXTENSIONS=1
 MOZ_REFLOW_PERF=
-MOZ_SAFE_BROWSING=
 MOZ_SPELLCHECK=1
 MOZ_TOOLKIT_SEARCH=1
 MOZ_UI_LOCALE=en-US
 MOZ_UNIVERSALCHARDET=1
-MOZ_URL_CLASSIFIER=
 MOZ_ZIPWRITER=1
 MOZ_NO_SMART_CARDS=
 MOZ_NECKO_WIFI=1
@@ -3470,34 +3467,6 @@ else
         AC_MSG_ERROR([Cannot build Firefox with --disable-feeds.])
     fi
 fi
-
-dnl ========================================================
-dnl = Enable Google safe browsing (anti-phishing)
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(safe-browsing,
-[  --enable-safe-browsing  Enable safe browsing (anti-phishing) implementation],
-    MOZ_SAFE_BROWSING=1,
-    MOZ_SAFE_BROWSING= )
-if test -n "$MOZ_SAFE_BROWSING"; then
-    AC_DEFINE(MOZ_SAFE_BROWSING)
-fi
-AC_SUBST(MOZ_SAFE_BROWSING)
-
-dnl ========================================================
-dnl = Enable url-classifier
-dnl ========================================================
-dnl Implicitly enabled by default if building with safe-browsing
-if test -n "$MOZ_SAFE_BROWSING"; then
-    MOZ_URL_CLASSIFIER=1
-fi
-MOZ_ARG_ENABLE_BOOL(url-classifier,
-[  --enable-url-classifier Enable url classifier module],
-    MOZ_URL_CLASSIFIER=1,
-    MOZ_URL_CLASSIFIER= )
-if test -n "$MOZ_URL_CLASSIFIER"; then
-    AC_DEFINE(MOZ_URL_CLASSIFIER)
-fi
-AC_SUBST(MOZ_URL_CLASSIFIER)
 
 dnl ========================================================
 dnl = Disable zipwriter

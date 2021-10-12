@@ -78,10 +78,6 @@ XPCOMUtils.defineLazyGetter(this, "gParentalControlsService", function() {
   return null;
 });
 
-XPCOMUtils.defineLazyServiceGetter(this, "gApplicationReputationService",
-           "@mozilla.org/downloads/application-reputation-service;1",
-           Ci.nsIApplicationReputationService);
-
 XPCOMUtils.defineLazyServiceGetter(this, "volumeService",
                                    "@mozilla.org/telephony/volume-service;1",
                                    "nsIVolumeService");
@@ -127,20 +123,6 @@ const kObserverTopics = [
   "network:offline-status-changed",
   "xpcom-will-shutdown",
 ];
-
-/**
- * Maps nsIApplicationReputationService verdicts with the DownloadError ones.
- */
-const kVerdictMap = {
-  [Ci.nsIApplicationReputationService.VERDICT_DANGEROUS]:
-                Downloads.Error.BLOCK_VERDICT_MALWARE,
-  [Ci.nsIApplicationReputationService.VERDICT_UNCOMMON]:
-                Downloads.Error.BLOCK_VERDICT_UNCOMMON,
-  [Ci.nsIApplicationReputationService.VERDICT_POTENTIALLY_UNWANTED]:
-                Downloads.Error.BLOCK_VERDICT_POTENTIALLY_UNWANTED,
-  [Ci.nsIApplicationReputationService.VERDICT_DANGEROUS_HOST]:
-                Downloads.Error.BLOCK_VERDICT_MALWARE,
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 //// DownloadIntegration
@@ -418,72 +400,6 @@ this.DownloadIntegration = {
    */
   shouldBlockForRuntimePermissions() {
     return Promise.resolve(false);
-  },
-
-  /**
-   * Checks to determine whether to block downloads because they might be
-   * malware, based on application reputation checks.
-   *
-   * aParam aDownload
-   *        The download object.
-   *
-   * @return {Promise}
-   * @resolves Object with the following properties:
-   *           {
-   *             shouldBlock: Whether the download should be blocked.
-   *             verdict: Detailed reason for the block, according to the
-   *                      "Downloads.Error.BLOCK_VERDICT_" constants, or empty
-   *                      string if the reason is unknown.
-   *           }
-   */
-  shouldBlockForReputationCheck(aDownload) {
-#ifndef MOZ_URL_CLASSIFIER
-    return Promise.resolve({
-      shouldBlock: false,
-      verdict: "",
-    });
-#else
-    let hash;
-    let sigInfo;
-    let channelRedirects;
-    try {
-      hash = aDownload.saver.getSha256Hash();
-      sigInfo = aDownload.saver.getSignatureInfo();
-      channelRedirects = aDownload.saver.getRedirects();
-    } catch (ex) {
-      // Bail if DownloadSaver doesn't have a hash or signature info.
-      return Promise.resolve({
-        shouldBlock: false,
-        verdict: "",
-      });
-    }
-    if (!hash || !sigInfo) {
-      return Promise.resolve({
-        shouldBlock: false,
-        verdict: "",
-      });
-    }
-    let deferred = Promise.defer();
-    let aReferrer = null;
-    if (aDownload.source.referrer) {
-      aReferrer = NetUtil.newURI(aDownload.source.referrer);
-    }
-    gApplicationReputationService.queryReputation({
-      sourceURI: NetUtil.newURI(aDownload.source.url),
-      referrerURI: aReferrer,
-      fileSize: aDownload.currentBytes,
-      sha256Hash: hash,
-      suggestedFileName: OS.Path.basename(aDownload.target.path),
-      signatureInfo: sigInfo,
-      redirects: channelRedirects },
-      function onComplete(aShouldBlock, aRv, aVerdict) {
-        deferred.resolve({
-          shouldBlock: aShouldBlock,
-          verdict: (aShouldBlock && kVerdictMap[aVerdict]) || "",
-        });
-      });
-    return deferred.promise;
-#endif
   },
 
 #ifdef XP_WIN
