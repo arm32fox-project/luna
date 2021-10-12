@@ -106,7 +106,6 @@ nsURLFormatterService.prototype = {
     OS_VERSION:       function() { return this.OSVersion; },
     CHANNEL:          () => UpdateUtils.UpdateChannel,
     MOZILLA_API_KEY:  () => "@MOZ_MOZILLA_API_KEY@",
-    GOOGLE_API_KEY:   () => "@MOZ_GOOGLE_API_KEY@",
     BING_API_CLIENTID:() => "@MOZ_BING_API_CLIENTID@",
     BING_API_KEY:     () => "@MOZ_BING_API_KEY@",
     DISTRIBUTION:     function() { return this.distribution.id; },
@@ -146,13 +145,6 @@ nsURLFormatterService.prototype = {
     }
 
     return this.formatURL(format);
-  },
-
-  trimSensitiveURLs: function uf_trimSensitiveURLs(aMsg) {
-    // Only the google API key is sensitive for now.
-    return "@MOZ_GOOGLE_API_KEY@" ? aMsg.replace(/@MOZ_GOOGLE_API_KEY@/g,
-                                                 "[trimmed-google-api-key]")
-                                  : aMsg;
   }
 };
 
