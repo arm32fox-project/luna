@@ -44,12 +44,6 @@
 #define LOCAL_GL_ATC_RGBA_EXPLICIT_ALPHA                0x8C93
 #define LOCAL_GL_ATC_RGBA_INTERPOLATED_ALPHA            0x87EE
 
-// EGL_ANDROID_image_crop
-#define LOCAL_EGL_IMAGE_CROP_LEFT_ANDROID               0x3148
-#define LOCAL_EGL_IMAGE_CROP_TOP_ANDROID                0x3149
-#define LOCAL_EGL_IMAGE_CROP_RIGHT_ANDROID              0x314A
-#define LOCAL_EGL_IMAGE_CROP_BOTTOM_ANDROID             0x314B
-
 // EGL_ANGLE_platform_angle
 #define LOCAL_EGL_PLATFORM_ANGLE_ANGLE                      0x3202
 #define LOCAL_EGL_PLATFORM_ANGLE_TYPE_ANGLE                 0x3203

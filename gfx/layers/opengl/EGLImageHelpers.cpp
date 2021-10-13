@@ -21,20 +21,8 @@ EGLImageCreateFromNativeBuffer(GLContext* aGL, void* aBuffer, const gfx::IntSize
         LOCAL_EGL_NONE, LOCAL_EGL_NONE,
     };
 
-    EGLint cropAttrs[] = {
-        LOCAL_EGL_IMAGE_PRESERVED, LOCAL_EGL_TRUE,
-        LOCAL_EGL_IMAGE_CROP_LEFT_ANDROID, 0,
-        LOCAL_EGL_IMAGE_CROP_TOP_ANDROID, 0,
-        LOCAL_EGL_IMAGE_CROP_RIGHT_ANDROID, aCropSize.width,
-        LOCAL_EGL_IMAGE_CROP_BOTTOM_ANDROID, aCropSize.height,
-        LOCAL_EGL_NONE, LOCAL_EGL_NONE,
-    };
-
     bool hasCropRect = (aCropSize.width != 0 && aCropSize.height != 0);
     EGLint* usedAttrs = attrs;
-    if (hasCropRect && sEGLLibrary.IsExtensionSupported(GLLibraryEGL::EGL_ANDROID_image_crop)) {
-        usedAttrs = cropAttrs;
-    }
 
     return sEGLLibrary.fCreateImage(sEGLLibrary.Display(),
                                      EGL_NO_CONTEXT,

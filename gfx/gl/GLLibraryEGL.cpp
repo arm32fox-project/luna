@@ -48,8 +48,6 @@ static const char* sEGLExtensionNames[] = {
     "EGL_EXT_create_context_robustness",
     "EGL_KHR_image",
     "EGL_KHR_fence_sync",
-    "EGL_ANDROID_native_fence_sync",
-    "EGL_ANDROID_image_crop",
     "EGL_ANGLE_platform_angle",
     "EGL_ANGLE_platform_angle_d3d"
 };
@@ -367,18 +365,6 @@ GLLibraryEGL::EnsureInitialized(bool forceAccel, nsACString* const out_failureId
         *out_failureId = NS_LITERAL_CSTRING("FEATURE_FAILURE_EGL_SYM");
         return false;
     }
-
-    GLLibraryLoader::SymLoadStruct optionalSymbols[] = {
-        // On Android 4.3 and up, certain features like ANDROID_native_fence_sync
-        // can only be queried by using a special eglQueryString.
-        { (PRFuncPtr*) &mSymbols.fQueryStringImplementationANDROID,
-          { "_Z35eglQueryStringImplementationANDROIDPvi", nullptr } },
-        { nullptr, { nullptr } }
-    };
-
-    // Do not warn about the failure to load this - see bug 1092191
-    Unused << GLLibraryLoader::LoadSymbols(mEGLLibrary, &optionalSymbols[0],
-                                           nullptr, nullptr, false);
 
     InitClientExtensions();
 
