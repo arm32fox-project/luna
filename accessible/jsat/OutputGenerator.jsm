@@ -786,7 +786,7 @@ this.UtteranceGenerator = {  // jshint ignore:line
     // This is because we expose the checked information on the node itself.
     // XXX: this means the checked state is always appended to the end,
     // regardless of the utterance ordering preference.
-    if ((Utils.AndroidSdkVersion < 16 || Utils.MozBuildApp === 'browser') &&
+    if (Utils.MozBuildApp === 'browser' &&
       aState.contains(States.CHECKABLE)) {
       let checked = aState.contains(States.CHECKED);
       let statetr;

@@ -60,15 +60,6 @@ test path(s):
 Please check spelling and make sure there are mochitests living there.
 '''.lstrip()
 
-ROBOCOP_TESTS_NOT_FOUND = '''
-The robocop command could not find any tests under the following
-test path(s):
-
-{}
-
-Please check spelling and make sure the named tests exist.
-'''.lstrip()
-
 NOW_RUNNING = '''
 ######
 ### Now running mochitest-{}.
@@ -236,28 +227,6 @@ class MochitestRunner(MozbuildObject):
 
         return runtestsremote.run_test_harness(parser, options)
 
-    def run_robocop_test(self, context, tests, suite=None, **kwargs):
-        host_ret = verify_host_bin()
-        if host_ret != 0:
-            return host_ret
-
-        import imp
-        path = os.path.join(self.mochitest_dir, 'runrobocop.py')
-        with open(path, 'r') as fh:
-            imp.load_module('runrobocop', fh, path,
-                            ('.py', 'r', imp.PY_SOURCE))
-        import runrobocop
-
-        options = Namespace(**kwargs)
-
-        from manifestparser import TestManifest
-        if tests and not options.manifestFile:
-            manifest = TestManifest()
-            manifest.tests.extend(tests)
-            options.manifestFile = manifest
-
-        return runrobocop.run_test_harness(parser, options)
-
 # parser
 
 
@@ -280,14 +249,6 @@ def setup_argument_parser():
                             ('.py', 'r', imp.PY_SOURCE))
 
         from mochitest_options import MochitestArgumentParser
-
-    if conditions.is_android(build_obj):
-        # On Android, check for a connected device (and offer to start an
-        # emulator if appropriate) before running tests. This check must
-        # be done in this admittedly awkward place because
-        # MochitestArgumentParser initialization fails if no device is found.
-        from mozrunner.devices.android_device import verify_android_device
-        verify_android_device(build_obj, install=True, xre=True)
 
     global parser
     parser = MochitestArgumentParser()
@@ -466,55 +427,6 @@ class MachCommands(MachCommandBase):
 
         # TODO consolidate summaries from all suites
         return overall
-
-
-@CommandProvider
-class RobocopCommands(MachCommandBase):
-
-    @Command('robocop', category='testing',
-             conditions=[conditions.is_android],
-             description='Run a Robocop test.',
-             parser=setup_argument_parser)
-    @CommandArgument('--serve', default=False, action='store_true',
-                     help='Run no tests but start the mochi.test web server '
-                     'and launch Fennec with a test profile.')
-    def run_robocop(self, serve=False, **kwargs):
-        if serve:
-            kwargs['autorun'] = False
-
-        if not kwargs.get('robocopIni'):
-            kwargs['robocopIni'] = os.path.join(self.topobjdir, '_tests', 'testing',
-                                                'mochitest', 'robocop.ini')
-
-        if not kwargs.get('robocopApk'):
-            kwargs['robocopApk'] = os.path.join(self.topobjdir, 'mobile', 'android',
-                                                'tests', 'browser', 'robocop',
-                                                'robocop-debug.apk')
-
-        from mozbuild.controller.building import BuildDriver
-        self._ensure_state_subdir_exists('.')
-
-        test_paths = kwargs['test_paths']
-        kwargs['test_paths'] = []
-
-        from mozbuild.testing import TestResolver
-        resolver = self._spawn(TestResolver)
-        tests = list(resolver.resolve_tests(paths=test_paths, cwd=self._mach_context.cwd,
-                                            flavor='instrumentation', subsuite='robocop'))
-        driver = self._spawn(BuildDriver)
-        driver.install_tests(tests)
-
-        if len(tests) < 1:
-            print(ROBOCOP_TESTS_NOT_FOUND.format('\n'.join(
-                sorted(list(test_paths)))))
-            return 1
-
-        from mozrunner.devices.android_device import grant_runtime_permissions
-        grant_runtime_permissions(self)
-
-        mochitest = self._spawn(MochitestRunner)
-        return mochitest.run_robocop_test(self._mach_context, tests, 'robocop', **kwargs)
-
 
 # NOTE python/mach/mach/commands/commandinfo.py references this function
 #      by name. If this function is renamed or removed, that file should

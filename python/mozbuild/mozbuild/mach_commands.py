@@ -1149,9 +1149,6 @@ class Install(MachCommandBase):
     @CommandArgument('--verbose', '-v', action='store_true',
         help='Print verbose output when installing to an Android emulator.')
     def install(self, verbose=False):
-        if conditions.is_android(self):
-            from mozrunner.devices.android_device import verify_android_device
-            verify_android_device(self, verbose=verbose)
         ret = self._run_make(directory=".", target='install', ensure_exit_code=False)
         if ret == 0:
             self.notify('Install complete')
@@ -1205,47 +1202,33 @@ class RunProgram(MachCommandBase):
     def run(self, params, remote, background, noprofile, disable_e10s, debug,
         debugger, debugparams, slowscript, dmd, mode, stacks, show_dump_stats):
 
-        if conditions.is_android(self):
-            # Running Firefox for Android is completely different
-            if dmd:
-                print("DMD is not supported for Firefox for Android")
-                return 1
-            from mozrunner.devices.android_device import verify_android_device, run_firefox_for_android
-            if not (debug or debugger or debugparams):
-                verify_android_device(self, install=True)
-                return run_firefox_for_android(self, params)
-            verify_android_device(self, install=True, debugger=True)
-            args = ['']
+        try:
+            binpath = self.get_binary_path('app')
+        except Exception as e:
+            print("It looks like your program isn't built.",
+                "You can run |mach build| to build it.")
+            print(e)
+            return 1
 
-        else:
+        args = [binpath]
 
-            try:
-                binpath = self.get_binary_path('app')
-            except Exception as e:
-                print("It looks like your program isn't built.",
-                    "You can run |mach build| to build it.")
-                print(e)
-                return 1
+        if params:
+            args.extend(params)
 
-            args = [binpath]
+        if not remote:
+            args.append('-no-remote')
 
-            if params:
-                args.extend(params)
+        if not background and sys.platform == 'darwin':
+            args.append('-foreground')
 
-            if not remote:
-                args.append('-no-remote')
-
-            if not background and sys.platform == 'darwin':
-                args.append('-foreground')
-
-            no_profile_option_given = \
-                all(p not in params for p in ['-profile', '--profile', '-P'])
-            if no_profile_option_given and not noprofile:
-                path = os.path.join(self.topobjdir, 'tmp', 'scratch_user')
-                if not os.path.isdir(path):
-                    os.makedirs(path)
-                args.append('-profile')
-                args.append(path)
+        no_profile_option_given = \
+            all(p not in params for p in ['-profile', '--profile', '-P'])
+        if no_profile_option_given and not noprofile:
+            path = os.path.join(self.topobjdir, 'tmp', 'scratch_user')
+            if not os.path.isdir(path):
+                os.makedirs(path)
+            args.append('-profile')
+            args.append(path)
 
         extra_env = {'MOZ_CRASHREPORTER_DISABLE': '1'}
         if disable_e10s:

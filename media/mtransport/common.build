@@ -61,12 +61,6 @@ elif CONFIG['OS_TARGET'] == 'Linux':
     LOCAL_INCLUDES += [
         '/media/mtransport/third_party/nrappkit/src/port/linux/include',
     ]
-elif CONFIG['OS_TARGET'] == 'Android':
-    DEFINES['LINUX'] = True
-    DEFINES['ANDROID'] = True
-    LOCAL_INCLUDES += [
-        '/media/mtransport/third_party/nrappkit/src/port/android/include',
-    ]
 elif CONFIG['OS_TARGET'] == 'WINNT':
     DEFINES['WIN'] = True
     # for stun.h

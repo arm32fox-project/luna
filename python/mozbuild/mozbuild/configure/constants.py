@@ -16,7 +16,6 @@ CompilerType = EnumString.subclass(
 )
 
 OS = EnumString.subclass(
-    'Android',
     'DragonFly',
     'FreeBSD',
     'GNU',

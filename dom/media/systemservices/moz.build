@@ -29,15 +29,6 @@ if CONFIG['OS_TARGET'] == 'WINNT':
 else:
     DEFINES['WEBRTC_POSIX'] = True
 
-
-if CONFIG['OS_TARGET'] == 'Android':
-    EXPORTS += [
-        'OpenSLESProvider.h'
-    ]
-    SOURCES += [
-        'OpenSLESProvider.cpp',
-    ]
-
 if CONFIG['_MSC_VER']:
     DEFINES['__PRETTY_FUNCTION__'] = '__FUNCSIG__'
 

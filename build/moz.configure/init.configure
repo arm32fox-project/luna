@@ -308,10 +308,7 @@ def split_triplet(triplet):
     # mix of uname and config.guess output, while we now only use the latter,
     # which presumably has a cleaner and leaner output. Let's refine later.
     os = os.replace('/', '_')
-    if 'android' in os:
-        canonical_os = 'Android'
-        canonical_kernel = 'Linux'
-    elif os.startswith('linux'):
+    if os.startswith('linux'):
         canonical_os = 'GNU'
         canonical_kernel = 'Linux'
     elif os.startswith('kfreebsd') and os.endswith('-gnu'):

@@ -124,12 +124,6 @@ if os_linux:
         'src/base/process_util_linux.cc',
         'src/base/time_posix.cc',
     ]
-    if CONFIG['OS_TARGET'] == 'Android':
-        UNIFIED_SOURCES += [
-            'src/base/message_pump_android.cc',
-        ]
-        DEFINES['ANDROID'] = True
-        DEFINES['_POSIX_MONOTONIC_CLOCK'] = 0
 
 if os_bsd or os_linux or os_solaris:
     if 'gtk' in CONFIG['MOZ_WIDGET_TOOLKIT']:

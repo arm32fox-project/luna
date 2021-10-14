@@ -868,16 +868,6 @@ class AndroidArguments(ArgumentContainer):
           "help": "ssl port of the remote web server",
           "suppress": True,
           }],
-        [["--robocop-ini"],
-         {"dest": "robocopIni",
-          "default": "",
-          "help": "name of the .ini file containing the list of tests to run",
-          }],
-        [["--robocop-apk"],
-         {"dest": "robocopApk",
-          "default": "",
-          "help": "name of the Robocop APK to use for ADB test running",
-          }],
         [["--remoteTestRoot"],
          {"dest": "remoteTestRoot",
           "default": None,
@@ -963,36 +953,6 @@ class AndroidArguments(ArgumentContainer):
             f = open(options.pidFile, 'w')
             f.write("%s" % os.getpid())
             f.close()
-
-        # Robocop specific options
-        if options.robocopIni != "":
-            if not os.path.exists(options.robocopIni):
-                parser.error(
-                    "Unable to find specified robocop .ini manifest '%s'" %
-                    options.robocopIni)
-            options.robocopIni = os.path.abspath(options.robocopIni)
-
-            if not options.robocopApk and build_obj:
-                options.robocopApk = os.path.join(build_obj.topobjdir, 'mobile', 'android',
-                                                  'tests', 'browser',
-                                                  'robocop', 'robocop-debug.apk')
-
-        if options.robocopApk != "":
-            if not os.path.exists(options.robocopApk):
-                parser.error(
-                    "Unable to find robocop APK '%s'" %
-                    options.robocopApk)
-            options.robocopApk = os.path.abspath(options.robocopApk)
-
-        # Disable e10s by default on Android because we don't run Android
-        # e10s jobs anywhere yet.
-        options.e10s = False
-        mozinfo.update({'e10s': options.e10s})
-
-        # allow us to keep original application around for cleanup while
-        # running robocop via 'am'
-        options.remoteappname = options.app
-        return options
 
 
 container_map = {

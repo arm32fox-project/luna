@@ -50,15 +50,6 @@ def GetPreferredTryMasters(project, change):
     'linux_msan',
     'linux_ubsan',
     'linux_ubsan_vptr',
-    'android',
-    'android_rel',
-    'android_clang',
-    'android_arm64',
-    'android_mips',
-    'android_x64',
-    'android_x86',
-    'android_gn',
-    'android_gn_rel',
   ]
   if not files or all(re.search(r'[\\/]OWNERS$', f) for f in files):
     return {}

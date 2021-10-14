@@ -257,11 +257,8 @@ AndroidPresenter.prototype.pivotChanged =
 
     let androidEvents = [];
 
-    let isExploreByTouch = (aReason == Ci.nsIAccessiblePivot.REASON_POINT &&
-                            Utils.AndroidSdkVersion >= 14);
-    let focusEventType = (Utils.AndroidSdkVersion >= 16) ?
-      this.ANDROID_VIEW_ACCESSIBILITY_FOCUSED :
-      this.ANDROID_VIEW_FOCUSED;
+    let isExploreByTouch = (aReason == Ci.nsIAccessiblePivot.REASON_POINT);
+    let focusEventType = this.ANDROID_VIEW_ACCESSIBILITY_FOCUSED;
 
     if (isExploreByTouch) {
       // This isn't really used by TalkBack so this is a half-hearted attempt
@@ -270,25 +267,21 @@ AndroidPresenter.prototype.pivotChanged =
     }
 
     let brailleOutput = {};
-    if (Utils.AndroidSdkVersion >= 16) {
-      if (!this._braillePresenter) {
-        this._braillePresenter = new BraillePresenter();
-      }
-      brailleOutput = this._braillePresenter.pivotChanged(aContext, aReason).
-                         details;
+    if (!this._braillePresenter) {
+      this._braillePresenter = new BraillePresenter();
     }
+    brailleOutput = this._braillePresenter.pivotChanged(aContext, aReason).
+                       details;
 
     if (aReason === Ci.nsIAccessiblePivot.REASON_TEXT) {
-      if (Utils.AndroidSdkVersion >= 16) {
-        let adjustedText = aContext.textAndAdjustedOffsets;
+      let adjustedText = aContext.textAndAdjustedOffsets;
 
-        androidEvents.push({
-          eventType: this.ANDROID_VIEW_TEXT_TRAVERSED_AT_MOVEMENT_GRANULARITY,
-          text: [adjustedText.text],
-          fromIndex: adjustedText.startOffset,
-          toIndex: adjustedText.endOffset
-        });
-      }
+      androidEvents.push({
+        eventType: this.ANDROID_VIEW_TEXT_TRAVERSED_AT_MOVEMENT_GRANULARITY,
+        text: [adjustedText.text],
+        fromIndex: adjustedText.startOffset,
+        toIndex: adjustedText.endOffset
+      });
     } else {
       let state = Utils.getState(aContext.accessible);
       androidEvents.push({eventType: (isExploreByTouch) ?
@@ -371,7 +364,7 @@ AndroidPresenter.prototype.textSelectionChanged =
                                                  aOldEnd, aIsFromUserInput) {
     let androidEvents = [];
 
-    if (Utils.AndroidSdkVersion >= 14 && !aIsFromUserInput) {
+    if (!aIsFromUserInput) {
       if (!this._braillePresenter) {
         this._braillePresenter = new BraillePresenter();
       }
@@ -388,7 +381,7 @@ AndroidPresenter.prototype.textSelectionChanged =
       });
     }
 
-    if (Utils.AndroidSdkVersion >= 16 && aIsFromUserInput) {
+    if (aIsFromUserInput) {
       let [from, to] = aOldStart < aStart ?
         [aOldStart, aStart] : [aStart, aOldStart];
       androidEvents.push({
@@ -407,10 +400,6 @@ AndroidPresenter.prototype.textSelectionChanged =
 
 AndroidPresenter.prototype.viewportChanged =
   function AndroidPresenter_viewportChanged(aWindow, aCurrentContext) {
-    if (Utils.AndroidSdkVersion < 14) {
-      return null;
-    }
-
     let events = [{
       eventType: this.ANDROID_VIEW_SCROLLED,
       text: [],
@@ -420,7 +409,7 @@ AndroidPresenter.prototype.viewportChanged =
       maxScrollY: aWindow.scrollMaxY
     }];
 
-    if (Utils.AndroidSdkVersion >= 16 && aCurrentContext) {
+    if (aCurrentContext) {
       let currentAcc = aCurrentContext.accessibleForBounds;
       if (Utils.isAliveAndVisible(currentAcc)) {
         events.push({
@@ -447,8 +436,7 @@ AndroidPresenter.prototype.announce =
     return {
       type: this.type,
       details: [{
-        eventType: (Utils.AndroidSdkVersion >= 16) ?
-          this.ANDROID_ANNOUNCEMENT : this.ANDROID_VIEW_TEXT_CHANGED,
+        eventType: this.ANDROID_ANNOUNCEMENT,
         text: [localizedAnnouncement],
         addedCount: localizedAnnouncement.length,
         removedCount: 0,

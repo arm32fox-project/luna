@@ -351,88 +351,9 @@ class DTDChecker(Checker):
             for t in self.processContent(self.texthandler.textcontent):
                 yield t
 
-
-class PrincessAndroid(DTDChecker):
-    """Checker for the string values that Android puts into an XML container.
-
-    http://developer.android.com/guide/topics/resources/string-resource.html#FormattingAndStyling  # noqa
-    has more info. Check for unescaped apostrophes and bad unicode escapes.
-    """
-    quoted = re.compile("(?P<q>[\"']).*(?P=q)$")
-
-    def unicode_escape(self, str):
-        """Helper method to try to decode all unicode escapes in a string.
-
-        This code uses the standard python decode for unicode-escape, but
-        that's somewhat tricky, as its input needs to be ascii. To get to
-        ascii, the unicode string gets converted to ascii with
-        backslashreplace, i.e., all non-ascii unicode chars get unicode
-        escaped. And then we try to roll all of that back.
-        Now, when that hits an error, that's from the original string, and we
-        need to search for the actual error position in the original string,
-        as the backslashreplace code changes string positions quite badly.
-        See also the last check in TestAndroid.test_android_dtd, with a
-        lengthy chinese string.
-        """
-        val = str.encode('ascii', 'backslashreplace')
-        try:
-            val.decode('unicode-escape')
-        except UnicodeDecodeError, e:
-            args = list(e.args)
-            badstring = args[1][args[2]:args[3]]
-            i = len(args[1][:args[2]].decode('unicode-escape'))
-            args[2] = i
-            args[3] = i + len(badstring)
-            raise UnicodeDecodeError(*args)
-
-    @classmethod
-    def use(cls, file):
-        """Use this Checker only for DTD files in embedding/android."""
-        return (file.module in ("embedding/android",
-                                "mobile/android/base") and
-                cls.pattern.match(file.file))
-
-    def processContent(self, val):
-        """Actual check code.
-        Check for unicode escapes and unescaped quotes and apostrophes,
-        if string's not quoted.
-        """
-        # first, try to decode unicode escapes
-        try:
-            self.unicode_escape(val)
-        except UnicodeDecodeError, e:
-            yield ('error', e.args[2], e.args[4], 'android')
-        # check for unescaped single or double quotes.
-        # first, see if the complete string is single or double quoted,
-        # that changes the rules
-        m = self.quoted.match(val)
-        if m:
-            q = m.group('q')
-            offset = 0
-            val = val[1:-1]  # strip quotes
-        else:
-            q = "[\"']"
-            offset = -1
-        stray_quot = re.compile(r"[\\\\]*(%s)" % q)
-
-        for m in stray_quot.finditer(val):
-            if len(m.group(0)) % 2:
-                # found an unescaped single or double quote, which message?
-                if m.group(1) == '"':
-                    msg = u"Quotes in Android DTDs need escaping with \\\" "\
-                          u"or \\u0022, or put string in apostrophes."
-                else:
-                    msg = u"Apostrophes in Android DTDs need escaping with "\
-                          u"\\' or \\u0027, or use \u2019, or put string in "\
-                          u"quotes."
-                yield ('error', m.end(0)+offset, msg, 'android')
-
-
 def getChecker(file, reference=None):
     if PropertiesChecker.use(file):
         return PropertiesChecker()
-    if PrincessAndroid.use(file):
-        return PrincessAndroid(reference)
     if DTDChecker.use(file):
         return DTDChecker(reference)
     return None

@@ -27,7 +27,7 @@ if CONFIG['CPU_ARCH'] == 'x86_64':
         ASFLAGS += [ '-I%s/media/libaom/config/mac/x64/' % TOPSRCDIR ]
         LOCAL_INCLUDES += [ '/media/libaom/config/mac/x64/' ]
         EXPORTS.aom += [ 'config/mac/x64/config/aom_config.h' ]
-    else: # Android, Linux, BSDs, etc.
+    else: # Linux, SunOS, etc.
         ASFLAGS += [ '-I%s/media/libaom/config/linux/x64/' % TOPSRCDIR ]
         LOCAL_INCLUDES += [ '/media/libaom/config/linux/x64/' ]
         EXPORTS.aom += [ 'config/linux/x64/config/aom_config.h' ]
@@ -45,7 +45,7 @@ elif CONFIG['CPU_ARCH'] == 'x86':
             LOCAL_INCLUDES += [ '/media/libaom/config/win/ia32/' ]
             EXPORTS.aom += [ 'config/win/ia32/config/aom_config.h' ]
             NO_PGO = True
-    else: # Android, Linux, BSDs, etc.
+    else: # Linux, SunOS, etc.
         ASFLAGS += [ '-I%s/media/libaom/config/linux/ia32/' % TOPSRCDIR ]
         LOCAL_INCLUDES += [ '/media/libaom/config/linux/ia32/' ]
         EXPORTS.aom += [ 'config/linux/ia32/config/aom_config.h' ]
@@ -71,11 +71,6 @@ elif CONFIG['CPU_ARCH'] == 'arm':
         if f.endswith('neon.c'):
             SOURCES[f].flags += CONFIG['VPX_ASFLAGS']
 
-    if CONFIG['OS_TARGET'] == 'Android':
-        # For cpu-features.h
-        LOCAL_INCLUDES += [
-            '%%%s/sources/android/cpufeatures' % CONFIG['ANDROID_NDK'],
-        ]
     if CONFIG['CLANG_CXX']:
         ASFLAGS += [
             '-no-integrated-as',
@@ -95,16 +90,6 @@ if CONFIG['GKMEDIAS_SHARED_LIBRARY']:
 ALLOW_COMPILER_WARNINGS = True
 
 FINAL_LIBRARY = 'gkmedias'
-
-if CONFIG['OS_TARGET'] == 'Android':
-    # Older versions of the Android NDK don't pre-define anything to indicate
-    # the OS they're on, so do it for them.
-    DEFINES['__linux__'] = True
-
-    if not CONFIG['MOZ_WEBRTC']:
-        SOURCES += [
-            '%%%s/sources/android/cpufeatures/cpu-features.c' % CONFIG['ANDROID_NDK'],
-        ]
 
 if CONFIG['CLANG_CL'] or not CONFIG['_MSC_VER']:
     for f in SOURCES:

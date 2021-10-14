@@ -109,35 +109,13 @@ this.Utils = { // jshint ignore:line
     return this._ScriptName;
   },
 
-  get AndroidSdkVersion() {
-    if (!this._AndroidSdkVersion) {
-      if (Services.appinfo.OS == 'Android') {
-        this._AndroidSdkVersion = Services.sysinfo.getPropertyAsInt32(
-          'version');
-      } else {
-        // Most useful in desktop debugging.
-        this._AndroidSdkVersion = 16;
-      }
-    }
-    return this._AndroidSdkVersion;
-  },
-
-  set AndroidSdkVersion(value) {
-    // When we want to mimic another version.
-    this._AndroidSdkVersion = value;
-  },
-
   get BrowserApp() {
     if (!this.win) {
       return null;
     }
     switch (this.MozBuildApp) {
-      case 'mobile/android':
-        return this.win.BrowserApp;
       case 'browser':
         return this.win.gBrowser;
-      case 'b2g':
-        return this.win.shell;
       default:
         return null;
     }
@@ -146,9 +124,6 @@ this.Utils = { // jshint ignore:line
   get CurrentBrowser() {
     if (!this.BrowserApp) {
       return null;
-    }
-    if (this.MozBuildApp == 'b2g') {
-      return this.BrowserApp.contentBrowser;
     }
     return this.BrowserApp.selectedBrowser;
   },

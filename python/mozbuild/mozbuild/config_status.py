@@ -177,7 +177,3 @@ def config_status(topobjdir='.', topsrcdir='.', defines=None,
     if os.name == 'nt' and 'VisualStudio' not in options.backend:
         print(VISUAL_STUDIO_ADVERTISEMENT)
 
-    # Advertise Eclipse if it is appropriate.
-    if MachCommandConditions.is_android(env):
-        if 'AndroidEclipse' not in options.backend:
-            print(ANDROID_IDE_ADVERTISEMENT)

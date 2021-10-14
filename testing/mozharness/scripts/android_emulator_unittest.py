@@ -113,7 +113,6 @@ class AndroidEmulatorTest(BlobUploadMixin, TestingMixin, EmulatorMixin, VCSMixin
         self.test_url = c.get('test_url')
         self.test_packages_url = c.get('test_packages_url')
         self.test_manifest = c.get('test_manifest')
-        self.robocop_path = os.path.join(abs_dirs['abs_work_dir'], "robocop.apk")
         self.minidump_stackwalk_path = c.get("minidump_stackwalk_path")
         self.emulator = c.get('emulator')
         self.test_suite = c.get('test_suite')
@@ -354,17 +353,6 @@ class AndroidEmulatorTest(BlobUploadMixin, TestingMixin, EmulatorMixin, VCSMixin
             cmd = [self.adb_path, '-s', self.emulator['device_id'], 'install', '-r', '-g', self.installer_path]
         else:
             cmd = [self.adb_path, '-s', self.emulator['device_id'], 'install', '-r', self.installer_path]
-        out = self._run_with_timeout(300, cmd)
-        if 'Success' in out:
-            install_ok = True
-        return install_ok
-
-    def _install_robocop_apk(self):
-        install_ok = False
-        if int(self.sdk_level) >= 23:
-            cmd = [self.adb_path, '-s', self.emulator['device_id'], 'install', '-r', '-g', self.robocop_path]
-        else:
-            cmd = [self.adb_path, '-s', self.emulator['device_id'], 'install', '-r', self.robocop_path]
         out = self._run_with_timeout(300, cmd)
         if 'Success' in out:
             install_ok = True
@@ -642,14 +630,10 @@ class AndroidEmulatorTest(BlobUploadMixin, TestingMixin, EmulatorMixin, VCSMixin
 
     def download_and_extract(self):
         """
-        Download and extract fennec APK, tests.zip, host utils, and robocop (if required).
+        Download and extract fennec APK, tests.zip, host utils (if required).
         """
         super(AndroidEmulatorTest, self).download_and_extract(suite_categories=[self.test_suite])
         dirs = self.query_abs_dirs()
-        if self.test_suite.startswith('robocop'):
-            robocop_url = self.installer_url[:self.installer_url.rfind('/')] + '/robocop.apk'
-            self.info("Downloading robocop...")
-            self.download_file(robocop_url, 'robocop.apk', dirs['abs_work_dir'], error_level=FATAL)
         self.rmtree(dirs['abs_xre_dir'])
         self.mkdir_p(dirs['abs_xre_dir'])
         if self.config["hostutils_manifest_path"]:
@@ -681,12 +665,6 @@ class AndroidEmulatorTest(BlobUploadMixin, TestingMixin, EmulatorMixin, VCSMixin
         install_ok = self._retry(3, 30, self._install_fennec_apk, "Install Fennec APK")
         if not install_ok:
             self.fatal('INFRA-ERROR: Failed to install %s on %s' % (self.installer_path, self.emulator["name"]))
-
-        # Install Robocop if required
-        if self.test_suite.startswith('robocop'):
-            install_ok = self._retry(3, 30, self._install_robocop_apk, "Install Robocop APK")
-            if not install_ok:
-                self.fatal('INFRA-ERROR: Failed to install %s on %s' % (self.robocop_path, self.emulator["name"]))
 
         self.info("Finished installing apps for %s" % self.emulator["name"])
 

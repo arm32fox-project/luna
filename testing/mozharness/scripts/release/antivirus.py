@@ -69,7 +69,6 @@ class AntivirusScan(BaseScript, VirtualenvMixin):
         r"^.*json$",
         r"^.*/host.*$",
         r"^.*/mar-tools/.*$",
-        r"^.*robocop.apk$",
         r"^.*contrib.*"
     ]
     CACHE_DIR = 'cache'

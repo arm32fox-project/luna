@@ -44,11 +44,8 @@ if os_macosx or os_bsd:
 if os_linux:
     SOURCES += [
         'libevent/epoll.c',
+        'libevent/epoll_sub.c',
     ]
-    if CONFIG['OS_TARGET'] != 'Android':
-        SOURCES += [
-            'libevent/epoll_sub.c',
-        ]
 
 if os_solaris:
     SOURCES += [

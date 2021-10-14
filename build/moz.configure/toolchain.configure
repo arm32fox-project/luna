@@ -165,9 +165,8 @@ def toolchain_prefix(value, target, host, cross_compiling):
 @depends(toolchain_prefix, target)
 def first_toolchain_prefix(toolchain_prefix, target):
     # Pass TOOLCHAIN_PREFIX down to the build system if it was given from the
-    # command line/environment (in which case there's only one value in the tuple),
-    # or when cross-compiling for Android.
-    if toolchain_prefix and (target.os == 'Android' or len(toolchain_prefix) == 1):
+    # command line/environment (in which case there's only one value in the tuple).
+    if toolchain_prefix and (len(toolchain_prefix) == 1):
         return toolchain_prefix[0]
 
 set_config('TOOLCHAIN_PREFIX', first_toolchain_prefix)
@@ -840,10 +839,9 @@ def debug_flags(env_debug_flags, enable_debug_flags, default_debug_flags):
 set_config('MOZ_DEBUG_FLAGS', debug_flags)
 add_old_configure_assignment('MOZ_DEBUG_FLAGS', debug_flags)
 
-# Some standard library headers (notably bionic on Android) declare standard
-# functions (e.g. getchar()) and also #define macros for those standard
-# functions.  libc++ deals with this by doing something like the following
-# (explanatory comments added):
+# Some standard library headers declare standard functions (e.g. getchar()) and
+# also #define macros for those standard functions.  libc++ deals with this by
+# doing something like the following (explanatory comments added):
 #
 #   #ifdef FUNC
 #   // Capture the definition of FUNC.
@@ -878,7 +876,7 @@ add_old_configure_assignment('MOZ_DEBUG_FLAGS', debug_flags)
 # effectively does the same thing we are doing here.
 @depends(c_compiler, target)
 def libcxx_inline_visibility(c_compiler, target):
-    if c_compiler.type == 'clang' and target.os == 'Android':
+    if c_compiler.type == 'clang':
         return ''
 
 set_define('_LIBCPP_INLINE_VISIBILITY', libcxx_inline_visibility)

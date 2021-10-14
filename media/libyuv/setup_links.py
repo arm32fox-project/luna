@@ -60,27 +60,6 @@ DIRECTORIES = [
 
 from sync_chromium import get_target_os_list
 target_os = get_target_os_list()
-if 'android' in target_os:
-  DIRECTORIES += [
-    'base',
-    'third_party/android_platform',
-    'third_party/android_tools',
-    'third_party/appurify-python',
-    'third_party/ashmem',
-    'third_party/catapult',
-    'third_party/icu',
-    'third_party/ijar',
-    'third_party/jsr-305',
-    'third_party/junit',
-    'third_party/libxml',
-    'third_party/mockito',
-    'third_party/modp_b64',
-    'third_party/protobuf',
-    'third_party/requests',
-    'third_party/robolectric',
-    'tools/android',
-    'tools/grit',
-  ]
 if 'ios' in target_os:
   DIRECTORIES.append('third_party/class-dump')
 

@@ -35,16 +35,15 @@ elif CONFIG['OS_TARGET'] in ('DragonFly', 'FreeBSD', 'OpenBSD', 'NetBSD',
 else:
     DEFINES['HAVE_SYS_UIO_H'] = True
 
-if CONFIG['OS_TARGET'] != 'Android':
-    DEFINES['FAKE_LOG_DEVICE'] = True
-    SOURCES += [
-        'system/core/liblog/fake_log_device.c',
-    ]
-    UNIFIED_SOURCES += [
-        'system/core/libcutils/strdup16to8.c',
-        'system/core/liblog/logd_write.c',
-        'system/core/liblog/logprint.c',
-    ]
+DEFINES['FAKE_LOG_DEVICE'] = True
+SOURCES += [
+    'system/core/liblog/fake_log_device.c',
+]
+UNIFIED_SOURCES += [
+    'system/core/libcutils/strdup16to8.c',
+    'system/core/liblog/logd_write.c',
+    'system/core/liblog/logprint.c',
+]
 
 EXPORTS.mp4_demuxer += [
     'binding/include/mp4_demuxer/Adts.h',
