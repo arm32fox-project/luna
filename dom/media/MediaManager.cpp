@@ -1564,28 +1564,6 @@ private:
   RefPtr<MediaManager> mManager; // get ref to this when creating the runnable
 };
 
-#if defined(ANDROID)
-class GetUserMediaRunnableWrapper : public Runnable
-{
-public:
-  // This object must take ownership of task
-  GetUserMediaRunnableWrapper(GetUserMediaTask* task) :
-    mTask(task) {
-  }
-
-  ~GetUserMediaRunnableWrapper() {
-  }
-
-  NS_IMETHOD Run() override {
-    mTask->Run();
-    return NS_OK;
-  }
-
-private:
-  nsAutoPtr<GetUserMediaTask> mTask;
-};
-#endif
-
 /**
  * EnumerateRawDevices - Enumerate a list of audio & video devices that
  * satisfy passed-in constraints. List contains raw id's.
@@ -2577,8 +2555,7 @@ MediaEngine*
 MediaManager::GetBackend(uint64_t aWindowId)
 {
   MOZ_ASSERT(MediaManager::IsInMediaThread());
-  // Plugin backends as appropriate. The default engine also currently
-  // includes picture support for Android.
+  // Plugin backends as appropriate.
   // This IS called off main-thread.
   if (!mBackend) {
     MOZ_RELEASE_ASSERT(!sInShutdown);  // we should never create a new backend in shutdown

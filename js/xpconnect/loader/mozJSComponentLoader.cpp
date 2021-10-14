@@ -9,9 +9,6 @@
 #include <cstdarg>
 
 #include "mozilla/Logging.h"
-#ifdef ANDROID
-#include <android/log.h>
-#endif
 #ifdef XP_WIN
 #include <windows.h>
 #endif
@@ -101,9 +98,6 @@ Dump(JSContext* cx, unsigned argc, Value* vp)
     if (!utf8str.encodeUtf8(cx, str))
         return false;
 
-#ifdef ANDROID
-    __android_log_print(ANDROID_LOG_INFO, "Gecko", "%s", utf8str.ptr());
-#endif
 #ifdef XP_WIN
     if (IsDebuggerPresent()) {
         nsAutoJSString wstr;

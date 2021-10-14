@@ -18,8 +18,6 @@ gyp_vars = {
     'clang_use_chrome_plugins': 0,
     'enable_protobuf': 0,
     'include_tests': 0,
-    'enable_android_opensl': 1,
-    'enable_android_opensl_output': 0,
     # use_system_lib* still seems to be in use in trunk/build
     'use_system_libjpeg': 0,
     'use_system_libvpx': 0,
@@ -76,16 +74,9 @@ if os == 'WINNT':
         MSVS_VERSION=CONFIG['_MSVS_VERSION'],
         MSVS_OS_BITS=64 if CONFIG['HAVE_64BIT_BUILD'] else 32,
     )
-elif os == 'Android':
-    gyp_vars.update(
-        gtest_target_type='executable',
-        moz_webrtc_mediacodec=1,
-        android_toolchain=CONFIG.get('ANDROID_TOOLCHAIN', ''),
-    )
 
 flavors = {
     'WINNT': 'win',
-    'Android': 'android',
     'Linux': 'linux',
     'SunOS': 'solaris',
     'GNU/kFreeBSD': 'freebsd',
@@ -108,11 +99,8 @@ if CONFIG['ARM_ARCH']:
     if int(CONFIG['ARM_ARCH']) < 7:
         gyp_vars['armv7'] = 0
         gyp_vars['arm_neon_optional'] = 0
-    elif os == 'Android':
-        gyp_vars['armv7'] = 1
     else:
-        # CPU detection for ARM works on Android only.  armv7 always uses CPU
-        # detection, so we have to set armv7=0 for non-Android target
+        # armv7 always uses CPU detection, so we have to set armv7=0
         gyp_vars['armv7'] = 0
     # For libyuv
     gyp_vars['arm_version'] = int(CONFIG['ARM_ARCH'])

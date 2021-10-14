@@ -4307,63 +4307,6 @@
     "n_buckets" : 64,
     "description": "The width dimension of the 'sizes' attribute for <link rel=icon>."
   },
-  "FENNEC_DISTRIBUTION_REFERRER_INVALID": {
-    "expires_in_version": "never",
-    "kind": "flag",
-    "description": "Whether the referrer intent specified an invalid distribution name",
-    "cpp_guard": "ANDROID"
-  },
-  "FENNEC_DISTRIBUTION_CODE_CATEGORY": {
-    "expires_in_version": "never",
-    "kind": "enumerated",
-    "n_values": 20,
-    "description": "First digit of HTTP result code, or error category, during distribution download",
-    "cpp_guard": "ANDROID"
-  },
-  "FENNEC_DISTRIBUTION_DOWNLOAD_TIME_MS": {
-    "expires_in_version": "never",
-    "kind": "exponential",
-    "low": 100,
-    "high": 40000,
-    "n_buckets": 30,
-    "description": "Time taken to download a specified distribution file (msec)",
-    "cpp_guard": "ANDROID"
-  },
-  "FENNEC_BOOKMARKS_COUNT": {
-    "expires_in_version": "60",
-    "kind": "exponential",
-    "high": 8000,
-    "n_buckets": 20,
-    "description": "Number of bookmarks stored in the browser DB",
-    "alert_emails": ["mobile-frontend@mozilla.com"],
-    "bug_numbers": [1244704]
-  },
-  "FENNEC_ORBOT_INSTALLED": {
-    "expires_in_version": "60",
-    "kind": "flag",
-    "cpp_guard": "ANDROID",
-    "description": "Whether or not users have Orbot installed",
-    "alert_emails": ["seceng@mozilla.org"],
-    "bug_numbers": [1314784]
-  },
-  "FENNEC_READING_LIST_COUNT": {
-    "expires_in_version": "50",
-    "kind": "exponential",
-    "high": 1000,
-    "n_buckets": 10,
-    "cpp_guard": "ANDROID",
-    "description": "Number of reading list items stored in the browser DB *** No longer needed (bug 1156565). Delete histogram and accumulation code! ***"
-  },
-  "FENNEC_READER_VIEW_CACHE_SIZE": {
-    "expires_in_version": "60",
-    "alert_emails": ["mobile-frontend@mozilla.com"],
-    "kind": "exponential",
-    "low": 32,
-    "high": 51200,
-    "n_buckets": 20,
-    "description": "Total disk space used by items in the reader view cache (KB)",
-    "bug_numbers": [1246159]
-  },
   "PLACES_SORTED_BOOKMARKS_PERC": {
     "expires_in_version": "never",
     "kind": "linear",
@@ -6288,107 +6231,6 @@
     "kind": "enumerated",
     "n_values": 10,
     "description": "Track click count on about:newtab tiles per index (0-8). For non-default row or column configurations all clicks into the '9' bucket. *** No longer needed (bug 1156565). Delete histogram and accumulation code! ***"
-  },
-  "BROWSERPROVIDER_XUL_IMPORT_BOOKMARKS": {
-    "expires_in_version": "default",
-    "kind": "exponential",
-    "high": 50000,
-    "n_buckets": 20,
-    "description": "Number of bookmarks in the original XUL places database",
-    "cpp_guard": "ANDROID"
-  },
-  "FENNEC_GLOBALHISTORY_ADD_MS": {
-    "expires_in_version": "never",
-    "kind": "exponential",
-    "low": 10,
-    "high": 20000,
-    "n_buckets": 20,
-    "description": "Time for a record to be added to history (ms)",
-    "cpp_guard": "ANDROID"
-  },
-  "FENNEC_GLOBALHISTORY_UPDATE_MS": {
-    "expires_in_version": "never",
-    "kind": "exponential",
-    "low": 10,
-    "high": 20000,
-    "n_buckets": 20,
-    "description": "Time for a record to be updated in history (ms)",
-    "cpp_guard": "ANDROID"
-  },
-  "FENNEC_GLOBALHISTORY_VISITED_BUILD_MS": {
-    "expires_in_version": "never",
-    "kind": "exponential",
-    "low": 10,
-    "high": 20000,
-    "n_buckets": 20,
-    "description": "Time to update the visited link set (ms)",
-    "cpp_guard": "ANDROID"
-  },
-  "FENNEC_RESTORING_ACTIVITY": {
-    "expires_in_version": "never",
-    "kind": "flag",
-    "description": "Fennec is starting up but the Gecko thread was still running",
-    "cpp_guard": "ANDROID"
-  },
-  "FENNEC_SEARCH_LOADER_TIME_MS": {
-    "expires_in_version": "never",
-    "kind": "exponential",
-    "low": 10,
-    "high": 20000,
-    "n_buckets": 20,
-    "description": "Time for a URL bar DB search to return (ms)",
-    "cpp_guard": "ANDROID"
-  },
-  "FENNEC_STARTUP_TIME_GECKOREADY": {
-    "expires_in_version": "never",
-    "kind": "exponential",
-    "low": 500,
-    "high": 20000,
-    "n_buckets": 20,
-    "description": "Time for the Gecko:Ready message to arrive (ms)",
-    "cpp_guard": "ANDROID"
-  },
-  "FENNEC_STARTUP_TIME_JAVAUI": {
-    "expires_in_version": "never",
-    "kind": "exponential",
-    "low": 100,
-    "high": 5000,
-    "n_buckets": 20,
-    "description": "Time for the Java UI to load (ms)",
-    "cpp_guard": "ANDROID"
-  },
-  "FENNEC_TOPSITES_LOADER_TIME_MS": {
-    "expires_in_version": "never",
-    "kind": "exponential",
-    "low": 10,
-    "high": 20000,
-    "n_buckets": 20,
-    "description": "Time for the home screen Top Sites query to return with no filter set (ms)",
-    "cpp_guard": "ANDROID"
-  },
-  "FENNEC_ACTIVITY_STREAM_TOPSITES_LOADER_TIME_MS": {
-    "expires_in_version": "never",
-    "kind": "exponential",
-    "low": 10,
-    "high": 20000,
-    "n_buckets": 20,
-    "description": "Time for the Activity Stream home screen Top Sites query to return (ms)",
-    "alert_emails": ["mobile-frontend@mozilla.com"],
-    "bug_numbers": [1293790],
-    "cpp_guard": "ANDROID"
-  },
-  "FENNEC_HOMEPANELS_CUSTOM": {
-    "expires_in_version": "54",
-    "kind": "boolean",
-    "bug_numbers": [1245368],
-    "description": "Whether the user has customized their homepanels",
-    "cpp_guard": "ANDROID"
-  },
-  "FENNEC_WAS_KILLED": {
-    "expires_in_version": "never",
-    "kind": "flag",
-    "description": "Killed, likely due to an OOM condition",
-    "cpp_guard": "ANDROID"
   },
   "FIPS_ENABLED": {
     "alert_emails": ["seceng@mozilla.org"],
@@ -8839,14 +8681,6 @@
     "kind": "boolean",
     "description": "Is the tracking protection in private browsing mode disabled?"
   },
-  "FENNEC_TRACKING_PROTECTION_STATE": {
-    "expires_in_version": "60",
-    "kind": "enumerated",
-    "n_values": 5,
-    "description": "The state of the user-visible tracking protection setting (0 = Disabled, 1 = Enabled in PB, 2 = Enabled)",
-    "alert_emails": ["mleibovic@mozilla.com"],
-    "bug_numbers": [1228090]
-  },
   "TRACKING_PROTECTION_SHIELD": {
     "expires_in_version": "never",
     "kind": "enumerated",
@@ -9386,53 +9220,6 @@
     "kind": "boolean",
     "description": "Whether a saved login has a username"
   },
-  "FENNEC_SYNC11_MIGRATION_SENTINELS_SEEN": {
-    "expires_in_version": "45",
-    "kind": "count",
-    "description": "The number of Sync 1.1 -> Sync 1.5 migration sentinels seen by Android Sync."
-  },
-  "FENNEC_SYNC11_MIGRATIONS_FAILED": {
-    "expires_in_version": "45",
-    "kind": "count",
-    "description": "The number of Sync 1.1 -> Sync 1.5 migrations that failed during Android Sync."
-  },
-  "FENNEC_SYNC11_MIGRATIONS_SUCCEEDED": {
-    "expires_in_version": "45",
-    "kind": "count",
-    "description": "The number of Sync 1.1 -> Sync 1.5 migrations that succeeded during Android Sync."
-  },
-  "FENNEC_SYNC11_MIGRATION_NOTIFICATIONS_OFFERED": {
-    "expires_in_version": "45",
-    "kind": "exponential",
-    "high": 500,
-    "n_buckets": 5,
-    "description": "The number of Sync 1.5 'complete upgrade/migration' notifications offered by Android Sync."
-  },
-  "FENNEC_SYNC11_MIGRATIONS_COMPLETED": {
-    "expires_in_version": "45",
-    "kind": "count",
-    "description": "The number of Sync 1.5 migrations completed by Android Sync."
-  },
-  "FENNEC_SYNC_NUMBER_OF_SYNCS_STARTED": {
-    "expires_in_version": "45",
-    "kind": "count",
-    "description": "Counts the number of times that a sync has started."
-  },
-  "FENNEC_SYNC_NUMBER_OF_SYNCS_COMPLETED": {
-    "expires_in_version": "45",
-    "kind": "count",
-    "description": "Counts the number of times that a sync has completed with no errors."
-  },
-  "FENNEC_SYNC_NUMBER_OF_SYNCS_FAILED": {
-    "expires_in_version": "45",
-    "kind": "count",
-    "description": "Counts the number of times that a sync has failed with errors."
-  },
-  "FENNEC_SYNC_NUMBER_OF_SYNCS_FAILED_BACKOFF": {
-    "expires_in_version": "45",
-    "kind": "count",
-    "description": "Counts the number of times that a sync has failed because of trying to sync before server backoff interval has passed."
-  },
   "SLOW_SCRIPT_NOTICE_COUNT": {
     "alert_emails": ["perf-telemetry-alerts@mozilla.com"],
     "expires_in_version": "never",
@@ -9536,14 +9323,6 @@
     "n_values": 5,
     "description": "The result of trying to download a document to show in reader view (0=Success, 1=Error XHR, 2=Error no document)"
   },
-  "FENNEC_LOAD_SAVED_PAGE": {
-    "expires_in_version": "60",
-    "alert_emails": ["mobile-frontend@mozilla.com"],
-    "kind": "enumerated",
-    "n_values": 10,
-    "description": "How often users load saved items when online/offline (0=RL online, 1=RL offline, 2=BM online, 3=BM offline)",
-    "bug_numbers": [1243387]
-  },
   "PERMISSIONS_SQL_CORRUPTED": {
     "expires_in_version": "never",
     "kind": "count",
@@ -9553,20 +9332,6 @@
     "expires_in_version": "never",
     "kind": "count",
     "description": "Record the removal of defective permissions.sqlite"
-  },
-  "FENNEC_TABQUEUE_QUEUESIZE" : {
-    "expires_in_version": "never",
-    "kind": "exponential",
-    "high": 50,
-    "n_buckets": 10,
-    "description": "The number of tabs queued when opened."
-  },
-  "FENNEC_CUSTOM_HOMEPAGE": {
-    "expires_in_version": "60",
-    "alert_emails": ["mobile-frontend@mozilla.com"],
-    "bug_numbers": [1239102],
-    "kind": "boolean",
-    "description": "Whether the user has set a custom homepage."
   },
   "GRAPHICS_DRIVER_STARTUP_TEST": {
     "alert_emails": ["gfx-telemetry-alerts@mozilla.com","danderson@mozilla.com","msreckovic@mozilla.com"],
@@ -10618,28 +10383,12 @@
     "kind": "count",
     "description": "Tracking the total number of opened Containers."
   },
-  "FENNEC_SESSIONSTORE_DAMAGED_SESSION_FILE": {
-    "alert_emails": ["jh+bugzilla@buttercookie.de"],
-    "expires_in_version": "56",
-    "kind": "flag",
-    "bug_numbers": [1284017],
-    "description": "When restoring tabs on startup, reading from sessionstore.js failed, even though the file exists and is not containing an explicitly empty window.",
-    "cpp_guard": "ANDROID"
-  },
   "SHARED_WORKER_COUNT": {
     "alert_emails": ["amarchesini@mozilla.com"],
     "expires_in_version": "58",
     "kind": "count",
     "bug_numbers": [1295980],
     "description": "Number of the use of SharedWorkers."
-  },
-  "FENNEC_SESSIONSTORE_RESTORING_FROM_BACKUP": {
-    "alert_emails": ["jh+bugzilla@buttercookie.de"],
-    "expires_in_version": "56",
-    "kind": "flag",
-    "bug_numbers": [1190627],
-    "description": "When restoring tabs on startup, reading from sessionstore.js failed, but sessionstore.bak was read successfully.",
-    "cpp_guard": "ANDROID"
   },
   "NUMBER_OF_PROFILES": {
     "alert_emails": ["amarchesini@mozilla.com"],

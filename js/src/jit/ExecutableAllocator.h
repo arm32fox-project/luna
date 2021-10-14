@@ -251,7 +251,7 @@ class ExecutableAllocator
     {
         __clear_cache(code, reinterpret_cast<char*>(code) + size);
     }
-#elif defined(JS_CODEGEN_ARM) && (defined(__linux__) || defined(ANDROID)) && defined(__GNUC__)
+#elif defined(JS_CODEGEN_ARM) && defined(__linux__) && defined(__GNUC__)
     static void cacheFlush(void* code, size_t size)
     {
         void* end = (void*)(reinterpret_cast<char*>(code) + size);

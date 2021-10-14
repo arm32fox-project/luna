@@ -15,12 +15,7 @@
 #  include <pthread_np.h>
 # endif
 
-# if defined(ANDROID)
-#  include <sys/types.h>
-#  include <unistd.h>
-# endif
-
-# if defined(XP_LINUX) && !defined(ANDROID) && defined(__GLIBC__)
+# if defined(XP_LINUX) && defined(__GLIBC__)
 #  include <dlfcn.h>
 #  include <sys/syscall.h>
 #  include <sys/types.h>
@@ -80,7 +75,7 @@ js::GetNativeStackBaseImpl()
 	 return static_cast<char*>(st.ss_sp) + st.ss_size;
 }
 
-#elif defined(XP_LINUX) && !defined(ANDROID) && defined(__GLIBC__)
+#elif defined(XP_LINUX) && defined(__GLIBC__)
 void*
 js::GetNativeStackBaseImpl()
 {
@@ -154,41 +149,6 @@ js::GetNativeStackBaseImpl()
     rc = pthread_stackseg_np(pthread_self(), &ss);
     stackBase = (void*)((size_t) ss.ss_sp - ss.ss_size);
     stackSize = ss.ss_size;
-# elif defined(ANDROID)
-    if (gettid() == getpid()) {
-        // bionic's pthread_attr_getstack doesn't tell the truth for the main
-        // thread (see bug 846670). So we scan /proc/self/maps to find the
-        // segment which contains the stack.
-        rc = -1;
-
-        // Put the string on the stack, otherwise there is the danger that it
-        // has not been decompressed by the the on-demand linker. Bug 1165460.
-        //
-        // The volatile keyword should stop the compiler from trying to omit
-        // the stack copy in the future (hopefully).
-        volatile char path[] = "/proc/self/maps";
-        FILE* fs = fopen((const char*)path, "r");
-
-        if (fs) {
-            char line[100];
-            unsigned long stackAddr = (unsigned long)&sattr;
-            while (fgets(line, sizeof(line), fs) != nullptr) {
-                unsigned long stackStart;
-                unsigned long stackEnd;
-                if (sscanf(line, "%lx-%lx ", &stackStart, &stackEnd) == 2 &&
-                    stackAddr >= stackStart && stackAddr < stackEnd) {
-                    stackBase = (void*)stackStart;
-                    stackSize = stackEnd - stackStart;
-                    rc = 0;
-                    break;
-                }
-            }
-            fclose(fs);
-        }
-    } else
-        // For non main-threads pthread allocates the stack itself so it tells
-        // the truth.
-        rc = pthread_attr_getstack(&sattr, &stackBase, &stackSize);
 # else
     // Use the default pthread_attr_getstack() call. Note that this function
     // differs between libc implementations and could imply /proc access etc.

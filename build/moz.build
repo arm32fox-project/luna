@@ -3,9 +3,6 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-with Files('**'):
-    BUG_COMPONENT = ('Core', 'Build Config')
-
 # This cannot be named "build" because of bug 922191.
 SPHINX_TREES['buildsystem'] = 'docs'
 
@@ -13,9 +10,6 @@ if CONFIG['OS_ARCH'] == 'WINNT':
     DIRS += ['win32']
 else:
     DIRS += ['unix']
-
-if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'android':
-    DIRS += ['annotationProcessors']
 
 for var in ('GRE_MILESTONE',
             'MOZ_APP_VERSION',
@@ -70,7 +64,7 @@ if CONFIG['MOZ_ASAN'] and CONFIG['CLANG_CL']:
 
 if CONFIG['MOZ_APP_BASENAME']:
     FINAL_TARGET_PP_FILES += ['application.ini']
-    if CONFIG['MOZ_WIDGET_TOOLKIT'] != 'android' and CONFIG['MOZ_UPDATER']:
+    if CONFIG['MOZ_UPDATER']:
         FINAL_TARGET_PP_FILES += ['update-settings.ini']
 
     if CONFIG['MOZ_APP_STATIC_INI']:

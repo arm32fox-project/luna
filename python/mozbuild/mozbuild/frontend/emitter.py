@@ -23,10 +23,6 @@ import mozinfo
 import pytoml
 
 from .data import (
-    AndroidAssetsDirs,
-    AndroidExtraPackages,
-    AndroidExtraResDirs,
-    AndroidResDirs,
     BaseSources,
     BrandingFiles,
     ChromeManifestEntry,
@@ -789,9 +785,6 @@ class TreeMetadataEmitter(LoggingMixin):
         passthru = VariablePassthru(context)
         varlist = [
             'ALLOW_COMPILER_WARNINGS',
-            'ANDROID_APK_NAME',
-            'ANDROID_APK_PACKAGE',
-            'ANDROID_GENERATED_RESFILES',
             'DISABLE_STL_WRAPPING',
             'EXTRA_DSO_LDOPTS',
             'PYTHON_UNIT_TESTS',
@@ -993,9 +986,6 @@ class TreeMetadataEmitter(LoggingMixin):
         for name, jar in context.get('JAVA_JAR_TARGETS', {}).items():
             yield ContextWrapped(context, jar)
 
-        for name, data in context.get('ANDROID_ECLIPSE_PROJECT_TARGETS', {}).items():
-            yield ContextWrapped(context, data)
-
         if context.get('USE_YASM') is True:
             yasm = context.config.substs.get('YASM')
             if not yasm:
@@ -1003,24 +993,6 @@ class TreeMetadataEmitter(LoggingMixin):
             passthru.variables['AS'] = yasm
             passthru.variables['ASFLAGS'] = context.config.substs.get('YASM_ASFLAGS')
             passthru.variables['AS_DASH_C_FLAG'] = ''
-
-        for (symbol, cls) in [
-                ('ANDROID_RES_DIRS', AndroidResDirs),
-                ('ANDROID_EXTRA_RES_DIRS', AndroidExtraResDirs),
-                ('ANDROID_ASSETS_DIRS', AndroidAssetsDirs)]:
-            paths = context.get(symbol)
-            if not paths:
-                continue
-            for p in paths:
-                if isinstance(p, SourcePath) and not os.path.isdir(p.full_path):
-                    raise SandboxValidationError('Directory listed in '
-                        '%s is not a directory: \'%s\'' %
-                            (symbol, p.full_path), context)
-            yield cls(context, paths)
-
-        android_extra_packages = context.get('ANDROID_EXTRA_PACKAGES')
-        if android_extra_packages:
-            yield AndroidExtraPackages(context, android_extra_packages)
 
         if passthru.variables:
             yield passthru

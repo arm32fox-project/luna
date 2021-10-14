@@ -89,9 +89,6 @@ HINSTANCE m_libHandle = NULL;
 void* m_libHandle = NULL;
 #endif /* ITT_PLATFORM==ITT_PLATFORM_WIN */
 
-/* default location of JIT profiling agent on Android */
-#define ANDROID_JIT_AGENT_PATH  "/data/intel/libittnotify.so"
-
 /* the function pointers */
 typedef unsigned int(*TPInitialize)(void);
 static TPInitialize FUNC_Initialize=NULL;
@@ -386,10 +383,6 @@ static int loadiJIT_Funcs()
     dllName = getenv(NEW_DLL_ENVIRONMENT_VAR);
     if (!dllName)
         dllName = getenv(DLL_ENVIRONMENT_VAR);
-#ifdef ANDROID
-    if (!dllName)
-        dllName = ANDROID_JIT_AGENT_PATH;
-#endif
     if (dllName)
     {
         /* Try to load the dll from the PATH... */

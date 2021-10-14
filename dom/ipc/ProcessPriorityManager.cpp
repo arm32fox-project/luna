@@ -50,20 +50,7 @@ using namespace mozilla::hal;
 
 // #define ENABLE_LOGGING 1
 
-#if defined(ANDROID) && defined(ENABLE_LOGGING)
-#  include <android/log.h>
-#  define LOG(fmt, ...) \
-     __android_log_print(ANDROID_LOG_INFO, \
-       "Gecko:ProcessPriorityManager", \
-       fmt, ## __VA_ARGS__)
-#  define LOGP(fmt, ...) \
-    __android_log_print(ANDROID_LOG_INFO, \
-      "Gecko:ProcessPriorityManager", \
-      "[%schild-id=%" PRIu64 ", pid=%d] " fmt, \
-      NameWithComma().get(), \
-      static_cast<uint64_t>(ChildID()), Pid(), ## __VA_ARGS__)
-
-#elif defined(ENABLE_LOGGING)
+#if defined(ENABLE_LOGGING)
 #  define LOG(fmt, ...) \
      printf("ProcessPriorityManager - " fmt "\n", ##__VA_ARGS__)
 #  define LOGP(fmt, ...) \

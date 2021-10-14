@@ -15,9 +15,9 @@
 #include "jit/arm/Assembler-arm.h"
 #include "jit/RegisterSets.h"
 
-#if !defined(__linux__) || defined(ANDROID) || defined(JS_SIMULATOR_ARM)
-// The Android NDK and B2G do not include the hwcap.h kernel header, and it is not
-// defined when building the simulator, so inline the header defines we need.
+#if !defined(__linux__) || defined(JS_SIMULATOR_ARM)
+// The hwcap.h kernel header is not defined when building the simulator,
+// so inline the header defines we need.
 # define HWCAP_VFP        (1 << 6)
 # define HWCAP_NEON       (1 << 12)
 # define HWCAP_VFPv3      (1 << 13)
@@ -209,8 +209,7 @@ InitARMFlags()
           | HWCAP_FIXUP_FAULT;
 #else
 
-#if defined(__linux__) || defined(ANDROID)
-    // This includes Android and B2G.
+#if defined(__linux__)
     bool readAuxv = false;
     int fd = open("/proc/self/auxv", O_RDONLY);
     if (fd > 0) {

@@ -95,8 +95,6 @@ case "$target" in
     ;;
 esac
 
-AC_SUBST(ANDROID_SOURCE)
-AC_SUBST(ANDROID_PACKAGE_NAME)
 AC_SUBST(OBJCOPY)
 
 dnl ========================================================
@@ -497,11 +495,6 @@ dnl Configure platform-specific CPU architecture compiler options.
 dnl ==============================================================
 if test "$COMPILE_ENVIRONMENT"; then
     MOZ_ARCH_OPTS
-else
-    if test "$OS_TARGET" = "Android"; then
-        dnl Default Android builds to ARMv7.
-        MOZ_ARCH=armv7-a
-    fi
 fi # COMPILE_ENVIRONMENT
 
 dnl ========================================================
@@ -1724,43 +1717,6 @@ dnl gnu style tables anyways.
   LDFLAGS="$LDFLAGS -Wl,--hash-style=sysv"
 fi
 
-dnl The custom linker doesn't support text relocations, but NDK >= r6b
-dnl creates some (http://code.google.com/p/android/issues/detail?id=23203)
-dnl We however want to avoid these text relocations, and this can be done
-dnl by making gcc not link crtbegin and crtend. In the broken NDKs, crtend
-dnl doesn't contain anything at all, beside placeholders for some sections,
-dnl and crtbegin only contains a finalizer function that calls
-dnl __cxa_finalize. The custom linker actually takes care of calling
-dnl __cxa_finalize when the library doesn't call it itself, which makes it
-dnl safe not to link crtbegin. Besides, previous versions of the NDK didn't
-dnl link crtbegin and crtend at all.
-if test -n "$MOZ_LINKER" -a "$OS_TARGET" = "Android"; then
-  AC_CACHE_CHECK([whether the CRT objects have text relocations],
-    ac_cv_crt_has_text_relocations,
-    [echo 'int foo() { return 0; }' > conftest.cpp
-     if AC_TRY_COMMAND(${CXX-g++} -o conftest${DLL_SUFFIX} $CXXFLAGS $DSO_LDOPTS $LDFLAGS conftest.cpp $LIBS 1>&5) &&
-        test -s conftest${DLL_SUFFIX}; then
-       if ${TOOLCHAIN_PREFIX}readelf -d conftest${DLL_SUFFIX} | grep TEXTREL > /dev/null; then
-         ac_cv_crt_has_text_relocations=yes
-       else
-         ac_cv_crt_has_text_relocations=no
-       fi
-     else
-       AC_ERROR([couldn't compile a simple C file])
-     fi
-     rm -rf conftest*])
-  if test "$ac_cv_crt_has_text_relocations" = yes; then
-    dnl While we want libraries to skip the CRT files, we don't want
-    dnl executables to be treated the same way. We thus set the flag
-    dnl in DSO_LDOPTS and not LDFLAGS. However, to pass it to nspr,
-    dnl we need to use LDFLAGS because nspr doesn't inherit DSO_LDOPTS.
-    dnl Using LDFLAGS in nspr is safe, since we only really build
-    dnl libraries there.
-    DSO_LDOPTS="$DSO_LDOPTS -nostartfiles"
-    NSPR_LDFLAGS="$NSPR_LDFLAGS -nostartfiles"
-  fi
-fi
-
 dnl See if compiler supports some gcc-style attributes
 
 AC_CACHE_CHECK(for __attribute__((always_inline)),
@@ -2656,11 +2612,9 @@ AC_SUBST(MOZ_SCTP)
 AC_SUBST(MOZ_SRTP)
 AC_SUBST_LIST(MOZ_WEBRTC_X11_LIBS)
 
-dnl Use integers over floats for audio on Android
-dnl (regarless of the CPU architecture, because audio
-dnl backends for those platforms don't support floats. We also
-dnl use integers on ARM with other OS, because it's more efficient.
-if test "$OS_TARGET" = "Android" -o "$CPU_ARCH" = "arm"; then
+dnl Use integers over floats for audio on ARM
+dnl because it's more efficient.
+if test "$CPU_ARCH" = "arm"; then
     MOZ_SAMPLE_TYPE_S16=1
     AC_DEFINE(MOZ_SAMPLE_TYPE_S16)
     AC_SUBST(MOZ_SAMPLE_TYPE_S16)
@@ -3091,9 +3045,6 @@ if test "$MOZ_GAMEPAD"; then
         fi
         MOZ_GAMEPAD_BACKEND=linux
         ;;
-    Android)
-        MOZ_GAMEPAD_BACKEND=android
-        ;;
     *)
         ;;
    esac
@@ -3413,14 +3364,6 @@ if test -n "$ENABLE_TESTS"; then
     AC_SUBST(GTEST_HAS_RTTI)
     if test -n "$_WIN32_MSVC"; then
           AC_DEFINE_UNQUOTED(_VARIADIC_MAX, 10)
-    fi
-    if test "${OS_TARGET}" = "Android"; then
-        AC_DEFINE(GTEST_OS_LINUX_ANDROID)
-        AC_DEFINE(GTEST_USE_OWN_TR1_TUPLE)
-        AC_DEFINE_UNQUOTED(GTEST_HAS_CLONE, 0)
-        AC_SUBST(GTEST_OS_LINUX_ANDROID)
-        AC_SUBST(GTEST_USE_OWN_TR1_TUPLE)
-        AC_SUBST(GTEST_HAS_CLONE)
     fi
 fi
 
@@ -4540,13 +4483,6 @@ else
     fi
 fi
 
-case "$MOZ_WIDGET_TOOLKIT" in
-android)
-    TK_CFLAGS="$MOZ_CAIRO_CFLAGS $MOZ_PIXMAN_CFLAGS"
-    TK_LIBS="$MOZ_CAIRO_LIBS $MOZ_PIXMAN_LIBS"
-    ;;
-esac
-
 AC_SUBST(MOZ_TREE_CAIRO)
 AC_SUBST_LIST(MOZ_CAIRO_CFLAGS)
 AC_SUBST_LIST(MOZ_CAIRO_LIBS)
@@ -4602,15 +4538,10 @@ if test "$NECKO_COOKIES"; then
 fi
 
 dnl
-dnl Always build Marionette if not Android or B2G
+dnl Always build Marionette
 dnl
-if test "$OS_TARGET" != "Android"; then
-    AC_DEFINE(ENABLE_MARIONETTE)
-fi
+AC_DEFINE(ENABLE_MARIONETTE)
 AC_SUBST(ENABLE_MARIONETTE)
-if test "$ENABLE_MARIONETTE"; then
-    AC_DEFINE(ENABLE_MARIONETTE)
-fi
 
 dnl ========================================================
 dnl =
@@ -4737,17 +4668,7 @@ AC_SUBST(MOZ_MACBUNDLE_ID)
 dnl ========================================================
 dnl = Child Process Name for IPC
 dnl ========================================================
-if test "$MOZ_WIDGET_TOOLKIT" != "android"; then
-  MOZ_CHILD_PROCESS_NAME="plugin-container${BIN_SUFFIX}"
-else
-  # We want to let Android unpack the file at install time, but it only does
-  # so if the file is named libsomething.so. The lib/ path is also required
-  # because the unpacked file will be under the lib/ subdirectory and will
-  # need to be executed from that path.
-  MOZ_CHILD_PROCESS_NAME="libplugin-container.so"
-  MOZ_CHILD_PROCESS_NAME_PIE="libplugin-container-pie.so"
-  AC_SUBST(MOZ_CHILD_PROCESS_NAME_PIE)
-fi
+MOZ_CHILD_PROCESS_NAME="plugin-container${BIN_SUFFIX}"
 MOZ_CHILD_PROCESS_BUNDLE="plugin-container.app/Contents/MacOS/"
 
 AC_SUBST(MOZ_CHILD_PROCESS_NAME)
@@ -4777,10 +4698,6 @@ AC_SUBST(MOZ_CHILD_PROCESS_BUNDLE)
 # "Profile" field, which controls profile location.
 # - MOZ_APP_ID: When set, used for application.ini's "ID" field, and
 # crash reporter server url.
-# - MOZ_APP_ANDROID_VERSION_CODE: On Android, "android:versionCode" for
-# the main application is set to the value of this variable.  If not
-# set, it falls back to a Mozilla-specific value derived from the
-# build ID.
 # - MOZ_PROFILE_MIGRATOR: When set, enables profile migrator.
 
 if test -z "$MOZ_APP_NAME"; then
@@ -4793,10 +4710,6 @@ fi
 
 if test -z "$MOZ_APP_VERSION_DISPLAY"; then
    MOZ_APP_VERSION_DISPLAY=$MOZ_APP_VERSION
-fi
-
-if test -z "$ANDROID_PACKAGE_NAME" ; then
-   ANDROID_PACKAGE_NAME="org.mozilla.$MOZ_APP_NAME"
 fi
 
 # For extensions and langpacks, we require a max version that is compatible
@@ -4824,7 +4737,6 @@ AC_SUBST(MOZ_APP_BASENAME)
 AC_SUBST(MOZ_APP_VENDOR)
 AC_SUBST(MOZ_APP_PROFILE)
 AC_SUBST(MOZ_APP_ID)
-AC_SUBST(MOZ_APP_ANDROID_VERSION_CODE)
 AC_SUBST(MAR_CHANNEL_ID)
 AC_SUBST(ACCEPTED_MAR_CHANNEL_IDS)
 AC_SUBST(MOZ_PROFILE_MIGRATOR)

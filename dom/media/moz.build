@@ -296,17 +296,11 @@ if CONFIG['OS_TARGET'] == 'WINNT':
 else:
     DEFINES['WEBRTC_POSIX'] = True
 
-if CONFIG['ANDROID_VERSION'] > '15':
-    DEFINES['MOZ_OMX_WEBM_DECODER'] = True
-
 include('/ipc/chromium/chromium-config.mozbuild')
 
 # Suppress some GCC warnings being treated as errors:
-#  - about attributes on forward declarations for types that are already
-#    defined, which complains about an important MOZ_EXPORT for android::AString
 if CONFIG['GNU_CC']:
     CXXFLAGS += [
-        '-Wno-error=attributes',
         '-Wno-error=shadow',
     ]
 

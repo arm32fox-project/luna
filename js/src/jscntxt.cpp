@@ -17,11 +17,6 @@
 #include <ctype.h>
 #include <stdarg.h>
 #include <string.h>
-#ifdef ANDROID
-# include <android/log.h>
-# include <fstream>
-# include <string>
-#endif  // ANDROID
 
 #include "jsatom.h"
 #include "jscompartment.h"
@@ -1085,60 +1080,10 @@ JSContext::currentlyRunning() const
 static bool
 ComputeIsJITBroken()
 {
-#if !defined(ANDROID)
+    // This used to hold code to exclude specific (mobile) hardware where jit would be
+    // terribly broken. Effectively a stub but good to keep just in case it's needed
+    // in the future.
     return false;
-#else  // ANDROID
-    if (getenv("JS_IGNORE_JIT_BROKENNESS")) {
-        return false;
-    }
-
-    std::string line;
-
-    // Check for the known-bad kernel version (2.6.29).
-    std::ifstream osrelease("/proc/sys/kernel/osrelease");
-    std::getline(osrelease, line);
-    __android_log_print(ANDROID_LOG_INFO, "Gecko", "Detected osrelease `%s'",
-                        line.c_str());
-
-    if (line.npos == line.find("2.6.29")) {
-        // We're using something other than 2.6.29, so the JITs should work.
-        __android_log_print(ANDROID_LOG_INFO, "Gecko", "JITs are not broken");
-        return false;
-    }
-
-    // We're using 2.6.29, and this causes trouble with the JITs on i9000.
-    line = "";
-    bool broken = false;
-    std::ifstream cpuinfo("/proc/cpuinfo");
-    do {
-        if (0 == line.find("Hardware")) {
-            static const char* const blacklist[] = {
-                "SCH-I400",     // Samsung Continuum
-                "SGH-T959",     // Samsung i9000, Vibrant device
-                "SGH-I897",     // Samsung i9000, Captivate device
-                "SCH-I500",     // Samsung i9000, Fascinate device
-                "SPH-D700",     // Samsung i9000, Epic device
-                "GT-I9000",     // Samsung i9000, UK/Europe device
-                nullptr
-            };
-            for (const char* const* hw = &blacklist[0]; *hw; ++hw) {
-                if (line.npos != line.find(*hw)) {
-                    __android_log_print(ANDROID_LOG_INFO, "Gecko",
-                                        "Blacklisted device `%s'", *hw);
-                    broken = true;
-                    break;
-                }
-            }
-            break;
-        }
-        std::getline(cpuinfo, line);
-    } while(!cpuinfo.fail() && !cpuinfo.eof());
-
-    __android_log_print(ANDROID_LOG_INFO, "Gecko", "JITs are %sbroken",
-                        broken ? "" : "not ");
-
-    return broken;
-#endif  // ifndef ANDROID
 }
 
 static bool

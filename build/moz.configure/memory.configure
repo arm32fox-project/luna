@@ -64,14 +64,6 @@ def jemalloc_os_define(jemalloc, target):
 
 set_define(jemalloc_os_define, '1')
 
-@depends(jemalloc, target)
-def jemalloc_os_define_android(jemalloc, target):
-    if jemalloc and target.os == 'Android':
-        return 'MOZ_MEMORY_ANDROID'
-
-set_define(jemalloc_os_define_android, '1')
-
-
 option('--enable-replace-malloc',
        help='Enable ability to dynamically replace the malloc implementation')
 

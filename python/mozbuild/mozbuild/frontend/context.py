@@ -880,59 +880,6 @@ VARIABLES = {
         """),
 
     # Variables controlling reading of other frontend files.
-    'ANDROID_GENERATED_RESFILES': (StrictOrderingOnAppendList, list,
-        """Android resource files generated as part of the build.
-
-        This variable contains a list of files that are expected to be
-        generated (often by preprocessing) into a 'res' directory as
-        part of the build process, and subsequently merged into an APK
-        file.
-        """),
-
-    'ANDROID_APK_NAME': (unicode, unicode,
-        """The name of an Android APK file to generate.
-        """),
-
-    'ANDROID_APK_PACKAGE': (unicode, unicode,
-        """The name of the Android package to generate R.java for, like org.mozilla.gecko.
-        """),
-
-    'ANDROID_EXTRA_PACKAGES': (StrictOrderingOnAppendList, list,
-        """The name of extra Android packages to generate R.java for, like ['org.mozilla.other'].
-        """),
-
-    'ANDROID_EXTRA_RES_DIRS': (ContextDerivedTypedListWithItems(Path, List), list,
-        """Android extra package resource directories.
-
-        This variable contains a list of directories containing static files
-        to package into a 'res' directory and merge into an APK file.  These
-        directories are packaged into the APK but are assumed to be static
-        unchecked dependencies that should not be otherwise re-distributed.
-        """),
-
-    'ANDROID_RES_DIRS': (ContextDerivedTypedListWithItems(Path, List), list,
-        """Android resource directories.
-
-        This variable contains a list of directories containing static
-        files to package into a 'res' directory and merge into an APK
-        file.
-        """),
-
-    'ANDROID_ASSETS_DIRS': (ContextDerivedTypedListWithItems(Path, List), list,
-        """Android assets directories.
-
-        This variable contains a list of directories containing static
-        files to package into an 'assets' directory and merge into an
-        APK file.
-        """),
-
-    'ANDROID_ECLIPSE_PROJECT_TARGETS': (dict, dict,
-        """Defines Android Eclipse project targets.
-
-        This variable should not be populated directly. Instead, it should
-        populated by calling add_android_eclipse{_library}_project().
-        """),
-
     'SOURCES': (ContextDerivedTypedListWithItems(Path, StrictOrderingOnAppendListWithFlagsFactory({'no_pgo': bool, 'flags': List})), list,
         """Source code files.
 
@@ -1511,10 +1458,6 @@ VARIABLES = {
         """List of manifest files defining jetpack addon tests.
         """),
 
-    'ANDROID_INSTRUMENTATION_MANIFESTS': (ManifestparserManifestList, list,
-        """List of manifest files defining Android instrumentation tests.
-        """),
-
     'FIREFOX_UI_FUNCTIONAL_MANIFESTS': (ManifestparserManifestList, list,
         """List of manifest files defining firefox-ui-functional tests.
         """),
@@ -1876,35 +1819,6 @@ FUNCTIONS = {
 
         This returns a rich Java JAR type, described at
         :py:class:`mozbuild.frontend.data.JavaJarData`.
-        """),
-
-    'add_android_eclipse_project': (
-        lambda self: self._add_android_eclipse_project, (str, str),
-        """Declare an Android Eclipse project.
-
-        This is one of the supported ways to populate the
-        ANDROID_ECLIPSE_PROJECT_TARGETS variable.
-
-        The parameters are:
-        * name - project name.
-        * manifest - path to AndroidManifest.xml.
-
-        This returns a rich Android Eclipse project type, described at
-        :py:class:`mozbuild.frontend.data.AndroidEclipseProjectData`.
-        """),
-
-    'add_android_eclipse_library_project': (
-        lambda self: self._add_android_eclipse_library_project, (str,),
-        """Declare an Android Eclipse library project.
-
-        This is one of the supported ways to populate the
-        ANDROID_ECLIPSE_PROJECT_TARGETS variable.
-
-        The parameters are:
-        * name - project name.
-
-        This returns a rich Android Eclipse project type, described at
-        :py:class:`mozbuild.frontend.data.AndroidEclipseProjectData`.
         """),
 
     'export': (lambda self: self._export, (str,),

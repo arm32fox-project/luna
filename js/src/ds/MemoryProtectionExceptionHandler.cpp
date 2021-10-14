@@ -16,10 +16,6 @@
 # include <unistd.h>
 #endif
 
-#ifdef ANDROID
-# include <android/log.h>
-#endif
-
 #include "ds/SplayTree.h"
 
 #include "threading/LockGuard.h"
@@ -125,8 +121,6 @@ ReportCrashIfDebug(const char* aStr)
     BOOL ret = WriteFile(GetStdHandle(STD_ERROR_HANDLE), aStr,
                          strlen(aStr) + 1, &bytesWritten, nullptr);
     ::__debugbreak();
-# elif defined(ANDROID)
-    int ret = __android_log_write(ANDROID_LOG_FATAL, "MOZ_CRASH", aStr);
 # else
     ssize_t ret = write(STDERR_FILENO, aStr, strlen(aStr) + 1);
 # endif

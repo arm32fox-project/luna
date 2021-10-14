@@ -193,15 +193,6 @@ DEFAULT_GMAKE_FLAGS += \
 	CPU_ARCH='$(TARGET_CPU)' \
 	$(NULL)
 
-# Android has pthreads integrated into -lc, so OS_PTHREAD is set to nothing
-ifeq ($(OS_TARGET), Android)
-DEFAULT_GMAKE_FLAGS += \
-	OS_RELEASE='2.6' \
-	OS_PTHREAD= \
-	$(NULL)
-
-DEFAULT_GMAKE_FLAGS += ARCHFLAG='$(filter-out -W%,$(CFLAGS)) -DCHECK_FORK_GETPID $(addprefix -DANDROID_VERSION=,$(ANDROID_VERSION)) -include $(topsrcdir)/security/manager/android_stub.h'
-endif
 endif
 
 ifdef WRAP_LDFLAGS

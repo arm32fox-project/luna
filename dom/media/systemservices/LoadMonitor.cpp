@@ -346,8 +346,6 @@ void RTCLoadInfo::UpdateCpuLoad(uint64_t ticks_per_interval,
        > (ticks_per_interval * 10))
       || current_total_times < loadStat->mPrevTotalTimes
       || current_cpu_times < loadStat->mPrevCpuTimes) {
-    // Bug at least on the Nexus 4 and Galaxy S4
-    // https://code.google.com/p/android/issues/detail?id=41630
     // We do need to update our previous times, or we can get stuck
     // when there is a blip upwards and then we get a bunch of consecutive
     // lower times. Just skip the load calculation.
@@ -374,7 +372,7 @@ void RTCLoadInfo::UpdateCpuLoad(uint64_t ticks_per_interval,
 
 nsresult RTCLoadInfo::UpdateSystemLoad()
 {
-#if defined(LINUX) || defined(ANDROID)
+#if defined(LINUX)
   nsCOMPtr<nsIFile> procStatFile = do_CreateInstance(NS_LOCAL_FILE_CONTRACTID);
   procStatFile->InitWithPath(NS_LITERAL_STRING("/proc/stat"));
 

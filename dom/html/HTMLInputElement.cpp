@@ -3566,7 +3566,6 @@ HTMLInputElement::Focus(ErrorResult& aError)
   return;
 }
 
-#if !defined(ANDROID)
 bool
 HTMLInputElement::IsNodeApzAwareInternal() const
 {
@@ -3575,7 +3574,6 @@ HTMLInputElement::IsNodeApzAwareInternal() const
   return (mType == NS_FORM_INPUT_NUMBER) || (mType == NS_FORM_INPUT_RANGE) ||
          nsINode::IsNodeApzAwareInternal();
 }
-#endif
 
 bool
 HTMLInputElement::IsInteractiveHTMLContent(bool aIgnoreTabindex) const
@@ -4728,7 +4726,6 @@ HTMLInputElement::PostHandleEvent(EventChainPostVisitor& aVisitor)
           }
           break;
         }
-#if !defined(ANDROID)
         case eWheel: {
           // Handle wheel events as increasing / decreasing the input element's
           // value when it's focused and it's type is number or range.
@@ -4762,7 +4759,6 @@ HTMLInputElement::PostHandleEvent(EventChainPostVisitor& aVisitor)
           }
           break;
         }
-#endif
         default:
           break;
       }
@@ -6022,17 +6018,7 @@ HTMLInputElement::ChooseDirectory(ErrorResult& aRv)
     aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return;
   }
-  // Script can call this method directly, so even though we don't show the
-  // "Pick Folder..." button on platforms that don't have a directory picker
-  // we have to redirect to the file picker here.
-  InitFilePicker(
-#if defined(ANDROID)
-                 // No native directory picker - redirect to plain file picker
-                 FILE_PICKER_FILE
-#else
-                 FILE_PICKER_DIRECTORY
-#endif
-                 );
+  InitFilePicker(FILE_PICKER_DIRECTORY);
 }
 
 already_AddRefed<Promise>
@@ -6665,11 +6651,9 @@ FireEventForAccessibility(nsIDOMHTMLInputElement* aTarget,
 void
 HTMLInputElement::UpdateApzAwareFlag()
 {
-#if !defined(ANDROID)
   if ((mType == NS_FORM_INPUT_NUMBER) || (mType == NS_FORM_INPUT_RANGE)) {
     SetMayBeApzAware();
   }
-#endif
 }
 
 nsresult

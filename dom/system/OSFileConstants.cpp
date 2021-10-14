@@ -15,14 +15,9 @@
 #include "dirent.h"
 #include "poll.h"
 #include "sys/stat.h"
-#if defined(ANDROID)
-#include <sys/vfs.h>
-#define statvfs statfs
-#else
 #include "sys/statvfs.h"
 #include "sys/wait.h"
 #include <spawn.h>
-#endif // defined(ANDROID)
 #endif // defined(XP_UNIX)
 
 #if defined(XP_LINUX)
@@ -345,8 +340,7 @@ void CleanupOSFileConstants()
  */
 #define PROP_END { nullptr, JS::UndefinedValue() }
 
-
-// Define missing constants for Android
+// Define missing constants on non-*nix
 #if !defined(S_IRGRP)
 #define S_IXOTH 0001
 #define S_IWOTH 0002
@@ -361,6 +355,7 @@ void CleanupOSFileConstants()
 #define S_IRUSR 0400
 #define S_IRWXU 0700
 #endif // !defined(S_IRGRP)
+
 
 /**
  * The properties defined in libc.
@@ -595,10 +590,8 @@ static const dom::ConstantSpec gLibcProperties[] =
   // The size of |fsblkcnt_t|.
   { "OSFILE_SIZEOF_FSBLKCNT_T", JS::Int32Value(sizeof (fsblkcnt_t)) },
 
-#if !defined(ANDROID)
   // The size of |posix_spawn_file_actions_t|.
   { "OSFILE_SIZEOF_POSIX_SPAWN_FILE_ACTIONS_T", JS::Int32Value(sizeof (posix_spawn_file_actions_t)) },
-#endif // !defined(ANDROID)
 
   // Defining |dirent|.
   // Size
