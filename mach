@@ -1,4 +1,63 @@
 #!/bin/sh
 
-MACH_CMD=./platform/mach
-$MACH_CMD $@
+MCP_MACH=./platform/mach
+MCP_GIT=`which git 2>/dev/null`
+
+if [ ! -f "$MCP_MACH" ]; then
+  printf "Error: There is no platform codebase.\n"
+  exit 1
+fi
+
+MCP_APP=palemoon
+MCP_VERSION=`cat ./$MCP_APP/config/version.txt`
+
+MCP_XZ=`which xz 2>/dev/null`
+MCP_TAR_BASEDIR="s/^./$MCP_APP-source/"
+MCP_TAR_FILENAME="$MCP_APP-$MCP_VERSION.source.tar.xz"
+MCP_TAR_COMMAND="tar cfJv ../$MCP_TAR_FILENAME . --transform $MCP_TAR_BASEDIR --exclude-vcs --warning=no-file-changed"
+MCP_TAR_EXCLUDES=(
+  "$MCP_APP/branding/beta"
+  "$MCP_APP/branding/unstable"
+  "platform/db/mork"
+  "platform/docs"
+  "platform/ldap"
+  "platform/libs/gmp-clearkey"
+  "platform/mailnews"
+  "platform/python/psutil/*.so"
+  "platform/python/psutil/*.pyd"
+  "platform/python/psutil/build"
+  "platform/xulrunner"
+  ".mozconfig"
+  ".gitattributes"
+  ".gitignore"
+  ".gitmodules"
+  "*.pyc"
+  "*.pyo"
+  "*.rej"
+  "*.orig"
+  "*.source.tar.xz"
+)
+
+if [ "$1" == "source" ]; then
+  if [ -z "$MCP_XZ" ]; then
+    printf "Error: XZ was not found on the system. NOTE: This won't work on Windows.\n"
+    exit 1
+  fi
+
+  for _value in "${MCP_TAR_EXCLUDES[@]}"; do
+    MCP_TAR_COMMAND+=" --exclude=${_value}"
+  done
+
+  if [[ -n "$MCP_GIT" && -d "./.git" && -d "./platform/.git" ]]; then
+    printf "COMM SHA1: `"${MCP_GIT}" rev-parse --short HEAD 2>/dev/null`\n"
+    printf "GRE SHA1: `cd ./platform && "${MCP_GIT}" rev-parse --short HEAD 2>/dev/null`\n"
+  fi
+
+  printf "Source Filename: $MCP_TAR_FILENAME\n\n"
+  read -r -s -p $'Press enter to continue...\n'
+  env XZ_OPTS=-9e ${MCP_TAR_COMMAND}
+else
+  # We don't know what the command is but real-mach might so just pass
+  # all the args to it
+  $MCP_MACH $@
+fi
