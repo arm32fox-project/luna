@@ -40,7 +40,7 @@ class BackgroundHangManager;
  * running time. This is a good starting point for determining the timeout
  * and maximum timeout values. For example, the Compositor thread has a
  * responsiveness goal of 60Hz or 17ms, so a starting timeout could be
- * 100ms. Considering some platforms (e.g. Android) can terminate the app
+ * 100ms. Considering some platforms can terminate the application
  * when a critical thread hangs for longer than a few seconds, a good
  * starting maximum timeout is 4 or 5 seconds.
  *

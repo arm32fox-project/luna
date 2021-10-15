@@ -1609,10 +1609,7 @@ private:
                             &logFile);
     }
 
-    // On Android or B2G, this function will open a file named
-    // aFilename under a memory-reporting-specific folder
-    // (/data/local/tmp/memory-reports). Otherwise, it will open a
-    // file named aFilename under "NS_OS_TEMP_DIR".
+    // This function will open a file named aFilename under "NS_OS_TEMP_DIR".
     nsresult rv = nsDumpUtils::OpenTempFile(filename, &logFile,
                                             NS_LITERAL_CSTRING("memory-reports"));
     if (NS_FAILED(rv)) {

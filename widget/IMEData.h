@@ -296,8 +296,7 @@ struct InputContext final
   Origin mOrigin;
 
   /* True if the webapp may be unaware of IME events such as input event or
-   * composiion events. This enables a key-events-only mode on Android for
-   * compatibility with webapps relying on key listeners. */
+   * composiion events. */
   bool mMayBeIMEUnaware;
 
   /* Whether the owning document of the input element has been loaded
@@ -405,7 +404,7 @@ struct InputContextAction final
 
 // IMEMessage is shared by IMEStateManager and TextComposition.
 // Update values in GeckoEditable.java if you make changes here.
-// XXX Negative values are used in Android...
+// int instead of uint in case OSes use negative values internally.
 typedef int8_t IMEMessageType;
 enum IMEMessage : IMEMessageType
 {

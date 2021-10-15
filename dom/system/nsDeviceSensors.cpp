@@ -472,9 +472,6 @@ nsDeviceSensors::FireDOMOrientationEvent(EventTarget* aTarget,
   static bool sIsDispatchingRelativeEvents = false;
   sIsDispatchingRelativeEvents = sIsDispatchingRelativeEvents || !aIsAbsolute;
 
-  // Android devices with SENSOR_GAME_ROTATION_VECTOR support dispatch
-  // relative events for "deviceorientation" by default, while other platforms
-  // and devices without such support dispatch absolute events by default.
   if (aIsAbsolute && !sIsDispatchingRelativeEvents) {
     // For absolute events on devices without support for relative events,
     // we need to additionally dispatch type "deviceorientation" to keep

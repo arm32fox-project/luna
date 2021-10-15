@@ -390,10 +390,6 @@ extern "C" {
 /**
  * printf_stderr(...) is much like fprintf(stderr, ...), except that:
  *  - it calls the callback set through set_stderr_callback
- *  - on Android and Firefox OS, *instead* of printing to stderr, it
- *    prints to logcat.  (Newlines in the string lead to multiple lines
- *    of logcat, but each function call implicitly completes a line even
- *    if the string does not end with a newline.)
  *  - on Windows, if a debugger is present, it calls OutputDebugString
  *    in *addition* to writing to stderr
  */
@@ -407,17 +403,6 @@ void vprintf_stderr(const char* aFmt, va_list aArgs);
 /**
  * fprintf_stderr is like fprintf, except that if its file argument
  * is stderr, it invokes printf_stderr instead.
- *
- * This is useful for general debugging code that logs information to a
- * file, but that you would like to be useful on Android and Firefox OS.
- * If you use fprintf_stderr instead of fprintf in such debugging code,
- * then callers can pass stderr to get logging that works on Android and
- * Firefox OS (and also the other side-effects of using printf_stderr).
- *
- * Code that is structured this way needs to be careful not to split a
- * line of output across multiple calls to fprintf_stderr, since doing
- * so will cause it to appear in multiple lines in logcat output.
- * (Producing multiple lines at once is fine.)
  */
 void fprintf_stderr(FILE* aFile, const char* aFmt, ...) MOZ_FORMAT_PRINTF(2, 3);
 

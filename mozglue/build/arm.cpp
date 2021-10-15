@@ -32,11 +32,9 @@ get_arm_cpu_flags(void)
   FILE     *fin;
   bool      armv6_processor = false;
   flags = 0;
-  /*Reading /proc/self/auxv would be easier, but that doesn't work reliably on
-    Android. This also means that detection will fail in Scratchbox, which is
-    desirable, as NEON does not work in the qemu shipped with the Maemo 5 SDK.
-    I don't know if /proc/self/auxv would do any better in that case, anyway,
-    or if it would return random flags from the host CPU.*/
+  /*Reading /proc/self/auxv would be easier, but that doesn't work reliably in
+    qemu and potentially other virtual environments.
+    It might also return random flags from the host CPU in that case.*/
   fin = fopen ("/proc/cpuinfo","r");
   if (fin != nullptr)
   {

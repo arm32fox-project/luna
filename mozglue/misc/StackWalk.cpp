@@ -831,7 +831,7 @@ unwind_callback(struct _Unwind_Context* context, void* closure)
     info->isCriticalAbort = true;
     // We just want to stop the walk, so any error code will do.  Using
     // _URC_NORMAL_STOP would probably be the most accurate, but it is not
-    // defined on Android for ARM.
+    // defined on all OSes for ARM.
     return _URC_FOREIGN_EXCEPTION_CAUGHT;
   }
   if (--info->skip < 0) {
@@ -864,10 +864,7 @@ MozStackWalk(MozWalkStackCallback aCallback, uint32_t aSkipFrames,
   (void)_Unwind_Backtrace(unwind_callback, &info);
 
   // We ignore the return value from _Unwind_Backtrace and instead determine
-  // the outcome from |info|.  There are two main reasons for this:
-  // - On ARM/Android bionic's _Unwind_Backtrace usually (always?) returns
-  //   _URC_FAILURE.  See
-  //   https://bugzilla.mozilla.org/show_bug.cgi?id=717853#c110.
+  // the outcome from |info|.  The main reason for this:
   // - If aMaxFrames != 0, we want to stop early, and the only way to do that
   //   is to make unwind_callback return something other than _URC_NO_REASON,
   //   which causes _Unwind_Backtrace to return a non-success code.

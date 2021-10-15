@@ -1000,8 +1000,7 @@ PluginTimerCallback(nsITimer *aTimer, void *aClosure)
   PLUGIN_LOG(PLUGIN_LOG_NOISY, ("nsNPAPIPluginInstance running plugin timer callback this=%p\n", npp->ndata));
 
   MAIN_THREAD_JNI_REF_GUARD;
-  // Some plugins (Flash on Android) calls unscheduletimer
-  // from this callback.
+  // Some plugins call unscheduletimer from this callback. Use a guard.
   t->inCallback = true;
   (*(t->callback))(npp, id);
   t->inCallback = false;
