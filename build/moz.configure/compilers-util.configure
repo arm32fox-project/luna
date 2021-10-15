@@ -42,11 +42,10 @@ def compiler_class(compiler):
                 def checking_fn(fn):
                     return fn
 
-            @depends_when(self, dependable(flags), extra_toolchain_flags, when=when)
+            @depends_when(self, dependable(flags), when=when)
             @checking_fn
-            def func(compiler, flags, extra_flags):
+            def func(compiler, flags):
                 flags = flags or []
-                flags += extra_flags or []
                 flags.append('-c')
 
                 if try_invoke_compiler(
