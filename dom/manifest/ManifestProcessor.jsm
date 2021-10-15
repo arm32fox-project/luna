@@ -259,7 +259,6 @@ this.ManifestProcessor = { // jshint ignore:line
       };
       let tag = extractor.extractValue(spec);
       // TODO: Check if tag is structurally valid.
-      //       Cannot do this because we don't support Intl API on Android.
       //       https://bugzilla.mozilla.org/show_bug.cgi?id=864843
       //       https://github.com/tc39/ecma402/issues/5
       // TODO: perform canonicalization on the tag.

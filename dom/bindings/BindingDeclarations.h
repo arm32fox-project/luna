@@ -258,10 +258,7 @@ public:
   // Don't allow us to have an uninitialized JSObject*
   JSObject*& Construct()
   {
-    // The Android compiler sucks and thinks we're trying to construct
-    // a JSObject* from an int if we don't cast here.  :(
-    return Optional_base<JSObject*, JSObject*>::Construct(
-      static_cast<JSObject*>(nullptr));
+    return Optional_base<JSObject*, JSObject*>::Construct(nullptr);
   }
 
   template <class T1>
