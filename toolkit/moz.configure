@@ -4,20 +4,6 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 
-# Profiling
-# ==============================================================
-# Some of the options here imply an option from js/moz.configure,
-# so, need to be declared before the include.
-option('--enable-systrace', env='MOZ_USE_SYSTRACE',
-       help='Turn on systrace for the Gecko profiler on android/b2g')
-
-@depends('--enable-systrace', target)
-def systrace(value, target):
-    if value:
-        return True
-
-set_define('MOZ_USE_SYSTRACE', systrace)
-
 # JACK cubeb backend
 # ==============================================================
 option('--enable-jack', env='MOZ_JACK',

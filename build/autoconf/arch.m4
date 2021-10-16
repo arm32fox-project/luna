@@ -28,22 +28,10 @@ MOZ_ARG_WITH_STRING(arch,
 if test -z "$MOZ_ARCH"; then
     dnl Defaults
     case "${CPU_ARCH}-${OS_TARGET}" in
-    arm-Android)
-        MOZ_THUMB=yes
-        MOZ_ARCH=armv7-a
-        MOZ_FPU=vfp
-        MOZ_FLOAT_ABI=softfp
-        MOZ_ALIGN=no
-        ;;
     arm-Darwin)
         MOZ_ARCH=toolchain-default
         ;;
     esac
-fi
-
-if test "$MOZ_ARCH" = "armv6" -a "$OS_TARGET" = "Android"; then
-   MOZ_FPU=vfp
-   MOZ_FLOAT_ABI=softfp
 fi
 
 MOZ_ARG_WITH_STRING(thumb,

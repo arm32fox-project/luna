@@ -2008,18 +2008,6 @@ function saveReportsToFile()
     }
   };
 
-  try {
-    fp.init(window, "Save Memory Reports", Ci.nsIFilePicker.modeSave);
-  } catch (ex) {
-    // This will fail on Android, since there is no Save as file picker there.
-    // Just save to the default downloads dir if it does.
-    Downloads.getSystemDownloadsDirectory().then(function(dirPath) {
-      let file = FileUtils.File(dirPath);
-      file.append(fp.defaultString);
-      fpFinish(file);
-    });
-
-    return;
-  }
+  fp.init(window, "Save Memory Reports", Ci.nsIFilePicker.modeSave);
   fp.open(fpCallback);
 }

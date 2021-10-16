@@ -804,7 +804,7 @@ this.XPIDatabase = {
 
     if (!addonsList.exists())
       // XXX Irving believes this is broken in the case where there is no
-      // extensions.ini but there are bootstrap extensions (e.g. Android)
+      // extensions.ini but there are bootstrap extensions
       return null;
 
     try {

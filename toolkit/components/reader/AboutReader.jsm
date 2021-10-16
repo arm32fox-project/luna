@@ -237,7 +237,7 @@ AboutReader.prototype = {
         break;
 
       case "pagehide":
-        // Close the Banners Font-dropdown, cleanup Android BackPressListener.
+        // Close the Banners Font-dropdown, cleanup BackPressListener.
         this._closeDropdowns();
         this._windowUnloaded = true;
         break;
@@ -793,7 +793,7 @@ AboutReader.prototype = {
 
       let item = doc.createElement("button");
 
-      // Put the name in a div so that Android can hide it.
+      // Put the name in a div so that it can be hidden if desired.
       let div = doc.createElement("div");
       div.textContent = option.name;
       div.classList.add("name");

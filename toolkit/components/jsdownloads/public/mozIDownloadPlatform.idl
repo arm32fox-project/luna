@@ -16,13 +16,9 @@ interface mozIDownloadPlatform : nsISupports
    *   Windows:
    *     Add the download to the recent documents list
    *     Set the file to be indexed for searching
-   *   Mac:
-   *     Bounce the downloads dock icon
    *   GTK:
    *     Add the download to the recent documents list
    *     Save the source uri in the downloaded file's metadata
-   *   Android:
-   *     Scan media
    *
    * @param aSource
    *        Source URI of the download

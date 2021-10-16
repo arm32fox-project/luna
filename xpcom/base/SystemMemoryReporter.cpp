@@ -95,12 +95,6 @@ GetBasename(const nsCString& aPath, nsACString& aOut)
     out.Assign(Substring(aPath, idx + 1));
   }
 
-  // On Android, some entries in /dev/ashmem end with "(deleted)" (e.g.
-  // "/dev/ashmem/libxul.so(deleted)").  We don't care about this modifier, so
-  // cut it off when getting the entry's basename.
-  if (EndsWithLiteral(out, "(deleted)")) {
-    out.Assign(Substring(out, 0, out.RFind("(deleted)")));
-  }
   out.StripChars(" ");
 
   aOut.Assign(out);
