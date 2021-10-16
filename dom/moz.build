@@ -40,7 +40,6 @@ DIRS += [
     'animation',
     'apps',
     'base',
-    'archivereader',
     'bindings',
     'browser-element',
     'cache',
