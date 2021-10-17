@@ -21,11 +21,6 @@
 #include <limits>
 #include <sstream>
 
-#ifndef UINT64_C
-// For Android toolchain
-#define UINT64_C(c) (c ## ULL)
-#endif
-
 #ifdef ASSERT
 #undef ASSERT
 #endif

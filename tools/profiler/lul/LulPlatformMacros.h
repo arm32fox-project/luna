@@ -15,14 +15,11 @@
 
 #undef LUL_PLAT_x64_linux
 #undef LUL_PLAT_x86_linux
-#undef LUL_PLAT_arm_android
-#undef LUL_PLAT_x86_android
 
 #undef LUL_ARCH_arm
 #undef LUL_ARCH_x86
 #undef LUL_ARCH_x64
 
-#undef LUL_OS_android
 #undef LUL_OS_linux
 
 #if defined(__linux__) && defined(__x86_64__)

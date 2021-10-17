@@ -25,9 +25,6 @@
 #include "base/message_pump_glib.h"
 #endif
 #endif
-#ifdef ANDROID
-#include "base/message_pump_android.h"
-#endif
 #ifdef MOZ_TASK_TRACER
 #include "GeckoTaskTracer.h"
 #include "TracedTaskCommon.h"

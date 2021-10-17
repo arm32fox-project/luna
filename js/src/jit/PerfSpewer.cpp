@@ -21,12 +21,6 @@
 
 #include "vm/MutexIDs.h"
 
-// perf expects its data to be in a file /tmp/perf-PID.map, but for Android
-// and B2G the map files are written to /data/local/tmp/perf-PID.map
-//
-// Except that Android 4.3 no longer allows the browser to write to /data/local/tmp/
-// so also try /sdcard/.
-
 #ifndef PERF_SPEW_DIR
 #  define PERF_SPEW_DIR "/tmp/"
 #endif

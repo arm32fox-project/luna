@@ -2028,7 +2028,7 @@ pref("intl.locale.matchOS",                 false);
 pref("intl.fallbackCharsetList.ISO-8859-1", "windows-1252");
 pref("font.language.group",                 "chrome://global/locale/intl.properties");
 
-// Pref to use key-events-only mode for IME-unaware webapps. (legacy from android)
+// Pref to use key-events-only mode for IME-unaware webapps.
 pref("intl.ime.hack.on_ime_unaware_apps.fire_key_events_for_composition", false);
 
 // If you use legacy Chinese IME which puts an ideographic space to composition

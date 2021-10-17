@@ -36,11 +36,6 @@ def FlagsForFile(filename):
 
     flag_list = shlex.split(out.getvalue())
 
-    # This flag is added by Fennec for android build and causes ycmd to fail to parse the file.
-    # Removing this flag is a workaround until ycmd starts to handle this flag properly.
-    # https://github.com/Valloric/YouCompleteMe/issues/1490
-    final_flags = [x for x in flag_list if not x.startswith('-march=armv')]
-
     return {
         'flags': final_flags,
         'do_cache': True

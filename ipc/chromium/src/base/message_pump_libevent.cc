@@ -10,7 +10,7 @@
 #ifdef OS_SOLARIS
 #include <sys/stat.h>
 #endif
-#if defined(ANDROID) || defined(OS_POSIX)
+#if defined(OS_POSIX)
 #include <unistd.h>
 #endif
 

@@ -127,8 +127,8 @@ Library::Create(JSContext* cx, HandleValue path, const JSCTypesCallbacks* callba
       return nullptr;
 
   } else {
-    // Fallback: assume the platform native charset is UTF-8. This is true
-    // for Mac OS X, Android, and probably Linux.
+    // Fallback: assume the platform native charset is UTF-8.
+    // This is true on most flavors of Linux.
     size_t nbytes =
       GetDeflatedUTF8StringLength(cx, pathStrChars.twoByteChars(), pathStr->length());
     if (nbytes == (size_t) -1)

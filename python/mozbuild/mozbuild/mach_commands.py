@@ -532,10 +532,7 @@ class Build(MachCommandBase):
         # need to be burdened with this.
         if not what:
             try:
-                # Fennec doesn't have useful output from just building. We should
-                # arguably make the build action useful for Fennec. Another day...
-                if self.substs['MOZ_BUILD_APP'] != 'mobile/android':
-                    print('To take your build for a test drive, run: |mach run|')
+                print('To take your build for a test drive, run: |mach run|')
             except Exception:
                 # Ignore Exceptions in case we can't find config.status (such
                 # as when doing OSX Universal builds)
@@ -1147,7 +1144,7 @@ class Install(MachCommandBase):
     @Command('install', category='post-build',
         description='Install the package on the machine, or on a device.')
     @CommandArgument('--verbose', '-v', action='store_true',
-        help='Print verbose output when installing to an Android emulator.')
+        help='Print verbose output.')
     def install(self, verbose=False):
         ret = self._run_make(directory=".", target='install', ensure_exit_code=False)
         if ret == 0:
@@ -1484,8 +1481,6 @@ class ArtifactSubCommand(SubCommand):
     def __call__(self, func):
         after = SubCommand.__call__(self, func)
         jobchoices = {
-            'android-api-15',
-            'android-x86',
             'linux',
             'linux64',
             'macosx64',

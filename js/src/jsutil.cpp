@@ -103,7 +103,6 @@ AllTheNonBasicVanillaNewAllocations()
 {
     // posix_memalign and aligned_alloc aren't available on all Linux
     // configurations.
-    // valloc was deprecated in Android 5.0
     //char* q;
     //posix_memalign((void**)&q, 16, 16);
 

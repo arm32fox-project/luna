@@ -9,7 +9,7 @@
 #include <io.h>
 #endif
 #include <stdio.h>
-#if defined(ANDROID) || defined(OS_POSIX)
+#if defined(OS_POSIX)
 #include <unistd.h>
 #endif
 

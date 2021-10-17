@@ -45,7 +45,6 @@ media/webrtc/trunk/
 mfbt/decimal/
 mfbt/double-conversion/
 mfbt/lz4
-mobile/android/thirdparty/
 modules/brotli/
 modules/freetype2/
 modules/libbz2/

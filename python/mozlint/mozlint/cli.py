@@ -18,7 +18,7 @@ class MozlintParser(ArgumentParser):
          {'nargs': '*',
           'default': None,
           'help': "Paths to file or directories to lint, like "
-                  "'browser/components/loop' or 'mobile/android'. "
+                  "'browser/components/loop'. "
                   "Defaults to the current directory if not given.",
           }],
         [['-l', '--linter'],

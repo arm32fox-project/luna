@@ -9,12 +9,8 @@
 #include <mach/mach_time.h>
 #endif
 #include <sys/time.h>
-#if defined(ANDROID) && !defined(__LP64__)
-#include <time64.h>
-#else
 #include <time.h>
-#endif
-#if defined(ANDROID) || defined(OS_POSIX)
+#if defined(OS_POSIX)
 #include <unistd.h>
 #endif
 
@@ -72,7 +68,7 @@ Time Time::FromExploded(bool is_local, const Exploded& exploded) {
 #endif
 
   time_t seconds;
-#if defined(ANDROID) || defined(OS_SOLARIS)
+#if defined(OS_SOLARIS)
     seconds = mktime(&timestruct);
 #else
   if (is_local)

@@ -29,24 +29,7 @@ from mozbuild.backend import (
     get_backend_class,
 )
 
-
 log_manager = LoggingManager()
-
-
-ANDROID_IDE_ADVERTISEMENT = '''
-=============
-ADVERTISEMENT
-
-You are building Firefox for Android. After your build completes, you can open
-the top source directory in IntelliJ or Android Studio directly and build using
-Gradle.  See the documentation at
-
-https://developer.mozilla.org/en-US/docs/Simple_Firefox_for_Android_build
-
-PLEASE BE AWARE THAT GRADLE AND INTELLIJ/ANDROID STUDIO SUPPORT IS EXPERIMENTAL.
-You should verify any changes using |mach build|.
-=============
-'''.strip()
 
 VISUAL_STUDIO_ADVERTISEMENT = '''
 ===============================

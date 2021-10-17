@@ -20,38 +20,18 @@
 
 #include "base/string16.h"
 
-#if defined(COMPILER_MSVC) || (defined(ANDROID) && defined(_STLP_STD_NAME))
-#ifdef COMPILER_MSVC
+#if defined(COMPILER_MSVC)
 #pragma push_macro("_SILENCE_STDEXT_HASH_DEPRECATION_WARNINGS")
 #define _SILENCE_STDEXT_HASH_DEPRECATION_WARNINGS
-#endif
-
-// Suppress -Wshadow warnings from stlport headers.
-#ifdef __GNUC__
-#  pragma GCC diagnostic push
-#  pragma GCC diagnostic ignored "-Wshadow"
-#  pragma GCC diagnostic ignored "-Wshadow-local"
-#endif
 
 #include <hash_map>
 #include <hash_set>
 
-#ifdef __GNUC__
-#  pragma GCC diagnostic pop // -Wshadow-local
-#  pragma GCC diagnostic pop // -Wshadow
-#endif
-
-#ifdef COMPILER_MSVC
 #pragma pop_macro("_SILENCE_STDEXT_HASH_DEPRECATION_WARNINGS")
-#endif
+
 namespace base {
-#ifdef ANDROID
-using _STLP_STD_NAME::hash_map;
-using _STLP_STD_NAME::hash_set;
-#else
 using stdext::hash_map;
 using stdext::hash_set;
-#endif
 }
 #elif defined(COMPILER_GCC)
 // This is a hack to disable the gcc 4.4 warning about hash_map and hash_set

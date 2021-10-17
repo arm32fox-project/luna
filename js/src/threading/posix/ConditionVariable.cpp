@@ -157,8 +157,9 @@ js::ConditionVariable::wait_for(UniqueLock<Mutex>& lock,
 
   r = pthread_cond_timedwait(ptCond, ptMutex, &abs_ts);
 #else
-  // Our non-clock-supporting platforms, OS X and Android, do support waiting
+  // Our non-clock-supporting platforms do support waiting
   // on a condition variable with a relative timeout.
+  // XXXMC: This was in use on Android and OSX. Can probably be removed.
   r = pthread_cond_timedwait_relative_np(ptCond, ptMutex, &rel_ts);
 #endif
 

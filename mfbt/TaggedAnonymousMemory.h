@@ -3,8 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// Some Linux kernels -- specifically, newer versions of Android and
-// some B2G devices -- have a feature for assigning names to ranges of
+// Some Linux kernels have a feature for assigning names to ranges of
 // anonymous memory (i.e., memory that doesn't have a "name" in the
 // form of an underlying mapped file).  These names are reported in
 // /proc/<pid>/smaps alongside system-level memory usage information

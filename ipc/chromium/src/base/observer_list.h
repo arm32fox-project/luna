@@ -13,10 +13,6 @@
 #include "base/basictypes.h"
 #include "base/logging.h"
 
-#if defined(ANDROID) && defined(_STLP_STD_NAME)
-using _STLP_STD_NAME::find;
-#endif
-
 namespace base {
 
 ///////////////////////////////////////////////////////////////////////////////

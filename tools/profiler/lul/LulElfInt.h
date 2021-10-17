@@ -31,7 +31,6 @@
 
 // This file is derived from the following files in
 // toolkit/crashreporter/google-breakpad:
-//   src/common/android/include/elf.h
 //   src/common/linux/elfutils.h
 //   src/common/linux/file_id.h
 //   src/common/linux/elfutils-inl.h
@@ -54,38 +53,7 @@
 // elfutils.h: Utilities for dealing with ELF files.
 //
 
-#if defined(LUL_OS_android)
-
-// From toolkit/crashreporter/google-breakpad/src/common/android/include/elf.h
-// The Android headers don't always define this constant.
-#ifndef EM_X86_64
-#define EM_X86_64  62
-#endif
-
-#ifndef EM_PPC64
-#define EM_PPC64   21
-#endif
-
-#ifndef EM_S390
-#define EM_S390    22
-#endif
-
-#ifndef NT_GNU_BUILD_ID
-#define NT_GNU_BUILD_ID 3
-#endif
-
-#define ElfW(type)      _ElfW (Elf, ELFSIZE, type)
-#define _ElfW(e,w,t)    _ElfW_1 (e, w, _##t)
-#define _ElfW_1(e,w,t)  e##w##t
-
-//FIXME
-extern "C" {
-  extern char*  basename(const char*  path);
-};
-#else
-
 # include <link.h>
-#endif
 
 
 namespace lul {

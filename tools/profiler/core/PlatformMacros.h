@@ -12,7 +12,6 @@
    and OS_ macros are defined too, since they are sometimes
    convenient. */
 
-#undef SPS_PLAT_arm_android
 #undef SPS_PLAT_amd64_linux
 #undef SPS_PLAT_x86_linux
 #undef SPS_PLAT_amd64_darwin
@@ -24,7 +23,6 @@
 #undef SPS_ARCH_x86
 #undef SPS_ARCH_amd64
 
-#undef SPS_OS_android
 #undef SPS_OS_linux
 #undef SPS_OS_darwin
 #undef SPS_OS_windows
