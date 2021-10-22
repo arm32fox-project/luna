@@ -7630,42 +7630,6 @@ nsDocShell::EndPageLoad(nsIWebProgress* aProgress,
                      nullptr);                  // Headers stream
     }
 
-    // Handle iframe document not loading error because source was
-    // a tracking URL. We make a note of this iframe node by including
-    // it in a dedicated array of blocked tracking nodes under its parent
-    // document. (document of parent window of blocked document)
-    if (isTopFrame == false && aStatus == NS_ERROR_TRACKING_URI) {
-      // frameElement is our nsIContent to be annotated
-      nsCOMPtr<nsIDOMElement> frameElement;
-      nsPIDOMWindowOuter* thisWindow = GetWindow();
-      if (!thisWindow) {
-        return NS_OK;
-      }
-
-      frameElement = thisWindow->GetFrameElement();
-      if (!frameElement) {
-        return NS_OK;
-      }
-
-      // Parent window
-      nsCOMPtr<nsIDocShellTreeItem> parentItem;
-      GetSameTypeParent(getter_AddRefs(parentItem));
-      if (!parentItem) {
-        return NS_OK;
-      }
-
-      nsCOMPtr<nsIDocument> parentDoc;
-      parentDoc = parentItem->GetDocument();
-      if (!parentDoc) {
-        return NS_OK;
-      }
-
-      nsCOMPtr<nsIContent> cont = do_QueryInterface(frameElement);
-      parentDoc->AddBlockedTrackingNode(cont);
-
-      return NS_OK;
-    }
-
     if (sURIFixup) {
       //
       // Try and make an alternative URI from the old one
@@ -7840,9 +7804,6 @@ nsDocShell::EndPageLoad(nsIWebProgress* aProgress,
                aStatus == NS_ERROR_NET_INTERRUPT ||
                aStatus == NS_ERROR_NET_RESET ||
                aStatus == NS_ERROR_OFFLINE ||
-               aStatus == NS_ERROR_MALWARE_URI ||
-               aStatus == NS_ERROR_PHISHING_URI ||
-               aStatus == NS_ERROR_UNWANTED_URI ||
                aStatus == NS_ERROR_UNSAFE_CONTENT_TYPE ||
                aStatus == NS_ERROR_REMOTE_XUL ||
                aStatus == NS_ERROR_INTERCEPTION_FAILED ||

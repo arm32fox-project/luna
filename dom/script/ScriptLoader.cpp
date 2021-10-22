@@ -2347,16 +2347,6 @@ ScriptLoader::VerifySRI(ScriptLoadRequest* aRequest,
 
 void
 ScriptLoader::HandleLoadError(ScriptLoadRequest *aRequest, nsresult aResult) {
-  /*
-   * Handle script not loading error because source was a tracking URL.
-   * We make a note of this script node by including it in a dedicated
-   * array of blocked tracking nodes under its parent document.
-   */
-  if (aResult == NS_ERROR_TRACKING_URI) {
-    nsCOMPtr<nsIContent> cont = do_QueryInterface(aRequest->mElement);
-    mDocument->AddBlockedTrackingNode(cont);
-  }
-
   if (aRequest->IsModuleRequest() && !aRequest->mIsInline) {
     auto request = aRequest->AsModuleRequest();
     SetModuleFetchFinishedAndResumeWaitingRequests(request, aResult);

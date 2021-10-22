@@ -961,13 +961,6 @@ HttpChannelChild::DoOnStopRequest(nsIRequest* aRequest, nsresult aChannelStatus,
   LOG(("HttpChannelChild::DoOnStopRequest [this=%p]\n", this));
   MOZ_ASSERT(!mIsPending);
 
-  // NB: We use aChannelStatus here instead of mStatus because if there was an
-  // nsCORSListenerProxy on this request, it will override the tracking
-  // protection's return value.
-  if (aChannelStatus == NS_ERROR_TRACKING_URI) {
-    nsChannelClassifier::SetBlockedTrackingContent(this);
-  }
-
   MOZ_ASSERT(!mOnStopRequestCalled,
              "We should not call OnStopRequest twice");
 
