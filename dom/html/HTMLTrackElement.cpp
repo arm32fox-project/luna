@@ -326,7 +326,7 @@ HTMLTrackElement::LoadResource()
                      nsIContentPolicy::TYPE_INTERNAL_TRACK,
                      loadGroup,
                      nullptr,   // aCallbacks
-                     nsIRequest::LOAD_NORMAL | nsIChannel::LOAD_CLASSIFY_URI);
+                     nsIRequest::LOAD_NORMAL);
 
   NS_ENSURE_TRUE_VOID(NS_SUCCEEDED(rv));
 

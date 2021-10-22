@@ -304,25 +304,6 @@ nsBaseChannel::ContinueHandleAsyncRedirect(nsresult result)
   CallbacksChanged();
 }
 
-void
-nsBaseChannel::ClassifyURI()
-{
-  // For channels created in the child process, delegate to the parent to
-  // classify URIs.
-  if (!XRE_IsParentProcess()) {
-    return;
-  }
-
-  if (mLoadFlags & LOAD_CLASSIFY_URI) {
-    RefPtr<nsChannelClassifier> classifier = new nsChannelClassifier();
-    if (classifier) {
-      classifier->Start(this);
-    } else {
-      Cancel(NS_ERROR_OUT_OF_MEMORY);
-    }
-  }
-}
-
 //-----------------------------------------------------------------------------
 // nsBaseChannel::nsISupports
 
@@ -627,7 +608,6 @@ nsBaseChannel::Open(nsIInputStream **result)
 
   if (NS_SUCCEEDED(rv)) {
     mWasOpened = true;
-    ClassifyURI();
   }
 
   return rv;
@@ -697,8 +677,6 @@ nsBaseChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *ctxt)
 
   if (mLoadGroup)
     mLoadGroup->AddRequest(this, nullptr);
-
-  ClassifyURI();
 
   return NS_OK;
 }

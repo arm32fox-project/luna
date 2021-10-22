@@ -5842,37 +5842,6 @@ nsHttpChannel::BeginConnectContinue()
     if (mAPIRedirectToURI) {
         return AsyncCall(&nsHttpChannel::HandleAsyncAPIRedirect);
     }
-    // Check to see if this principal exists on local blocklists.
-    RefPtr<nsChannelClassifier> channelClassifier = new nsChannelClassifier();
-    if (mLoadFlags & LOAD_CLASSIFY_URI) {
-        nsCOMPtr<nsIURIClassifier> classifier = do_GetService(NS_URICLASSIFIERSERVICE_CONTRACTID);
-        bool tpEnabled = false;
-        channelClassifier->ShouldEnableTrackingProtection(this, &tpEnabled);
-        if (classifier && tpEnabled) {
-            // We skip speculative connections by setting mLocalBlocklist only
-            // when tracking protection is enabled. Though we could do this for
-            // both phishing and malware, it is not necessary for correctness,
-            // since no network events will be received while the
-            // nsChannelClassifier is in progress. See bug 1122691.
-            nsCOMPtr<nsIURI> uri;
-            rv = GetURI(getter_AddRefs(uri));
-            if (NS_SUCCEEDED(rv) && uri) {
-                nsAutoCString tables;
-                Preferences::GetCString("urlclassifier.trackingTable", &tables);
-                nsAutoCString results;
-                rv = classifier->ClassifyLocalWithTables(uri, tables, results);
-                if (NS_SUCCEEDED(rv) && !results.IsEmpty()) {
-                    LOG(("nsHttpChannel::ClassifyLocalWithTables found "
-                         "uri on local tracking blocklist [this=%p]",
-                         this));
-                    mLocalBlocklist = true;
-                } else {
-                    LOG(("nsHttpChannel::ClassifyLocalWithTables no result "
-                         "found [this=%p]", this));
-                }
-            }
-        }
-    }
 
     // If mTimingEnabled flag is not set after OnModifyRequest() then
     // clear the already recorded AsyncOpen value for consistency.
@@ -5945,36 +5914,7 @@ nsHttpChannel::BeginConnectContinue()
         return mStatus;
     }
 
-    if (!(mLoadFlags & LOAD_CLASSIFY_URI)) {
-        return ContinueBeginConnectWithResult();
-    }
-
-    // mLocalBlocklist is true only if tracking protection is enabled and the
-    // URI is a tracking domain, it makes no guarantees about phishing or
-    // malware, so if LOAD_CLASSIFY_URI is true we must call
-    // nsChannelClassifier to catch phishing and malware URIs.
-    bool callContinueBeginConnect = true;
-    if (!mLocalBlocklist) {
-        // Here we call ContinueBeginConnectWithResult and not
-        // ContinueBeginConnect so that in the case of an error we do not start
-        // channelClassifier.
-        rv = ContinueBeginConnectWithResult();
-        if (NS_FAILED(rv)) {
-            return rv;
-        }
-        callContinueBeginConnect = false;
-    }
-    // nsChannelClassifier calls ContinueBeginConnect if it has not already
-    // been called, after optionally cancelling the channel once we have a
-    // remote verdict. We call a concrete class instead of an nsI* that might
-    // be overridden.
-    LOG(("nsHttpChannel::Starting nsChannelClassifier %p [this=%p]",
-         channelClassifier.get(), this));
-    channelClassifier->Start(this);
-    if (callContinueBeginConnect) {
-        return ContinueBeginConnectWithResult();
-    }
-    return NS_OK;
+    return ContinueBeginConnectWithResult();
 }
 
 NS_IMETHODIMP

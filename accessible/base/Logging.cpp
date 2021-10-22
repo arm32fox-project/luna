@@ -341,8 +341,6 @@ LogRequest(nsIRequest* aRequest)
       printf("targeted; ");
     if (loadFlags & nsIChannel::LOAD_CALL_CONTENT_SNIFFERS)
       printf("call content sniffers; ");
-    if (loadFlags & nsIChannel::LOAD_CLASSIFY_URI)
-      printf("classify uri; ");
   } else {
     printf("    no request");
   }

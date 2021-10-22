@@ -530,9 +530,8 @@ SendPing(void* aClosure, nsIContent* aContent, nsIURI* aURI,
     return;
   }
 
-  // Don't bother caching the result of this URI load, but do not exempt
-  // it from Safe Browsing.
-  chan->SetLoadFlags(nsIRequest::INHIBIT_CACHING | nsIChannel::LOAD_CLASSIFY_URI);
+  // Don't bother caching the result of this URI load.
+  chan->SetLoadFlags(nsIRequest::INHIBIT_CACHING);
 
   nsCOMPtr<nsIHttpChannel> httpChan = do_QueryInterface(chan);
   if (!httpChan) {
@@ -1560,10 +1559,6 @@ nsDocShell::LoadURI(nsIURI* aURI,
     flags |= INTERNAL_LOAD_FLAGS_FIRST_LOAD;
   }
 
-  if (aLoadFlags & LOAD_FLAGS_BYPASS_CLASSIFIER) {
-    flags |= INTERNAL_LOAD_FLAGS_BYPASS_CLASSIFIER;
-  }
-
   if (aLoadFlags & LOAD_FLAGS_FORCE_ALLOW_COOKIES) {
     flags |= INTERNAL_LOAD_FLAGS_FORCE_ALLOW_COOKIES;
   }
@@ -1662,7 +1657,7 @@ nsDocShell::LoadStream(nsIInputStream* aStream, nsIURI* aURI,
   nsCOMPtr<nsIURILoader> uriLoader(do_GetService(NS_URI_LOADER_CONTRACTID));
   NS_ENSURE_TRUE(uriLoader, NS_ERROR_FAILURE);
 
-  NS_ENSURE_SUCCESS(DoChannelLoad(channel, uriLoader, false),
+  NS_ENSURE_SUCCESS(DoChannelLoad(channel, uriLoader),
                     NS_ERROR_FAILURE);
   return NS_OK;
 }
@@ -4993,31 +4988,6 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI* aURI,
         error.AssignLiteral("nssFailure2");
       }
     }
-  } else if (NS_ERROR_PHISHING_URI == aError ||
-             NS_ERROR_MALWARE_URI == aError ||
-             NS_ERROR_UNWANTED_URI == aError) {
-    nsAutoCString host;
-    aURI->GetHost(host);
-    CopyUTF8toUTF16(host, formatStrs[0]);
-    formatStrCount = 1;
-
-    // Malware and phishing detectors may want to use an alternate error
-    // page, but if the pref's not set, we'll fall back on the standard page
-    nsAdoptingCString alternateErrorPage =
-      Preferences::GetCString("urlclassifier.alternate_error_page");
-    if (alternateErrorPage) {
-      errorPage.Assign(alternateErrorPage);
-    }
-
-    if (NS_ERROR_PHISHING_URI == aError) {
-      error.AssignLiteral("deceptiveBlocked");
-    } else if (NS_ERROR_MALWARE_URI == aError) {
-      error.AssignLiteral("malwareBlocked");
-    } else if (NS_ERROR_UNWANTED_URI == aError) {
-      error.AssignLiteral("unwantedBlocked");
-    }
-
-    cssClass.AssignLiteral("blacklist");
   } else if (NS_ERROR_CONTENT_CRASHED == aError) {
     errorPage.AssignLiteral("tabcrashed");
     error.AssignLiteral("tabcrashed");
@@ -10668,7 +10638,6 @@ nsDocShell::InternalLoad(nsIURI* aURI,
                  aFileName, aPostData, aHeadersData,
                  aFirstParty, aDocShell, getter_AddRefs(req),
                  (aFlags & INTERNAL_LOAD_FLAGS_FIRST_LOAD) != 0,
-                 (aFlags & INTERNAL_LOAD_FLAGS_BYPASS_CLASSIFIER) != 0,
                  (aFlags & INTERNAL_LOAD_FLAGS_FORCE_ALLOW_COOKIES) != 0,
                  srcdoc, aBaseURI, contentType);
   if (req && aRequest) {
@@ -10757,7 +10726,6 @@ nsDocShell::DoURILoad(nsIURI* aURI,
                       nsIDocShell** aDocShell,
                       nsIRequest** aRequest,
                       bool aIsNewWindowTarget,
-                      bool aBypassClassifier,
                       bool aForceAllowCookies,
                       const nsAString& aSrcdoc,
                       nsIURI* aBaseURI,
@@ -11227,7 +11195,7 @@ nsDocShell::DoURILoad(nsIURI* aURI,
     }
   }
 
-  rv = DoChannelLoad(channel, uriLoader, aBypassClassifier);
+  rv = DoChannelLoad(channel, uriLoader);
 
   //
   // If the channel load failed, we failed and nsIWebProgress just ain't
@@ -11323,8 +11291,7 @@ nsDocShell::AddHeadersToChannel(nsIInputStream* aHeadersData,
 
 nsresult
 nsDocShell::DoChannelLoad(nsIChannel* aChannel,
-                          nsIURILoader* aURILoader,
-                          bool aBypassClassifier)
+                          nsIURILoader* aURILoader)
 {
   nsresult rv;
   // Mark the channel as being a document URI and allow content sniffing...
@@ -11392,10 +11359,6 @@ nsDocShell::DoChannelLoad(nsIChannel* aChannel,
           break;
       }
       break;
-  }
-
-  if (!aBypassClassifier) {
-    loadFlags |= nsIChannel::LOAD_CLASSIFY_URI;
   }
 
   // If the user pressed shift-reload, then do not allow ServiceWorker

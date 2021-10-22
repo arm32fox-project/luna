@@ -885,8 +885,7 @@ Navigator::SendBeacon(const nsAString& aUrl,
     return false;
   }
 
-  nsLoadFlags loadFlags = nsIRequest::LOAD_NORMAL |
-    nsIChannel::LOAD_CLASSIFY_URI;
+  nsLoadFlags loadFlags = nsIRequest::LOAD_NORMAL;
 
   // No need to use CORS for sendBeacon unless it's a BLOB
   nsSecurityFlags securityFlags = (!aData.IsNull() && aData.Value().IsBlob())

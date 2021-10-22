@@ -110,7 +110,8 @@ interface nsIDocShell : nsIDocShellTreeItem
   // @see nsIWebNavigation::LOAD_FLAGS_FIRST_LOAD
   const long INTERNAL_LOAD_FLAGS_FIRST_LOAD              = 0x8;
 
-  const long INTERNAL_LOAD_FLAGS_BYPASS_CLASSIFIER       = 0x10;
+  // 0x10 is unused
+  
   const long INTERNAL_LOAD_FLAGS_FORCE_ALLOW_COOKIES     = 0x20;
 
   // Whether the load should be treated as srcdoc load, rather than a URI one.
