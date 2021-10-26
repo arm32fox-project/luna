@@ -29,7 +29,7 @@ struct nsXREAppData
 
   /**
    * The directory of the application to be run. May be null if the
-   * xulrunner and the app are installed into the same directory.
+   * xre and the app are installed into the same directory.
    */
   nsIFile* MOZ_NON_OWNING_REF directory;
 

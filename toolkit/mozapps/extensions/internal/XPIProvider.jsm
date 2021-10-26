@@ -7712,7 +7712,7 @@ WinRegInstallLocation.prototype = {
       appVendor = "Mozilla";
 #endif
 
-    // XULRunner-based apps may intentionally not specify a vendor
+    // .xulapp-based apps may intentionally not specify a vendor
     if (appVendor != "")
       appVendor += "\\";
 

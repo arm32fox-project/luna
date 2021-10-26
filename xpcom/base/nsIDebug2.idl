@@ -21,8 +21,7 @@ interface nsIDebug2 : nsISupports
 {
     /**
      * Whether XPCOM was compiled with DEBUG defined.  This often
-     * correlates to whether other code (e.g., Firefox, XULRunner) was
-     * compiled with DEBUG defined.
+     * correlates to whether other code was compiled with DEBUG defined.
      */
     readonly attribute boolean isDebugBuild;
 

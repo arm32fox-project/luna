@@ -31,7 +31,7 @@ interface nsIXULAppInfo : nsIPlatformInfo
 
   /**
    * The version of the XUL application. It is different than the
-   * version of the XULRunner platform. Be careful about which one you want.
+   * version of the XUL platform. Be careful about which one you want.
    *
    * @see nsXREAppData.version
    * @returns an empty string if nsXREAppData.version is not set.
@@ -39,7 +39,7 @@ interface nsIXULAppInfo : nsIPlatformInfo
   readonly attribute ACString version;
 
   /**
-   * The build ID/date of the application. For xulrunner applications,
+   * The build ID/date of the application. For -app applications,
    * this will be different than the build ID of the platform. Be careful
    * about which one you want.
    */

@@ -10,7 +10,7 @@
  * This GECKO-INTERNAL interface is on track to being REMOVED (or refactored
  * to the point of being near-unrecognizable).
  *
- * Please DO NOT #include this file in comm-central code, in your XULRunner
+ * Please DO NOT #include this file in comm-central code, in your XUL
  * app or binary extensions.
  *
  * Please DO NOT #include this into new files even inside Gecko. It is more
@@ -61,7 +61,7 @@ enum eStreamState {eNone,eOnStart,eOnDataAvail,eOnStop};
  * This GECKO-INTERNAL interface is on track to being REMOVED (or refactored
  * to the point of being near-unrecognizable).
  *
- * Please DO NOT #include this file in comm-central code, in your XULRunner
+ * Please DO NOT #include this file in comm-central code, in your XUL
  * app or binary extensions.
  *
  * Please DO NOT #include this into new files even inside Gecko. It is more

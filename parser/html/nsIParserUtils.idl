@@ -9,7 +9,7 @@ interface nsIDOMDocumentFragment;
 interface nsIURI;
 
 /**
- * Non-Web HTML parser functionality to Firefox extensions and XULRunner apps. 
+ * Non-Web HTML parser functionality to extensions and applications. 
  * Don't use this from within Gecko--use nsContentUtils, nsTreeSanitizer, etc.
  * directly instead.
  */

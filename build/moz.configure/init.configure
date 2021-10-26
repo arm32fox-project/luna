@@ -583,9 +583,7 @@ imply_option('--enable-project', application)
 
 @depends(check_build_environment, '--help')
 def default_project(build_env, help):
-    if build_env.topobjdir.endswith('/js/src'):
-        return 'js'
-    return 'application/xulrunner'
+    return 'js'
 
 option('--enable-project', nargs=1, default=default_project,
        help='Project to build')
@@ -631,7 +629,7 @@ def build_project(project, external_source_dir, build_env, help):
 
     build_app = project[0]
 
-    if not external_source_dir and build_app not in ('xulrunner', 'js'):
+    if not external_source_dir and build_app not in ('js'):
         die('Cannot find project %s', build_app)
 
     build_app_abspath = os.path.join(base_dir, build_app)
