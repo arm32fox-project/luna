@@ -24,6 +24,18 @@ var gMainPane = {
 
     this.setupDownloadsWindowOptions();
 
+#ifdef HAVE_SHELL_SERVICE
+    this.updateSetDefaultBrowser();
+#ifdef XP_WIN
+    // In Windows 8 we launch the control panel since it's the only
+    // way to get all file type association prefs. So we don't know
+    // when the user will select the default.  We refresh here periodically
+    // in case the default changes.  On other Windows OS's defaults can also
+    // be set while the prefs are open.
+    window.setInterval(this.updateSetDefaultBrowser, 1000);
+#endif
+#endif
+
     // Notify observers that the UI is now ready
     Components.classes["@mozilla.org/observer-service;1"]
               .getService(Components.interfaces.nsIObserverService)
@@ -469,4 +481,63 @@ var gMainPane = {
       startupPref.updateElements(); // select the correct index in the startup menulist
     }
   }
+#ifdef HAVE_SHELL_SERVICE
+  ,
+
+  // SYSTEM DEFAULTS
+
+  /*
+   * Preferences:
+   *
+   * browser.shell.checkDefault
+   * - true if a default-browser check (and prompt to make it so if necessary)
+   *   occurs at startup, false otherwise
+   */
+
+  /**
+   * Show button for setting browser as default browser or information that
+   * browser is already the default browser.
+   */
+  updateSetDefaultBrowser: function()
+  {
+    let shellSvc = getShellService();
+    let setDefaultPane = document.getElementById("setDefaultPane");
+    if (!shellSvc) {
+      setDefaultPane.hidden = true;
+      document.getElementById("alwaysCheckDefault").disabled = true;
+      return;
+    }
+    let selectedIndex =
+      shellSvc.isDefaultBrowser(false, true) ? 1 : 0;
+    setDefaultPane.selectedIndex = selectedIndex;
+  },
+
+  /**
+   * Set browser as the operating system default browser.
+   */
+  setDefaultBrowser: function()
+  {
+    let shellSvc = getShellService();
+    if (!shellSvc)
+      return;
+    try {
+      let claimAllTypes = true;
+#ifdef XP_WIN
+      // In Windows 8+, the UI for selecting default protocol is much
+      // nicer than the UI for setting file type associations. So we
+      // only show the protocol association screen on Windows 8+.
+      // Windows 8 is version 6.2.
+      let version = Services.sysinfo.getProperty("version");
+      claimAllTypes = (parseFloat(version) < 6.2);
+#endif
+      shellSvc.setDefaultBrowser(claimAllTypes, false);
+    } catch (ex) {
+      Cu.reportError(ex);
+      return;
+    }
+    let selectedIndex =
+      shellSvc.isDefaultBrowser(false, true) ? 1 : 0;
+    document.getElementById("setDefaultPane").selectedIndex = selectedIndex;
+  }
+#endif
 };

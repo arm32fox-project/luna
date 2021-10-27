@@ -69,8 +69,23 @@
       <preference id="browser.download.saveZoneInformation" name="browser.download.saveZoneInformation" type="int" />
 #endif
 
+#ifdef HAVE_SHELL_SERVICE
+      <!-- System Defaults -->
+      <preference id="browser.shell.checkDefaultBrowser"
+                  name="browser.shell.checkDefaultBrowser"
+                  type="bool"/>
+
+      <preference id="pref.general.disable_button.default_browser"
+                  name="pref.general.disable_button.default_browser"
+                  type="bool"/>
+#endif
     </preferences>
-    
+
+#ifdef HAVE_SHELL_SERVICE
+    <stringbundle id="bundleShell" src="chrome://browser/locale/shellservice.properties"/>
+    <stringbundle id="bundleBrand" src="chrome://branding/locale/brand.properties"/>
+#endif
+
     <stringbundle id="bundlePreferences" src="chrome://browser/locale/preferences/preferences.properties"/>
 
     <!-- Startup -->
@@ -177,6 +192,25 @@
 #endif
     </groupbox>
 
+#ifdef HAVE_SHELL_SERVICE
+    <!-- System Defaults -->
+    <groupbox id="systemDefaultsGroup" orient="vertical">
+      <caption label="&systemDefaults.label;"/>
+
+      <checkbox id="alwaysCheckDefault" preference="browser.shell.checkDefaultBrowser"
+                label="&alwaysCheckDefault.label;" accesskey="&alwaysCheckDefault.accesskey;"
+                flex="1"/>
+      <hbox class="indent">
+        <deck id="setDefaultPane">
+          <button id="setDefaultButton"
+                  label="&setDefault.label;" accesskey="&setDefault.accesskey;"
+                  oncommand="gMainPane.setDefaultBrowser();"
+                  preference="pref.general.disable_button.default_browser"/>
+          <description>&isDefault.label;</description>
+        </deck>
+      </hbox>
+    </groupbox>
+#endif
   </prefpane>
 
 </overlay>
