@@ -50,7 +50,6 @@ DIRS += [
     'reflect',
     'startup',
     'statusfilter',
-    'telemetry',
     'thumbnails',
     'timermanager',
     'tooltiptext',

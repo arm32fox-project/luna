@@ -131,7 +131,6 @@ extern nsresult nsStringInputStreamConstructor(nsISupports*, REFNSIID, void**);
 #include "mozilla/Services.h"
 #include "mozilla/Omnijar.h"
 #include "mozilla/HangMonitor.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/BackgroundHangMonitor.h"
 
 #include "nsChromeRegistry.h"
@@ -757,8 +756,6 @@ NS_InitXPCOM2(nsIServiceManager** aResult,
   RegisterStrongMemoryReporter(new VPXReporter());
 #endif
 
-  mozilla::Telemetry::Init();
-
   mozilla::HangMonitor::Startup();
   mozilla::BackgroundHangMonitor::Startup();
 
@@ -812,7 +809,6 @@ NS_InitMinimalXPCOM()
 
   AbstractThread::InitStatics();
   SharedThreadPool::InitStatics();
-  mozilla::Telemetry::Init();
   mozilla::HangMonitor::Startup();
   mozilla::BackgroundHangMonitor::Startup();
 
