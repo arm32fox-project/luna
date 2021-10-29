@@ -740,10 +740,7 @@ Blocklist.prototype = {
       return;
     }
 
-    let telemetry = Services.telemetry;
-
     if (this._isBlocklistPreloaded()) {
-      telemetry.getHistogramById("BLOCKLIST_SYNC_FILE_LOAD").add(false);
       this._loadBlocklistFromString(this._preloadedBlocklistContent);
       delete this._preloadedBlocklistContent;
       return;
@@ -753,8 +750,6 @@ Blocklist.prototype = {
       LOG("Blocklist::_loadBlocklistFromFile: XML File does not exist " + file.path);
       return;
     }
-
-    telemetry.getHistogramById("BLOCKLIST_SYNC_FILE_LOAD").add(true);
 
     let text = "";
     let fstream = null;
