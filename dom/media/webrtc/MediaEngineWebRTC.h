@@ -180,7 +180,8 @@ public:
   {
     if (mDevices) {
       // This doesn't require anything more than support for free()
-      cubeb_device_collection_destroy(mDevices);
+      cubeb* context = CubebUtils::GetCubebContext();
+      cubeb_device_collection_destroy(context, mDevices);
       mDevices = nullptr;
     }
     delete mDeviceIndexes;
@@ -224,7 +225,7 @@ public:
     sMutex.AssertCurrentThreadOwns();
     int dev_index = DeviceIndex(aDeviceIndex);
     if (dev_index != -1) {
-      aID = mDevices->device[dev_index]->devid;
+      aID = mDevices->device[dev_index].devid;
       return true;
     }
     return false;
@@ -238,7 +239,7 @@ public:
       return 1;
     }
     PR_snprintf(aStrNameUTF8, 128, "%s%s", aIndex == -1 ? "default: " : "",
-                mDevices->device[devindex]->friendly_name);
+                mDevices->device[devindex].friendly_name);
     aStrGuidUTF8[0] = '\0';
     return 0;
   }

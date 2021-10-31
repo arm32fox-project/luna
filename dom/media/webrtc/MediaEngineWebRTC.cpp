@@ -48,7 +48,7 @@ void AudioInputCubeb::UpdateDeviceList()
     return;
   }
 
-  cubeb_device_collection *devices = nullptr;
+  cubeb_device_collection devices = { nullptr, 0 };
 
   if (CUBEB_OK != cubeb_enumerate_devices(cubebContext,
                                           CUBEB_DEVICE_TYPE_INPUT,
@@ -67,27 +67,27 @@ void AudioInputCubeb::UpdateDeviceList()
   // For some reason the "fake" device for automation is marked as DISABLED,
   // so white-list it.
   mDefaultDevice = -1;
-  for (uint32_t i = 0; i < devices->count; i++) {
+  for (uint32_t i = 0; i < devices.count; i++) {
     LOG(("Cubeb device %u: type 0x%x, state 0x%x, name %s, id %p",
-         i, devices->device[i]->type, devices->device[i]->state,
-         devices->device[i]->friendly_name, devices->device[i]->device_id));
-    if (devices->device[i]->type == CUBEB_DEVICE_TYPE_INPUT && // paranoia
-        (devices->device[i]->state == CUBEB_DEVICE_STATE_ENABLED ||
-         (devices->device[i]->state == CUBEB_DEVICE_STATE_DISABLED &&
-          devices->device[i]->friendly_name &&
-          strcmp(devices->device[i]->friendly_name, "Sine source at 440 Hz") == 0)))
+         i, devices.device[i].type, devices.device[i].state,
+         devices.device[i].friendly_name, devices.device[i].device_id));
+    if (devices.device[i].type == CUBEB_DEVICE_TYPE_INPUT && // paranoia
+        (devices.device[i].state == CUBEB_DEVICE_STATE_ENABLED ||
+         (devices.device[i].state == CUBEB_DEVICE_STATE_DISABLED &&
+          devices.device[i].friendly_name &&
+          strcmp(devices.device[i].friendly_name, "Sine source at 440 Hz") == 0)))
     {
-      auto j = mDeviceNames->IndexOf(devices->device[i]->device_id);
+      auto j = mDeviceNames->IndexOf(devices.device[i].device_id);
       if (j != nsTArray<nsCString>::NoIndex) {
         // match! update the mapping
         (*mDeviceIndexes)[j] = i;
       } else {
         // new device, add to the array
         mDeviceIndexes->AppendElement(i);
-        mDeviceNames->AppendElement(devices->device[i]->device_id);
+        mDeviceNames->AppendElement(devices.device[i].device_id);
         j = mDeviceIndexes->Length()-1;
       }
-      if (devices->device[i]->preferred & CUBEB_DEVICE_PREF_VOICE) {
+      if (devices.device[i].preferred & CUBEB_DEVICE_PREF_VOICE) {
         // There can be only one... we hope
         NS_ASSERTION(mDefaultDevice == -1, "multiple default cubeb input devices!");
         mDefaultDevice = j;
@@ -98,9 +98,9 @@ void AudioInputCubeb::UpdateDeviceList()
   StaticMutexAutoLock lock(sMutex);
   // swap state
   if (mDevices) {
-    cubeb_device_collection_destroy(mDevices);
+    cubeb_device_collection_destroy(cubebContext, mDevices);
   }
-  mDevices = devices;
+  mDevices = &devices;
 }
 
 MediaEngineWebRTC::MediaEngineWebRTC(MediaEnginePrefs &aPrefs)
