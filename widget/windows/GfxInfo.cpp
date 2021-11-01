@@ -773,12 +773,6 @@ GfxInfo::GetGfxDriverInfo()
       GfxDriverInfo::allFeatures, nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION,
       DRIVER_BETWEEN_INCLUSIVE_START, V(8,16,10,0000), V(8,16,11,8745),
       "FEATURE_FAILURE_NV_W7_16", "nVidia driver > 187.45" );
-    // Telemetry doesn't show any driver in this range so it might not even be required.
-    APPEND_TO_DRIVER_BLOCKLIST_RANGE(OperatingSystem::Windows7,
-      (nsAString&) GfxDriverInfo::GetDeviceVendor(VendorNVIDIA), GfxDriverInfo::allDevices,
-      GfxDriverInfo::allFeatures, nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION,
-      DRIVER_BETWEEN_INCLUSIVE_START, V(8,17,10,0000), V(8,17,11,8745),
-      "FEATURE_FAILURE_NV_W7_17", "nVidia driver > 187.45" );
 
     /*
      * AMD/ATI entries. 8.56.1.15 is the driver that shipped with Windows 7 RTM
