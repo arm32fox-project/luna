@@ -600,11 +600,24 @@ nsStandardURL::NormalizeIDN(const nsCSubstring &host, nsCString &result)
         return NS_OK;
     }
 
+    // If the input is an ACE encoded string it MUST be ASCII or it's malformed
+    // according to the spec.
+    if (!IsAsciiString(host) && isACE) {
+        return NS_ERROR_MALFORMED_URI;
+    }
+
     // Even if it's already ACE, we must still call ConvertUTF8toACE in order
     // for the input normalization to take place.
     rv = gIDN->ConvertUTF8toACE(host, normalized);
     if (NS_FAILED(rv)) {
-      return rv;
+        return rv;
+    }
+
+    // If the ASCII representation doesn't contain the xn-- token then we don't
+    // need to call ConvertToDisplayIDN as that would not change anything.
+    if (!StringBeginsWith(normalized, NS_LITERAL_CSTRING("xn--")) &&
+        normalized.Find(NS_LITERAL_CSTRING(".xn--")) == kNotFound) {
+        return NS_OK;
     }
    
     // Finally, convert to IDN
