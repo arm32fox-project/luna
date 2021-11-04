@@ -306,8 +306,8 @@ private:
     uint16_t         SocketPort() { return (!mProxyHost.IsEmpty() && !mProxyTransparent) ? mProxyPort : mPort; }
     const nsCString &SocketHost() { return (!mProxyHost.IsEmpty() && !mProxyTransparent) ? mProxyHost : mHost; }
 
-    Atomic<bool> mInputClosed = true;
-    Atomic<bool> mOutputClosed = true;
+    Atomic<bool> mInputClosed{true};
+    Atomic<bool> mOutputClosed{true};
 
     //-------------------------------------------------------------------------
     // members accessible only on the socket transport thread:
@@ -456,7 +456,7 @@ private:
     int32_t mKeepaliveRetryIntervalS;
     int32_t mKeepaliveProbeCount;
 
-    Atomic<bool> mDoNotRetryToConnect = false;
+    Atomic<bool> mDoNotRetryToConnect{false};
 };
 
 } // namespace net
