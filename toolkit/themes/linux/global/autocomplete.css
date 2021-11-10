@@ -47,6 +47,8 @@ textbox:not(.padded) .textbox-input-box {
 
 panel[type="autocomplete"],
 panel[type="autocomplete-richlistbox"],
+panel[type="private-autocomplete"],
+panel[type="private-autocomplete-richlistbox"],
 .autocomplete-history-popup {
   border: 1px solid ThreeDShadow;
   padding: 0;
