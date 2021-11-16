@@ -483,7 +483,7 @@ PrescaleAndTileDrawable(gfxDrawable* aDrawable,
 {
   gfxSize scaleFactor = aContext->CurrentMatrix().ScaleFactors(true);
   gfxMatrix scaleMatrix = gfxMatrix::Scaling(scaleFactor.width, scaleFactor.height);
-  const float fuzzFactor = 0.01;
+  const float fuzzFactor = 0.01f;
 
   // If we aren't scaling or translating, don't go down this path
   if ((FuzzyEqual(scaleFactor.width, 1.0, fuzzFactor) &&
