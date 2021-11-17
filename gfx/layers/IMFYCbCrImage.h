@@ -24,8 +24,6 @@ public:
 
 protected:
 
-  TextureClient* GetD3D9TextureClient(KnowsCompositor* aForwarder);
-
   ~IMFYCbCrImage();
 
   RefPtr<IMFMediaBuffer> mBuffer;

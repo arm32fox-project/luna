@@ -27,9 +27,6 @@ public:
 
     gfxWindowsSurface(HDC dc, uint32_t flags = 0);
 
-    // Create from a shared d3d9surface
-    gfxWindowsSurface(IDirect3DSurface9 *surface, uint32_t flags = 0);
-
     // Create a DIB surface
     gfxWindowsSurface(const mozilla::gfx::IntSize& size,
                       gfxImageFormat imageFormat = mozilla::gfx::SurfaceFormat::X8R8G8B8_UINT32);

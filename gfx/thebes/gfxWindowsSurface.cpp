@@ -21,14 +21,6 @@ gfxWindowsSurface::gfxWindowsSurface(HDC dc, uint32_t flags) :
     InitWithDC(flags);
 }
 
-gfxWindowsSurface::gfxWindowsSurface(IDirect3DSurface9 *surface, uint32_t flags) :
-    mOwnsDC(false), mDC(0), mWnd(nullptr)
-{
-    cairo_surface_t *surf = cairo_win32_surface_create_with_d3dsurface9(surface);
-    Init(surf);
-}
-
-
 void
 gfxWindowsSurface::MakeInvalid(mozilla::gfx::IntSize& size)
 {
