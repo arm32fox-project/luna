@@ -215,9 +215,23 @@ if CONFIG['MOZ_TREE_FREETYPE']:
 # Suppress warnings in third-party code.
 if CONFIG['_MSC_VER']:
     CFLAGS += [
-        '-wd4005',
-        '-wd4146',
+        '-wd4005', # 'WIN32_LEAN_AND_MEAN' : macro redefinition
+        '-wd4018', # '>' : signed/unsigned mismatch
+        '-wd4047', # different levels of indirection
+        '-wd4101', # unreferenced local variable
+        '-wd4133', # 'function' : incompatible types
+        '-wd4146', # unary minus operator applied to unsigned type
+        '-wd4311', # 'variable' : pointer truncation from 'type' to 'type'
+        '-wd4477', # format string '%s' requires an argument of type 'type'
+        '-wd4996', # The compiler encountered a deprecated declaration.
     ]
+    CXXFLAGS += [
+        '-wd4005', # 'WIN32_LEAN_AND_MEAN' : macro redefinition
+        '-wd4018', # '>' : signed/unsigned mismatch
+        '-wd4146', # unary minus operator applied to unsigned type
+        '-wd4828', # illegal in the current source character set
+        '-wd4838', # requires a narrowing conversion
+]
 if CONFIG['GNU_CC'] or CONFIG['CLANG_CL']:
     CFLAGS += [
         '-Wno-enum-compare',
@@ -228,6 +242,7 @@ if CONFIG['GNU_CC'] or CONFIG['CLANG_CL']:
         '-Wno-conversion',
         '-Wno-unused-but-set-variable',
     ]
+
 if CONFIG['CLANG_CXX'] or CONFIG['CLANG_CL']:
     CFLAGS += [
         '-Wno-incompatible-pointer-types',
@@ -235,6 +250,7 @@ if CONFIG['CLANG_CXX'] or CONFIG['CLANG_CL']:
         '-Wno-tautological-constant-out-of-range-compare',
         '-Wno-error=uninitialized',
     ]
+
 if CONFIG['CLANG_CL']:
     CFLAGS += [
         '-Wno-deprecated-register',
