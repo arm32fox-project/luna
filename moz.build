@@ -73,7 +73,7 @@ if not CONFIG['MOZ_DISABLE_PLATFORM']:
 
             DIRS += [
                 'config/external',
-                'config/external/nss',
+                'security',
             ]
 
         if CONFIG['BUILD_CTYPES']:
