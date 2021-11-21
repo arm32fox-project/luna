@@ -129,7 +129,7 @@
         '<(DEPTH)/exports.gyp:nss_exports'
       ],
       'conditions': [
-        [ 'target_arch=="x64"', {
+        [ 'target_arch=="x64" and disable_avx2==0', {
           'cflags': [
             '-mssse3',
             '-msse4.1',
@@ -179,7 +179,7 @@
             '-mfpu=neon'
           ],
         }],
-        [ 'target_arch=="x64"', {
+        [ 'target_arch=="x64" and disable_avx2==0', {
           'sources': [
             'verified/Hacl_Poly1305_256.c',
             'verified/Hacl_Chacha20_Vec256.c',

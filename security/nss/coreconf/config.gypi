@@ -100,6 +100,7 @@
     'disable_tests%': 0,
     'disable_chachapoly%': 0,
     'disable_dbm%': 1,
+    'disable_avx2%': 1,
     'disable_libpkix%': 1,
     'disable_werror%': 0,
     'disable_altivec%': 0,
@@ -562,6 +563,11 @@
           [ 'disable_dbm==1', {
             'defines': [
               'NSS_DISABLE_DBM',
+            ],
+          }],
+          [ 'disable_avx2==1', {
+            'defines': [
+              'NSS_DISABLE_AVX2',
             ],
           }],
           [ 'disable_libpkix==1', {
