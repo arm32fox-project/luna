@@ -300,15 +300,17 @@ class AbsoluteSymlinkFile(File):
 
     def copy(self, dest, skip_if_older=True):
         assert isinstance(dest, basestring)
+        from buildconfig import substs
 
         # The logic in this function is complicated by the fact that symlinks
-        # aren't universally supported. So, where symlinks aren't supported, we
+        # aren't universally supported, and are explicitly disabled when 
+        # NSDISTMODE is set to copy. So, where symlinks aren't supported, we
         # fall back to file copying. Keep in mind that symlink support is
         # per-filesystem, not per-OS.
 
         # Handle the simple case where symlinks are definitely not supported by
-        # falling back to file copy.
-        if not hasattr(os, 'symlink'):
+        # falling back to file copy. 
+        if not hasattr(os, 'symlink') or substs.get('NSDISTMODE') == 'copy':
             return File.copy(self, dest, skip_if_older=skip_if_older)
 
         # Always verify the symlink target path exists.

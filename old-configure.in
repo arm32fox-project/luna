@@ -1063,12 +1063,20 @@ case "$target" in
     fi
     ;;
 
-i*86-*-solaris*)
-    MOZ_FIX_LINK_PATHS="-L${DIST}/bin -R'\$\$ORIGIN':/usr/gcc/7/lib"
-    ;;
+*-solaris*)
+dnl Set NSDISTMODE to copy mode on SunOS automatically. The dynamic linker
+dnl uses the real path of a symlink after resolving it, which breaks the
+dnl default mode that relies on relative symlinks being handled a certain way.
 
-x86_64-*-solaris*)
-    MOZ_FIX_LINK_PATHS="-L${DIST}/bin -R'\$\$ORIGIN':/usr/gcc/7/lib/amd64"
+    if test -z "$NSDISTMODE"; then
+       NSDISTMODE=copy
+    fi
+
+    if test "$CPU_ARCH" = "x86"; then
+       MOZ_FIX_LINK_PATHS="-L${DIST}/bin -R'\$\$ORIGIN':/usr/gcc/7/lib"
+    elif test "$CPU_ARCH" = "x86_64"; then
+       MOZ_FIX_LINK_PATHS="-L${DIST}/bin -R'\$\$ORIGIN':/usr/gcc/7/lib/amd64"
+    fi    
     ;;
 
 esac
@@ -4621,6 +4629,7 @@ AC_SUBST(INCREMENTAL_LINKER)
 AC_SUBST(MOZ_COMPONENTS_VERSION_SCRIPT_LDFLAGS)
 
 AC_SUBST(MOZ_FIX_LINK_PATHS)
+AC_SUBST(NSDISTMODE)
 
 AC_SUBST(MOZ_POST_PROGRAM_COMMAND)
 AC_SUBST(MOZ_LINKER_EXTRACT)
