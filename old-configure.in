@@ -4540,12 +4540,6 @@ if test "$NECKO_COOKIES"; then
     _NON_GLOBAL_ACDEFINES="$_NON_GLOBAL_ACDEFINES NECKO_COOKIES"
 fi
 
-dnl
-dnl Always build Marionette
-dnl
-AC_DEFINE(ENABLE_MARIONETTE)
-AC_SUBST(ENABLE_MARIONETTE)
-
 dnl ========================================================
 dnl =
 dnl = Miscellaneous (former toolkit/moz.configure)
