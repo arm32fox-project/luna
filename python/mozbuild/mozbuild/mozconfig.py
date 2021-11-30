@@ -233,6 +233,11 @@ class MozconfigLoader(object):
             shell = os.environ['MOZILLABUILD'] + '/msys/bin/sh'
         if sys.platform == 'win32':
             shell = shell + '.exe'
+        # /bin/sh is ksh on SunOS. The Python logic that detects whether 
+        # config.status has changed expects GNU Bash, and does not seem to 
+        # work with just any Bourne-compatible sh. So invoke bash directly.
+        if sys.platform in ('solaris','sunos5'):
+            shell = 'bash'
 
         command = [shell, mozpath.normsep(self._loader_script),
                    mozpath.normsep(self.topsrcdir), path, sys.executable,
