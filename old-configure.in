@@ -960,9 +960,12 @@ case "$target" in
         WARNINGS_AS_ERRORS='-WX'
         MOZ_OPTIMIZE_FLAGS='-O1 -Oi'
         MOZ_FIX_LINK_PATHS=
-        num_cores=$($PYTHON -c 'import multiprocessing; print(min(8,multiprocessing.cpu_count()))')
-        cgthreads="-CGTHREADS:${num_cores}"
-        LDFLAGS="$LDFLAGS -LARGEADDRESSAWARE -NXCOMPAT -DYNAMICBASE -OPT:REF -OPT:ICF=${num_cores} $cgthreads"
+        AC_MSG_CHECKING(for optimal linker configuration)
+        num_cores=$($PYTHON -c 'import multiprocessing; print(multiprocessing.cpu_count())')
+        icf_iters=$($PYTHON -c 'import multiprocessing; print(min(16,multiprocessing.cpu_count()))')
+        cgthreads=$($PYTHON -c 'import multiprocessing; print(min(8,multiprocessing.cpu_count()))')
+        AC_MSG_RESULT("CG:${cgthreads}/ICF:${icf_iters}/${num_cores}c")
+        LDFLAGS="$LDFLAGS -LARGEADDRESSAWARE -NXCOMPAT -DYNAMICBASE -OPT:REF -OPT:ICF=${icf_iters} -CGTHREADS:${cgthreads}"
         if test -z "$DEVELOPER_OPTIONS"; then
             LDFLAGS="$LDFLAGS -RELEASE"
         fi
