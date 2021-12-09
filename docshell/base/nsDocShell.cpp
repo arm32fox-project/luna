@@ -5383,11 +5383,13 @@ nsDocShell::Reload(uint32_t aReloadFlags)
     // Do this only if not yet marked reported so we only report it once per
     // flood interval.
     if (!mReloadFloodGuardReported) {
+#if 0
       nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
                                       NS_LITERAL_CSTRING("Reload"),
                                       GetDocument(),
                                       nsContentUtils::eDOM_PROPERTIES,
                                       "ReloadFloodingPrevented");
+#endif
       mReloadFloodGuardReported = true;
     }
     return NS_OK;
