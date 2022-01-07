@@ -82,8 +82,6 @@ HistoryDownload.prototype = {
                    ? { message: "History download failed." }
                    : metaData.state == nsIDM.DOWNLOAD_BLOCKED_PARENTAL
                    ? { becauseBlockedByParentalControls: true }
-                   : metaData.state == nsIDM.DOWNLOAD_DIRTY
-                   ? { becauseBlockedByReputationCheck: true }
                    : null;
       this.canceled = metaData.state == nsIDM.DOWNLOAD_CANCELED ||
                       metaData.state == nsIDM.DOWNLOAD_PAUSED;

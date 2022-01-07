@@ -228,8 +228,6 @@ this.DownloadsViewUI.DownloadElementShell.prototype = {
         stateLabel = s.stateCanceled;
       } else if (this.download.error.becauseBlockedByParentalControls) {
         stateLabel = s.stateBlockedParentalControls;
-      } else if (this.download.error.becauseBlockedByReputationCheck) {
-        stateLabel = s.stateDirty;
       } else {
         stateLabel = s.stateFailed;
       }
