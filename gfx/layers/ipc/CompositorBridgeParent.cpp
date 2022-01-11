@@ -1183,16 +1183,6 @@ CompositorBridgeParent::CompositeToTarget(DrawTarget* aTarget, const gfx::IntRec
                                &hasRemoteContent,
                                &updatePluginsFlag);
 
-#if defined(XP_WIN) || defined(MOZ_WIDGET_GTK)
-  // We do not support plugins in local content. When switching tabs
-  // to local pages, hide every plugin associated with the window.
-  if (!hasRemoteContent && gfxVars::BrowserTabsRemoteAutostart() &&
-      mCachedPluginData.Length()) {
-    Unused << SendHideAllPlugins(GetWidget()->GetWidgetKey());
-    mCachedPluginData.Clear();
-  }
-#endif
-
   if (aTarget) {
     mLayerManager->BeginTransactionWithDrawTarget(aTarget, *aRect);
   } else {

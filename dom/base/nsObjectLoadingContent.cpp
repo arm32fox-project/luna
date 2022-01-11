@@ -3363,19 +3363,6 @@ nsObjectLoadingContent::ShouldPlay(FallbackType &aReason, bool aIgnoreCurrentTyp
     initializeObjectLoadingContentPrefs();
   }
 
-  if (BrowserTabsRemoteAutostart()) {
-    bool shouldLoadInParent = nsPluginHost::ShouldLoadTypeInParent(mContentType);
-    bool inParent = XRE_IsParentProcess();
-
-    if (shouldLoadInParent != inParent) {
-      // Plugins need to be locked to either the parent process or the content
-      // process. If a plugin is locked to one process type, it can't be used in
-      // the other. Otherwise we'll get hangs.
-      aReason = eFallbackDisabled;
-      return false;
-    }
-  }
-
   RefPtr<nsPluginHost> pluginHost = nsPluginHost::GetInst();
 
   // at this point if it's not a plugin, we let it play/fallback

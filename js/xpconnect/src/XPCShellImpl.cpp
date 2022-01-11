@@ -1433,8 +1433,6 @@ XRE_XPCShellMain(int argc, char** argv, char** envp)
 
         // Initialize graphics prefs on the main thread, if not already done
         gfxPrefs::GetSingleton();
-        // Initialize e10s check on the main thread, if not already done
-        BrowserTabsRemoteAutostart();
 #ifdef XP_WIN
         // Plugin may require audio session if installed plugin can initialize
         // asynchronized.

@@ -179,11 +179,6 @@ const BackgroundPageThumbs = {
     browser.setAttribute("type", "content");
     browser.setAttribute("disableglobalhistory", "true");
 
-    if (Services.prefs.getPrefType("browser.tabs.remote") == Services.prefs.PREF_BOOL &&
-        Services.prefs.getBoolPref("browser.tabs.remote")) {
-      browser.setAttribute("remote", "true");
-    }
-
     // Size the browser.  Make its aspect ratio the same as the canvases' that
     // the thumbnails are drawn into; the canvases' aspect ratio is the same as
     // the screen's, so use that.  Aim for a size in the ballpark of 1024x768.

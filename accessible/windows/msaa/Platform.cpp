@@ -35,19 +35,6 @@ a11y::PlatformInit()
 
   nsWinUtils::MaybeStartWindowEmulation();
   ia2AccessibleText::InitTextChangeData();
-  if (BrowserTabsRemoteAutostart()) {
-    mscom::InterceptorLog::Init();
-    UniquePtr<RegisteredProxy> regProxy(
-        mscom::RegisterProxy(L"ia2marshal.dll"));
-    gRegProxy = regProxy.release();
-    UniquePtr<RegisteredProxy> regAccTlb(
-        mscom::RegisterTypelib(L"oleacc.dll",
-                               RegistrationFlags::eUseSystemDirectory));
-    gRegAccTlb = regAccTlb.release();
-    UniquePtr<RegisteredProxy> regMiscTlb(
-        mscom::RegisterTypelib(L"Accessible.tlb"));
-    gRegMiscTlb = regMiscTlb.release();
-  }
 }
 
 void

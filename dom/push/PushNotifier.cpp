@@ -113,12 +113,7 @@ PushNotifier::Dispatch(PushDispatcher& aDispatcher)
       return NS_OK;
     }
 
-    if (BrowserTabsRemoteAutostart()) {
-      // e10s is enabled, but no content processes are active.
-      return aDispatcher.HandleNoChildProcesses();
-    }
-
-    // e10s is disabled; notify workers in the parent.
+    // Notify workers in the parent.
     return aDispatcher.NotifyWorkers();
   }
 

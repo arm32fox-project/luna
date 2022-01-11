@@ -825,39 +825,12 @@ nsXULAppInfo::GetUniqueProcessID(uint64_t* aResult)
   return NS_OK;
 }
 
-static bool gBrowserTabsRemoteAutostart = false;
-static uint64_t gBrowserTabsRemoteStatus = 0;
-static bool gBrowserTabsRemoteAutostartInitialized = false;
-
-static bool gMultiprocessBlockPolicyInitialized = false;
-static uint32_t gMultiprocessBlockPolicy = 0;
-
 NS_IMETHODIMP
 nsXULAppInfo::Observe(nsISupports *aSubject, const char *aTopic, const char16_t *aData) {
   if (!nsCRT::strcmp(aTopic, "getE10SBlocked")) {
-    nsCOMPtr<nsISupportsPRUint64> ret = do_QueryInterface(aSubject);
-    if (!ret)
-      return NS_ERROR_FAILURE;
-
-    ret->SetData(gBrowserTabsRemoteStatus);
-
     return NS_OK;
   }
   return NS_ERROR_FAILURE;
-}
-
-NS_IMETHODIMP
-nsXULAppInfo::GetBrowserTabsRemoteAutostart(bool* aResult)
-{
-  *aResult = BrowserTabsRemoteAutostart();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsXULAppInfo::GetMultiprocessBlockPolicy(uint32_t* aResult)
-{
-  *aResult = MultiprocessBlockPolicy();
-  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -4053,21 +4026,6 @@ XRE_IsContentProcess()
   return XRE_GetProcessType() == GeckoProcessType_Content;
 }
 
-// If you add anything to this enum, please update about:support to reflect it
-enum {
-  kE10sEnabledByUser = 0,
-  kE10sEnabledByDefault = 1,
-  kE10sDisabledByUser = 2,
-  // kE10sDisabledInSafeMode = 3, was removed in bug 1172491.
-  kE10sDisabledForAccessibility = 4,
-  // kE10sDisabledForMacGfx = 5, was removed in bug 1068674.
-  // kE10sDisabledForBidi = 6, removed in bug 1309599
-  kE10sDisabledForAddons = 7,
-  kE10sForceDisabled = 8,
-  // kE10sDisabledForXPAcceleration = 9, removed in bug 1296353
-  // kE10sDisabledForOperatingSystem = 10, removed due to xp-eol
-};
-
 const char* kAccessibilityLastRunDatePref = "accessibility.lastLoadDate";
 const char* kAccessibilityLoadedLastSessionPref = "accessibility.loadedInLastSession";
 
@@ -4079,48 +4037,6 @@ PRTimeToSeconds(PRTime t_usec)
   return uint32_t(t_usec /= usec_per_sec);
 }
 #endif
-
-uint32_t
-MultiprocessBlockPolicy() {
-  if (gMultiprocessBlockPolicyInitialized) {
-    return gMultiprocessBlockPolicy;
-  }
-  gMultiprocessBlockPolicyInitialized = true;
-
-  // We do not support E10S, block by policy.
-  gMultiprocessBlockPolicy = kE10sForceDisabled;
-
-  return gMultiprocessBlockPolicy;
-}
-
-bool
-mozilla::BrowserTabsRemoteAutostart()
-{
-  if (gBrowserTabsRemoteAutostartInitialized) {
-    return gBrowserTabsRemoteAutostart;
-  }
-  gBrowserTabsRemoteAutostartInitialized = true;
-
-  bool optInPref = Preferences::GetBool("browser.tabs.remote.autostart", false);
-  bool trialPref = Preferences::GetBool("browser.tabs.remote.autostart.2", false);
-  bool prefEnabled = optInPref || trialPref;
-  int status;
-
-  if (prefEnabled) {
-    uint32_t blockPolicy = MultiprocessBlockPolicy();
-    if (blockPolicy != 0) {
-      status = blockPolicy;
-    } else {
-      MOZ_CRASH("e10s force enabled bypassing policy -- unsupported configuration");
-    }
-  } else {
-    status = kE10sDisabledByUser;
-  }
-
-  gBrowserTabsRemoteStatus = status;
-
-  return gBrowserTabsRemoteAutostart;
-}
 
 void
 SetupErrorHandling(const char* progname)

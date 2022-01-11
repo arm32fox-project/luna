@@ -1883,19 +1883,7 @@ nsWindowWatcher::CalculateChromeFlagsForParent(mozIDOMWindowProxy* aParent,
   chromeFlags |= WinHasOption(aFeatures, "non-private", 0, &presenceFlag) ?
     nsIWebBrowserChrome::CHROME_NON_PRIVATE_WINDOW : 0;
 
-  // Determine whether the window should have remote tabs.
-  bool remote = BrowserTabsRemoteAutostart();
-
-  if (remote) {
-    remote = !WinHasOption(aFeatures, "non-remote", 0, &presenceFlag);
-  } else {
-    remote = WinHasOption(aFeatures, "remote", 0, &presenceFlag);
-  }
-
-  if (remote) {
-    chromeFlags |= nsIWebBrowserChrome::CHROME_REMOTE_WINDOW;
-  }
-
+  // Check if it's a popup window
   chromeFlags |= WinHasOption(aFeatures, "popup", 0, &presenceFlag) ?
     nsIWebBrowserChrome::CHROME_WINDOW_POPUP : 0;
 

@@ -3642,12 +3642,6 @@ HttpBaseChannel::GetPerformance()
     return nullptr;
   }
 
-  // There is no point in continuing, since the performance object in the parent
-  // isn't the same as the one in the child which will be reporting resource performance.
-  if (XRE_IsParentProcess() && BrowserTabsRemoteAutostart()) {
-    return nullptr;
-  }
-
   if (!mLoadInfo) {
     return nullptr;
   }
