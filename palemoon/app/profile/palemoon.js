@@ -933,8 +933,6 @@ pref("toolbar.customization.usesheet", false);
 
 pref("dom.ipc.plugins.enabled", true);
 
-pref("browser.tabs.remote", false);
-
 // This pref governs whether we attempt to work around problems caused by
 // plugins using OS calls to manipulate the cursor while running out-of-
 // process.  These workarounds all involve intercepting (hooking) certain

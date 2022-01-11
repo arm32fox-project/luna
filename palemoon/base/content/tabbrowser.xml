@@ -542,9 +542,6 @@
               if (this.mBlank)
                 return false;
 
-              if (gMultiProcessBrowser)
-                return true;
-
               // Don't show progress indicators in tabs for about: URIs
               // pointing to local resources.
               try {
@@ -620,11 +617,9 @@
                 if (this._shouldShowProgress(aRequest)) {
                   if (!(aStateFlags & nsIWebProgressListener.STATE_RESTORING)) {
                     this.mTab.setAttribute("busy", "true");
-                    if (!gMultiProcessBrowser) {
-                      if (aWebProgress.isTopLevel &&
-                          !(this.mBrowser.docShell.loadType & Ci.nsIDocShell.LOAD_CMD_RELOAD))
-                        this.mTabBrowser.setTabTitleLoading(this.mTab);
-                    }
+                    if (aWebProgress.isTopLevel &&
+                        !(this.mBrowser.docShell.loadType & Ci.nsIDocShell.LOAD_CMD_RELOAD))
+                      this.mTabBrowser.setTabTitleLoading(this.mTab);
                   }
 
                   if (this.mTab.selected)
@@ -733,11 +728,9 @@
 
                 // Don't clear the favicon if this onLocationChange was
                 // triggered by a pushState or a replaceState.  See bug 550565.
-                if (!gMultiProcessBrowser) {
-                  if (aWebProgress.isLoadingDocument &&
-                      !(this.mBrowser.docShell.loadType & Ci.nsIDocShell.LOAD_CMD_PUSHSTATE))
-                    this.mBrowser.mIconURL = null;
-                }
+                if (aWebProgress.isLoadingDocument &&
+                    !(this.mBrowser.docShell.loadType & Ci.nsIDocShell.LOAD_CMD_PUSHSTATE))
+                  this.mBrowser.mIconURL = null;
 
                 let autocomplete = this.mTabBrowser._placesAutocomplete;
                 if (this.mBrowser.registeredOpenURI) {
@@ -893,10 +886,6 @@
         <parameter name="aTab"/>
         <body>
           <![CDATA[
-            // Bug 691610 - e10s support for useDefaultIcon
-            if (gMultiProcessBrowser)
-              return;
-
             var browser = this.getBrowserForTab(aTab);
             var docURIObject = browser.contentDocument.documentURIObject;
             var icon = null;
@@ -1123,9 +1112,7 @@
               this.mCurrentTab.removeAttribute("unread");
               this.selectedTab.lastAccessed = Date.now();
 
-              // Bug 666816 - TypeAheadFind support for e10s
-              if (!gMultiProcessBrowser)
-                this._fastFind.setDocShell(this.mCurrentBrowser.docShell);
+              this._fastFind.setDocShell(this.mCurrentBrowser.docShell);
 
               this.updateTitlebar();
 
@@ -1221,16 +1208,14 @@
                 let fm = Cc["@mozilla.org/focus-manager;1"].getService(Ci.nsIFocusManager);
                 let focusFlags = fm.FLAG_NOSCROLL;
 
-                if (!gMultiProcessBrowser) {
-                  let newFocusedElement = fm.getFocusedElementForWindow(window.content, true, {});
+                let newFocusedElement = fm.getFocusedElementForWindow(window.content, true, {});
 
-                  // for anchors, use FLAG_SHOWRING so that it is clear what link was
-                  // last clicked when switching back to that tab
-                  if (newFocusedElement &&
-                      (newFocusedElement instanceof HTMLAnchorElement ||
-                       newFocusedElement.getAttributeNS("http://www.w3.org/1999/xlink", "type") == "simple"))
-                    focusFlags |= fm.FLAG_SHOWRING;
-                }
+                // for anchors, use FLAG_SHOWRING so that it is clear what link was
+                // last clicked when switching back to that tab
+                if (newFocusedElement &&
+                    (newFocusedElement instanceof HTMLAnchorElement ||
+                     newFocusedElement.getAttributeNS("http://www.w3.org/1999/xlink", "type") == "simple"))
+                  focusFlags |= fm.FLAG_SHOWRING;
                 fm.setFocus(newBrowser, focusFlags);
               } while (false);
             }
@@ -1569,11 +1554,6 @@
             b.setAttribute("contextmenu", this.getAttribute("contentcontextmenu"));
             b.setAttribute("tooltip", this.getAttribute("contenttooltip"));
 
-            if (Services.prefs.getPrefType("browser.tabs.remote") == Services.prefs.PREF_BOOL &&
-                Services.prefs.getBoolPref("browser.tabs.remote")) {
-              b.setAttribute("remote", "true");
-            }
-
             if (window.gShowPageResizers && document.getElementById("addon-bar").collapsed &&
                 window.windowState == window.STATE_NORMAL) {
               b.setAttribute("showresizer", "true");
@@ -1724,9 +1704,7 @@
             // Note: Only do this of we still have a docShell. The TabOpen
             // event was dispatched above and a gBrowser.removeTab() call from
             // one of its listeners could cause us to fail here.
-            if (Services.prefs.getPrefType("browser.tabs.remote") == Services.prefs.PREF_BOOL &&
-               !Services.prefs.getBoolPref("browser.tabs.remote")
-               && b.docShell) {
+            if (b.docShell) {
               this._outerWindowIDBrowserMap.set(b.outerWindowID, b);
             }
 
@@ -2047,12 +2025,10 @@
             evt.initUIEvent("TabClose", true, false, window, aTabWillBeMoved ? 1 : 0);
             aTab.dispatchEvent(evt);
 
-            if (!gMultiProcessBrowser) {
-              // Prevent this tab from showing further dialogs, since we're closing it
-              var windowUtils = browser.contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).
-                                getInterface(Ci.nsIDOMWindowUtils);
-              windowUtils.disableDialogs();
-            }
+            // Prevent this tab from showing further dialogs, since we're closing it
+            var windowUtils = browser.contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).
+                              getInterface(Ci.nsIDOMWindowUtils);
+            windowUtils.disableDialogs();
 
             // Remove the tab's filter and progress listener.
             const filter = this.mTabFilters[aTab._tPos];
@@ -3233,11 +3209,6 @@
         <![CDATA[
           let browserStack = document.getAnonymousElementByAttribute(this, "anonid", "browserStack");
           this.mCurrentBrowser = document.getAnonymousElementByAttribute(this, "anonid", "initialBrowser");
-          if (Services.prefs.getBoolPref("browser.tabs.remote")) {
-            browserStack.removeChild(this.mCurrentBrowser);
-            this.mCurrentBrowser.setAttribute("remote", true);
-            browserStack.appendChild(this.mCurrentBrowser);
-          }
 
           this.mCurrentTab = this.tabContainer.firstChild;
           document.addEventListener("keypress", this, false);
@@ -3284,12 +3255,9 @@
               "-moz-default-background-color" :
               Services.prefs.getCharPref("browser.display.background_color");
 
-          if (Services.prefs.getBoolPref("browser.tabs.remote")) {
-            messageManager.addMessageListener("DOMTitleChanged", this);
-          } else {
-            this._outerWindowIDBrowserMap.set(this.mCurrentBrowser.outerWindowID,
-                                              this.mCurrentBrowser);
-          }
+          this._outerWindowIDBrowserMap.set(this.mCurrentBrowser.outerWindowID,
+                                            this.mCurrentBrowser);
+
           messageManager.addMessageListener("DOMWebNotificationClicked", this);
         ]]>
       </constructor>
@@ -3335,9 +3303,6 @@
           }
           document.removeEventListener("keypress", this, false);
           window.removeEventListener("sizemodechange", this, false);
-
-          if (Services.prefs.getBoolPref("browser.tabs.remote"))
-            messageManager.removeMessageListener("DOMTitleChanged", this);
         ]]>
       </destructor>
 
