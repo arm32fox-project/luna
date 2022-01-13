@@ -17,7 +17,6 @@ DIRS += [
     'ipc',
     'mathml',
     'inspector',
-    'tools/recording',
     'reftests',
 ]
 
@@ -36,6 +35,7 @@ TEST_DIRS += [
 DIRS += ['build', 'media']
 
 if CONFIG['MOZ_DEBUG']:
+    DIRS += ['tools/recording']
     TEST_DIRS += ['tools/layout-debug']
 
 CRASHTEST_MANIFESTS += ['../testing/crashtest/crashtests.list']
