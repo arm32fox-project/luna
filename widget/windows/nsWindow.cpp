@@ -3436,8 +3436,6 @@ nsWindow::MakeFullScreen(bool aFullScreen, nsIScreen* aTargetScreen)
       taskbarInfo->PrepareFullScreenHWND(mWnd, TRUE);
     }
   } else {
-    if (mSizeMode != nsSizeMode_Fullscreen)
-      return NS_OK;
     SetSizeMode(mOldSizeMode);
   }
 
