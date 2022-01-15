@@ -4465,7 +4465,8 @@ ScrollFrameHelper::CreateAnonymousContent(
                                 NS_LITERAL_STRING("horizontal"), false);
     mHScrollbarContent->SetAttr(kNameSpaceID_None, nsGkAtoms::clickthrough,
                                 NS_LITERAL_STRING("always"), false);
-    // Map scrollbar-width to an attribute for browser themes.
+
+    // Map scrollbar-width to an attribute on horizontal scrollbars for browser themes.
     if (scrollWidth == StyleScrollbarWidth::None) {
       mHScrollbarContent->SetAttr(kNameSpaceID_None, nsGkAtoms::scrollbarwidth,
                                   NS_LITERAL_STRING("none"), false);
@@ -4476,6 +4477,7 @@ ScrollFrameHelper::CreateAnonymousContent(
       mHScrollbarContent->SetAttr(kNameSpaceID_None, nsGkAtoms::scrollbarwidth,
                                   NS_LITERAL_STRING("auto"), false);
     }
+
     if (mIsRoot) {
       mHScrollbarContent->SetAttr(kNameSpaceID_None, nsGkAtoms::root_,
                                   NS_LITERAL_STRING("true"), false);
@@ -4499,7 +4501,8 @@ ScrollFrameHelper::CreateAnonymousContent(
                                 NS_LITERAL_STRING("vertical"), false);
     mVScrollbarContent->SetAttr(kNameSpaceID_None, nsGkAtoms::clickthrough,
                                 NS_LITERAL_STRING("always"), false);
-    // Map scrollbar-width to an attribute for browser themes.
+
+    // Map scrollbar-width to an attribute on vertical scrollbars for browser themes.
     if (scrollWidth == StyleScrollbarWidth::None) {
       mVScrollbarContent->SetAttr(kNameSpaceID_None, nsGkAtoms::scrollbarwidth,
                                   NS_LITERAL_STRING("none"), false);
@@ -4510,6 +4513,7 @@ ScrollFrameHelper::CreateAnonymousContent(
       mVScrollbarContent->SetAttr(kNameSpaceID_None, nsGkAtoms::scrollbarwidth,
                                   NS_LITERAL_STRING("auto"), false);
     }
+
     if (mIsRoot) {
       mVScrollbarContent->SetAttr(kNameSpaceID_None, nsGkAtoms::root_,
                                   NS_LITERAL_STRING("true"), false);
@@ -4548,6 +4552,18 @@ ScrollFrameHelper::CreateAnonymousContent(
     }
     mResizerContent->SetAttr(kNameSpaceID_None, nsGkAtoms::dir, dir, false);
 
+    // Map scrollbar-width to an attribute on resizers for browser themes.
+    if (scrollWidth == StyleScrollbarWidth::None) {
+      mResizerContent->SetAttr(kNameSpaceID_None, nsGkAtoms::scrollbarwidth,
+                               NS_LITERAL_STRING("none"), false);
+    } else if (scrollWidth == StyleScrollbarWidth::Thin) {
+      mResizerContent->SetAttr(kNameSpaceID_None, nsGkAtoms::scrollbarwidth,
+                               NS_LITERAL_STRING("thin"), false);
+    } else {
+      mResizerContent->SetAttr(kNameSpaceID_None, nsGkAtoms::scrollbarwidth,
+                               NS_LITERAL_STRING("auto"), false);
+    }
+
     if (mIsRoot) {
       nsIContent* browserRoot = GetBrowserRoot(mOuter->GetContent());
       mCollapsedResizer = !(browserRoot &&
@@ -4570,6 +4586,19 @@ ScrollFrameHelper::CreateAnonymousContent(
                                             kNameSpaceID_XUL,
                                             nsIDOMNode::ELEMENT_NODE);
     NS_TrustedNewXULElement(getter_AddRefs(mScrollCornerContent), nodeInfo.forget());
+    
+    // Map scrollbar-width to an attribute on scrollcorners for browser themes.
+    if (scrollWidth == StyleScrollbarWidth::None) {
+      mScrollCornerContent->SetAttr(kNameSpaceID_None, nsGkAtoms::scrollbarwidth,
+                                  NS_LITERAL_STRING("none"), false);
+    } else if (scrollWidth == StyleScrollbarWidth::Thin) {
+      mScrollCornerContent->SetAttr(kNameSpaceID_None, nsGkAtoms::scrollbarwidth,
+                                  NS_LITERAL_STRING("thin"), false);
+    } else {
+      mScrollCornerContent->SetAttr(kNameSpaceID_None, nsGkAtoms::scrollbarwidth,
+                                  NS_LITERAL_STRING("auto"), false);
+    }
+
     if (!aElements.AppendElement(mScrollCornerContent))
       return NS_ERROR_OUT_OF_MEMORY;
   }
