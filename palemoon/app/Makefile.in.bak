@@ -43,14 +43,6 @@ PROGRAMS_DEST = $(DIST)/bin
 
 include $(topsrcdir)/config/rules.mk
 
-libs::
-ifeq ($(OS_ARCH),WINNT)
-	$(EXIT_ON_ERROR) \
-	$(PERL) -pe 's/(?<!\r)\n/\r\n/g;' < $(DIST)/branding/license.txt > $(DIST)/bin/license.txt
-else
-	$(INSTALL) $(IFLAGS1) $(DIST)/branding/license.txt $(DIST)/bin/
-endif
-
 ifneq (,$(filter-out WINNT,$(OS_ARCH)))
 
 ifdef COMPILE_ENVIRONMENT

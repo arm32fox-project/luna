@@ -1,0 +1,11 @@
+THE PALE MOON BROWSER IS SUBJECT TO THE FOLLOWING:
+
+* The Source Code Form, unless otherwise indicated, is licensed under the Mozilla Public License 2.0 (https://www.mozilla.org/en-US/MPL/2.0/) and may be obtained under Section 3.2 (a) by navigating to http://www.palemoon.org/sourcecode.shtml
+
+* You may redistribute this Executable Form in accordance with the Pale Moon Redistribution License (http://www.palemoon.org/redist.shtml), as provided under the MPL, Section 3.2 (b).
+
+* Pale Moon, Goanna, and associated official branding artwork, including all logos and wordmarks, are copyright and/or trademarks of Moonchild Productions.
+
+* Any other intellectual properties contained herein are copyright and/or trademarks of their respective owners and are being used with permission (whether through explicit grant, license or fair use).
+
+For more information on specific licensing terms please navigate to: http://www.palemoon.org/licensing.shtml
