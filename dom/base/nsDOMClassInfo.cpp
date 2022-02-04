@@ -1688,9 +1688,7 @@ nsWindowSH::NameStructEnabled(JSContext* aCx, nsGlobalWindow *aWin,
          OldBindingConstructorEnabled(nameStruct, aWin, aCx);
 }
 
-#ifdef RELEASE_OR_BETA
 #define USE_CONTROLLERS_SHIM
-#endif
 
 #ifdef USE_CONTROLLERS_SHIM
 static const JSClass ControllersShimClass = {
