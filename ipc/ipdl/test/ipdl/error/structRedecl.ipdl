@@ -1,8 +1,0 @@
-struct Redecl {
-    int a;
-    double a;
-};
-
-protocol structRedecl {
-child: __delete__();
-};

@@ -1,6 +1,0 @@
-include protocol managerNoDtor;
-
-protocol managedNoDtor {
-    manager managerNoDtor;
-    // empty
-};

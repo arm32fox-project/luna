@@ -1,7 +1,0 @@
-sync protocol media {
-child:
-    __delete__();
-
-state DEAD:
-    send __delete__;
-};

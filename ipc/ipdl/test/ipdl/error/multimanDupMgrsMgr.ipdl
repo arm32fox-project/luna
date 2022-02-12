@@ -1,9 +1,0 @@
-include protocol multimanDupMgrs;
-
-protocol multimanDupMgrsMgr {
-    manages multimanDupMgrs;
-
-child:
-    multimanDupMgrs();
-    __delete__();
-};
