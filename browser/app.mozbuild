@@ -1,0 +1,12 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+if not CONFIG['LIBXUL_SDK']:
+  include('/platform/system/toolkit.mozbuild')
+
+DIRS += ['/%s' % CONFIG['MOZ_BRANDING_DIRECTORY']]
+
+# Never add tier dirs after browser.
+DIRS += ['/browser']
+

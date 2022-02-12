@@ -1,0 +1,47 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+STANDALONE_MAKEFILE := 1
+
+include $(topsrcdir)/config/rules.mk
+
+MOZ_PKG_MANIFEST_P = $(srcdir)/package-manifest.in
+MOZ_PKG_REMOVALS = $(srcdir)/removed-files.in
+
+include $(MOZILLA_SRCDIR)/system/packager/base.mk
+include $(MOZILLA_SRCDIR)/system/packager/packager.mk
+
+ifeq ($(OS_ARCH),WINNT)
+ifdef MAKENSISU
+INSTALLER_FILES += \
+	app.tag \
+	src/installer.nsi \
+	src/uninstaller.nsi \
+	src/shared.nsh \
+	$(NULL)
+
+INSTALLER_DEFINES = src/defines.nsi.in
+
+BRANDING_FILES += \
+	appname.bmp \
+	branding.nsi \
+	wizHeader.bmp \
+	wizHeaderRTL.bmp \
+	wizWatermark.bmp \
+	$(NULL)
+
+ifeq (,$(filter-out %/official %/beta %/unstable,$(MOZ_BRANDING_DIRECTORY)))
+SFX_MODULE = $(topsrcdir)/other-licenses/7zstub/palemoon/7zSD.sfx
+endif
+
+$(CONFIG_DIR)/setup.exe::
+	$(PYTHON) $(MOZINST_PATH)/windows/nsis/preprocess-locale.py \
+	  --preprocess-locale $(MOZILLA_SRCDIR) \
+	  $(topsrcdir)/browser/installer/locale $(AB_CD) $(CONFIG_DIR)
+	$(PYTHON) $(MOZINST_PATH)/windows/nsis/preprocess-locale.py \
+		--convert-utf8-utf16le $(DIST)/branding/license.txt $(CONFIG_DIR)/license.txt
+
+include $(MOZILLA_SRCDIR)/system/packager/installer.mk
+endif # MAKENSISU
+endif

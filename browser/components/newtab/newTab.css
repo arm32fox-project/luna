@@ -1,0 +1,336 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+html {
+  width: 100%;
+  height: 100%;
+}
+
+body {
+  font: message-box;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  margin: 0;
+  background-color: #eee;
+  display: -moz-box;
+  position: relative;
+  -moz-box-flex: 1;
+  -moz-user-focus: normal;
+  -moz-box-orient: vertical;
+}
+
+input {
+  font: message-box;
+  font-size: 16px;
+}
+
+input[type=button] {
+  cursor: pointer;
+}
+
+/* UNDO */
+#newtab-undo-container {
+  transition: opacity 100ms ease-out;
+  -moz-box-align: center;
+  -moz-box-pack: center;
+}
+
+#newtab-undo-container[undo-disabled] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* TOGGLE */
+#newtab-toggle {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+}
+
+#newtab-toggle:-moz-locale-dir(rtl) {
+  left: 12px;
+  right: auto;
+}
+
+/* MARGINS */
+#newtab-vertical-margin {
+  display: -moz-box;
+  position: relative;
+  -moz-box-flex: 1;
+  -moz-box-orient: vertical;
+}
+
+#newtab-margin-undo-container {
+  display: -moz-box;
+  left: 6px;
+  position: absolute;
+  top: 6px;
+  z-index: 1;
+}
+
+#newtab-margin-undo-container:dir(rtl) {
+  left: auto;
+  right: 6px;
+}
+
+#newtab-undo-close-button:dir(rtl) {
+  float:left;
+}
+
+#newtab-horizontal-margin {
+  display: -moz-box;
+  -moz-box-flex: 5;
+}
+
+#newtab-margin-top {
+  min-height: 10px;
+  max-height: 30px;
+  display: -moz-box;
+  -moz-box-flex: 1;
+  -moz-box-align: center;
+  -moz-box-pack: center;
+}
+
+#newtab-margin-bottom {
+  min-height: 40px;
+  max-height: 80px;
+  -moz-box-flex: 1;
+}
+
+.newtab-side-margin {
+  min-width: 40px;
+  max-width: 300px;
+  -moz-box-flex: 1;
+}
+
+/* GRID */
+#newtab-grid {
+  display: -moz-box;
+  -moz-box-flex: 5;
+  -moz-box-orient: vertical;
+  min-width: 600px;
+  min-height: 400px;
+  transition: 175ms ease-out;
+  transition-property: opacity;
+}
+
+#newtab-grid[page-disabled] {
+  opacity: 0;
+}
+
+#newtab-grid[locked],
+#newtab-grid[page-disabled] {
+  pointer-events: none;
+}
+
+/* ROWS */
+.newtab-row {
+  display: -moz-box;
+  -moz-box-orient: horizontal;
+  -moz-box-direction: normal;
+  -moz-box-flex: 1;
+}
+
+/*
+ * Thumbnail image sizes are determined in the preferences:
+ * toolkit.pageThumbs.minWidth
+ * toolkit.pageThumbs.minHeight
+ */
+/* CELLS */
+.newtab-cell {
+  display: -moz-box;
+  -moz-box-flex: 1;
+}
+
+/* SITES */
+.newtab-site {
+  position: relative;
+  -moz-box-flex: 1;
+  transition: 150ms ease-out;
+  transition-property: top, left, opacity;
+}
+
+.newtab-site[frozen] {
+  position: absolute;
+  pointer-events: none;
+}
+
+.newtab-site[dragged] {
+  transition-property: none;
+  z-index: 10;
+}
+
+/* LINK + THUMBNAILS */
+.newtab-link,
+.newtab-thumbnail {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+}
+
+/* TITLES */
+.newtab-title {
+  overflow: hidden;
+  position: absolute;
+  right: 0;
+  text-align: center;
+}
+
+.newtab-title {
+  bottom: 0;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+.newtab-title {
+  left: 0;
+  padding: 0 4px;
+}
+
+/* CONTROLS */
+.newtab-control {
+  position: absolute;
+  opacity: 0;
+  transition: opacity 100ms ease-out;
+}
+
+.newtab-control:-moz-focusring,
+.newtab-cell:not([ignorehover]) > .newtab-site:hover > .newtab-control {
+  opacity: 1;
+}
+
+.newtab-control[dragged] {
+  opacity: 0 !important;
+}
+
+@media (-moz-touch-enabled) {
+  .newtab-control {
+    opacity: 1;
+  }
+}
+
+/* DRAG & DROP */
+
+/*
+ * This is just a temporary drag element used for dataTransfer.setDragImage()
+ * so that we can use custom drag images and elements. It needs an opacity of
+ * 0.01 so that the core code detects that it's in fact a visible element.
+ */
+.newtab-drag {
+  width: 1px;
+  height: 1px;
+  background-color: #fff;
+  opacity: 0.01;
+}
+
+/* SEARCH */
+#searchContainer {
+  display: -moz-box;
+  position: relative;
+  -moz-box-pack: center;
+  margin: 10px 0 15px;
+}
+
+#searchForm {
+  width: 470px;
+  display: -moz-box;
+  position: relative;
+  height: 36px; /* 32 px logo + 2*1px pad + 2*1px border */
+  -moz-box-flex: 1;
+  max-width: 600px;
+}
+
+#searchEngineLogo {
+  border: 1px transparent;
+  padding: 2px 4px 2px 2px;
+  margin: 0;
+  width: 32px;
+  height: 32px;
+  position: absolute;
+}
+
+#searchText {
+  -moz-box-flex: 1;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  padding-inline-start: 38px; /* room for logo */
+  padding-inline-end: 8px;
+  background: rgba(255, 255, 255, 0.9) padding-box;
+  border: 1px solid;
+  border-color: rgba(37, 46, 65, 0.15) rgba(37, 46, 65, 0.17) rgba(37, 46, 65, 0.2);
+  box-shadow: 0 1px 0 rgba(37, 46, 65, 0.02) inset,
+              0 0 2px rgba(37, 46, 65, 0.1) inset,
+              0 1px 0 rgba(255, 255, 255, 0.2);
+  border-radius: 2.5px 0 0 2.5px;
+}
+
+#searchText:-moz-dir(rtl) {
+  border-radius: 0 2.5px 2.5px 0;
+}
+
+#searchText:focus,
+#searchText[autofocus] {
+  border-color: rgba(92, 133, 214, 0.6) rgba(78, 114, 188, 0.6) rgba(41, 82, 163, 0.6);
+}
+
+#searchText::placeholder {
+  font-style: italic;
+  opacity: 0.3;
+}
+
+#searchSubmit {
+  margin-inline-start: -1px;
+  background: linear-gradient(rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.1)) padding-box;
+  padding: 0 9px;
+  border: 1px solid;
+  border-color: rgba(37, 46, 65, 0.2) rgba(37, 46, 65, 0.2) rgba(37, 46, 65, 0.2);
+  border-inline-start: 1px solid transparent;
+  border-radius: 0 2.5px 2.5px 0;
+  box-shadow: 0 0 2px rgba(255, 255, 255, 0.5) inset,
+              0 1px 0 rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  transition-property: background-color, border-color, box-shadow;
+  transition-duration: 150ms;
+}
+
+#searchSubmit:-moz-dir(rtl) {
+  border-radius: 2.5px 0 0 2.5px;
+}
+
+#searchText:focus + #searchSubmit,
+#searchText + #searchSubmit:hover,
+#searchText[autofocus] + #searchSubmit {
+  border-color: #8da1c8 #768bb5 #6579a2;
+  color: white;
+}
+
+#searchText:focus + #searchSubmit,
+#searchText[autofocus] + #searchSubmit {
+  background-image: linear-gradient(#85a8e0, #3d75cf);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.2) inset,
+              0 0 0 1px rgba(255, 255, 255, 0.1) inset,
+              0 1px 0 rgba(23, 46, 67, 0.03);
+}
+
+#searchText + #searchSubmit:hover {
+  background-image: linear-gradient(#85a8e0, #3d75cf);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.2) inset,
+              0 0 0 1px rgba(255, 255, 255, 0.1) inset,
+              0 1px 0 rgba(23, 42, 79, 0.03),
+              0 0 4px rgba(0, 34, 102, 0.2);}
+
+#searchText + #searchSubmit:hover:active {
+  box-shadow: 0 1px 1px rgba(3, 11, 27, 0.1) inset,
+              0 0 1px rgba(3, 11, 27, 0.2) inset;
+  transition-duration: 0ms;
+}
+
+.contentSearchSuggestionTable {
+  font: message-box;
+  font-size: 16px;
+}
