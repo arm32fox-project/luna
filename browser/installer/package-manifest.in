@@ -164,10 +164,6 @@
 #ifdef XP_UNIX
 ; shell icons
 @BINPATH@/icons/*.png
-#ifdef MOZ_UPDATER
-; updater icon
-@BINPATH@/icons/updater.png
-#endif
 #endif
 
 ; [Default Preferences]
