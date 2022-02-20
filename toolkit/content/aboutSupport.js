@@ -196,24 +196,6 @@ var snapshotFormatters = {
       delete data.info;
     }
 
-#ifdef NIGHTLY_BUILD
-    let windowUtils = window.QueryInterface(Ci.nsIInterfaceRequestor)
-                            .getInterface(Ci.nsIDOMWindowUtils);
-    let gpuProcessPid = windowUtils.gpuProcessPid;
-
-    if (gpuProcessPid != -1) {
-      let gpuProcessKillButton = $.new("button");
-
-      gpuProcessKillButton.addEventListener("click", function() {
-        windowUtils.terminateGPUProcess();
-      });
-
-      gpuProcessKillButton.textContent = strings.GetStringFromName("gpuProcessKillButton");
-      addRow("diagnostics", "GPUProcessPid", gpuProcessPid);
-      addRow("diagnostics", "GPUProcess", [gpuProcessKillButton]);
-    }
-#endif
-
     // graphics-failures-tbody tbody
     if ("failures" in data) {
       // If indices is there, it should be the same length as failures,

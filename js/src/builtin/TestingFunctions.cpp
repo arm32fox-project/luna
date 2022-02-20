@@ -2433,39 +2433,6 @@ SharedMemoryEnabled(JSContext* cx, unsigned argc, Value* vp)
     return true;
 }
 
-#ifdef NIGHTLY_BUILD
-static bool
-ObjectAddress(JSContext* cx, unsigned argc, Value* vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    if (args.length() != 1) {
-        RootedObject callee(cx, &args.callee());
-        ReportUsageErrorASCII(cx, callee, "Wrong number of arguments");
-        return false;
-    }
-    if (!args[0].isObject()) {
-        RootedObject callee(cx, &args.callee());
-        ReportUsageErrorASCII(cx, callee, "Expected object");
-        return false;
-    }
-
-#ifdef JS_MORE_DETERMINISTIC
-    args.rval().setInt32(0);
-#else
-    void* ptr = js::UncheckedUnwrap(&args[0].toObject(), true);
-    char buffer[64];
-    SprintfLiteral(buffer, "%p", ptr);
-
-    JSString* str = JS_NewStringCopyZ(cx, buffer);
-    if (!str)
-        return false;
-
-    args.rval().setString(str);
-#endif
-
-    return true;
-}
-
 static bool
 SharedAddress(JSContext* cx, unsigned argc, Value* vp)
 {
@@ -2507,7 +2474,6 @@ SharedAddress(JSContext* cx, unsigned argc, Value* vp)
 
     return true;
 }
-#endif
 
 static bool
 DumpBacktrace(JSContext* cx, unsigned argc, Value* vp)
@@ -4430,16 +4396,9 @@ JS_FN_HELP("rejectPromise", RejectPromise, 2, 0,
 "sharedMemoryEnabled()",
 "  Return true if SharedArrayBuffer and Atomics are enabled"),
 
-#ifdef NIGHTLY_BUILD
-    JS_FN_HELP("objectAddress", ObjectAddress, 1, 0,
-"objectAddress(obj)",
-"  Return the current address of the object. For debugging only--this\n"
-"  address may change during a moving GC."),
-
     JS_FN_HELP("sharedAddress", SharedAddress, 1, 0,
 "sharedAddress(obj)",
 "  Return the address of the shared storage of a SharedArrayBuffer."),
-#endif
 
     JS_FN_HELP("evalReturningScope", EvalReturningScope, 1, 0,
 "evalReturningScope(scriptStr, [global])",

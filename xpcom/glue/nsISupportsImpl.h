@@ -64,13 +64,13 @@ private:
 #define NS_ASSERT_OWNINGTHREAD_AGGREGATE(agg, _class) \
   NS_CheckThreadSafe(agg->_mOwningThread.GetThread(), #_class " not thread-safe")
 #define NS_ASSERT_OWNINGTHREAD(_class) NS_ASSERT_OWNINGTHREAD_AGGREGATE(this, _class)
-#else // !DEBUG && !(NIGHTLY_BUILD && !MOZ_PROFILING)
+#else // !DEBUG
 
 #define NS_DECL_OWNINGTHREAD            /* nothing */
 #define NS_ASSERT_OWNINGTHREAD_AGGREGATE(agg, _class) ((void)0)
 #define NS_ASSERT_OWNINGTHREAD(_class)  ((void)0)
 
-#endif // DEBUG || (NIGHTLY_BUILD && !MOZ_PROFILING)
+#endif // DEBUG
 
 
 // Macros for reference-count and constructor logging

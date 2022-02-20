@@ -146,12 +146,8 @@ pref("devtools.performance.ui.show-triggers-for-gc-types",
 // TODO remove once we have flame charts via bug 1148663
 pref("devtools.performance.ui.enable-memory-flame", false);
 
-// Enable experimental options in the UI only in Nightly
-#if defined(NIGHTLY_BUILD)
-pref("devtools.performance.ui.experimental", true);
-#else
+// Enable experimental options in the UI?
 pref("devtools.performance.ui.experimental", false);
-#endif
 
 // The default cache UI setting
 pref("devtools.cache.disabled", false);
@@ -304,12 +300,8 @@ pref("devtools.webconsole.timestampMessages", false);
 // to automatically trigger multiline editing (equivalent to shift + enter).
 pref("devtools.webconsole.autoMultiline", true);
 
-// Enable the experimental webconsole frontend
-#if defined(NIGHTLY_BUILD)
-pref("devtools.webconsole.new-frontend-enabled", true);
-#else
+// Enable the experimental webconsole frontend?
 pref("devtools.webconsole.new-frontend-enabled", false);
-#endif
 
 // Enable the experimental support for source maps in console (work in progress)
 pref("devtools.sourcemap.locations.enabled", false);

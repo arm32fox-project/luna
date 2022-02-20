@@ -67,9 +67,7 @@ static bool sOpentypeSVGEnabled;
 static bool sWebkitPrefixedAliasesEnabled;
 static bool sWebkitDevicePixelRatioEnabled;
 static bool sUnprefixingServiceEnabled;
-#ifdef NIGHTLY_BUILD
 static bool sUnprefixingServiceGloballyWhitelisted;
-#endif
 static bool sMozGradientsEnabled;
 static bool sControlCharVisibility;
 
@@ -7197,13 +7195,12 @@ CSSParserImpl::ShouldUseUnprefixingService() const
     return false;
   }
 
-#ifdef NIGHTLY_BUILD
   if (sUnprefixingServiceGloballyWhitelisted) {
     // Unprefixing is globally whitelisted,
     // so no need to check mSheetPrincipal.
     return true;
   }
-#endif
+
   // Unprefixing enabled; see if our principal is whitelisted for unprefixing.
   return mSheetPrincipal && mSheetPrincipal->IsOnCSSUnprefixingWhitelist();
 }
@@ -17992,10 +17989,8 @@ nsCSSParser::Startup()
                                "layout.css.prefixes.device-pixel-ratio-webkit");
   Preferences::AddBoolVarCache(&sUnprefixingServiceEnabled,
                                "layout.css.unprefixing-service.enabled");
-#ifdef NIGHTLY_BUILD
   Preferences::AddBoolVarCache(&sUnprefixingServiceGloballyWhitelisted,
                                "layout.css.unprefixing-service.globally-whitelisted");
-#endif
   Preferences::AddBoolVarCache(&sMozGradientsEnabled,
                                "layout.css.prefixes.gradients");
   Preferences::AddBoolVarCache(&sControlCharVisibility,
