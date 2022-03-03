@@ -4,6 +4,9 @@
 
 MAKE_INSTALLER_TARGET = $(MAKE) -C browser/installer
 
+install:
+	@$(MAKE_INSTALLER_TARGET) $@
+
 installer:
 	@$(MAKE_INSTALLER_TARGET) $@
 
