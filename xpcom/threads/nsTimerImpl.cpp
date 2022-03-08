@@ -439,6 +439,8 @@ nsTimerImpl::Fire(int32_t aGeneration)
     // If some other thread Cancels/Inits after this, they're just too late.
     MutexAutoLock lock(mMutex);
     if (aGeneration != mGeneration) {
+      // This timer got rescheduled or cancelled before we fired, so ignore this
+      // firing
       return;
     }
 
