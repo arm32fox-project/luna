@@ -20,7 +20,7 @@ ConditionVariable::ConditionVariable(Lock* user_lock)
     : user_mutex_(user_lock->lock_impl()->os_lock()) {
   int rv = 0;
 #if !defined(OS_MACOSX) && \
-    defined(HAVE_PTHREAD_COND_TIMEDWAIT_MONOTONIC))
+    defined(HAVE_PTHREAD_COND_TIMEDWAIT_MONOTONIC)
   pthread_condattr_t attrs;
   rv = pthread_condattr_init(&attrs);
   DCHECK_EQ(0, rv);
