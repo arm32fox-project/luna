@@ -262,7 +262,7 @@
 ; meaning their .chk files are created there directly.
 ;
 #ifndef MOZ_SYSTEM_NSS
-#if defined(XP_LINUX) && !defined(ANDROID)
+#if defined(XP_LINUX)
 @BINPATH@/@DLL_PREFIX@freeblpriv3@DLL_SUFFIX@
 #elif defined(XP_SOLARIS) && defined(SPARC64)
 @BINPATH@/@DLL_PREFIX@freebl_64fpu_3@DLL_SUFFIX@
