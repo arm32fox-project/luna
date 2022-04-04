@@ -47,7 +47,6 @@ private:
   HRESULT UpdateOutputType();
 
   uint32_t mAudioChannels;
-  uint32_t mChannelsMap;
   uint32_t mAudioRate;
   nsTArray<BYTE> mUserData;
 
