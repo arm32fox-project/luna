@@ -76,8 +76,7 @@ AudioData::TransferAndUpdateTimestampAndDuration(AudioData* aOther,
                                       aOther->mFrames,
                                       Move(aOther->mAudioData),
                                       aOther->mChannels,
-                                      aOther->mRate,
-				      aOther->mChannelMap);
+                                      aOther->mRate);
   return v.forget();
 }
 
