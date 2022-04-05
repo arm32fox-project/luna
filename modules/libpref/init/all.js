@@ -353,6 +353,9 @@ pref("media.dormant-on-pause-timeout-ms", 5000);
 pref("media.dormant-on-pause-timeout-ms", -1);
 #endif
 
+// Audio backend override
+pref("media.cubeb.backend", "");
+
 // Media cache size in kilobytes
 pref("media.cache_size", 512000);
 // When a network connection is suspended, don't resume it until the

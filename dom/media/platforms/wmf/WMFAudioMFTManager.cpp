@@ -82,6 +82,7 @@ AACAudioSpecificConfigToUserData(uint8_t aAACProfileLevelIndication,
 WMFAudioMFTManager::WMFAudioMFTManager(
   const AudioInfo& aConfig)
   : mAudioChannels(aConfig.mChannels)
+  , mChannelsMap(AudioConfig::ChannelLayout::UNKNOWN_MAP)
   , mAudioRate(aConfig.mRate)
   , mAudioFrameSum(0)
   , mMustRecaptureAudioPosition(true)
@@ -210,6 +211,15 @@ WMFAudioMFTManager::UpdateOutputType()
   hr = type->GetUINT32(MF_MT_AUDIO_NUM_CHANNELS, &mAudioChannels);
   NS_ENSURE_TRUE(SUCCEEDED(hr), hr);
 
+  uint32_t channelsMap;
+  hr = type->GetUINT32(MF_MT_AUDIO_CHANNEL_MASK, &channelsMap);
+  if (SUCCEEDED(hr)) {
+    mChannelsMap = channelsMap;
+  } else {
+    LOG("Unable to retrieve channel layout. Ignoring");
+    mChannelsMap = AudioConfig::ChannelLayout::UNKNOWN_MAP;
+  }
+
   AudioConfig::ChannelLayout layout(mAudioChannels);
   if (!layout.IsValid()) {
     return E_FAIL;
@@ -332,7 +342,8 @@ WMFAudioMFTManager::Output(int64_t aStreamOffset,
                            numFrames,
                            Move(audioData),
                            mAudioChannels,
-                           mAudioRate);
+                           mAudioRate,
+			   mChannelsMap);
 
   #ifdef LOG_SAMPLE_DECODE
   LOG("Decoded audio sample! timestamp=%lld duration=%lld currentLength=%u",

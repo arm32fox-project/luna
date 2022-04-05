@@ -195,7 +195,15 @@ nsresult
 DecodedAudioDataSink::InitializeAudioStream(const PlaybackParams& aParams)
 {
   mAudioStream = new AudioStream(*this);
-  nsresult rv = mAudioStream->Init(mOutputChannels, mOutputRate, mChannel);
+  // When AudioQueue is empty, there is no way to know the channel layout of
+  // the coming audio data, so we use the predefined channel map instead.
+  uint32_t channelMap = mConverter
+                        ? mConverter->OutputConfig().Layout().Map()
+                        : AudioConfig::ChannelLayout(mOutputChannels).Map();
+  // This layout map is already processed by mConverter with mOutputChannels
+  // into SMPTE format, so there is no need to worry whether 
+  // MediaPrefs::MonoAudio() or MediaPrefs::AudioSinkForceStereo() is applied.
+  nsresult rv = mAudioStream->Init(mOutputChannels, channelMap, mOutputRate, mChannel);
   if (NS_FAILED(rv)) {
     mAudioStream->Shutdown();
     mAudioStream = nullptr;
@@ -410,10 +418,18 @@ DecodedAudioDataSink::NotifyAudioNeeded()
         mFramesParsed = result.value();
       }
 
+      const AudioConfig::ChannelLayout inputLayout =
+        data->mChannelMap
+          ? AudioConfig::ChannelLayout::SMPTEDefault(data->mChannelMap)
+          : AudioConfig::ChannelLayout(data->mChannels);
+      const AudioConfig::ChannelLayout outputLayout =
+        mOutputChannels == data->mChannels
+          ? inputLayout
+          : AudioConfig::ChannelLayout(mOutputChannels);
       mConverter =
         MakeUnique<AudioConverter>(
-          AudioConfig(data->mChannels, data->mRate),
-          AudioConfig(mOutputChannels, mOutputRate));
+          AudioConfig(inputLayout, data->mRate),
+          AudioConfig(outputLayout, mOutputRate));
     }
 
     // See if there's a gap in the audio. If there is, push silence into the

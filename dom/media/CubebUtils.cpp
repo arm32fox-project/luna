@@ -20,6 +20,7 @@
 #include "prdtoa.h"
 
 #define PREF_VOLUME_SCALE "media.volume_scale"
+#define PREF_CUBEB_BACKEND "media.cubeb.backend"
 #define PREF_CUBEB_LATENCY_PLAYBACK "media.cubeb_latency_playback_ms"
 #define PREF_CUBEB_LATENCY_MSG "media.cubeb_latency_msg_frames"
 
@@ -48,13 +49,14 @@ enum class CubebState {
   Shutdown
 } sCubebState = CubebState::Uninitialized;
 cubeb* sCubebContext;
-double sVolumeScale;
-uint32_t sCubebPlaybackLatencyInMilliseconds;
-uint32_t sCubebMSGLatencyInFrames;
-bool sCubebPlaybackLatencyPrefSet;
-bool sCubebMSGLatencyPrefSet;
+double sVolumeScale = 1.0;
+uint32_t sCubebPlaybackLatencyInMilliseconds = 100;
+uint32_t sCubebMSGLatencyInFrames = 512;
+bool sCubebPlaybackLatencyPrefSet = false;
+bool sCubebMSGLatencyPrefSet = false;
 bool sAudioStreamInitEverSucceeded = false;
 StaticAutoPtr<char> sBrandName;
+StaticAutoPtr<char> sCubebBackendName;
 
 const char kBrandBundleURL[]      = "chrome://branding/locale/brand.properties";
 
@@ -131,8 +133,20 @@ void PrefChanged(const char* aPref, void* aClosure)
     // We don't want to limit the upper limit too much, so that people can
     // experiment.
     sCubebMSGLatencyInFrames = std::min<uint32_t>(std::max<uint32_t>(value, 128), 1e6);
+  } else if (strcmp(aPref, PREF_CUBEB_BACKEND) == 0) {
+    nsAdoptingString value = Preferences::GetString(aPref);
+    if (value.IsEmpty()) {
+      sCubebBackendName = nullptr;
+    } else {
+      NS_LossyConvertUTF16toASCII ascii(value);
+      sCubebBackendName = new char[ascii.Length() + 1];
+      PodCopy(sCubebBackendName.get(), ascii.get(), ascii.Length());
+      sCubebBackendName[ascii.Length()] = 0;
+    }
   }
 }
+
+
 
 bool GetFirstStream()
 {
@@ -225,7 +239,7 @@ cubeb* GetCubebContextUnlocked()
       sBrandName, "Did not initialize sbrandName, and not on the main thread?");
   }
 
-  int rv = cubeb_init(&sCubebContext, sBrandName);
+  int rv = cubeb_init(&sCubebContext, sBrandName, sCubebBackendName.get());
   NS_WARNING_ASSERTION(rv == CUBEB_OK, "Could not get a cubeb context.");
   sCubebState = (rv == CUBEB_OK) ? CubebState::Initialized : CubebState::Uninitialized;
 
@@ -256,14 +270,23 @@ bool CubebMSGLatencyPrefSet()
   return sCubebMSGLatencyPrefSet;
 }
 
-Maybe<uint32_t> GetCubebMSGLatencyInFrames()
+uint32_t GetCubebMSGLatencyInFrames(cubeb_stream_params * params)
 {
   StaticMutexAutoLock lock(sMutex);
-  if (!sCubebMSGLatencyPrefSet) {
-    return Maybe<uint32_t>();
+  if (sCubebMSGLatencyPrefSet) {
+    MOZ_ASSERT(sCubebMSGLatencyInFrames > 0);
+    return sCubebMSGLatencyInFrames;
   }
-  MOZ_ASSERT(sCubebMSGLatencyInFrames > 0);
-  return Some(sCubebMSGLatencyInFrames);
+  cubeb* context = GetCubebContextUnlocked();
+  if (!context) {
+    return sCubebMSGLatencyInFrames; // default 512
+  }
+  uint32_t latency_frames = 0;
+  if (cubeb_get_min_latency(context, params, &latency_frames) != CUBEB_OK) {
+    NS_WARNING("Could not get minimal latency from cubeb.");
+    return sCubebMSGLatencyInFrames; // default 512
+  }
+  return latency_frames;
 }
 
 void InitLibrary()
@@ -272,6 +295,8 @@ void InitLibrary()
   Preferences::RegisterCallback(PrefChanged, PREF_VOLUME_SCALE);
   PrefChanged(PREF_CUBEB_LATENCY_PLAYBACK, nullptr);
   PrefChanged(PREF_CUBEB_LATENCY_MSG, nullptr);
+  PrefChanged(PREF_CUBEB_BACKEND, nullptr);
+  Preferences::RegisterCallback(PrefChanged, PREF_CUBEB_BACKEND);
   Preferences::RegisterCallback(PrefChanged, PREF_CUBEB_LATENCY_PLAYBACK);
   Preferences::RegisterCallback(PrefChanged, PREF_CUBEB_LATENCY_MSG);
   NS_DispatchToMainThread(NS_NewRunnableFunction(&InitBrandName));
@@ -280,6 +305,7 @@ void InitLibrary()
 void ShutdownLibrary()
 {
   Preferences::UnregisterCallback(PrefChanged, PREF_VOLUME_SCALE);
+  Preferences::UnregisterCallback(PrefChanged, PREF_CUBEB_BACKEND);
   Preferences::UnregisterCallback(PrefChanged, PREF_CUBEB_LATENCY_PLAYBACK);
   Preferences::UnregisterCallback(PrefChanged, PREF_CUBEB_LATENCY_MSG);
 
@@ -289,6 +315,7 @@ void ShutdownLibrary()
     sCubebContext = nullptr;
   }
   sBrandName = nullptr;
+  sCubebBackendName = nullptr;
   // This will ensure we don't try to re-create a context.
   sCubebState = CubebState::Shutdown;
 }
@@ -317,6 +344,99 @@ void GetCurrentBackend(nsAString& aBackend)
     }
   }
   aBackend.AssignLiteral("unknown");
+}
+
+uint16_t ConvertCubebType(cubeb_device_type aType)
+{
+  uint16_t map[] = {
+    nsIAudioDeviceInfo::TYPE_UNKNOWN, // CUBEB_DEVICE_TYPE_UNKNOWN
+    nsIAudioDeviceInfo::TYPE_INPUT,   // CUBEB_DEVICE_TYPE_INPUT,
+    nsIAudioDeviceInfo::TYPE_OUTPUT   // CUBEB_DEVICE_TYPE_OUTPUT
+  };
+  return map[aType];
+}
+
+uint16_t ConvertCubebState(cubeb_device_state aState)
+{
+  uint16_t map[] = {
+    nsIAudioDeviceInfo::STATE_DISABLED,   // CUBEB_DEVICE_STATE_DISABLED
+    nsIAudioDeviceInfo::STATE_UNPLUGGED,  // CUBEB_DEVICE_STATE_UNPLUGGED
+    nsIAudioDeviceInfo::STATE_ENABLED     // CUBEB_DEVICE_STATE_ENABLED
+  };
+  return map[aState];
+}
+
+uint16_t ConvertCubebPreferred(cubeb_device_pref aPreferred)
+{
+  if (aPreferred == CUBEB_DEVICE_PREF_NONE) {
+    return nsIAudioDeviceInfo::PREF_NONE;
+  } else if (aPreferred == CUBEB_DEVICE_PREF_ALL) {
+    return nsIAudioDeviceInfo::PREF_ALL;
+  }
+
+  uint16_t preferred = 0;
+  if (aPreferred & CUBEB_DEVICE_PREF_MULTIMEDIA) {
+    preferred |= nsIAudioDeviceInfo::PREF_MULTIMEDIA;
+  }
+  if (aPreferred & CUBEB_DEVICE_PREF_VOICE) {
+    preferred |= nsIAudioDeviceInfo::PREF_VOICE;
+  }
+  if (aPreferred & CUBEB_DEVICE_PREF_NOTIFICATION) {
+    preferred |= nsIAudioDeviceInfo::PREF_NOTIFICATION;
+  }
+  return preferred;
+}
+
+uint16_t ConvertCubebFormat(cubeb_device_fmt aFormat)
+{
+  uint16_t format = 0;
+  if (aFormat & CUBEB_DEVICE_FMT_S16LE) {
+    format |= nsIAudioDeviceInfo::FMT_S16LE;
+  }
+  if (aFormat & CUBEB_DEVICE_FMT_S16BE) {
+    format |= nsIAudioDeviceInfo::FMT_S16BE;
+  }
+  if (aFormat & CUBEB_DEVICE_FMT_F32LE) {
+    format |= nsIAudioDeviceInfo::FMT_F32LE;
+  }
+  if (aFormat & CUBEB_DEVICE_FMT_F32BE) {
+    format |= nsIAudioDeviceInfo::FMT_F32BE;
+  }
+  return format;
+}
+
+void GetDeviceCollection(nsTArray<RefPtr<AudioDeviceInfo>>& aDeviceInfos,
+                         Side aSide)
+{
+  cubeb* context = GetCubebContext();
+  if (context) {
+    cubeb_device_collection collection = { nullptr, 0 };
+    if (cubeb_enumerate_devices(context,
+                                aSide == Input ? CUBEB_DEVICE_TYPE_INPUT :
+                                                 CUBEB_DEVICE_TYPE_OUTPUT,
+                                &collection) == CUBEB_OK) {
+      for (unsigned int i = 0; i < collection.count; ++i) {
+        auto device = collection.device[i];
+        RefPtr<AudioDeviceInfo> info =
+          new AudioDeviceInfo(NS_ConvertASCIItoUTF16(device.friendly_name),
+                              NS_ConvertASCIItoUTF16(device.group_id),
+                              NS_ConvertASCIItoUTF16(device.vendor_name),
+                              ConvertCubebType(device.type),
+                              ConvertCubebState(device.state),
+                              ConvertCubebPreferred(device.preferred),
+                              ConvertCubebFormat(device.format),
+                              ConvertCubebFormat(device.default_format),
+                              device.max_channels,
+                              device.default_rate,
+                              device.max_rate,
+                              device.min_rate,
+                              device.latency_hi,
+                              device.latency_lo);
+        aDeviceInfos.AppendElement(info);
+      }
+    }
+    cubeb_device_collection_destroy(context, &collection);
+  }
 }
 
 } // namespace CubebUtils
