@@ -319,6 +319,8 @@ def read_from_gyp(config, path, output, vars, no_chromium, no_unified, action_ov
             context['ASFLAGS'] = target_conf.get('asflags_mozilla', [])
             if use_defines_in_asflags and defines:
                 context['ASFLAGS'] += ['-D' + d for d in defines]
+            if config.substs['OS_TARGET'] == 'SunOS':
+                context['LDFLAGS'] = target_conf.get('ldflags', [])
             flags = target_conf.get('cflags_mozilla', [])
             if flags:
                 suffix_map = {

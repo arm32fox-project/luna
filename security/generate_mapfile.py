@@ -19,10 +19,10 @@ import buildconfig
 def main(output, input):
     # There's a check in old-configure.in under the system-nss handling
     # that should match this.
-    if buildconfig.substs['OS_ARCH'] not in ('Linux', 'Darwin'):
+    if buildconfig.substs['OS_ARCH'] not in ('Linux', 'SunOS', 'Darwin'):
         print "Error: unhandled OS_ARCH %s" % buildconfig.substs['OS_ARCH']
         return 1
-    is_linux = buildconfig.substs['OS_ARCH'] == 'Linux'
+    is_linux = buildconfig.substs['OS_ARCH'] in ('Linux', 'SunOS')
 
     with open(input, 'rb') as f:
         for line in f:
