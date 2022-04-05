@@ -323,9 +323,8 @@ AppleATDecoder::DecodeSample(MediaRawData* aSample)
     return NS_ERROR_OUT_OF_MEMORY;
   }
   if (mChannelLayout && !mAudioConverter) {
-    AudioConfig in(*mChannelLayout, rate);
-    AudioConfig out(AudioConfig::ChannelLayout::SMPTEDefault(*mChannelLayout),
-                    rate);
+    AudioConfig in(*mChannelLayout.get(), rate);
+    AudioConfig out(channels, rate);
     if (!in.IsValid() || !out.IsValid()) {
       return MediaResult(NS_ERROR_DOM_MEDIA_DECODE_ERR,
                          RESULT_DETAIL("Invalid audio config"));
@@ -343,9 +342,7 @@ AppleATDecoder::DecodeSample(MediaRawData* aSample)
                                           numFrames,
                                           data.Forget(),
                                           channels,
-                                          rate,
-					  mChannelLayout ? mChannelLayout->Map()
-					                 : AudioConfig::ChannelLayout::UNKNOWN_MAP);
+                                          rate);
   mCallback->Output(audio);
   return NS_OK;
 }
@@ -431,25 +428,26 @@ AudioConfig::Channel
 ConvertChannelLabel(AudioChannelLabel id)
 {
   switch (id) {
-    case kAudioChannelLabel_Left:
-      return AudioConfig::CHANNEL_FRONT_LEFT;
-    case kAudioChannelLabel_Right:
-      return AudioConfig::CHANNEL_FRONT_RIGHT;
     case kAudioChannelLabel_Mono:
+      return AudioConfig::CHANNEL_MONO;
+    case kAudioChannelLabel_Left:
+      return AudioConfig::CHANNEL_LEFT;
+    case kAudioChannelLabel_Right:
+      return AudioConfig::CHANNEL_RIGHT;
     case kAudioChannelLabel_Center:
-      return AudioConfig::CHANNEL_FRONT_CENTER;
+      return AudioConfig::CHANNEL_CENTER;
     case kAudioChannelLabel_LFEScreen:
       return AudioConfig::CHANNEL_LFE;
     case kAudioChannelLabel_LeftSurround:
-      return AudioConfig::CHANNEL_SIDE_LEFT;
+      return AudioConfig::CHANNEL_LS;
     case kAudioChannelLabel_RightSurround:
-      return AudioConfig::CHANNEL_SIDE_RIGHT;
+      return AudioConfig::CHANNEL_RS;
     case kAudioChannelLabel_CenterSurround:
-      return AudioConfig::CHANNEL_BACK_CENTER;
+      return AudioConfig::CHANNEL_RCENTER;
     case kAudioChannelLabel_RearSurroundLeft:
-      return AudioConfig::CHANNEL_BACK_LEFT;
+      return AudioConfig::CHANNEL_RLS;
     case kAudioChannelLabel_RearSurroundRight:
-      return AudioConfig::CHANNEL_BACK_RIGHT;
+      return AudioConfig::CHANNEL_RRS;
     default:
       return AudioConfig::CHANNEL_INVALID;
   }
