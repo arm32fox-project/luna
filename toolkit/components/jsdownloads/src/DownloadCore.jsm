@@ -2167,6 +2167,7 @@ this.DownloadCopySaver.prototype = {
         // up the chain of objects for the download.
         yield deferSaveComplete.promise;
 
+        yield this._move();
       } catch (ex) {
         // Ensure we always remove the placeholder for the final target file on
         // failure, independently of which code path failed.  In some cases, the
@@ -2187,6 +2188,23 @@ this.DownloadCopySaver.prototype = {
       }
     }.bind(this));
   },
+
+  /**
+   * Move the downloaded data if required.
+   * If the download is using a part file we will move it to the target path
+   * since this is the final step in the saver.
+   *
+   * @return {Promise}
+   * @resolves When the move is complete.
+   */
+  _move: Task.async(function* () {
+    let targetPath = this.download.target.path;
+    let partFilePath = this.download.target.partFilePath;
+
+    if (partFilePath) {
+      yield OS.File.move(partFilePath, targetPath);
+    }
+  }),
 
   /**
    * Implements "DownloadSaver.cancel".
@@ -2514,6 +2532,8 @@ this.DownloadLegacySaver.prototype = {
             }
           }
         }
+
+        yield this._move();
       } catch (ex) {
         // Ensure we always remove the final target file on failure,
         // independently of which code path failed.  In some cases, the
@@ -2544,6 +2564,11 @@ this.DownloadLegacySaver.prototype = {
         this.firstExecutionFinished = true;
       }
     }.bind(this));
+  },
+
+  _move: function () {
+    return DownloadCopySaver.prototype._move
+                                      .apply(this, arguments);
   },
 
   /**
