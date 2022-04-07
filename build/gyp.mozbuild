@@ -1,5 +1,4 @@
 # -*- Mode: python; indent-tabs-mode: nil; tab-width: 40 -*-
-# vim: set filetype=python:
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -21,8 +20,6 @@ gyp_vars.update({
     'clang_use_chrome_plugins': 0,
     'enable_protobuf': 0,
     'include_tests': 0,
-    'enable_android_opensl': 1,
-    'enable_android_opensl_output': 0,
     # use_system_lib* still seems to be in use in trunk/build
     'use_system_libjpeg': 0,
     'use_system_libvpx': 0,
@@ -46,7 +43,6 @@ gyp_vars.update({
     'arm_neon': 0,
     'arm_neon_optional': 1,
 
-    'moz_widget_toolkit_gonk': 0,
     'moz_webrtc_omx': 0,
     'moz_webrtc_mediacodec': 0,
 
@@ -72,20 +68,6 @@ gyp_vars.update({
     'include_isac': 1,
     'include_pcm16b': 1,
 })
-
-if os == 'Android':
-    if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
-        gyp_vars['build_with_gonk'] = 1
-        gyp_vars['moz_widget_toolkit_gonk'] = 1
-        gyp_vars['opus_complexity'] = 1
-        if int(CONFIG['ANDROID_VERSION']) >= 18:
-          gyp_vars['moz_webrtc_omx'] = 1
-    else:
-        gyp_vars.update(
-            gtest_target_type='executable',
-            moz_webrtc_mediacodec=1,
-            android_toolchain=CONFIG.get('ANDROID_TOOLCHAIN', ''),
-        )
 
 if CONFIG['ARM_ARCH']:
     if int(CONFIG['ARM_ARCH']) < 7:
