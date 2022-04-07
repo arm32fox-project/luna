@@ -136,3 +136,7 @@ if CONFIG['MOZ_USE_PTHREADS']:
 DEFINES['HAVE_ZLIB'] = True
 
 CXXFLAGS += CONFIG['TK_CFLAGS']
+
+# protobuf wants RTTI on gcc
+if CONFIG['GNU_CXX']:
+    CXXFLAGS += ['-frtti']
