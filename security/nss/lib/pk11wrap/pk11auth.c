@@ -4,6 +4,7 @@
 /*
  * This file deals with PKCS #11 passwords and authentication.
  */
+#include "dev.h"
 #include "seccomon.h"
 #include "secmod.h"
 #include "secmodi.h"
@@ -636,9 +637,11 @@ PK11_DoPassword(PK11SlotInfo *slot, CK_SESSION_HANDLE session,
             break;
     }
     if (rv == SECSuccess) {
-        if (!contextSpecific && !PK11_IsFriendly(slot)) {
-            nssTrustDomain_UpdateCachedTokenCerts(slot->nssToken->trustDomain,
-                                                  slot->nssToken);
+        if (!contextSpecific && !PK11_IsFriendly(slot) && slot->nssToken) {
+            NSSToken *token = nssToken_AddRef(slot->nssToken);
+            nssTrustDomain_UpdateCachedTokenCerts(token->trustDomain,
+                                                  token);
+            nssToken_Destroy(token);
         }
     } else if (!attempt)
         PORT_SetError(SEC_ERROR_BAD_PASSWORD);

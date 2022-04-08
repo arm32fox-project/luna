@@ -2647,8 +2647,12 @@ PK11_ResetToken(PK11SlotInfo *slot, char *sso_pwd)
         PORT_SetError(PK11_MapError(crv));
         return SECFailure;
     }
-    nssTrustDomain_UpdateCachedTokenCerts(slot->nssToken->trustDomain,
-                                          slot->nssToken);
+    if (slot->nssToken) {
+        NSSToken *token = nssToken_AddRef(slot->nssToken);
+        nssTrustDomain_UpdateCachedTokenCerts(token->trustDomain,
+                                              token);
+        nssToken_Destroy(token);
+    }
     return SECSuccess;
 }
 void
