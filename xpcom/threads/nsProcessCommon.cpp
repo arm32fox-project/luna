@@ -281,7 +281,7 @@ nsProcess::ProcessComplete()
 
   const char* topic;
   { // Lock scope
-    MutextAutoLock lock(mLock);
+    MutexAutoLock lock(mLock);
     if (mExitValue < 0) {
       topic = "process-failed";
     } else {
