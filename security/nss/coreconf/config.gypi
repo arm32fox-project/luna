@@ -37,7 +37,7 @@
         },{
           'use_system_sqlite%': 0,
         }],
-        ['OS=="mac" or OS=="ios" or OS=="win"', {
+        ['OS=="mac" or OS=="ios" or OS=="solaris" or OS=="win"', {
           'cc_use_gnu_ld%': 0,
         }, {
           'cc_use_gnu_ld%': 1,
@@ -100,6 +100,7 @@
     'disable_tests%': 0,
     'disable_chachapoly%': 0,
     'disable_dbm%': 1,
+    'disable_avx2%': 1,
     'disable_libpkix%': 1,
     'disable_werror%': 0,
     'disable_altivec%': 0,
@@ -392,6 +393,11 @@
               '_REENTRANT',
             ],
           }],
+          [ 'OS!="mac" and OS!="ios" and OS!="solaris" and OS!="win"', {
+            'ldflags': [
+              '-z', 'noexecstack',
+            ],
+          }],
           [ 'OS!="mac" and OS!="ios" and OS!="win"', {
             'cflags': [
               '-fPIC',
@@ -404,9 +410,6 @@
             ],
             'cflags_cc': [
               '-std=c++11',
-            ],
-            'ldflags': [
-              '-z', 'noexecstack',
             ],
             'conditions': [
               [ 'target_arch=="ia32"', {
@@ -564,6 +567,11 @@
               'NSS_DISABLE_DBM',
             ],
           }],
+          [ 'disable_avx2==1', {
+            'defines': [
+              'NSS_DISABLE_AVX2',
+            ],
+          }],
           [ 'disable_libpkix==1', {
             'defines': [
               'NSS_DISABLE_LIBPKIX',
@@ -642,7 +650,7 @@
     },
   },
   'conditions': [
-    [ 'cc_use_gnu_ld==1', {
+    [ 'cc_use_gnu_ld==1 or OS=="solaris"', {
       'variables': {
         'process_map_file': ['/bin/sh', '-c', '/usr/bin/env grep -v ";-" >(mapfile) | sed -e "s,;+,," -e "s; DATA ;;" -e "s,;;,," -e "s,;.*,;," > >@(_outputs)'],
       },
