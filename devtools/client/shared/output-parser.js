@@ -17,7 +17,6 @@ const {
 const Services = require("Services");
 
 const HTML_NS = "http://www.w3.org/1999/xhtml";
-const CSS_GRID_ENABLED_PREF = "layout.css.grid.enabled";
 
 /**
  * This module is used to process text for output by developer tools. This means
@@ -207,8 +206,7 @@ OutputParser.prototype = {
           if (options.expectCubicBezier &&
               BEZIER_KEYWORDS.indexOf(token.text) >= 0) {
             this._appendCubicBezier(token.text, options);
-          } else if (Services.prefs.getBoolPref(CSS_GRID_ENABLED_PREF) &&
-                     options.expectDisplay && token.text === "grid" &&
+          } else if (options.expectDisplay && token.text === "grid" &&
                      text === token.text) {
             this._appendGrid(token.text, options);
           } else if (colorOK() &&
