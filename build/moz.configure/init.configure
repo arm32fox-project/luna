@@ -617,9 +617,10 @@ def external_source_dir(value):
 set_config('EXTERNAL_SOURCE_DIR', external_source_dir)
 add_old_configure_assignment('EXTERNAL_SOURCE_DIR', external_source_dir)
 
-@depends('--enable-project', '--with-external-source-dir', check_build_environment, '--help')
+option('--enable-noncomm-build', default=False, help='Allows non-comm-style builds (deprecated)')
+@depends('--enable-noncomm-build','--enable-project', '--with-external-source-dir', check_build_environment, '--help')
 @imports(_from='os.path', _import='exists')
-def build_project(project, external_source_dir, build_env, help):
+def build_project(noncomm_build, project, external_source_dir, build_env, help):
     if not project:
         die('--enable-project is required.')
 
@@ -631,7 +632,12 @@ def build_project(project, external_source_dir, build_env, help):
     build_app = project[0]
 
     if not external_source_dir and build_app not in ('js'):
-        die('Cannot find project %s', build_app)
+        if noncomm_build:
+            log.info("=====WARNING WARNING WARNING=====")
+            log.info("UNSUPPORTED NONCOMM-BUILD: Application code SHOULD NOT be put inside the platform tree, and doing so may have unforseen consequences if/when platform code is changed.")
+            log.info("=====WARNING WARNING WARNING=====")
+        else:
+            die('Cannot find project %s', build_app)
 
     build_app_abspath = os.path.join(base_dir, build_app)
 
