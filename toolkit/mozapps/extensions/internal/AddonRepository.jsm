@@ -64,6 +64,9 @@ const BLANK_DB = function() {
 }
 
 const TOOLKIT_ID     = "toolkit@mozilla.org";
+#ifdef MOZ_PHOENIX_EXTENSIONS
+const FIREFOX_ID        = "{ec8030f7-c20a-464f-9b0e-13a3a9e97384}";
+#endif
 Cu.import("resource://gre/modules/Log.jsm");
 const LOGGER_ID = "addons.repository";
 
@@ -1251,7 +1254,12 @@ this.AddonRepository = {
     let results = [];
 
     function isSameApplication(aAppNode) {
+#ifdef MOZ_PHOENIX_EXTENSIONS
+      if (self._getTextContent(aAppNode) == Services.appinfo.ID ||
+          self._getTextContent(aAppNode) == FIREFOX_ID) {
+#else
       if (self._getTextContent(aAppNode) == Services.appinfo.ID) {
+#endif
         return true;
       }
       return false;

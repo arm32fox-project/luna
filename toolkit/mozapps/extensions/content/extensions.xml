@@ -1352,6 +1352,22 @@
                                                   [this.mAddon.name], 1);
             } else {
               this.removeAttribute("notification");
+#ifdef MOZ_PHOENIX_EXTENSIONS
+              if (this.mAddon.type == "extension") {
+                this.setAttribute("native", this.mAddon.native);
+                if (this.mAddon.native == false) {
+                  this.setAttribute("notification", "warning");
+                  this._warning.textContent = gStrings.ext.formatStringFromName(
+                    "notification.compatibility",
+                    [this.mAddon.name, gStrings.brandShortName], 2
+                  );
+                  this._warningLink.value = gStrings.ext.GetStringFromName("notification.compatibility.link");
+                  this._warningLink.href = Services.urlFormatter.formatURLPref("extensions.compatibility.url");
+                  this._warningLink.hidden = false;
+                  this._warningBtn.hidden = true;
+                }
+              }
+#endif
             }
           }
 
