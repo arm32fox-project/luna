@@ -176,8 +176,8 @@ if test "$GNU_CC"; then
         CFLAGS="$CFLAGS -ffunction-sections -fdata-sections"
         CXXFLAGS="$CXXFLAGS -ffunction-sections -fdata-sections"
     fi
-    CFLAGS="$CFLAGS -fno-math-errno"
-    CXXFLAGS="$CXXFLAGS -fno-exceptions -fno-math-errno"
+    CFLAGS="$CFLAGS -fno-math-errno -pipe"
+    CXXFLAGS="$CXXFLAGS -fno-exceptions -fno-math-errno -pipe"
 
     if test "$CPU_ARCH" = "x86" -o "$CPU_ARCH" = "x86_64"; then
       CFLAGS="$CFLAGS -msse2 -mfpmath=sse"

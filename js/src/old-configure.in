@@ -1903,19 +1903,6 @@ dnl ========================================================
 MOZ_ARG_HEADER(Compiler Options)
 
 dnl ========================================================
-dnl Check for gcc -pipe support
-dnl ========================================================
-AC_MSG_CHECKING([for -pipe support])
-if test -n "$GNU_CC" -a -n "$GNU_CXX"; then
-    dnl Any gcc that supports firefox supports -pipe.
-    CFLAGS="$CFLAGS -pipe"
-    CXXFLAGS="$CXXFLAGS -pipe"
-    AC_MSG_RESULT([yes])
-else
-    AC_MSG_RESULT([no])
-fi
-
-dnl ========================================================
 dnl Profile guided optimization (gcc checks)
 dnl ========================================================
 dnl Test for profiling options
