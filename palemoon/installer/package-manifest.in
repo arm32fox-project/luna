@@ -151,9 +151,6 @@
 #ifdef MOZ_ENABLE_XREMOTE
 #endif
 
-@RESPATH@/chrome/marionette@JAREXT@
-@RESPATH@/chrome/marionette.manifest
-
 ; Modules
 @RESPATH@/browser/modules/*
 @RESPATH@/modules/*
