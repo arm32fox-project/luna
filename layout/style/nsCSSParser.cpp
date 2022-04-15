@@ -9843,7 +9843,22 @@ CSSParserImpl::ParseGridLine(nsCSSValue& aValue)
   // Make the contained value be defined even though we really want a
   // Nothing here.  This works around an otherwise difficult to avoid
   // Memcheck false positive when this is compiled by gcc-5.3 -O2.
-  // See bug 1301856.
+  // The problem is that gcc 5.4 and later, when using high
+  // optimization, inline Maybe::{isSome,ref} here
+  // 
+  //     if (integer.isSome() && integer.ref() < 0) {
+  // 
+  // and then proceed to evaluate the expression right-to-left, as if it
+  // had been written
+  // 
+  //     integer.ref() < 0 && integer.isSome()
+  // 
+  // This is a legitimate transformation because gcc presumably can prove
+  // via dataflow analysis that integer.isSome() is false whenever integer.ref()
+  // is undefined, so the overall expression result is still defined.  
+  // Valgrind/Memcheck assumes that all conditional branches in the program
+  // are important, and that assumption is deeply wired in, so there is no
+  // easy way to avoid the warning apart from to force-initialise |integer|.
   integer.emplace(0);
   integer.reset();
 #endif

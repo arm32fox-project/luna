@@ -991,7 +991,6 @@ protected:
   friend class nsTObsoleteAStringThunk_CharT;
   friend class nsTSubstringTuple_CharT;
 
-  // XXX GCC 3.4 needs this :-(
   friend class nsTPromiseFlatString_CharT;
 
   char_type*  mData;

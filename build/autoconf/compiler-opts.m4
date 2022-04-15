@@ -16,7 +16,7 @@ dnl set DEVELOPER_OPTIONS early; MOZ_DEFAULT_COMPILER is usually the first non-s
       DEVELOPER_OPTIONS=,
       DEVELOPER_OPTIONS=1)
 
-dnl Default to MSVC for win32 and gcc-4.2 for darwin
+dnl Default to MSVC for win32
 dnl ==============================================================
 if test -z "$CROSS_COMPILE"; then
 case "$target" in
@@ -186,7 +186,8 @@ if test "$GNU_CC"; then
 
     if test -z "$CLANG_CC"; then
         case "$CC_VERSION" in
-        4.* | 5.*)
+        4.* | 5.* | 6.*)
+            AC_MSG_ERROR([Unsupported GCC version.])
             ;;
         *)
             # Lifetime Dead Store Elimination level 2 (default in GCC6+) breaks Gecko.
