@@ -134,18 +134,10 @@
  *
  *  where nsIFoo::typeFunc is any method declared as
  *  NS_IMETHOD typeFunc(nsISupports*);
- *
- *  XXX this can be simplified to always use the non-typeof implementation
- *  when http://gcc.gnu.org/bugzilla/show_bug.cgi?id=11893 is fixed.
  */
 
-#ifdef __GNUC__
-#define NS_STDCALL_FUNCPROTO(ret, name, class, func, args) \
-  typeof(&class::func) name
-#else
 #define NS_STDCALL_FUNCPROTO(ret, name, class, func, args) \
   ret (NS_STDCALL class::*name) args
-#endif
 
 /**
  * Deprecated declarations.

@@ -268,7 +268,6 @@ private:
 
   static nsresult GenerateUUID(nsAString& aResult);
   static nsresult AnonymizeId(nsAString& aId, const nsACString& aOriginKey);
-public: // TODO: make private once we upgrade to GCC 4.8+ on linux.
   static void AnonymizeDevices(SourceSet& aDevices, const nsACString& aOriginKey);
   static already_AddRefed<nsIWritableVariant> ToJSArray(SourceSet& aDevices);
 private:

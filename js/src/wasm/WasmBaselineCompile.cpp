@@ -387,9 +387,9 @@ class BaseCompiler
 #endif
               case NONE:
                 MOZ_CRASH("AnyReg::any() on NONE");
+              default:
+                return AnyRegister();
             }
-            // Work around GCC 5 analysis/warning bug.
-            MOZ_CRASH("AnyReg::any(): impossible case");
         }
 
         union {
