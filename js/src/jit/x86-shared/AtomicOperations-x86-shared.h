@@ -45,18 +45,6 @@
 
 #if defined(__clang__) || defined(__GNUC__)
 
-// The default implementation tactic for gcc/clang is to use the newer
-// __atomic intrinsics added for use in C++11 <atomic>.  Where that
-// isn't available, we use GCC's older __sync functions instead.
-//
-// ATOMICS_IMPLEMENTED_WITH_SYNC_INTRINSICS is kept as a backward
-// compatible option for older compilers: enable this to use GCC's old
-// __sync functions instead of the newer __atomic functions.  This
-// will be required for GCC 4.6.x and earlier, and probably for Clang
-// 3.1, should we need to use those versions.
-
-// #define ATOMICS_IMPLEMENTED_WITH_SYNC_INTRINSICS
-
 // Lock-free 8-byte atomics are assumed on x86 but must be disabled in
 // corner cases, see comments below and in isLockfree8().
 
@@ -77,15 +65,11 @@
 inline bool
 js::jit::AtomicOperations::isLockfree8()
 {
-# ifndef ATOMICS_IMPLEMENTED_WITH_SYNC_INTRINSICS
     MOZ_ASSERT(__atomic_always_lock_free(sizeof(int8_t), 0));
     MOZ_ASSERT(__atomic_always_lock_free(sizeof(int16_t), 0));
     MOZ_ASSERT(__atomic_always_lock_free(sizeof(int32_t), 0));
-# endif
 # ifdef LOCKFREE8
-#  ifndef ATOMICS_IMPLEMENTED_WITH_SYNC_INTRINSICS
     MOZ_ASSERT(__atomic_always_lock_free(sizeof(int64_t), 0));
-#  endif
     return true;
 # else
     return false;
@@ -95,11 +79,7 @@ js::jit::AtomicOperations::isLockfree8()
 inline void
 js::jit::AtomicOperations::fenceSeqCst()
 {
-# ifdef ATOMICS_IMPLEMENTED_WITH_SYNC_INTRINSICS
-    __sync_synchronize();
-# else
     __atomic_thread_fence(__ATOMIC_SEQ_CST);
-# endif
 }
 
 template<typename T>
@@ -107,16 +87,8 @@ inline T
 js::jit::AtomicOperations::loadSeqCst(T* addr)
 {
     MOZ_ASSERT(sizeof(T) < 8 || isLockfree8());
-# ifdef ATOMICS_IMPLEMENTED_WITH_SYNC_INTRINSICS
-    // Inhibit compiler reordering with a volatile load.  The x86 does
-    // not reorder loads with respect to subsequent loads or stores
-    // and no ordering barrier is required here.  See more elaborate
-    // comments in storeSeqCst.
-    T v = *static_cast<T volatile*>(addr);
-# else
     T v;
     __atomic_load(addr, &v, __ATOMIC_SEQ_CST);
-# endif
     return v;
 }
 
@@ -141,43 +113,7 @@ inline void
 js::jit::AtomicOperations::storeSeqCst(T* addr, T val)
 {
     MOZ_ASSERT(sizeof(T) < 8 || isLockfree8());
-# ifdef ATOMICS_IMPLEMENTED_WITH_SYNC_INTRINSICS
-    // Inhibit compiler reordering with a volatile store.  The x86 may
-    // reorder a store with respect to a subsequent load from a
-    // different location, hence there is an ordering barrier here to
-    // prevent that.
-    //
-    // By way of background, look to eg
-    // http://bartoszmilewski.com/2008/11/05/who-ordered-memory-fences-on-an-x86/
-    //
-    // Consider:
-    //
-    //   uint8_t x = 0, y = 0; // to start
-    //
-    // thread1:
-    //   sx: AtomicOperations::store(&x, 1);
-    //   gy: uint8_t obs1 = AtomicOperations::loadSeqCst(&y);
-    //
-    // thread2:
-    //   sy: AtomicOperations::store(&y, 1);
-    //   gx: uint8_t obs2 = AtomicOperations::loadSeqCst(&x);
-    //
-    // Sequential consistency requires a total global ordering of
-    // operations: sx-gy-sy-gx, sx-sy-gx-gy, sx-sy-gy-gx, sy-gx-sx-gy,
-    // sy-sx-gy-gx, or sy-sx-gx-gy.  In every ordering at least one of
-    // sx-before-gx or sy-before-gy happens, so *at least one* of
-    // obs1/obs2 is 1.
-    //
-    // If AtomicOperations::{load,store}SeqCst were just volatile
-    // {load,store}, x86 could reorder gx/gy before each thread's
-    // prior load.  That would permit gx-gy-sx-sy: both loads would be
-    // 0!  Thus after a volatile store we must synchronize to ensure
-    // the store happens before the load.
-    *static_cast<T volatile*>(addr) = val;
-    __sync_synchronize();
-# else
     __atomic_store(addr, &val, __ATOMIC_SEQ_CST);
-# endif
 }
 
 # ifndef LOCKFREE8
@@ -201,19 +137,9 @@ inline T
 js::jit::AtomicOperations::exchangeSeqCst(T* addr, T val)
 {
     MOZ_ASSERT(sizeof(T) < 8 || isLockfree8());
-# ifdef ATOMICS_IMPLEMENTED_WITH_SYNC_INTRINSICS
-    T v;
-    do {
-        // Here I assume the compiler will not hoist the load.  It
-        // shouldn't, because the CAS could affect* addr.
-        v = *addr;
-    } while (!__sync_bool_compare_and_swap(addr, v, val));
-    return v;
-# else
     T v;
     __atomic_exchange(addr, &val, &v, __ATOMIC_SEQ_CST);
     return v;
-# endif
 }
 
 # ifndef LOCKFREE8
@@ -237,12 +163,8 @@ inline T
 js::jit::AtomicOperations::compareExchangeSeqCst(T* addr, T oldval, T newval)
 {
     MOZ_ASSERT(sizeof(T) < 8 || isLockfree8());
-# ifdef ATOMICS_IMPLEMENTED_WITH_SYNC_INTRINSICS
-    return __sync_val_compare_and_swap(addr, oldval, newval);
-# else
     __atomic_compare_exchange(addr, &oldval, &newval, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
     return oldval;
-# endif
 }
 
 # ifndef LOCKFREE8
@@ -266,11 +188,7 @@ inline T
 js::jit::AtomicOperations::fetchAddSeqCst(T* addr, T val)
 {
     static_assert(sizeof(T) <= 4, "not available for 8-byte values yet");
-# ifdef ATOMICS_IMPLEMENTED_WITH_SYNC_INTRINSICS
-    return __sync_fetch_and_add(addr, val);
-# else
     return __atomic_fetch_add(addr, val, __ATOMIC_SEQ_CST);
-# endif
 }
 
 template<typename T>
@@ -278,11 +196,7 @@ inline T
 js::jit::AtomicOperations::fetchSubSeqCst(T* addr, T val)
 {
     static_assert(sizeof(T) <= 4, "not available for 8-byte values yet");
-# ifdef ATOMICS_IMPLEMENTED_WITH_SYNC_INTRINSICS
-    return __sync_fetch_and_sub(addr, val);
-# else
     return __atomic_fetch_sub(addr, val, __ATOMIC_SEQ_CST);
-# endif
 }
 
 template<typename T>
@@ -290,11 +204,7 @@ inline T
 js::jit::AtomicOperations::fetchAndSeqCst(T* addr, T val)
 {
     static_assert(sizeof(T) <= 4, "not available for 8-byte values yet");
-# ifdef ATOMICS_IMPLEMENTED_WITH_SYNC_INTRINSICS
-    return __sync_fetch_and_and(addr, val);
-# else
     return __atomic_fetch_and(addr, val, __ATOMIC_SEQ_CST);
-# endif
 }
 
 template<typename T>
@@ -302,11 +212,7 @@ inline T
 js::jit::AtomicOperations::fetchOrSeqCst(T* addr, T val)
 {
     static_assert(sizeof(T) <= 4, "not available for 8-byte values yet");
-# ifdef ATOMICS_IMPLEMENTED_WITH_SYNC_INTRINSICS
-    return __sync_fetch_and_or(addr, val);
-# else
     return __atomic_fetch_or(addr, val, __ATOMIC_SEQ_CST);
-# endif
 }
 
 template<typename T>
@@ -314,11 +220,7 @@ inline T
 js::jit::AtomicOperations::fetchXorSeqCst(T* addr, T val)
 {
     static_assert(sizeof(T) <= 4, "not available for 8-byte values yet");
-# ifdef ATOMICS_IMPLEMENTED_WITH_SYNC_INTRINSICS
-    return __sync_fetch_and_xor(addr, val);
-# else
     return __atomic_fetch_xor(addr, val, __ATOMIC_SEQ_CST);
-# endif
 }
 
 template<typename T>
@@ -351,17 +253,12 @@ template<size_t nbytes>
 inline void
 js::jit::RegionLock::acquire(void* addr)
 {
-# ifdef ATOMICS_IMPLEMENTED_WITH_SYNC_INTRINSICS
-    while (!__sync_bool_compare_and_swap(&spinlock, 0, 1))
-        continue;
-# else
     uint32_t zero = 0;
     uint32_t one = 1;
     while (!__atomic_compare_exchange(&spinlock, &zero, &one, false, __ATOMIC_ACQUIRE, __ATOMIC_ACQUIRE)) {
         zero = 0;
         continue;
     }
-# endif
 }
 
 template<size_t nbytes>
@@ -369,15 +266,10 @@ inline void
 js::jit::RegionLock::release(void* addr)
 {
     MOZ_ASSERT(AtomicOperations::loadSeqCst(&spinlock) == 1, "releasing unlocked region lock");
-# ifdef ATOMICS_IMPLEMENTED_WITH_SYNC_INTRINSICS
-    __sync_sub_and_fetch(&spinlock, 1); // Should turn into LOCK XADD
-# else
     uint32_t zero = 0;
     __atomic_store(&spinlock, &zero, __ATOMIC_SEQ_CST);
-# endif
 }
 
-# undef ATOMICS_IMPLEMENTED_WITH_SYNC_INTRINSICS
 # undef LOCKFREE8
 
 #elif defined(_MSC_VER)

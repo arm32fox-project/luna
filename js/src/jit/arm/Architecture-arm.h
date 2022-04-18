@@ -13,8 +13,7 @@
 
 #include "js/Utility.h"
 
-// GCC versions 4.6 and above define __ARM_PCS_VFP to denote a hard-float
-// ABI target.
+// GCC defines __ARM_PCS_VFP to denote a hard-float ABI target.
 #if defined(__ARM_PCS_VFP)
 #define JS_CODEGEN_ARM_HARDFP
 #endif

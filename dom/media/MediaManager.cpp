@@ -1277,13 +1277,6 @@ GetSources(MediaEngine *engine, MediaSourceEnum aSrcType,
   }
 }
 
-// TODO: Remove once upgraded to GCC 4.8+ on linux. Bogus error on static func:
-// error: 'this' was not captured for this lambda function
-
-static auto& MediaManager_GetInstance = MediaManager::GetInstance;
-static auto& MediaManager_ToJSArray = MediaManager::ToJSArray;
-static auto& MediaManager_AnonymizeDevices = MediaManager::AnonymizeDevices;
-
 already_AddRefed<MediaManager::PledgeChar>
 MediaManager::SelectSettings(
     MediaStreamConstraints& aConstraints,
@@ -1343,7 +1336,7 @@ MediaManager::SelectSettings(
       }
     }
     NS_DispatchToMainThread(NewRunnableFrom([id, badConstraint]() mutable {
-      RefPtr<MediaManager> mgr = MediaManager_GetInstance();
+      RefPtr<MediaManager> mgr = MediaManager::GetInstance();
       RefPtr<PledgeChar> p = mgr->mOutstandingCharPledges.Remove(id);
       if (p) {
         p->Resolve(badConstraint);
@@ -1608,7 +1601,7 @@ MediaManager::EnumerateRawDevices(uint64_t aWindowId,
       fakeBackend = new MediaEngineDefault();
     }
     if ((!fakeCams && hasVideo) || (!fakeMics && hasAudio)) {
-      RefPtr<MediaManager> manager = MediaManager_GetInstance();
+      RefPtr<MediaManager> manager = MediaManager::GetInstance();
       realBackend = manager->GetBackend(aWindowId);
     }
 
@@ -1633,7 +1626,7 @@ MediaManager::EnumerateRawDevices(uint64_t aWindowId,
     SourceSet* handoff = result.release();
     NS_DispatchToMainThread(NewRunnableFrom([id, handoff]() mutable {
       UniquePtr<SourceSet> result(handoff); // grab result
-      RefPtr<MediaManager> mgr = MediaManager_GetInstance();
+      RefPtr<MediaManager> mgr = MediaManager::GetInstance();
       if (!mgr) {
         return NS_OK;
       }
@@ -1922,7 +1915,7 @@ int MediaManager::AddDeviceChangeCallback(DeviceChangeCallback* aCallback)
 {
   bool fakeDeviceChangeEventOn = mPrefs.mFakeDeviceChangeEventOn;
   MediaManager::PostTask(NewTaskFrom([fakeDeviceChangeEventOn]() {
-    RefPtr<MediaManager> manager = MediaManager_GetInstance();
+    RefPtr<MediaManager> manager = MediaManager::GetInstance();
     manager->GetBackend(0)->AddDeviceChangeCallback(manager);
     if (fakeDeviceChangeEventOn)
       manager->GetBackend(0)->SetFakeDeviceChangeEvents();
@@ -2445,7 +2438,7 @@ MediaManager::EnumerateDevicesImpl(uint64_t aWindowId,
   p->Then([id, aWindowId, aVideoType, aAudioType,
            aFake](const nsCString& aOriginKey) mutable {
     MOZ_ASSERT(NS_IsMainThread());
-    RefPtr<MediaManager> mgr = MediaManager_GetInstance();
+    RefPtr<MediaManager> mgr = MediaManager::GetInstance();
 
     RefPtr<PledgeSourceSet> p = mgr->EnumerateRawDevices(aWindowId, aVideoType,
                                                          aAudioType, aFake);
@@ -2453,7 +2446,7 @@ MediaManager::EnumerateDevicesImpl(uint64_t aWindowId,
       UniquePtr<SourceSet> devices(aDevices); // secondary result
 
       // Only run if window is still on our active list.
-      RefPtr<MediaManager> mgr = MediaManager_GetInstance();
+      RefPtr<MediaManager> mgr = MediaManager::GetInstance();
       if (!mgr) {
         return NS_OK;
       }
@@ -2461,7 +2454,7 @@ MediaManager::EnumerateDevicesImpl(uint64_t aWindowId,
       if (!p || !mgr->IsWindowStillActive(aWindowId)) {
         return NS_OK;
       }
-      MediaManager_AnonymizeDevices(*devices, aOriginKey);
+      MediaManager::AnonymizeDevices(*devices, aOriginKey);
       p->Resolve(devices.release());
       return NS_OK;
     });
@@ -2500,12 +2493,12 @@ MediaManager::EnumerateDevices(nsPIDOMWindowInner* aWindow,
                                                      fake);
   p->Then([onSuccess, windowId, listener](SourceSet*& aDevices) mutable {
     UniquePtr<SourceSet> devices(aDevices); // grab result
-    RefPtr<MediaManager> mgr = MediaManager_GetInstance();
+    RefPtr<MediaManager> mgr = MediaManager::GetInstance();
     mgr->RemoveFromWindowList(windowId, listener);
-    nsCOMPtr<nsIWritableVariant> array = MediaManager_ToJSArray(*devices);
+    nsCOMPtr<nsIWritableVariant> array = MediaManager::ToJSArray(*devices);
     onSuccess->OnSuccess(array);
   }, [onFailure, windowId, listener](MediaStreamError*& reason) mutable {
-    RefPtr<MediaManager> mgr = MediaManager_GetInstance();
+    RefPtr<MediaManager> mgr = MediaManager::GetInstance();
     mgr->RemoveFromWindowList(windowId, listener);
     onFailure->OnError(reason);
   });
@@ -2542,7 +2535,7 @@ MediaManager::GetUserMediaDevices(nsPIDOMWindowInner* aWindow,
     RefPtr<GetUserMediaTask> task;
     if (!aCallID.Length() || aCallID == callID) {
       if (mActiveCallbacks.Get(callID, getter_AddRefs(task))) {
-        nsCOMPtr<nsIWritableVariant> array = MediaManager_ToJSArray(*task->mSourceSet);
+        nsCOMPtr<nsIWritableVariant> array = MediaManager::ToJSArray(*task->mSourceSet);
         onSuccess->OnSuccess(array);
         return NS_OK;
       }
@@ -3356,7 +3349,7 @@ GetUserMediaCallbackMediaStreamListener::ApplyConstraintsToTrack(
     NS_DispatchToMainThread(NewRunnableFrom([id, windowId, rv,
                                              badConstraint]() mutable {
       MOZ_ASSERT(NS_IsMainThread());
-      RefPtr<MediaManager> mgr = MediaManager_GetInstance();
+      RefPtr<MediaManager> mgr = MediaManager::GetInstance();
       if (!mgr) {
         return NS_OK;
       }

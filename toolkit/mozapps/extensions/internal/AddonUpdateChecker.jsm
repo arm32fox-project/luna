@@ -25,6 +25,7 @@ const XMLURI_PARSE_ERROR              = "http://www.mozilla.org/newlayout/xml/pa
 
 const TOOLKIT_ID                      = "toolkit@mozilla.org";
 const FIREFOX_ID                      = "{ec8030f7-c20a-464f-9b0e-13a3a9e97384}";
+const FIREFOX_APPCOMPATVERSION        = "56.9"
 
 const PREF_UPDATE_REQUIREBUILTINCERTS = "extensions.update.requireBuiltInCerts";
 const PREF_EM_MIN_COMPAT_APP_VERSION  = "extensions.minCompatibleAppVersion";
@@ -522,6 +523,18 @@ function parseJSONManifest(aId, aUpdateKey, aRequest, aManifestData) {
         maxVersion: getRequiredProperty(app, "max_version", "string"),
       }
     }
+#ifdef MOZ_PHOENIX_EXTENSIONS
+    else if (FIREFOX_ID in applications) {
+      logger.debug("update.json: Dual-GUID targetApplication");
+      app = getProperty(applications, FIREFOX_ID, "object");
+
+      appEntry = {
+        id: FIREFOX_ID,
+        minVersion: getRequiredProperty(app, "min_version", "string"),
+        maxVersion: getRequiredProperty(app, "max_version", "string"),
+      }
+    }
+#endif
     else if (TOOLKIT_ID in applications) {
       logger.debug("update.json: Toolkit targetApplication");
       app = getProperty(applications, TOOLKIT_ID, "object");
@@ -545,7 +558,11 @@ function parseJSONManifest(aId, aUpdateKey, aRequest, aManifestData) {
         id: TOOLKIT_ID,
         minVersion: platformVersion,
 #endif
+#if defined(MOZ_PHOENIX) && defined(MOZ_PHOENIX_EXTENSIONS)
+        maxVersion: FIREFOX_APPCOMPATVERSION,
+#else
         maxVersion: '*',
+#endif
       };
     }
     else {
@@ -808,6 +825,12 @@ function matchesVersions(aUpdate, aAppVersion, aPlatformVersion,
       return (Services.vc.compare(aAppVersion, app.minVersion) >= 0) &&
              (aIgnoreMaxVersion || (Services.vc.compare(aAppVersion, app.maxVersion) <= 0));
     }
+#ifdef MOZ_PHOENIX_EXTENSIONS
+    if (app.id == FIREFOX_ID) {
+      return (Services.vc.compare(aAppVersion, app.minVersion) >= 0) &&
+             (aIgnoreMaxVersion || (Services.vc.compare(aAppVersion, app.maxVersion) <= 0));
+    }
+#endif
     if (app.id == TOOLKIT_ID) {
       result = (Services.vc.compare(aPlatformVersion, app.minVersion) >= 0) &&
                (aIgnoreMaxVersion || (Services.vc.compare(aPlatformVersion, app.maxVersion) <= 0));
@@ -865,7 +888,12 @@ this.AddonUpdateChecker = {
         if (aIgnoreCompatibility) {
           for (let targetApp of update.targetApplications) {
             let id = targetApp.id;
+#ifdef MOZ_PHOENIX_EXTENSIONS
+            if (id == Services.appinfo.ID || id == FIREFOX_ID ||
+                id == TOOLKIT_ID)
+#else
             if (id == Services.appinfo.ID || id == TOOLKIT_ID)
+#endif
               return update;
           }
         }
@@ -941,8 +969,7 @@ this.AddonUpdateChecker = {
     // Define an array of internally used IDs to NOT send to AUS.
     let internalIDS = [
       '{972ce4c6-7e08-4474-a285-3208198ce6fd}', // Global Default Theme
-      'modern@themes.mozilla.org', // Modern Theme for Borealis/Suite-based Applications
-      'xplatform@interlink.projects.binaryoutcast.com', // Pref-set default theme for Interlink
+      'modern@themes.mozilla.org', // Modern Theme for Suite-based Applications
       '{e2fda1a4-762b-4020-b5ad-a41df1933103}', // Lightning/Calendar Extension
       '{a62ef8ec-5fdc-40c2-873c-223b8a6925cc}' // Provider for Google Calendar (gdata) Extension
     ];

@@ -13,7 +13,7 @@
 
 #if defined(WIN32)
   /*
-   * Win32 and OS/2 don't know C99, so define [u]int_16/32/64 here. The bool
+   * Win32 doesn't know C99, so define [u]int_16/32/64 here. The bool
    * is predefined tho, both in C and C++.
    */
   typedef short int16_t;
@@ -61,28 +61,15 @@
     #include <inttypes.h>
     #include <stdbool.h>
   #endif
-#elif defined(BEOS)
-  #include <inttypes.h>
 #else
   /*
    * For those that ship a standard C99 stdint.h header file, include
-   * it. Can't do the same for stdbool.h tho, since some systems ship
-   * with a stdbool.h file that doesn't compile!
+   * it.
    */
   #include <stdint.h>
 
   #ifndef __cplusplus
-    #if !defined(__GNUC__) || (__GNUC__ > 2 || __GNUC_MINOR__ > 95)
-      #include <stdbool.h>
-    #else
-      /*
-       * GCC 2.91 can't deal with a typedef for bool, but a #define
-       * works.
-       */
-      #define bool int
-      #define true   1
-      #define false  0
-    #endif
+    #include <stdbool.h>
   #endif
 #endif
 

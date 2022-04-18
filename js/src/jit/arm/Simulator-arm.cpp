@@ -1289,8 +1289,6 @@ int32_t
 Simulator::get_register(int reg) const
 {
     MOZ_ASSERT(reg >= 0 && reg < num_registers);
-    // Work around GCC bug: http://gcc.gnu.org/bugzilla/show_bug.cgi?id=43949
-    if (reg >= num_registers) return 0;
     return registers_[reg] + ((reg == pc) ? SimInstruction::kPCReadOffset : 0);
 }
 

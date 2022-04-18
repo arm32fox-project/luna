@@ -1086,8 +1086,14 @@ class L10n_Package(MachCommandBase):
 
     @Command('langpack', category='post-build',
         description='Build and package l10n as a language pack.')
-    def l10n_package(self):
-        return self._run_make(directory=".", target='l10n-package', ensure_exit_code=False)
+    @CommandArgument('-v', '--verbose', action='store_true',
+        help='Verbose output for what commands the packaging process is running.')
+    def l10n_package(self, verbose=False):
+        ret = self._run_make(directory=".", target='l10n-package',
+                             silent=not verbose, ensure_exit_code=False)
+        if ret == 0:
+            self.notify('Packaging complete')
+        return ret
 
 @CommandProvider
 class Package(MachCommandBase):
@@ -1134,8 +1140,13 @@ class Mar(MachCommandBase):
 
     @Command('mar', category='post-build',
         description='Create the mar file for the built product for distribution.')
-    def mar(self):
-        return self._run_make(directory="./tools/update-packaging/", target='', ensure_exit_code=False)
+    @CommandArgument('--bz2', action='store_true',
+        help='Compress the mar package with old-style bz2 instead of xz')
+    def mar(self, bz2):
+        if bz2:
+          return self._run_make(directory="./tools/update-packaging/", target='mar-package-bz2', ensure_exit_code=False)
+        else:
+          return self._run_make(directory="./tools/update-packaging/", target='mar-package', ensure_exit_code=False)
 
 @CommandProvider
 class Install(MachCommandBase):

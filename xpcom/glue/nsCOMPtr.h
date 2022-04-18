@@ -59,10 +59,8 @@
 
 #ifdef __GNUC__
   // Our use of nsCOMPtr_base::mRawPtr violates the C++ standard's aliasing
-  // rules. Mark it with the may_alias attribute so that gcc 3.3 and higher
-  // don't reorder instructions based on aliasing assumptions for
-  // this variable.  Fortunately, gcc versions < 3.3 do not do any
-  // optimizations that break nsCOMPtr.
+  // rules. Mark it with the may_alias attribute so that gcc doesn't reorder
+  // instructions based on aliasing assumptions for this variable.
 
   #define NS_MAY_ALIAS_PTR(t)    t*  __attribute__((__may_alias__))
 #else

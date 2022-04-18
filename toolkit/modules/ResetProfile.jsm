@@ -17,7 +17,7 @@ const MOZ_BUILD_APP = "browser";
 #elifdef MOZ_THUNDERBIRD
 const MOZ_APP_NAME = "thunderbird";
 const MOZ_BUILD_APP = "mail";
-#elif defined(MOZ_SUITE) && !defined(BINOC_BOREALIS)
+#elif defined(MOZ_SUITE)
 const MOZ_APP_NAME = "seamonkey";
 const MOZ_BUILD_APP = "suite";
 #else
