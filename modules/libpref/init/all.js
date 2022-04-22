@@ -3089,12 +3089,12 @@ pref("font.name.serif.ar", "Times New Roman");
 pref("font.name.sans-serif.ar", "Segoe UI");
 pref("font.name-list.sans-serif.ar", "Segoe UI, Tahoma, Arial");
 pref("font.name.monospace.ar", "Consolas");
-pref("font.name.cursive.ar", "Comic Sans MS");
+pref("font.name.cursive.ar", "Segoe Script");
 
 pref("font.name.serif.el", "Times New Roman");
 pref("font.name.sans-serif.el", "Arial");
 pref("font.name.monospace.el", "Consolas");
-pref("font.name.cursive.el", "Comic Sans MS");
+pref("font.name.cursive.el", "Segoe Script");
 
 pref("font.name.serif.he", "Narkisim");
 pref("font.name.sans-serif.he", "Arial");
@@ -3129,17 +3129,17 @@ pref("font.name.cursive.th", "Tahoma");
 pref("font.name.serif.x-cyrillic", "Times New Roman");
 pref("font.name.sans-serif.x-cyrillic", "Arial");
 pref("font.name.monospace.x-cyrillic", "Consolas");
-pref("font.name.cursive.x-cyrillic", "Comic Sans MS");
+pref("font.name.cursive.x-cyrillic", "Segoe Script");
 
 pref("font.name.serif.x-unicode", "Times New Roman");
 pref("font.name.sans-serif.x-unicode", "Arial");
 pref("font.name.monospace.x-unicode", "Consolas");
-pref("font.name.cursive.x-unicode", "Comic Sans MS");
+pref("font.name.cursive.x-unicode", "Segoe Script");
 
 pref("font.name.serif.x-western", "Times New Roman");
 pref("font.name.sans-serif.x-western", "Arial");
 pref("font.name.monospace.x-western", "Consolas");
-pref("font.name.cursive.x-western", "Comic Sans MS");
+pref("font.name.cursive.x-western", "Segoe Script");
 
 pref("font.name.serif.zh-CN", "SimSun");
 pref("font.name.sans-serif.zh-CN", "Microsoft YaHei");
@@ -3285,7 +3285,7 @@ pref("font.name.serif.x-math", "Latin Modern Math");
 pref("font.name-list.serif.x-math", "Latin Modern Math, XITS Math, Cambria Math, Libertinus Math, DejaVu Math TeX Gyre, TeX Gyre Bonum Math, TeX Gyre Pagella Math, TeX Gyre Schola, TeX Gyre Termes Math, STIX Math, Asana Math, STIXGeneral, DejaVu Serif, DejaVu Sans, Symbol, Times New Roman");
 pref("font.name.sans-serif.x-math", "Arial");
 pref("font.name.monospace.x-math", "Consolas");
-pref("font.name.cursive.x-math", "Comic Sans MS");
+pref("font.name.cursive.x-math", "Segoe Script");
 
 // ClearType tuning parameters for directwrite/d2d.
 //
