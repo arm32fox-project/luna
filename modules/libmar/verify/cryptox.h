@@ -4,7 +4,6 @@
 
 #ifndef CRYPTOX_H
 #define CRYPTOX_H
-#endif
 
 #define XP_MIN_SIGNATURE_LEN_IN_BYTES 256
 
