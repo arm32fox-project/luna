@@ -83,6 +83,7 @@ this.PlacesUIUtils = {
     return [
       this.DESCRIPTION_ANNO,
       this.LOAD_IN_SIDEBAR_ANNO,
+      PlacesUtils.POST_DATA_ANNO,
       PlacesUtils.READ_ONLY_ANNO,
     ];
   },
