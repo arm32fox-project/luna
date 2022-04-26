@@ -127,6 +127,17 @@ SandboxDump(JSContext* cx, unsigned argc, Value* vp)
     if (!cstr)
         return false;
 
+#if defined(XP_MACOSX)
+    // Be nice and convert all \r to \n.
+    char* c = cstr;
+    char* cEnd = cstr + strlen(cstr);
+    while (c < cEnd) {
+        if (*c == '\r')
+            *c = '\n';
+        c++;
+    }
+#endif
+
     fputs(cstr, stdout);
     fflush(stdout);
     args.rval().setBoolean(true);
