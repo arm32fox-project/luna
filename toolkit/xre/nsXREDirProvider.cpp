@@ -1050,7 +1050,7 @@ nsXREDirProvider::GetUpdateRootDir(nsIFile* *aResult)
   rv = appFile->GetParent(getter_AddRefs(updRoot));
   NS_ENSURE_SUCCESS(rv, rv);
 
-#ifdef XP_WIN
+#if XP_WIN
   nsAutoString pathHash;
   bool pathHashResult = false;
   bool hasVendor = gAppData->vendor && strlen(gAppData->vendor) != 0;
