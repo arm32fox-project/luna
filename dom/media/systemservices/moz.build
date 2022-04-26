@@ -29,6 +29,10 @@ if CONFIG['OS_TARGET'] == 'WINNT':
 else:
     DEFINES['WEBRTC_POSIX'] = True
 
+if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
+  SOURCES += ['OSXRunLoopSingleton.cpp']
+  EXPORTS += ['OSXRunLoopSingleton.h']
+
 if CONFIG['_MSC_VER']:
     DEFINES['__PRETTY_FUNCTION__'] = '__FUNCSIG__'
 
