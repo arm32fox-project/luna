@@ -137,7 +137,7 @@ PluginInstanceChild::PluginInstanceChild(const NPPluginFuncs* aPluginIface,
     , mMode(aMode)
     , mNames(aNames)
     , mValues(aValues)
-#if defined (XP_WIN)
+#if defined(XP_DARWIN) || defined (XP_WIN)
     , mContentsScaleFactor(1.0)
 #endif
     , mPostingKeyEvents(0)
@@ -3216,6 +3216,7 @@ PluginInstanceChild::MaybeCreatePlatformHelperSurface(void)
 bool
 PluginInstanceChild::EnsureCurrentBuffer(void)
 {
+#ifndef XP_DARWIN
     nsIntRect toInvalidate(0, 0, 0, 0);
     IntSize winSize = IntSize(mWindow.width, mWindow.height);
 
@@ -3259,6 +3260,7 @@ PluginInstanceChild::EnsureCurrentBuffer(void)
         NS_ERROR("Cannot create helper surface");
         return false;
     }
+#endif
     return true;
 }
 
