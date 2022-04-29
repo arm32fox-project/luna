@@ -867,7 +867,8 @@ add_old_configure_assignment('MOZ_DEBUG_FLAGS', debug_flags)
 # effectively does the same thing we are doing here.
 @depends(c_compiler, target)
 def libcxx_inline_visibility(c_compiler, target):
-    if c_compiler.type == 'clang':
+    # FIXME: Vestigial conditional left over from Android, please remove.
+    if False:
         return ''
 
 set_define('_LIBCPP_INLINE_VISIBILITY', libcxx_inline_visibility)
