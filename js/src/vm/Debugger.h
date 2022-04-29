@@ -485,7 +485,7 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
      * Keep track of tracelogger last drained identifiers to know if there are
      * lost events.
      */
-#ifdef NIGHTLY_BUILD
+#ifdef DEBUG
     uint32_t traceLoggerLastDrainedSize;
     uint32_t traceLoggerLastDrainedIteration;
 #endif
@@ -629,7 +629,7 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
     static bool startTraceLogger(JSContext* cx, unsigned argc, Value* vp);
     static bool endTraceLogger(JSContext* cx, unsigned argc, Value* vp);
     static bool isCompilableUnit(JSContext* cx, unsigned argc, Value* vp);
-#ifdef NIGHTLY_BUILD
+#ifdef DEBUG
     static bool setupTraceLogger(JSContext* cx, unsigned argc, Value* vp);
     static bool drainTraceLogger(JSContext* cx, unsigned argc, Value* vp);
 #endif

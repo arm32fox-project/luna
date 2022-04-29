@@ -150,11 +150,7 @@ pref("dom.manifest.onappinstalled", false);
 pref("dom.select_events.enabled", true);
 
 // Whether or not selection events on text controls are enabled
-#ifdef NIGHTLY_BUILD
-pref("dom.select_events.textcontrols.enabled", true);
-#else
 pref("dom.select_events.textcontrols.enabled", false);
-#endif
 
 // Whether or not the document visbility API is enabled
 pref("dom.visibilityAPI.enabled", true);
@@ -202,11 +198,7 @@ pref("dom.permissions.revoke.enable", false);
 pref("dom.performance.time_to_non_blank_paint.enabled", false);
 
 // Enable Performance Observer API
-#ifdef NIGHTLY_BUILD
-pref("dom.enable_performance_observer", true);
-#else
 pref("dom.enable_performance_observer", false);
-#endif
 
 // Enable requestIdleCallback API
 pref("dom.requestIdleCallback.enabled", true);
@@ -346,12 +338,8 @@ pref("mathml.disabled",    false);
 // Enable scale transform for stretchy MathML operators. See bug 414277.
 pref("mathml.scale_stretchy_operators.enabled", true);
 
-// Enabled on nightly only until we fix mochitest failures.
-#ifdef NIGHTLY_BUILD
-pref("media.dormant-on-pause-timeout-ms", 5000);
-#else
-pref("media.dormant-on-pause-timeout-ms", -1);
-#endif
+// Reduce resource use after 10s of pause on media playback.
+pref("media.dormant-on-pause-timeout-ms", 10000);
 
 // Media cache size in kilobytes
 pref("media.cache_size", 512000);
@@ -388,11 +376,7 @@ pref("media.wmf.enabled", true);
 pref("media.wmf.decoder.thread-count", -1);
 pref("media.wmf.low-latency.enabled", false);
 pref("media.wmf.skip-blacklist", false);
-#ifdef NIGHTLY_BUILD
 pref("media.wmf.vp9.enabled", true);
-#else
-pref("media.wmf.vp9.enabled", false);
-#endif
 pref("media.windows-media-foundation.allow-d3d11-dxva", true);
 pref("media.wmf.disable-d3d11-for-dlls", "igd11dxva64.dll: 20.19.15.4463, 20.19.15.4454, 20.19.15.4444, 20.19.15.4416, 20.19.15.4404, 20.19.15.4390, 20.19.15.4380, 20.19.15.4377, 20.19.15.4364, 20.19.15.4360, 20.19.15.4352, 20.19.15.4331, 20.19.15.4326, 20.19.15.4300; igd10iumd32.dll: 20.19.15.4444, 20.19.15.4424, 20.19.15.4409, 20.19.15.4390, 20.19.15.4380, 20.19.15.4360, 10.18.10.4358, 20.19.15.4331, 20.19.15.4312, 20.19.15.4300, 10.18.15.4281, 10.18.15.4279, 10.18.10.4276, 10.18.15.4268, 10.18.15.4256, 10.18.10.4252, 10.18.15.4248, 10.18.14.4112, 10.18.10.3958, 10.18.10.3496, 10.18.10.3431, 10.18.10.3412, 10.18.10.3355, 9.18.10.3234, 9.18.10.3071, 9.18.10.3055, 9.18.10.3006; igd10umd32.dll: 9.17.10.4229, 9.17.10.3040, 9.17.10.2857, 8.15.10.2274, 8.15.10.2272, 8.15.10.2246, 8.15.10.1840, 8.15.10.1808; igd10umd64.dll: 9.17.10.4229, 9.17.10.2857, 10.18.10.3496; isonyvideoprocessor.dll: 4.1.2247.8090, 4.1.2153.6200; tosqep.dll: 1.2.15.526, 1.1.12.201, 1.0.11.318, 1.0.11.215, 1.0.10.1224; tosqep64.dll: 1.1.12.201, 1.0.11.215; nvwgf2um.dll: 22.21.13.8253, 22.21.13.8233, 22.21.13.8205, 22.21.13.8189, 22.21.13.8178, 22.21.13.8165, 21.21.13.7892, 21.21.13.7878, 21.21.13.7866, 21.21.13.7849, 21.21.13.7654, 21.21.13.7653, 21.21.13.7633, 21.21.13.7619, 21.21.13.7563, 21.21.13.7306, 21.21.13.7290, 21.21.13.7270, 21.21.13.7254, 21.21.13.6939, 21.21.13.6926, 21.21.13.6909, 21.21.13.4201, 21.21.13.4200, 10.18.13.6881, 10.18.13.6839, 10.18.13.6510, 10.18.13.6472, 10.18.13.6143, 10.18.13.5946, 10.18.13.5923, 10.18.13.5921, 10.18.13.5891, 10.18.13.5887, 10.18.13.5582, 10.18.13.5445, 10.18.13.5382, 10.18.13.5362, 9.18.13.4788, 9.18.13.4752, 9.18.13.4725, 9.18.13.4709, 9.18.13.4195, 9.18.13.4192, 9.18.13.4144, 9.18.13.4052, 9.18.13.3788, 9.18.13.3523, 9.18.13.3235, 9.18.13.3165, 9.18.13.2723, 9.18.13.2702, 9.18.13.1422, 9.18.13.1407, 9.18.13.1106, 9.18.13.546; atidxx32.dll: 21.19.151.3, 21.19.142.257, 21.19.137.514, 21.19.137.1, 21.19.134.1, 21.19.128.7, 21.19.128.4, 20.19.0.32837, 20.19.0.32832, 8.17.10.682, 8.17.10.671, 8.17.10.661, 8.17.10.648, 8.17.10.644, 8.17.10.625, 8.17.10.605, 8.17.10.581, 8.17.10.569, 8.17.10.560, 8.17.10.545, 8.17.10.539, 8.17.10.531, 8.17.10.525, 8.17.10.520, 8.17.10.519, 8.17.10.514, 8.17.10.511, 8.17.10.494, 8.17.10.489, 8.17.10.483, 8.17.10.453, 8.17.10.451, 8.17.10.441, 8.17.10.436, 8.17.10.432, 8.17.10.425, 8.17.10.418, 8.17.10.414, 8.17.10.401, 8.17.10.395, 8.17.10.385, 8.17.10.378, 8.17.10.362, 8.17.10.355, 8.17.10.342, 8.17.10.331, 8.17.10.318, 8.17.10.310, 8.17.10.286, 8.17.10.269, 8.17.10.261, 8.17.10.247, 8.17.10.240, 8.15.10.212; atidxx64.dll: 21.19.151.3, 21.19.142.257, 21.19.137.514, 21.19.137.1, 21.19.134.1, 21.19.128.7, 21.19.128.4, 20.19.0.32832, 8.17.10.682, 8.17.10.661, 8.17.10.644, 8.17.10.625; nvumdshim.dll: 10.18.13.6822");
 pref("media.wmf.disable-d3d9-for-dlls", "igdumd64.dll: 8.15.10.2189, 8.15.10.2119, 8.15.10.2104, 8.15.10.2102, 8.771.1.0; atiumd64.dll: 7.14.10.833, 7.14.10.867, 7.14.10.885, 7.14.10.903, 7.14.10.911, 8.14.10.768, 9.14.10.1001, 9.14.10.1017, 9.14.10.1080, 9.14.10.1128, 9.14.10.1162, 9.14.10.1171, 9.14.10.1183, 9.14.10.1197, 9.14.10.945, 9.14.10.972, 9.14.10.984, 9.14.10.996");
@@ -443,11 +427,8 @@ pref("media.decoder-doctor.verbose", false);
 pref("media.decoder-doctor.wmf-disabled-is-failure", false);
 
 // Whether to suspend decoding of videos in background tabs.
-#ifdef NIGHTLY_BUILD
 pref("media.suspend-bkgnd-video.enabled", true);
-#else
-pref("media.suspend-bkgnd-video.enabled", false);
-#endif
+
 // Delay, in ms, from time window goes to background to suspending
 // video decoders. Defaults to 10 seconds.
 pref("media.suspend-bkgnd-video.delay-ms", 10000);
@@ -680,11 +661,7 @@ pref("apz.peek_messages.enabled", true);
 // Whether to print the APZC tree for debugging
 pref("apz.printtree", false);
 
-#ifdef NIGHTLY_BUILD
-pref("apz.record_checkerboarding", true);
-#else
 pref("apz.record_checkerboarding", false);
-#endif
 pref("apz.test.logging_enabled", false);
 pref("apz.touch_start_tolerance", "0.1");
 pref("apz.touch_move_tolerance", "0.03");
@@ -1276,11 +1253,7 @@ pref("javascript.options.mem.log", false);
 pref("javascript.options.mem.notify", false);
 pref("javascript.options.gc_on_memory_pressure", true);
 pref("javascript.options.compact_on_user_inactive", true);
-#ifdef NIGHTLY_BUILD
-pref("javascript.options.compact_on_user_inactive_delay", 15000); // ms
-#else
 pref("javascript.options.compact_on_user_inactive_delay", 300000); // ms
-#endif
 
 pref("javascript.options.mem.gc_high_frequency_time_limit_ms", 1000);
 pref("javascript.options.mem.gc_high_frequency_low_limit_mb", 100);
@@ -2518,12 +2491,8 @@ pref("layout.css.prefixes.device-pixel-ratio-webkit", false);
 // Is the CSS Unprefixing Service enabled? (This service emulates support
 // for certain vendor-prefixed properties & values, for sites on a "fixlist".)
 pref("layout.css.unprefixing-service.enabled", true);
-#ifdef NIGHTLY_BUILD
 // Is the CSS Unprefixing Service whitelisted for all domains?
-// (This pref is only honored in Nightly builds and can be removed when
-// Bug 1177263 is fixed.)
 pref("layout.css.unprefixing-service.globally-whitelisted", false);
-#endif
 
 // Is support for the :scope selector enabled?
 pref("layout.css.scope-pseudo.enabled", true);
@@ -2734,10 +2703,6 @@ pref("hangmonitor.timeout", 0);
 pref("plugins.load_appdir_plugins", false);
 // If true, plugins will be click to play
 pref("plugins.click_to_play", false);
-#ifdef NIGHTLY_BUILD
-// This only supports one hidden ctp plugin, edit nsPluginArray.cpp if adding a second
-pref("plugins.navigator.hidden_ctp_plugin", "Shockwave Flash");
-#endif
 // The default value for nsIPluginTag.enabledState (STATE_ENABLED = 2)
 pref("plugin.default.state", 2);
 
@@ -3130,12 +3095,12 @@ pref("font.name.serif.ar", "Times New Roman");
 pref("font.name.sans-serif.ar", "Segoe UI");
 pref("font.name-list.sans-serif.ar", "Segoe UI, Tahoma, Arial");
 pref("font.name.monospace.ar", "Consolas");
-pref("font.name.cursive.ar", "Comic Sans MS");
+pref("font.name.cursive.ar", "Segoe Script");
 
 pref("font.name.serif.el", "Times New Roman");
 pref("font.name.sans-serif.el", "Arial");
 pref("font.name.monospace.el", "Consolas");
-pref("font.name.cursive.el", "Comic Sans MS");
+pref("font.name.cursive.el", "Segoe Script");
 
 pref("font.name.serif.he", "Narkisim");
 pref("font.name.sans-serif.he", "Arial");
@@ -3170,17 +3135,17 @@ pref("font.name.cursive.th", "Tahoma");
 pref("font.name.serif.x-cyrillic", "Times New Roman");
 pref("font.name.sans-serif.x-cyrillic", "Arial");
 pref("font.name.monospace.x-cyrillic", "Consolas");
-pref("font.name.cursive.x-cyrillic", "Comic Sans MS");
+pref("font.name.cursive.x-cyrillic", "Segoe Script");
 
 pref("font.name.serif.x-unicode", "Times New Roman");
 pref("font.name.sans-serif.x-unicode", "Arial");
 pref("font.name.monospace.x-unicode", "Consolas");
-pref("font.name.cursive.x-unicode", "Comic Sans MS");
+pref("font.name.cursive.x-unicode", "Segoe Script");
 
 pref("font.name.serif.x-western", "Times New Roman");
 pref("font.name.sans-serif.x-western", "Arial");
 pref("font.name.monospace.x-western", "Consolas");
-pref("font.name.cursive.x-western", "Comic Sans MS");
+pref("font.name.cursive.x-western", "Segoe Script");
 
 pref("font.name.serif.zh-CN", "SimSun");
 pref("font.name.sans-serif.zh-CN", "Microsoft YaHei");
@@ -3326,7 +3291,7 @@ pref("font.name.serif.x-math", "Latin Modern Math");
 pref("font.name-list.serif.x-math", "Latin Modern Math, XITS Math, Cambria Math, Libertinus Math, DejaVu Math TeX Gyre, TeX Gyre Bonum Math, TeX Gyre Pagella Math, TeX Gyre Schola, TeX Gyre Termes Math, STIX Math, Asana Math, STIXGeneral, DejaVu Serif, DejaVu Sans, Symbol, Times New Roman");
 pref("font.name.sans-serif.x-math", "Arial");
 pref("font.name.monospace.x-math", "Consolas");
-pref("font.name.cursive.x-math", "Comic Sans MS");
+pref("font.name.cursive.x-math", "Segoe Script");
 
 // ClearType tuning parameters for directwrite/d2d.
 //
@@ -4303,10 +4268,6 @@ pref("layers.acceleration.force", false);
 // and output the result to stderr.
 pref("layers.bench.enabled", false);
 
-#if defined(XP_WIN) && defined(NIGHTLY_BUILD)
-pref("layers.gpu-process.dev.enabled", true);
-#endif
-
 pref("layers.acceleration.draw-fps", false);
 
 // Enable DEAA antialiasing for transformed layers in the compositor
@@ -4457,11 +4418,7 @@ pref("notification.feature.enabled", false);
 pref("dom.webnotifications.enabled", true);
 pref("dom.webnotifications.serviceworker.enabled", true);
 pref("dom.webnotifications.requireinteraction.count", 3);
-#ifdef NIGHTLY_BUILD
-pref("dom.webnotifications.requireinteraction.enabled", true);
-#else
 pref("dom.webnotifications.requireinteraction.enabled", false);
-#endif
 
 // Alert animation effect, name is disableSlidingEffect for backwards-compat.
 pref("alerts.disableSlidingEffect", false);
@@ -4854,11 +4811,7 @@ pref("dom.mozSettings.SettingsService.verbose.enabled", false);
 pref("dom.mozSettings.allowForceReadOnly", false);
 
 // The interval at which to check for slow running addons
-#ifdef NIGHTLY_BUILD
-pref("browser.addon-watch.interval", 15000);
-#else
 pref("browser.addon-watch.interval", -1);
-#endif
 pref("browser.addon-watch.ignore", "[\"mochikit@mozilla.org\",\"special-powers@mozilla.org\",\"fxdevtools-adapters@mozilla.org\",\"fx-devtools\"]");
 
 // Search service settings

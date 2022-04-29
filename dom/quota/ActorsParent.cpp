@@ -3799,37 +3799,6 @@ QuotaManager::InitializeRepository(PersistenceType aPersistenceType)
   return NS_OK;
 }
 
-namespace {
-
-// The Cache API was creating top level morgue directories by accident for
-// a short time in nightly.  This unfortunately prevents all storage from
-// working.  So recover these profiles by removing these corrupt directories.
-// This should be removed at some point in the future.
-bool
-MaybeRemoveCorruptDirectory(const nsAString& aLeafName, nsIFile* aDir)
-{
-#ifdef NIGHTLY_BUILD
-  MOZ_ASSERT(aDir);
-
-  if (aLeafName != NS_LITERAL_STRING("morgue")) {
-    return false;
-  }
-
-  NS_WARNING("QuotaManager removing corrupt morgue directory!");
-
-  nsresult rv = aDir->Remove(true /* recursive */);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return false;
-  }
-
-  return true;
-#else
-  return false;
-#endif // NIGHTLY_BUILD
-}
-
-} // namespace
-
 nsresult
 QuotaManager::InitializeOrigin(PersistenceType aPersistenceType,
                                const nsACString& aGroup,
@@ -3881,10 +3850,6 @@ QuotaManager::InitializeOrigin(PersistenceType aPersistenceType,
     if (!isDirectory) {
       NS_WARNING("Unknown file found!");
       return NS_ERROR_UNEXPECTED;
-    }
-
-    if (MaybeRemoveCorruptDirectory(leafName, file)) {
-      continue;
     }
 
     Client::Type clientType;
@@ -5979,10 +5944,6 @@ QuotaUsageRequestBase::GetUsageForOrigin(QuotaManager* aQuotaManager,
           NS_WARNING("Unknown file found!");
           return NS_ERROR_UNEXPECTED;
         }
-      }
-
-      if (MaybeRemoveCorruptDirectory(leafName, file)) {
-        continue;
       }
 
       Client::Type clientType;

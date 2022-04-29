@@ -99,7 +99,7 @@
 // b. switch to POSIX-based threading in MinGW with pthread emulation
 // c. refactor it to not use std::thread
 
-#if !defined(__MINGW32__) && (defined(DEBUG) || (defined(NIGHTLY_BUILD) && !defined(MOZ_PROFILING)))
+#if !defined(__MINGW32__) && defined(DEBUG)
 
 #include <thread>
 #define MOZ_WEAKPTR_DECLARE_THREAD_SAFETY_CHECK \

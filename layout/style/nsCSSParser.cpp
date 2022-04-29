@@ -67,9 +67,7 @@ static bool sOpentypeSVGEnabled;
 static bool sWebkitPrefixedAliasesEnabled;
 static bool sWebkitDevicePixelRatioEnabled;
 static bool sUnprefixingServiceEnabled;
-#ifdef NIGHTLY_BUILD
 static bool sUnprefixingServiceGloballyWhitelisted;
-#endif
 static bool sMozGradientsEnabled;
 static bool sControlCharVisibility;
 
@@ -142,8 +140,6 @@ public:
   ~CSSParserImpl();
 
   nsresult SetStyleSheet(CSSStyleSheet* aSheet);
-
-  nsIDocument* GetDocument();
 
   nsresult SetQuirkMode(bool aQuirkMode);
 
@@ -1649,15 +1645,6 @@ CSSParserImpl::SetStyleSheet(CSSStyleSheet* aSheet)
   return NS_OK;
 }
 
-nsIDocument*
-CSSParserImpl::GetDocument()
-{
-  if (!mSheet) {
-    return nullptr;
-  }
-  return mSheet->GetDocument();
-}
-
 nsresult
 CSSParserImpl::SetQuirkMode(bool aQuirkMode)
 {
@@ -1979,8 +1966,7 @@ CSSParserImpl::ParseTransformProperty(const nsAString& aPropValue,
     declaration->ExpandTo(&mData);
     changed = mData.TransferFromBlock(mTempData, eCSSProperty_transform,
                                       EnabledState(), false,
-                                      true, false, declaration,
-                                      GetDocument());
+                                      true, false, declaration);
     declaration->CompressFrom(&mData);
   }
 
@@ -2061,8 +2047,7 @@ CSSParserImpl::ParseProperty(const nsCSSPropertyID aPropID,
       aDeclaration->ExpandTo(&mData);
       *aChanged = mData.TransferFromBlock(mTempData, aPropID,
                                           EnabledState(), aIsImportant,
-                                          true, false, aDeclaration,
-                                          GetDocument());
+                                          true, false, aDeclaration);
       aDeclaration->CompressFrom(&mData);
     }
     CLEAR_ERROR();
@@ -2302,8 +2287,20 @@ CSSParserImpl::ParseMarginString(const nsSubstring& aBuffer,
 
   nsAutoSuppressErrors suppressErrors(this, aSuppressErrors);
 
-  // Parse a margin, and check that there's nothing else after it.
-  bool marginParsed = ParseGroupedBoxProperty(VARIANT_LP, aValue, 0) && !GetToken(true);
+  bool marginParsed = false;
+
+  // Treat margin as zero length if there are no tokens, i.e., the specified
+  // margin string is empty or consists only of whitespace characters.
+  if (!GetToken(true)) {
+    nsCSSRect& zeroRootMargin = aValue.SetRectValue();
+    zeroRootMargin.SetAllSidesTo(nsCSSValue(0.0f, eCSSUnit_Pixel));
+    marginParsed = true;
+  } else {
+    UngetToken();
+    // Parse a margin, and check that there's nothing else after it.
+    marginParsed = ParseGroupedBoxProperty(VARIANT_LPN, aValue, 0) &&
+                   !GetToken(true);
+  }
 
   if (aSuppressErrors) {
     CLEAR_ERROR();
@@ -7197,13 +7194,12 @@ CSSParserImpl::ShouldUseUnprefixingService() const
     return false;
   }
 
-#ifdef NIGHTLY_BUILD
   if (sUnprefixingServiceGloballyWhitelisted) {
     // Unprefixing is globally whitelisted,
     // so no need to check mSheetPrincipal.
     return true;
   }
-#endif
+
   // Unprefixing enabled; see if our principal is whitelisted for unprefixing.
   return mSheetPrincipal && mSheetPrincipal->IsOnCSSUnprefixingWhitelist();
 }
@@ -7505,7 +7501,7 @@ CSSParserImpl::ParseDeclaration(css::Declaration* aDeclaration,
     *aChanged |= mData.TransferFromBlock(mTempData, propID, EnabledState(),
                                          status == ePriority_Important,
                                          false, aMustCallValueAppended,
-                                         aDeclaration, GetDocument());
+                                         aDeclaration);
   }
 
   return true;
@@ -17992,10 +17988,8 @@ nsCSSParser::Startup()
                                "layout.css.prefixes.device-pixel-ratio-webkit");
   Preferences::AddBoolVarCache(&sUnprefixingServiceEnabled,
                                "layout.css.unprefixing-service.enabled");
-#ifdef NIGHTLY_BUILD
   Preferences::AddBoolVarCache(&sUnprefixingServiceGloballyWhitelisted,
                                "layout.css.unprefixing-service.globally-whitelisted");
-#endif
   Preferences::AddBoolVarCache(&sMozGradientsEnabled,
                                "layout.css.prefixes.gradients");
   Preferences::AddBoolVarCache(&sControlCharVisibility,

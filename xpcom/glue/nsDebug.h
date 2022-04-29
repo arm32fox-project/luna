@@ -355,7 +355,7 @@ inline void MOZ_PretendNoReturn()
 
 /*****************************************************************************/
 
-#if (defined(DEBUG) || (defined(NIGHTLY_BUILD) && !defined(MOZ_PROFILING))) && !defined(XPCOM_GLUE_AVOID_NSPR)
+#if defined(DEBUG) && !defined(XPCOM_GLUE_AVOID_NSPR)
   #define MOZ_THREAD_SAFETY_OWNERSHIP_CHECKS_SUPPORTED  1
 #endif
 

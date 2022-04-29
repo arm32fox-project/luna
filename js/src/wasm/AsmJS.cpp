@@ -1,6 +1,7 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  *
  * Copyright 2014 Mozilla Foundation
+ * Copyright 2022 Moonchild Productions
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -8546,9 +8547,7 @@ LookupAsmJSModuleInCache(ExclusiveContext* cx, AsmJSParser& parser, bool* loaded
 
     // Don't punish release users by crashing if there is a programmer error
     // here, just gracefully return with a cache miss.
-#ifdef NIGHTLY_BUILD
-    MOZ_RELEASE_ASSERT(cursor == entry.memory + entry.serializedSize);
-#endif
+    MOZ_ASSERT(cursor == entry.memory + entry.serializedSize);
     if (cursor != entry.memory + entry.serializedSize)
         return true;
 

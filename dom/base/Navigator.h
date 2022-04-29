@@ -214,8 +214,6 @@ public:
 
   void GetLanguages(nsTArray<nsString>& aLanguages);
 
-  bool MozE10sEnabled();
-
   StorageManager* Storage();
 
   static void GetAcceptLanguages(nsTArray<nsString>& aLanguages);
