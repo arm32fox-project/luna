@@ -36,7 +36,6 @@ Var InstallType
 Var AddStartMenuSC
 Var AddQuickLaunchSC
 Var AddDesktopSC
-Var InstallMaintenanceService
 Var PageName
 Var PreventRebootRequired
 
