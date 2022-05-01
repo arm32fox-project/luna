@@ -163,11 +163,7 @@ FrameLayerBuilder::DisplayItemData::AddFrame(nsIFrame* aFrame)
 {
   MOZ_RELEASE_ASSERT(mLayer);
   
-  // Make sure we don't add duplicate frames as we're storing these as vectors.
-  // See UXP Issue #1860
-  if (!mFrameList.Contains(aFrame)) {
-    mFrameList.AppendElement(aFrame);
-  }
+  mFrameList.AppendElement(aFrame);
 
   nsTArray<DisplayItemData*>* array =
     aFrame->GetProperty(FrameLayerBuilder::LayerManagerDataProperty());
@@ -1978,9 +1974,12 @@ FrameLayerBuilder::RemoveFrameFromLayerManager(const nsIFrame* aFrame,
     auto it = std::find(data->mParent->mDisplayItems.begin(),
                         data->mParent->mDisplayItems.end(),
                         data);
-    MOZ_ASSERT(it != data->mParent->mDisplayItems.end());
-    std::iter_swap(it, data->mParent->mDisplayItems.end() - 1);
-    data->mParent->mDisplayItems.pop_back();
+    // Don't attempt to remove the frame from the display items vector
+    // if it is not in the container. It might've been removed already.
+    if (it != data->mParent->mDisplayItems.end()) {
+      std::iter_swap(it, data->mParent->mDisplayItems.end() - 1);
+      data->mParent->mDisplayItems.pop_back();
+    }
   }
 
   arrayCopy.Clear();
@@ -4822,7 +4821,12 @@ FrameLayerBuilder::StoreDataForFrame(nsDisplayItem* aItem, Layer* aLayer, LayerS
 
   data->BeginUpdate(aLayer, aState, mContainerLayerGeneration, aItem);
 
-  lmd->mDisplayItems.push_back(data);
+  // Make sure we don't add duplicate display items for the same frame.
+  if (std::find(lmd->mDisplayItems.begin(),
+                lmd->mDisplayItems.end(),
+                data) == lmd->mDisplayItems.end()) {
+    lmd->mDisplayItems.push_back(data);
+  }
   return data;
 }
 
@@ -4846,7 +4850,12 @@ FrameLayerBuilder::StoreDataForFrame(nsIFrame* aFrame,
 
   data->BeginUpdate(aLayer, aState, mContainerLayerGeneration);
 
-  lmd->mDisplayItems.push_back(data);
+  // Make sure we don't add duplicate display items for the same frame.
+  if (std::find(lmd->mDisplayItems.begin(),
+                lmd->mDisplayItems.end(),
+                data) == lmd->mDisplayItems.end()) {
+    lmd->mDisplayItems.push_back(data);
+  }
 }
 
 FrameLayerBuilder::ClippedDisplayItem::ClippedDisplayItem(nsDisplayItem* aItem,
