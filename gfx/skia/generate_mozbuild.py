@@ -65,6 +65,7 @@ LOCAL_INCLUDES += [
 ]
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] in {
+    'cocoa',
     'gtk2',
     'gtk3',
     'uikit',
@@ -443,7 +444,7 @@ def write_mozbuild(sources):
   f.write("if CONFIG['MOZ_ENABLE_SKIA_GPU']:\n")
   write_sources(f, sources['gpu'], 4)
 
-  f.write("if CONFIG['MOZ_WIDGET_TOOLKIT'] in {'uikit'}:\n")
+  f.write("if CONFIG['MOZ_WIDGET_TOOLKIT'] in {'cocoa', 'uikit'}:\n")
   write_sources(f, sources['mac'], 4)
 
   f.write("if 'gtk' in CONFIG['MOZ_WIDGET_TOOLKIT']:\n")

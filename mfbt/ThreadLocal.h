@@ -30,7 +30,7 @@ typedef sig_atomic_t sig_safe_t;
 
 namespace detail {
 
-#if defined(HAVE_THREAD_TLS_KEYWORD) || defined(XP_WIN)
+#if defined(HAVE_THREAD_TLS_KEYWORD) || defined(XP_WIN) || defined(XP_MACOSX)
 #define MOZ_HAS_THREAD_LOCAL
 #endif
 
@@ -180,7 +180,7 @@ ThreadLocal<T>::set(const T aValue)
 }
 
 #ifdef MOZ_HAS_THREAD_LOCAL
-#if defined(XP_WIN)
+#if defined(XP_WIN) || defined(XP_MACOSX)
 #define MOZ_THREAD_LOCAL(TYPE) thread_local mozilla::detail::ThreadLocal<TYPE>
 #else
 #define MOZ_THREAD_LOCAL(TYPE) __thread mozilla::detail::ThreadLocal<TYPE>

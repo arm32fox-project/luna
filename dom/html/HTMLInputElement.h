@@ -137,7 +137,9 @@ public:
   virtual void Focus(ErrorResult& aError) override;
 
   // nsINode
+#if !defined(XP_MACOSX)
   virtual bool IsNodeApzAwareInternal() const override;
+#endif
 
   // Element
   virtual bool IsInteractiveHTMLContent(bool aIgnoreTabindex) const override;
