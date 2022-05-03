@@ -4,7 +4,7 @@ dnl This Source Code Form is subject to the terms of the Mozilla Public
 dnl License, v. 2.0. If a copy of the MPL was not distributed with this
 dnl file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-dnl Things we need to carry from confvars.sh
+dnl Things we need to carry over from confvars.sh
 AC_DEFINE(MOZ_PHOENIX)
 AC_SUBST(MOZ_PHOENIX)
 
@@ -12,6 +12,20 @@ AC_DEFINE(MC_PALEMOON)
 AC_SUBST(MC_PALEMOON)
 
 dnl Optional parts of the build.
+
+dnl ========================================================
+dnl = Enable Phoenix Extension Support
+dnl ========================================================
+MOZ_ARG_ENABLE_BOOL(phoenix-extensions,
+[  --enable-phoenix-extensions           Enable Phoenix Extension Support],
+    MOZ_PHOENIX_EXTENSIONS=1,
+    MOZ_PHOENIX_EXTENSIONS=)
+
+if test -n "$MOZ_PHOENIX_EXTENSIONS"; then
+    AC_DEFINE(MOZ_PHOENIX_EXTENSIONS)
+fi
+
+AC_SUBST(MOZ_PHOENIX_EXTENSIONS)
 
 dnl ========================================================
 dnl = Disable Sync

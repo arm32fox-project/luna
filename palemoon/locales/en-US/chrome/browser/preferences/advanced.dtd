@@ -29,13 +29,6 @@
 <!ENTITY allowHWAccel.accesskey          "r">
 <!ENTITY forceHWAccel.label              "Force hardware acceleration">
 
-<!ENTITY systemDefaults.label            "System Defaults">
-<!ENTITY alwaysCheckDefault.label        "Always check to see if &brandShortName; is the default browser on startup"><!--XXX-->
-<!ENTITY alwaysCheckDefault.accesskey    "w">
-<!ENTITY setDefault.label                "Make &brandShortName; the default browser">
-<!ENTITY setDefault.accesskey            "d">
-<!ENTITY isDefault.label                 "&brandShortName; is currently your default browser">
-
 <!ENTITY UAWarning.label                 "Warning: your user-agent is globally overridden">
 <!ENTITY UAWarning.reset                 "Reset">
 <!ENTITY UACompatGroup.label             "Compatibility">

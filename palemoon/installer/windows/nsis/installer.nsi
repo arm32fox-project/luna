@@ -36,7 +36,6 @@ Var InstallType
 Var AddStartMenuSC
 Var AddQuickLaunchSC
 Var AddDesktopSC
-Var InstallMaintenanceService
 Var PageName
 Var PreventRebootRequired
 
@@ -153,6 +152,11 @@ ShowInstDetails nevershow
 ; Welcome Page
 !define MUI_PAGE_CUSTOMFUNCTION_PRE preWelcome
 !insertmacro MUI_PAGE_WELCOME
+
+; License Page
+!define MUI_PAGE_CUSTOMFUNCTION_SHOW showLicense
+!define MUI_LICENSEPAGE_CHECKBOX
+!insertmacro MUI_PAGE_LICENSE license.txt
 
 ; Custom Options Page
 Page custom preOptions leaveOptions
@@ -824,6 +828,15 @@ Function preWelcome
   ${If} ${FileExists} "$EXEDIR\core\distribution\modern-wizard.bmp"
     Delete "$PLUGINSDIR\modern-wizard.bmp"
     CopyFiles /SILENT "$EXEDIR\core\distribution\modern-wizard.bmp" "$PLUGINSDIR\modern-wizard.bmp"
+  ${EndIf}
+FunctionEnd
+
+Function showLicense
+  ${If} ${FileExists} "$EXEDIR\core\distribution\modern-header.bmp"
+  ${AndIf} $hHeaderBitmap == ""
+    Delete "$PLUGINSDIR\modern-header.bmp"
+    CopyFiles /SILENT "$EXEDIR\core\distribution\modern-header.bmp" "$PLUGINSDIR\modern-header.bmp"
+    ${ChangeMUIHeaderImage} "$PLUGINSDIR\modern-header.bmp"
   ${EndIf}
 FunctionEnd
 

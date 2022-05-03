@@ -31,11 +31,6 @@ var gBrowserThumbnails = {
   _tabEvents: ["TabClose", "TabSelect"],
 
   init: function() {
-    // Bug 863512 - Make page thumbnails work in electrolysis
-    if (gMultiProcessBrowser) {
-      return;
-    }
-
     try {
       if (Services.prefs.getBoolPref("browser.pagethumbnails.capturing_disabled"))
         return;
@@ -56,11 +51,6 @@ var gBrowserThumbnails = {
   },
 
   uninit: function() {
-    // Bug 863512 - Make page thumbnails work in electrolysis
-    if (gMultiProcessBrowser) {
-      return;
-    }
-
     PageThumbs.removeExpirationFilter(this);
     gBrowser.removeTabsProgressListener(this);
     Services.prefs.removeObserver(this.PREF_DISK_CACHE_SSL, this);

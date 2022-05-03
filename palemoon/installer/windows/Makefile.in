@@ -62,6 +62,8 @@ $(CONFIG_DIR)/setup.exe::
 	$(PYTHON) $(MOZILLA_SRCDIR)/toolkit/mozapps/installer/windows/nsis/preprocess-locale.py \
 	  --preprocess-locale $(MOZILLA_SRCDIR) \
 	  $(PPL_LOCALE_ARGS) $(AB_CD) $(CONFIG_DIR)
+	$(PYTHON) $(MOZILLA_SRCDIR)/toolkit/mozapps/installer/windows/nsis/preprocess-locale.py \
+      --convert-utf8-utf16le $(DIST)/branding/license.txt $(CONFIG_DIR)/license.txt
 
 GARBARGE_DIRS += instgen
 

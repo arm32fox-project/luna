@@ -5,6 +5,7 @@ MCP_GIT=`which git 2>/dev/null`
 
 if [ ! -f "$MCP_MACH" ]; then
   printf "Error: There is no platform codebase.\n"
+  printf "Make sure you have checked out the platform submodule before using this command.\n"
   exit 1
 fi
 
@@ -49,8 +50,8 @@ if [ "$1" == "source" ]; then
   done
 
   if [[ -n "$MCP_GIT" && -d "./.git" && -d "./platform/.git" ]]; then
-    printf "COMM SHA1: `"${MCP_GIT}" rev-parse --short HEAD 2>/dev/null`\n"
-    printf "GRE SHA1: `cd ./platform && "${MCP_GIT}" rev-parse --short HEAD 2>/dev/null`\n"
+    printf "FE SHA1: `"${MCP_GIT}" rev-parse --short HEAD 2>/dev/null`\n"
+    printf "UXP SHA1: `cd ./platform && "${MCP_GIT}" rev-parse --short HEAD 2>/dev/null`\n"
   fi
 
   printf "Source Filename: $MCP_TAR_FILENAME\n\n"

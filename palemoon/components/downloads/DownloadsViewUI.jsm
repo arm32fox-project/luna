@@ -169,7 +169,9 @@ this.DownloadsViewUI.DownloadElementShell.prototype = {
    * returned by a single property because they are computed together. The
    * result may be overridden by derived objects.
    */
-  get statusTextAndTip() this.rawStatusTextAndTip,
+  get statusTextAndTip() {
+    return this.rawStatusTextAndTip;
+  },
 
   /**
    * Derived objects may call this to get the status text.
@@ -228,8 +230,6 @@ this.DownloadsViewUI.DownloadElementShell.prototype = {
         stateLabel = s.stateCanceled;
       } else if (this.download.error.becauseBlockedByParentalControls) {
         stateLabel = s.stateBlockedParentalControls;
-      } else if (this.download.error.becauseBlockedByReputationCheck) {
-        stateLabel = s.stateDirty;
       } else {
         stateLabel = s.stateFailed;
       }
