@@ -99,7 +99,7 @@
     'disable_arm_hw_aes%': 0,
     'disable_tests%': 0,
     'disable_chachapoly%': 0,
-    'disable_dbm%': 1,
+    'disable_dbm%': 0,
     'disable_avx2%': 1,
     'disable_libpkix%': 1,
     'disable_werror%': 0,
