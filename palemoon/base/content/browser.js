@@ -25,6 +25,7 @@ var gProxyFavIcon = null;
 var gLastValidURLStr = "";
 var gInPrintPreviewMode = false;
 var gContextMenu = null; // nsContextMenu instance
+var gMultiProcessBrowser = false; // Do not remove: Needed for extension compatibility
 
 var gEditUIVisible = true;
 [
