@@ -1284,7 +1284,7 @@ BrowserGlue.prototype = {
   },
 
   _migrateUI: function() {
-    const UI_VERSION = 26;
+    const UI_VERSION = 27;
     const BROWSER_DOCURL = "chrome://browser/content/browser.xul#";
     let currentUIVersion = 0;
     try {
@@ -1544,6 +1544,11 @@ BrowserGlue.prototype = {
         Services.prefs.setBoolPref("privacy.GPCheader.enabled", DNTEnabled);
         Services.prefs.clearUserPref("privacy.donottrackheader.enabled");
       }
+    }
+    
+    if (currentUIVersion < 27) {
+      // Clear hardware decoding failure flag to re-test. (UXP #1898)
+      Services.prefs.clearUserPref("media.hardware-video-decoding.failed");
     }
     
     // Clear out dirty storage
