@@ -7,6 +7,7 @@
 #include "mozilla/TaskQueue.h"
 
 #include "FFmpegAudioDecoder.h"
+#include "FFmpegLog.h"
 #include "TimeUnits.h"
 
 #define MAX_CHANNELS 16
@@ -136,8 +137,10 @@ FFmpegAudioDecoder<LIBAV_VER>::DoDecode(MediaRawData* aSample)
   media::TimeUnit pts = media::TimeUnit::FromMicroseconds(aSample->mTime);
 
   while (packet.size > 0) {
-    int decoded;
-    int bytesConsumed =
+    int decoded = false;
+    int bytesConsumed = -1;
+#if LIBAVCODEC_VERSION_MAJOR < 59
+	bytesConsumed =
       mLib->avcodec_decode_audio4(mCodecContext, mFrame, &decoded, &packet);
 
     if (bytesConsumed < 0) {
@@ -145,6 +148,39 @@ FFmpegAudioDecoder<LIBAV_VER>::DoDecode(MediaRawData* aSample)
       return MediaResult(NS_ERROR_DOM_MEDIA_DECODE_ERR,
                          RESULT_DETAIL("FFmpeg audio error:%d", bytesConsumed));
     }
+#else
+#define AVRESULT_OK 0
+
+    int ret = mLib->avcodec_receive_frame(mCodecContext, mFrame);
+    switch (ret) {
+      case AVRESULT_OK:
+        decoded = true;
+        break;
+      case AVERROR(EAGAIN):
+        break;
+      case AVERROR_EOF: {
+        FFMPEG_LOG("End of stream.");
+        return MediaResult(NS_ERROR_DOM_MEDIA_END_OF_STREAM,
+                           RESULT_DETAIL("End of stream"));
+      }
+    }
+    ret = mLib->avcodec_send_packet(mCodecContext, &packet);
+    switch (ret) {
+      case AVRESULT_OK:
+        bytesConsumed = packet.size;
+        break;
+      case AVERROR(EAGAIN):
+        break;
+      case AVERROR_EOF:
+        FFMPEG_LOG("End of stream.");
+        return MediaResult(NS_ERROR_DOM_MEDIA_END_OF_STREAM,
+                           RESULT_DETAIL("End of stream"));
+      default:
+        NS_WARNING("FFmpeg audio decoder error.");
+        return MediaResult(NS_ERROR_DOM_MEDIA_DECODE_ERR,
+                           RESULT_DETAIL("FFmpeg audio error"));
+    }
+#endif
 
     if (decoded) {
       if (mFrame->format != AV_SAMPLE_FMT_FLT &&
