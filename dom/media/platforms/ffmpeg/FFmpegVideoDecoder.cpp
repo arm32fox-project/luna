@@ -213,6 +213,14 @@ FFmpegVideoDecoder<LIBAV_VER>::DoDecode(MediaRawData* aSample, bool* aGotFrame)
   return DoDecode(aSample, inputData, inputSize, aGotFrame);
 }
 
+static int64_t GetFramePts(AVFrame* aFrame) {
+#if LIBAVCODEC_VERSION_MAJOR > 58
+  return aFrame->pts;
+#else
+  return aFrame->pkt_pts;
+#endif
+}
+
 MediaResult
 FFmpegVideoDecoder<LIBAV_VER>::DoDecode(MediaRawData* aSample,
                                         uint8_t* aData, int aSize,
@@ -260,7 +268,7 @@ FFmpegVideoDecoder<LIBAV_VER>::DoDecode(MediaRawData* aSample,
       return MediaResult(NS_ERROR_DOM_MEDIA_DECODE_ERR,
                          RESULT_DETAIL("avcodec_receive_frame error: %d", res));
     }
-    MediaResult rv = CreateImage(mFrame->pkt_pos, mFrame->pkt_pts,
+    MediaResult rv = CreateImage(mFrame->pkt_pos, GetFramePts(mFrame),
                                  mFrame->pkt_duration);
     if (NS_FAILED(rv)) {
       return rv;
@@ -291,9 +299,9 @@ FFmpegVideoDecoder<LIBAV_VER>::DoDecode(MediaRawData* aSample,
 
   FFMPEG_LOG("DoDecodeFrame:decode_video: rv=%d decoded=%d "
              "(Input: pts(%lld) dts(%lld) Output: pts(%lld) "
-             "opaque(%lld) pkt_pts(%lld) pkt_dts(%lld))",
+             "opaque(%lld) pts(%lld) pkt_dts(%lld))",
              bytesConsumed, decoded, packet.pts, packet.dts, mFrame->pts,
-             mFrame->reordered_opaque, mFrame->pkt_pts, mFrame->pkt_dts);
+             mFrame->reordered_opaque, mFrame->pts, mFrame->pkt_dts);
 
   if (bytesConsumed < 0) {
     return MediaResult(NS_ERROR_DOM_MEDIA_DECODE_ERR,
@@ -308,7 +316,7 @@ FFmpegVideoDecoder<LIBAV_VER>::DoDecode(MediaRawData* aSample,
   }
 
   // If we've decoded a frame then we need to output it
-  int64_t pts = mPtsContext.GuessCorrectPts(mFrame->pkt_pts, mFrame->pkt_dts);
+  int64_t pts = mPtsContext.GuessCorrectPts(GetFramePts(mFrame), mFrame->pkt_dts);
   // Retrieve duration from dts.
   // We use the first entry found matching this dts (this is done to
   // handle damaged file with multiple frames with the same dts)
