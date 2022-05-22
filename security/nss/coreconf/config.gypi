@@ -125,7 +125,7 @@
     # on all machines.
     'nss_include_dir%': '/usr/include/nss',
     'only_dev_random%': 1,
-    'disable_fips%': 1,
+    'disable_fips%': 0,
     'mozpkix_only%': 0,
     'coverage%': 0,
     'softfp_cflags%': '',
