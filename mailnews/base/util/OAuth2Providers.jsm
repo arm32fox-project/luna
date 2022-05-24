@@ -9,6 +9,13 @@ var EXPORTED_SYMBOLS = ["OAuth2Providers"];
 
 var {classes: Cc, interfaces: Ci, results: Cr, utils: Cu} = Components;
 
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/Services.jsm");
+
+XPCOMUtils.defineLazyGetter(this, "gPrefService", function() {
+  return Services.prefs;
+});
+
 // map of hostnames to [issuer, scope]
 var kHostnames = new Map([
   ["imap.googlemail.com", ["accounts.google.com", "https://mail.google.com/"]],
@@ -22,21 +29,18 @@ var kHostnames = new Map([
 
 // map of issuers to appKey, appSecret, authURI, tokenURI
 
-// For the moment, these details are hard-coded, since Google does not
-// provide dynamic client registration. Don't copy these values for your
-// own application--register it yourself. This code (and possibly even the
-// registration itself) will disappear when this is switched to dynamic
-// client registration.
+// For the moment, these details are user-provided, since there is no way for
+// unverified applications to get a proper OAuth2 key.
 var kIssuers = new Map ([
   ["accounts.google.com", [
-    '406964657835-aq8lmia8j95dhl1a2bvharmfk3t1hgqj.apps.googleusercontent.com',
-    'kSmqreRr0qwBWJgbf5Y-PjSU',
+    gPrefService.getCharPref("oauth2.google.clientid"),
+    gPrefService.getCharPref("oauth2.google.clientsecret"),
     'https://accounts.google.com/o/oauth2/auth',
-    'https://www.googleapis.com/oauth2/v3/token'
+    'https://oauth2.googleapis.com/token'
   ]],
   ["o2.mail.ru", [
-    'thunderbird',
-    'I0dCAXrcaNFujaaY',
+    gPrefService.getCharPref("oauth2.mailru.clientid"),
+    gPrefService.getCharPref("oauth2.mailru.clientsecret"),
     'https://o2.mail.ru/login',
     'https://o2.mail.ru/token'
   ]],
