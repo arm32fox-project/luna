@@ -33,6 +33,7 @@ SOURCES += [
     'null_bsf.c',
     'options.c',
     'parser.c',
+    'parsers.c',
     'profiles.c',
     'pthread.c',
     'pthread_frame.c',

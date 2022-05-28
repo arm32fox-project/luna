@@ -52,7 +52,7 @@
 #endif
 
 #ifndef emms_c
-#   define emms_c() while(0)
+#   define emms_c() do {} while(0)
 #endif
 
 #ifndef attribute_align_arg
@@ -172,6 +172,8 @@
         goto label;\
     }\
 }
+
+#define FF_PTR_ADD(ptr, off) ((off) ? (ptr) + (off) : (ptr))
 
 #include "libm.h"
 
