@@ -55,6 +55,7 @@
 
 /** largest possible size of flac header */
 #define MAX_FRAME_HEADER_SIZE 16
+#define MAX_FRAME_VERIFY_SIZE (MAX_FRAME_HEADER_SIZE)
 
 typedef struct FLACHeaderMarker {
     int offset;       /**< byte offset from start of FLACParseContext->buffer */
@@ -169,7 +170,7 @@ static int find_headers_search_validate(FLACParseContext *fpc, int offset)
     uint8_t *header_buf;
     int size = 0;
     header_buf = flac_fifo_read_wrap(fpc, offset,
-                                     MAX_FRAME_HEADER_SIZE,
+                                     MAX_FRAME_VERIFY_SIZE + AV_INPUT_BUFFER_PADDING_SIZE,
                                      &fpc->wrap_buf,
                                      &fpc->wrap_buf_allocated_size);
     if (frame_header_is_valid(fpc->avctx, header_buf, &fi)) {
@@ -216,16 +217,20 @@ static int find_headers_search(FLACParseContext *fpc, uint8_t *buf, int buf_size
     uint32_t x;
 
     for (i = 0; i < mod_offset; i++) {
-        if ((AV_RB16(buf + i) & 0xFFFE) == 0xFFF8)
-            size = find_headers_search_validate(fpc, search_start + i);
+        if ((AV_RB16(buf + i) & 0xFFFE) == 0xFFF8) {
+            int ret = find_headers_search_validate(fpc, search_start + i);
+            size = FFMAX(size, ret);
+        }
     }
 
     for (; i < buf_size - 1; i += 4) {
         x = AV_RB32(buf + i);
         if (((x & ~(x + 0x01010101)) & 0x80808080)) {
             for (j = 0; j < 4; j++) {
-                if ((AV_RB16(buf + i + j) & 0xFFFE) == 0xFFF8)
-                    size = find_headers_search_validate(fpc, search_start + i + j);
+                if ((AV_RB16(buf + i + j) & 0xFFFE) == 0xFFF8) {
+                    int ret = find_headers_search_validate(fpc, search_start + i + j);
+                    size = FFMAX(size, ret);
+                }
             }
         }
     }

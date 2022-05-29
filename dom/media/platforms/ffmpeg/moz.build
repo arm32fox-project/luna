@@ -13,6 +13,7 @@ DIRS += [
     'libav55',
     'ffmpeg57',
     'ffmpeg58',
+    'ffmpeg59',
 ]
 
 SOURCES += [
