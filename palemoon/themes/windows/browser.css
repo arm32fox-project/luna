@@ -95,7 +95,7 @@
   #navigator-toolbox {
     /* Override the global style for Windows 10 that adds a bottom border */
     border-bottom: none;
-  };
+  }
 }
 
 #navigator-toolbox::after {
