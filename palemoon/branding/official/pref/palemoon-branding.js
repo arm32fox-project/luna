@@ -10,6 +10,7 @@ pref("app.releaseNotesURL", "http://www.palemoon.org/releasenotes.shtml");
 pref("general.useragent.compatMode", 2);
 pref("general.useragent.compatMode.gecko", true);
 pref("general.useragent.compatMode.firefox", true);
+pref("general.useragent.compatMode.version", "102.0");
 
 // Enable dynamic UA updates
 pref("general.useragent.updates.enabled", true);
