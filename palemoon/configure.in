@@ -14,18 +14,18 @@ AC_SUBST(MC_PALEMOON)
 dnl Optional parts of the build.
 
 dnl ========================================================
-dnl = Enable Phoenix Extension Support
+dnl = Enable AppCompat GUID Support
 dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(phoenix-extensions,
-[  --enable-phoenix-extensions           Enable Phoenix Extension Support],
-    MOZ_PHOENIX_EXTENSIONS=1,
-    MOZ_PHOENIX_EXTENSIONS=)
-
-if test -n "$MOZ_PHOENIX_EXTENSIONS"; then
-    AC_DEFINE(MOZ_PHOENIX_EXTENSIONS)
+MOZ_ARG_ENABLE_BOOL(appcompat-guid,
+[  --enable-appcompat-guid           Enable AppCompat GUID Support],
+    UXP_APPCOMPAT_GUID=1,
+    UXP_APPCOMPAT_GUID=)
+ 
+if test -n "$UXP_APPCOMPAT_GUID"; then
+    AC_DEFINE(UXP_APPCOMPAT_GUID)
 fi
-
-AC_SUBST(MOZ_PHOENIX_EXTENSIONS)
+ 
+AC_SUBST(UXP_APPCOMPAT_GUID)
 
 dnl ========================================================
 dnl = Disable Sync

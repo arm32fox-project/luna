@@ -66,11 +66,10 @@ ACCEPTED_MAR_CHANNEL_IDS=unofficial,unstable,beta,release
 # XXX: Devtools are disabled until they can be made to work with Pale Moon
 MOZ_DEVTOOLS=1
 
-# Platform Feature: "Phoenix" Extensions Support aka Dual-guid system.
-# Allows installation of Firefox GUID targeted extensions despite having
-# a different Application ID
-# On UXP this is a possible feature only for the Tycho Add-ons Manager
-MOZ_PHOENIX_EXTENSIONS=1
+# Platform Feature: Dual-GUID system
+# Allows the installation of Firefox GUID targeted extensions despite having
+# a different Application ID.
+UXP_APPCOMPAT_GUID=1
 
 # Platform Feature: Sync Service
 MOZ_SERVICES_COMMON=1
