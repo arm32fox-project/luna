@@ -35,6 +35,9 @@ pref("extensions.strictCompatibility", false);
 // for it to be compatible by default.
 pref("extensions.minCompatibleAppVersion", "1.5");
 
+pref("extensions.guid.appCompatVersion", "56.9");
+pref("extensions.guid.appCompatId", "{ec8030f7-c20a-464f-9b0e-13a3a9e97384}");
+
 #define AM_DOMAIN addons.palemoon.org
 #define AM_AUS_ARGS reqVersion=%REQ_VERSION%&id=%ITEM_ID%&version=%ITEM_VERSION%&maxAppVersion=%ITEM_MAXAPPVERSION%&status=%ITEM_STATUS%&appID=%APP_ID%&appVersion=%APP_VERSION%&appOS=%APP_OS%&appABI=%APP_ABI%&locale=%APP_LOCALE%&currentAppVersion=%CURRENT_APP_VERSION%&updateType=%UPDATE_TYPE%&compatMode=%COMPATIBILITY_MODE%
 
