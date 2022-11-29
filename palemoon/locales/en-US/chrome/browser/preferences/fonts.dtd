@@ -66,7 +66,7 @@
 <!ENTITY languages.customize.Fallback.grouplabel  "Character Encoding for Legacy Content">
 <!ENTITY languages.customize.Fallback.label       "Fallback Character Encoding:">
 <!ENTITY languages.customize.Fallback.accesskey   "C">
-<!ENTITY languages.customize.Fallback.desc        "This character encoding is used for legacy content that fails to declare its encoding.">
+<!ENTITY languages.customize.Fallback.desc        "This is used for content that doesn't declare its character encoding.">
 
 <!ENTITY languages.customize.Fallback.auto        "Default for Current Locale">
 <!ENTITY languages.customize.Fallback.utf8        "UTF-8">
