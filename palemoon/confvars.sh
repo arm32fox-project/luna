@@ -99,8 +99,9 @@ OMNIJAR_NAME=palemoon.res
 MOZ_EXTENSIONS_DEFAULT=" gio"
 
 # Include bundled fonts
-if test "$OS_ARCH" = "WINNT" -o \
-        "$OS_ARCH" = "Linux"; then
+if test "$MOZ_WIDGET_TOOLKIT" = "windows" -o \
+        "$MOZ_WIDGET_TOOLKIT" = "gtk2" -o \
+        "$MOZ_WIDGET_TOOLKIT" = "gtk3"; then
   MOZ_BUNDLED_FONTS=1
 fi
 
