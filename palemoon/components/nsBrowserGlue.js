@@ -97,9 +97,11 @@ function BrowserGlue() {
   this._init();
 }
 
-# We don't have the concept of zero-window sessions on any supported OS-es
-# and therefore have to observe the browser-lastwindow-close-* topics.
+#ifndef XP_MACOSX
+# OS X has the concept of zero-window sessions and therefore ignores the
+# browser-lastwindow-close-* topics.
 #define OBSERVE_LASTWINDOW_CLOSE_TOPICS 1
+#endif
 
 BrowserGlue.prototype = {
   _saveSession: false,

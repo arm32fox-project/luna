@@ -93,6 +93,13 @@ function getFileDisplayName(file) {
     } catch (e) {}
   }
 #endif
+#ifdef XP_MACOSX
+  if (file instanceof Ci.nsILocalFileMac) {
+    try {
+      return file.bundleDisplayName;
+    } catch (e) {}
+  }
+#endif
   return file.leafName;
 }
 
@@ -1322,7 +1329,11 @@ var gApplicationsPane = {
 #ifdef XP_WIN
 #expand    aExecutable.leafName != "__MOZ_APP_NAME__.exe";
 #else
+#ifdef XP_MACOSX
+#expand    aExecutable.leafName != "__MOZ_MACBUNDLE_NAME__";
+#else
 #expand    aExecutable.leafName != "__MOZ_APP_NAME__-bin";
+#endif
 #endif
   },
 

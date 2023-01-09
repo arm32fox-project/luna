@@ -10,6 +10,8 @@
 
 #if defined(XP_WIN)
 #include "nsWindowsShellService.h"
+#elif defined(XP_MACOSX)
+#include "nsMacShellService.h"
 #elif defined(MOZ_WIDGET_GTK)
 #include "nsGNOMEShellService.h"
 #endif
@@ -26,6 +28,8 @@ using namespace mozilla::browser;
 NS_GENERIC_FACTORY_CONSTRUCTOR(DirectoryProvider)
 #if defined(XP_WIN)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsWindowsShellService)
+#elif defined(XP_MACOSX)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsMacShellService)
 #elif defined(MOZ_WIDGET_GTK)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsGNOMEShellService, Init)
 #endif
@@ -39,6 +43,9 @@ NS_DEFINE_NAMED_CID(NS_SHELLSERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_SHELLSERVICE_CID);
 #endif
 NS_DEFINE_NAMED_CID(NS_FEEDSNIFFER_CID);
+#ifdef XP_MACOSX
+NS_DEFINE_NAMED_CID(NS_SHELLSERVICE_CID);
+#endif
 
 static const mozilla::Module::CIDEntry kBrowserCIDs[] = {
     { &kNS_BROWSERDIRECTORYPROVIDER_CID, false, nullptr, DirectoryProviderConstructor },
@@ -48,6 +55,9 @@ static const mozilla::Module::CIDEntry kBrowserCIDs[] = {
     { &kNS_SHELLSERVICE_CID, false, nullptr, nsGNOMEShellServiceConstructor },
 #endif
     { &kNS_FEEDSNIFFER_CID, false, nullptr, nsFeedSnifferConstructor },
+#ifdef XP_MACOSX
+    { &kNS_SHELLSERVICE_CID, false, nullptr, nsMacShellServiceConstructor },
+#endif
     { nullptr }
 };
 
@@ -59,6 +69,9 @@ static const mozilla::Module::ContractIDEntry kBrowserContracts[] = {
     { NS_SHELLSERVICE_CONTRACTID, &kNS_SHELLSERVICE_CID },
 #endif
     { NS_FEEDSNIFFER_CONTRACTID, &kNS_FEEDSNIFFER_CID },
+#ifdef XP_MACOSX
+    { NS_SHELLSERVICE_CONTRACTID, &kNS_SHELLSERVICE_CID },
+#endif
     { nullptr }
 };
 
