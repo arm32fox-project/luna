@@ -15,7 +15,7 @@ browser.jar:
 #ifdef MOZ_SERVICES_SYNC
   skin/classic/browser/aboutSyncTabs.css
 #endif
-* skin/classic/browser/autocomplete.css
+  skin/classic/browser/autocomplete.css
   skin/classic/browser/actionicon-tab.png
 * skin/classic/browser/browser.css
   skin/classic/browser/click-to-play-warning-stripes.png
@@ -87,8 +87,8 @@ browser.jar:
   skin/classic/browser/downloads/download-notification-finish.png     (downloads/download-notification-finish.png)
   skin/classic/browser/downloads/download-notification-start.png      (downloads/download-notification-start.png)
   skin/classic/browser/downloads/download-summary.png                 (downloads/download-summary.png)
-* skin/classic/browser/downloads/downloads.css                        (downloads/downloads.css)
-* skin/classic/browser/downloads/allDownloadsViewOverlay.css          (downloads/allDownloadsViewOverlay.css)
+  skin/classic/browser/downloads/downloads.css                        (downloads/downloads.css)
+  skin/classic/browser/downloads/allDownloadsViewOverlay.css          (downloads/allDownloadsViewOverlay.css)
   skin/classic/browser/downloads/contentAreaDownloadsView.css         (downloads/contentAreaDownloadsView.css)
   skin/classic/browser/feeds/feedIcon.png                             (feeds/feedIcon.png)
   skin/classic/browser/feeds/feedIcon16.png                           (feeds/feedIcon16.png)
@@ -104,7 +104,7 @@ browser.jar:
   skin/classic/browser/newtab/noise.png                               (../shared/newtab/noise.png)
   skin/classic/browser/newtab/pinned.png                              (../shared/newtab/pinned.png)
   skin/classic/browser/places/places.css                              (places/places.css)
-* skin/classic/browser/places/organizer.css                           (places/organizer.css)
+  skin/classic/browser/places/organizer.css                           (places/organizer.css)
   skin/classic/browser/places/editBookmark.png                        (places/editBookmark.png)
   skin/classic/browser/places/bookmark.png                            (places/bookmark.png)
   skin/classic/browser/places/query.png                               (places/query.png)
