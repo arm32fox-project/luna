@@ -30,7 +30,11 @@ var SidebarUtils = {
         mouseInGutter = aEvent.clientX < rect.x;
     }
 
+#ifdef XP_MACOSX
+    var modifKey = aEvent.metaKey || aEvent.shiftKey;
+#else
     var modifKey = aEvent.ctrlKey || aEvent.shiftKey;
+#endif
 
     var isContainer = tbo.view.isContainer(cell.row);
     var openInTabs = isContainer &&

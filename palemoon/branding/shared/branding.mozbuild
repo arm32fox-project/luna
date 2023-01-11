@@ -39,6 +39,14 @@ def ApplicationBranding():
             'default32.png',
             'default48.png',
         ]
+    elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
+        BRANDING_FILES += [
+            '../shared/background.png',
+            'disk.icns',
+            'document.icns',
+            'dsstore',
+            'firefox.icns',
+        ]
 
     BRANDING_FILES += ['../shared/license.txt']
 

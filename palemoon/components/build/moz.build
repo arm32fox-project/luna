@@ -29,6 +29,7 @@ if CONFIG['OS_ARCH'] == 'WINNT':
         'ole32.dll',
     ]
 
-# GTK: Need to link with glib for GNOME shell service
-if CONFIG['MOZ_WIDGET_TOOLKIT'] in ('gtk2', 'gtk3'):
+# Mac: Need to link with CoreFoundation for Mac Migrators (PList reading code)
+# GTK2: Need to link with glib for GNOME shell service
+if CONFIG['MOZ_WIDGET_TOOLKIT'] in ('cocoa', 'gtk2', 'gtk3'):
     OS_LIBS += CONFIG['TK_LIBS']

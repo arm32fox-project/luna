@@ -35,11 +35,16 @@
 #include "mozilla/Sprintf.h"
 #include "mozilla/WindowsDllBlocklist.h"
 
+#if !defined(MOZ_WIDGET_COCOA)
 #define MOZ_BROWSER_CAN_BE_CONTENTPROC
 #include "../../ipc/contentproc/plugin-container.cpp"
+#endif
 
 using namespace mozilla;
 
+#ifdef XP_MACOSX
+#define kOSXResourcesFolder "Resources"
+#endif
 #define kDesktopFolder "browser"
 
 static void Output(const char *fmt, ... )
@@ -224,6 +229,9 @@ static int do_main(int argc, char* argv[], char* envp[], nsIFile *xreDirectory)
 
   nsCOMPtr<nsIFile> greDir;
   exeFile->GetParent(getter_AddRefs(greDir));
+#ifdef XP_MACOSX
+  greDir->SetNativeLeafName(NS_LITERAL_CSTRING(kOSXResourcesFolder));
+#endif
   nsCOMPtr<nsIFile> appSubdir;
   greDir->Clone(getter_AddRefs(appSubdir));
   appSubdir->Append(NS_LITERAL_STRING(kDesktopFolder));
@@ -302,6 +310,10 @@ InitXPCOMGlue(const char *argv0, nsIFile **xreDirectory)
   if (xreDirectory) {
     // chop XPCOM_DLL off exePath
     *lastSlash = '\0';
+#ifdef XP_MACOSX
+    lastSlash = strrchr(exePath, XPCOM_FILE_PATH_SEPARATOR[0]);
+    strcpy(lastSlash + 1, kOSXResourcesFolder);
+#endif
 #ifdef XP_WIN
     rv = NS_NewLocalFile(NS_ConvertUTF8toUTF16(exePath), false,
                          xreDirectory);
@@ -365,6 +377,15 @@ int main(int argc, char* argv[], char* envp[])
   int result = do_main(argc, argv, envp, xreDirectory);
 
   NS_LogTerm();
+
+#ifdef XP_MACOSX
+  // Allow writes again. While we would like to catch writes from static
+  // destructors to allow early exits to use _exit, we know that there is
+  // at least one such write that we don't control (see bug 826029). For
+  // now we enable writes again and early exits will have to use exit instead
+  // of _exit.
+  XRE_StopLateWriteChecks();
+#endif
 
   return result;
 }
