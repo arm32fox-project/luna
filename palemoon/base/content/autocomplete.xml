@@ -450,8 +450,13 @@
           var cancel = false;
 
           // Catch any keys that could potentially move the caret. Ctrl can be
-          // used in combination with these keys on Windows and Linux.
+          // used in combination with these keys on Windows and Linux; and Alt
+          // can be used on OS X, so make sure the unused one isn't used.
+#ifdef XP_MACOSX
+          let metaKey = aEvent.ctrlKey;
+#else
           let metaKey = aEvent.altKey;
+#endif
           if (!this.disableKeyNavigation && !metaKey) {
             switch (aEvent.keyCode) {
               case KeyEvent.DOM_VK_LEFT:
@@ -489,6 +494,11 @@
               cancel = this.mController.handleEscape();
               break;
             case KeyEvent.DOM_VK_RETURN:
+#ifdef XP_MACOSX
+              // Prevent the default action, since it will beep on Mac
+              if (aEvent.metaKey)
+                aEvent.preventDefault();
+#endif
               this.mEnterEvent = aEvent;
               if (this.mController.selection) {
                 this._selectionDetails = {
@@ -499,9 +509,19 @@
               cancel = this.handleEnter();
               break;
             case KeyEvent.DOM_VK_DELETE:
+#ifdef XP_MACOSX
+              if (!aEvent.shiftKey) {
+                break;
+              }
+#endif
               cancel = this.handleDelete();
               break;
             case KeyEvent.DOM_VK_BACK_SPACE:
+#ifdef XP_MACOSX
+              if (aEvent.shiftKey) {
+                cancel = this.handleDelete();
+              }
+#endif
               break;
             case KeyEvent.DOM_VK_DOWN:
             case KeyEvent.DOM_VK_UP:
@@ -509,7 +529,9 @@
                 this.toggleHistoryPopup();
               break;
             case KeyEvent.DOM_VK_F4:
+#ifndef XP_MACOSX
               this.toggleHistoryPopup();
+#endif
               break;
           }
 

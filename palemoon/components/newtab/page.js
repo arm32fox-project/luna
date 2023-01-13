@@ -128,6 +128,12 @@ var gPage = {
 
     // Initialize the drop target shim.
     gDropTargetShim.init();
+
+#ifdef XP_MACOSX
+    // Workaround to prevent a delay on MacOSX due to a slow drop animation.
+    document.addEventListener("dragover", this, false);
+    document.addEventListener("drop", this, false);
+#endif
   },
 
   /**

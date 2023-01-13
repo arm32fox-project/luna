@@ -18,6 +18,12 @@ var FullScreen = {
       fullscreenCommand.removeAttribute("checked");
     }
 
+#ifdef XP_MACOSX
+    // Make sure the menu items are adjusted.
+    document.getElementById("enterFullScreenItem").hidden = enterFS;
+    document.getElementById("exitFullScreenItem").hidden = !enterFS;
+#endif
+
     if (!this._fullScrToggler) {
       this._fullScrToggler = document.getElementById("fullscr-toggler");
       this._fullScrToggler.addEventListener("mouseover", this._expandCallback, false);
@@ -450,5 +456,10 @@ XPCOMUtils.defineLazyGetter(FullScreen, "useLionFullScreen", function() {
   // * on OS X
   // * on Lion or higher (Darwin 11+)
   // * have fullscreenbutton="true"
+#ifdef XP_MACOSX
+  return parseFloat(Services.sysinfo.getProperty("version")) >= 11 &&
+         document.documentElement.getAttribute("fullscreenbutton") == "true";
+#else
   return false;
+#endif
 });
