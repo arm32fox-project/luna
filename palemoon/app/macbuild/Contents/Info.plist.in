@@ -205,23 +205,27 @@
 	<true/>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.productivity</string>
-    <key>LSEnvironment</key>
-    <dict>
-        <key>MallocNanoZone</key>
-        <string>0</string>
-    </dict>
+	<key>LSEnvironment</key>
+	<dict>
+		<key>MallocNanoZone</key>
+		<string>0</string>
+		<key>SYSTEM_VERSION_COMPAT</key>
+		<string>0</string>
+	</dict>
 	<key>LSMinimumSystemVersion</key>
-	<string>10.6</string>
+	<string>10.7</string>
 	<key>LSMinimumSystemVersionByArchitecture</key>
 	<dict>
 		<key>i386</key>
-		<string>10.6.0</string>
+		<string>10.7.0</string>
 		<key>x86_64</key>
-		<string>10.6.0</string>
+		<string>10.7.0</string>
 	</dict>
-  <key>NSSupportsAutomaticGraphicsSwitching</key>
-  <true/>
-  <key>NSPrincipalClass</key>
-  <string>GoannaNSApplication</string>
+	<key>NSSupportsAutomaticGraphicsSwitching</key>
+	<true/>
+	<key>NSRequiresAquaSystemAppearance</key>
+	<true/>
+	<key>NSPrincipalClass</key>
+	<string>GoannaNSApplication</string>
 </dict>
 </plist>
