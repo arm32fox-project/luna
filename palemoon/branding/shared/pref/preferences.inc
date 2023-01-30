@@ -80,6 +80,12 @@ pref("services.sync.APILevel", 1); // FSyncMS doesn't support 'info/configuratio
 // Make sure we shortcut out of a11y to save walking unnecessary code
 pref("accessibility.force_disabled", 1);
 
+// Enable Firefox compatmode by default in official channels.
+pref("general.useragent.compatMode", 2);
+pref("general.useragent.compatMode.gecko", true);
+pref("general.useragent.compatMode.firefox", true);
+pref("general.useragent.compatMode.version", "102.0");
+
 // ============================================================================
 
 // ===| DevTools |=============================================================
