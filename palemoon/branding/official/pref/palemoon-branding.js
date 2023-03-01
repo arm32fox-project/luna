@@ -3,8 +3,8 @@
 #include ../../shared/pref/preferences.inc
 #include ../../shared/pref/uaoverrides.inc
 
-pref("startup.homepage_override_url","http://www.palemoon.org/releasenotes.shtml");
-pref("app.releaseNotesURL", "http://www.palemoon.org/releasenotes.shtml");
+pref("startup.homepage_override_url","https://www.palemoon.org/releasenotes.shtml");
+pref("app.releaseNotesURL", "https://www.palemoon.org/releasenotes.shtml");
 
 // Firefox compatmode is set in shared prefs.
 
@@ -33,11 +33,11 @@ pref("app.update.promptWaitTime", 86400);
 
 // URL user can browse to manually if for some reason all update
 // installation attempts fail.
-pref("app.update.url.manual", "http://www.palemoon.org/");
+pref("app.update.url.manual", "https://www.palemoon.org/");
 
 // A default value for the "More information about this update" link
 // supplied in the "An update is available" page of the update wizard. 
-pref("app.update.url.details", "http://www.palemoon.org/releasenotes.shtml");
+pref("app.update.url.details", "https://www.palemoon.org/releasenotes.shtml");
 #else
 // Updates disabled (Mac, etc.)
 pref("app.update.enabled", false);
