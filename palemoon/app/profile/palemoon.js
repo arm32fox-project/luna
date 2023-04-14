@@ -528,6 +528,11 @@ pref("dom.disable_window_flip",                   true);
 // supported (bug 736048)
 pref("dom.w3c_touch_events.enabled",        0);
 
+// Whether performance.GetEntries* will contain an entry for the active document
+// Disabled by default in Pale Moon (unlike in UXP) since it can be used for
+// tracking/profiling.
+pref("dom.enable_performance_navigation_timing", false);
+
 // popups.policy 1=allow,2=reject
 pref("privacy.popups.policy",               1);
 pref("privacy.popups.usecustom",            true);
