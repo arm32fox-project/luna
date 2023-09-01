@@ -75,7 +75,9 @@
 @BINPATH@/@DLL_PREFIX@gkmedias@DLL_SUFFIX@
 #endif
 #ifndef MOZ_SYSTEM_HUNSPELL
+#ifndef XP_SOLARIS
 @BINPATH@/@DLL_PREFIX@hunspell@DLL_SUFFIX@
+#endif
 #endif
 #ifndef MOZ_SYSTEM_NSPR
 #ifndef MOZ_FOLD_LIBS
@@ -340,12 +342,12 @@
 
 ; Shutdown Terminator
 
-#if defined(CLANG_CXX)
-#if defined(MOZ_ASAN) || defined(MOZ_TSAN)
-@BINPATH@/llvm-symbolizer
+#ifndef XP_MACOSX
+#if defined(MOZ_ASAN) || defined(MOZ_TSAN) || defined(MOZ_LSAN) || defined(MOZ_UBSAN)
+@BINPATH@/llvm-symbolizer@BIN_SUFFIX@
 #endif
 #endif
 
-#if defined(MOZ_ASAN) && defined(CLANG_CL)
+#if defined(MOZ_ASAN) && defined(XP_WIN)
 @BINPATH@/clang_rt.asan_dynamic-*.dll
 #endif
