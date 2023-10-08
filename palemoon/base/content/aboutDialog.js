@@ -58,4 +58,20 @@ function init(aEvent)
     var relnotes = document.getElementById("releaseNotesURL");
     relnotes.setAttribute("href", releaseNotesURL);
   }
+
+  { // Halloween check, scoped for let
+    let dateObj = new Date();
+    let month = dateObj.getUTCMonth() + 1; //months from 1-12
+    let day = dateObj.getUTCDate();
+    
+    if ((month == 10 && day > 13) ||
+        (month == 11 && day < 5)) {
+      // We're in the second half of Oct or start of Nov
+      try {
+        document.styleSheets[0].addRule('#aboutPMDialogContainer::before','animation: 6s fadeIn;');
+      } catch (e) {
+        Components.utils.reportError(e);
+      }
+    }
+  }
 }
