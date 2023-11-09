@@ -86,6 +86,9 @@ pref("general.useragent.compatMode.gecko", true);
 pref("general.useragent.compatMode.firefox", true);
 pref("general.useragent.compatMode.version", "102.0");
 
+// Limit protocol fallback from TLS 1.3
+pref("security.tls.version.fallback-limit", 4);
+
 // ============================================================================
 
 // ===| DevTools |=============================================================
