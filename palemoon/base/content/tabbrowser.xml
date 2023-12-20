@@ -961,10 +961,19 @@
             var docElement = this.ownerDocument.documentElement;
             var sep = docElement.getAttribute("titlemenuseparator");
 
-            // Strip out any null bytes in the content title, since the
-            // underlying widget implementations of nsWindow::SetTitle pass
-            // null-terminated strings to system APIs.
-            var docTitle = aBrowser.contentTitle.replace("\0", "", "g");
+            var docTitle;
+            if (!Services.prefs.getBoolPref("privacy.exposeContentTitleInWindow") ||
+                ((PrivateBrowsingUtils.isWindowPrivate(window) ||
+                  PrivateBrowsingUtils.permanentPrivateBrowsing) &&
+                 !Services.prefs.getBoolPref("privacy.exposeContentTitleInWindow.pbm"))) {
+              // If exposing of the content title is preffed off, don't set the docTitle
+              // so it will be filled with titledefault below.
+            } else {
+              // Strip out any null bytes in the content title, since the
+              // underlying widget implementations of nsWindow::SetTitle pass
+              // null-terminated strings to system APIs.
+              docTitle = aBrowser.contentTitle.replace("\0", "", "g");
+            }
 
             if (!docTitle)
               docTitle = docElement.getAttribute("titledefault");
