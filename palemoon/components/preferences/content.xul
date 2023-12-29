@@ -56,6 +56,18 @@
 
     <stringbundle id="bundlePreferences" src="chrome://browser/locale/preferences/preferences.properties"/>
 
+    <tabbox id="contentPrefs" flex="1">
+
+      <tabs id="tabsElement">
+        <tab id="generalTab" label="&generalTab.label;" helpTopic="prefs-content"/>
+        <tab id="mediaTab" label="&mediaTab.label;" helpTopic="prefs-content"/>
+      </tabs>
+
+      <tabpanels flex="1">
+
+        <!-- General -->
+        <tabpanel id="generalPanel" orient="vertical">
+        
     <!-- various checkboxes, font-fu -->
     <groupbox id="miscGroup">
       <grid id="contentGrid">
@@ -173,6 +185,11 @@
                  label="&jsOptionsWasm.label;" accesskey="&jsOptionsWasm.accesskey;"/>
      </groupbox>    
 
+        </tabpanel>
+        
+        <!-- Media -->
+        <tabpanel id="mediaPanel" orient="vertical">
+
     <!-- Video -->
      <groupbox id="videoGroup">
        <caption label="&video.label;"/>
@@ -203,6 +220,10 @@
          <checkbox id="enableFLAC"   label="&enableFLAC.label;"   preference="media.flac.enabled"/>
        </hbox>
      </groupbox>
+
+        </tabpanel>
+      </tabpanels>
+    </tabbox>
 
   </prefpane>
 
