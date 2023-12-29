@@ -37,6 +37,10 @@
 <!ENTITY  jsOptionsWasm.label         "Enable WebAssembly (WASM)">
 <!ENTITY  jsOptionsWasm.accesskey     "y">
 
+<!ENTITY  fullscreen.label            "Full-screen">
+<!ENTITY  restrictToWindow.label      "Restrict full-screen to filling the existing window">
+<!ENTITY  restrictToWindow.accesskey  "R">
+
 <!ENTITY  video.label                 "Video">
 <!ENTITY  videoMSE.label              "Enable Media Source Extensions (MSE)">
 <!ENTITY  videoMSE.accesskey          "M">

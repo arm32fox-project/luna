@@ -34,7 +34,9 @@
                   
       <!-- JavaScript -->
       <preference id="javascript.options.wasm"        name="javascript.options.wasm"          type="bool"/>
-
+      
+      <!-- Fullscreen -->
+      <preference id="full-screen-api.restrict-to-window" name="full-screen-api.restrict-to-window" type="bool"/>
 
       <!-- VIDEO -->
       <preference id="media.mediasource.enabled"       name="media.mediasource.enabled"       type="bool"/>
@@ -190,6 +192,14 @@
         <!-- Media -->
         <tabpanel id="mediaPanel" orient="vertical">
 
+    <!-- Fullscreen -->
+     <groupbox id="fullscreenGroup">
+       <caption label="&fullscreen.label;"/>
+ 
+       <checkbox id="restrictToWindow" preference="full-screen-api.restrict-to-window"
+                 label="&restrictToWindow.label;" accesskey="&restrictToWindow.accesskey;" />
+     </groupbox>
+    
     <!-- Video -->
      <groupbox id="videoGroup">
        <caption label="&video.label;"/>
