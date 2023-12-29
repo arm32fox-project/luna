@@ -40,6 +40,8 @@
 <!ENTITY  fullscreen.label            "Full-screen">
 <!ENTITY  restrictToWindow.label      "Restrict full-screen to filling the existing window">
 <!ENTITY  restrictToWindow.accesskey  "R">
+<!ENTITY  jsStopScripts.label         "Automatically stop non-responsive scripts">
+<!ENTITY  jsStopScripts.accesskey     "n">
 
 <!ENTITY  video.label                 "Video">
 <!ENTITY  videoMSE.label              "Enable Media Source Extensions (MSE)">

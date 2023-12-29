@@ -34,6 +34,7 @@
                   
       <!-- JavaScript -->
       <preference id="javascript.options.wasm"        name="javascript.options.wasm"          type="bool"/>
+      <preference id="dom.always_stop_slow_scripts"   name="dom.always_stop_slow_scripts"     type="bool"/>
       
       <!-- Fullscreen -->
       <preference id="full-screen-api.restrict-to-window" name="full-screen-api.restrict-to-window" type="bool"/>
@@ -185,6 +186,8 @@
 
        <checkbox id="jsOptionsWasm" preference="javascript.options.wasm"
                  label="&jsOptionsWasm.label;" accesskey="&jsOptionsWasm.accesskey;"/>
+       <checkbox id="jsStopScripts" preference="dom.always_stop_slow_scripts"
+                 label="&jsStopScripts.label;" accesskey="&jsStopScripts.accesskey;"/>
      </groupbox>    
 
         </tabpanel>
