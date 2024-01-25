@@ -34,7 +34,10 @@
                   
       <!-- JavaScript -->
       <preference id="javascript.options.wasm"        name="javascript.options.wasm"          type="bool"/>
-
+      <preference id="dom.always_stop_slow_scripts"   name="dom.always_stop_slow_scripts"     type="bool"/>
+      
+      <!-- Fullscreen -->
+      <preference id="full-screen-api.restrict-to-window" name="full-screen-api.restrict-to-window" type="bool"/>
 
       <!-- VIDEO -->
       <preference id="media.mediasource.enabled"       name="media.mediasource.enabled"       type="bool"/>
@@ -56,6 +59,18 @@
 
     <stringbundle id="bundlePreferences" src="chrome://browser/locale/preferences/preferences.properties"/>
 
+    <tabbox id="contentPrefs" flex="1">
+
+      <tabs id="tabsElement">
+        <tab id="generalTab" label="&generalTab.label;" helpTopic="prefs-content"/>
+        <tab id="mediaTab" label="&mediaTab.label;" helpTopic="prefs-content"/>
+      </tabs>
+
+      <tabpanels flex="1">
+
+        <!-- General -->
+        <tabpanel id="generalPanel" orient="vertical">
+        
     <!-- various checkboxes, font-fu -->
     <groupbox id="miscGroup">
       <grid id="contentGrid">
@@ -171,8 +186,23 @@
 
        <checkbox id="jsOptionsWasm" preference="javascript.options.wasm"
                  label="&jsOptionsWasm.label;" accesskey="&jsOptionsWasm.accesskey;"/>
+       <checkbox id="jsStopScripts" preference="dom.always_stop_slow_scripts"
+                 label="&jsStopScripts.label;" accesskey="&jsStopScripts.accesskey;"/>
      </groupbox>    
 
+        </tabpanel>
+        
+        <!-- Media -->
+        <tabpanel id="mediaPanel" orient="vertical">
+
+    <!-- Fullscreen -->
+     <groupbox id="fullscreenGroup">
+       <caption label="&fullscreen.label;"/>
+ 
+       <checkbox id="restrictToWindow" preference="full-screen-api.restrict-to-window"
+                 label="&restrictToWindow.label;" accesskey="&restrictToWindow.accesskey;" />
+     </groupbox>
+    
     <!-- Video -->
      <groupbox id="videoGroup">
        <caption label="&video.label;"/>
@@ -203,6 +233,10 @@
          <checkbox id="enableFLAC"   label="&enableFLAC.label;"   preference="media.flac.enabled"/>
        </hbox>
      </groupbox>
+
+        </tabpanel>
+      </tabpanels>
+    </tabbox>
 
   </prefpane>
 

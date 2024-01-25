@@ -506,6 +506,11 @@ pref("browser.bookmarks.max_backups",             10);
 
 // Scripts & Windows prefs
 pref("dom.disable_open_during_load",              true);
+pref("dom.max_chrome_script_run_time",            30);
+pref("dom.max_script_run_time",                   15);
+// Automatically terminate non-responsive scripts if script_run_time expires.
+pref("dom.always_stop_slow_scripts",              true);
+
 pref("javascript.options.showInConsole",          true);
 #ifdef DEBUG
 pref("general.warnOnAboutConfig",                 false);

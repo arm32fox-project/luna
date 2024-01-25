@@ -2,6 +2,9 @@
    - License, v. 2.0. If a copy of the MPL was not distributed with this
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
+<!ENTITY  generalTab.label            "General">
+<!ENTITY  mediaTab.label              "Media">
+
 <!ENTITY  blockPopups.label           "Block pop-up windows">
 <!ENTITY  blockPopups.accesskey       "B">
 <!ENTITY  popupExceptions.label       "Exceptions…">
@@ -33,6 +36,12 @@
 <!ENTITY  jsOptions.label             "JavaScript">
 <!ENTITY  jsOptionsWasm.label         "Enable WebAssembly (WASM)">
 <!ENTITY  jsOptionsWasm.accesskey     "y">
+
+<!ENTITY  fullscreen.label            "Full-screen">
+<!ENTITY  restrictToWindow.label      "Restrict full-screen to filling the existing window">
+<!ENTITY  restrictToWindow.accesskey  "R">
+<!ENTITY  jsStopScripts.label         "Automatically stop non-responsive scripts">
+<!ENTITY  jsStopScripts.accesskey     "n">
 
 <!ENTITY  video.label                 "Video">
 <!ENTITY  videoMSE.label              "Enable Media Source Extensions (MSE)">
