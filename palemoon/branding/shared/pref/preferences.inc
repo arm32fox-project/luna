@@ -34,10 +34,6 @@ pref("extensions.getAddons.cache.enabled", false);
 
 // ===| DOM |==================================================================
 
-// Set max script runtimes to sane values
-pref("dom.max_chrome_script_run_time", 90); //Some addons need ample time!
-pref("dom.max_script_run_time", 20); //Should be plenty for a page script to do what it needs
-
 // ============================================================================
 
 // ===| Plugins |==============================================================
