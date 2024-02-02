@@ -5220,8 +5220,14 @@ function contentAreaClick(event, isPanelClick) {
 
   let [href, linkNode] = hrefAndLinkNodeForClickEvent(event);
   if (!href) {
+    // We only want to navigate if middle-clicking general content elements
+    // which will always resolve to BODY as the active element on the
+    // ownerDocument. If necessary we can expand this in the below check.
+    let pasteTargetElement = event.target.ownerDocument.activeElement.tagName;
+    
     // Not a link, handle middle mouse navigation.
     if (event.button == 1 &&
+        pasteTargetElement == "BODY" &&
         gPrefService.getBoolPref("middlemouse.contentLoadURL") &&
         !gPrefService.getBoolPref("general.autoScroll")) {
       middleMousePaste(event);
