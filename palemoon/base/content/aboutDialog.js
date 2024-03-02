@@ -36,12 +36,21 @@ function init(aEvent)
     // Pref is unset
   }
 
-  // Include the build ID if this is an "a#" or "b#" build
+  let versionField = document.getElementById("aboutVersion");
+  
+#ifdef MOZ_WIDGET_GTK
+  // If on Linux-GTK, append the toolkit "(GTK2)" or "(GTK3)"
+  let toolkit = Components.classes["@mozilla.org/xre/app-info;1"]
+                .getService(Components.interfaces.nsIXULRuntime).widgetToolkit.toUpperCase();
+  versionField.textContent += ` (${toolkit})`;
+#endif
+
+  // Include the build date if this is an "a#" or "b#" build
   let version = Services.appinfo.version;
   if (/[ab]\d+$/.test(version)) {
     let buildID = Services.appinfo.appBuildID;
     let buildDate = buildID.slice(0,4) + "-" + buildID.slice(4,6) + "-" + buildID.slice(6,8);
-    document.getElementById("aboutVersion").textContent += " (" + buildDate + ")";
+    versionField.textContent += " (" + buildDate + ")";
   }
 
 #ifdef XP_MACOSX
