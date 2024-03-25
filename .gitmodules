@@ -1,3 +1,3 @@
 [submodule "platform"]
 	path = platform
-url=https://repo.palemoon.org/MoonchildProductions/UXP
+url=https://github.com/arm32fox-project/uxp-armv7
