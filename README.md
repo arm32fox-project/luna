@@ -1,16 +1,10 @@
-# Pale Moon web browser
+# Luna
 
-This is the source code for the Pale Moon web browser, an independent browser derived from Firefox/Mozilla community code. The source tree is
-laid out in a "comm-central" style configuration where only the code specific to Pale Moon is kept in this repository.
+**Note: this is very WIP. The current status as of 25/03/2024 is that it configures without errors, however you have to skip some false errors in the configure phase. I will do a build guide in the wiki soon with how to set up the dependencies for compiling.**
 
-The shared Unified XUL Platform source code is referenced here as a git submodule contained in the `platform/` directory and is required to build the application.
+This is a web browser for the Windows on ARMv7 platform, which runs on devices such as the Surface RT. I won't promise a release date for this yet but I promise that I will do my best at porting.
+
+Oh and if you are interested in building this, do NOT follow the Pale Moon build guide as it is meant for Win32/Win64 targets. Please wait for me to do a build guide for Luna.
 
 ## Getting the platform sub-module
 `git submodule init && git submodule update`
-
-## Resources
-
- * [Build Pale Moon for Windows](https://developer.palemoon.org/build/windows/)
- * [Build Pale Moon for Linux](https://developer.palemoon.org/build/linux/)
- * [Pale Moon home page](http://www.palemoon.org/)
- * [Code of Conduct, Contributing, and UXP Coding style](https://repo.palemoon.org/MoonchildProductions/UXP/src/branch/master/docs)
